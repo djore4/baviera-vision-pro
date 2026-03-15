@@ -190,28 +190,13 @@ export default function RetailsPage() {
             <div className="bg-card border border-border rounded-lg p-3">
               <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Garantia de Entrega</h3>
               <ResponsiveContainer width="100%" height={100}>
-                <Treemap
+              <Treemap
                   data={garData}
                   dataKey="size"
                   aspectRatio={3}
                   stroke="hsl(var(--card))"
                   onClick={(node: any) => { if (node?.name) handleGarClick(node.name); }}
-                  content={({ x, y, width, height, name, size }: any) => (
-                    <g>
-                      <rect
-                        x={x} y={y} width={width} height={height}
-                        fill={name === 'Certo' ? '#16A34A' : '#94A3B8'}
-                        stroke="hsl(var(--card))" strokeWidth={2}
-                        style={{ cursor: 'pointer', opacity: selectedGar && selectedGar !== name ? 0.3 : 1 }}
-                      />
-                      {width > 30 && height > 20 && (
-                        <>
-                          <text x={x + width / 2} y={y + height / 2 - 6} textAnchor="middle" fill="white" fontSize={11} fontWeight="bold">{name}</text>
-                          <text x={x + width / 2} y={y + height / 2 + 10} textAnchor="middle" fill="white" fontSize={13} fontWeight="bold">{size}</text>
-                        </>
-                      )}
-                    </g>
-                  )}
+                  content={<GarTreemapContent selectedGar={selectedGar} />}
                 />
               </ResponsiveContainer>
               <p className="text-[10px] text-muted-foreground mt-1 text-center">Clique para filtrar</p>
