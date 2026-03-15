@@ -20,7 +20,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <DataProvider>
-        <BrowserRouter basename="/baviera-vision-pro">
+        <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/retails" element={<AppLayout><RetailsPage /></AppLayout>} />
