@@ -371,6 +371,27 @@ export default function RetailsPage() {
   );
 }
 
+function GarTreemapContent(props: any) {
+  const { x, y, width, height, name, size, selectedGar } = props;
+  if (!width || !height || width < 1 || height < 1) return null;
+  return (
+    <g>
+      <rect
+        x={x} y={y} width={width} height={height}
+        fill={name === 'Certo' ? '#16A34A' : '#94A3B8'}
+        stroke="hsl(var(--card))" strokeWidth={2}
+        style={{ cursor: 'pointer', opacity: selectedGar && selectedGar !== name ? 0.3 : 1 }}
+      />
+      {width > 30 && height > 20 && (
+        <>
+          <text x={x + width / 2} y={y + height / 2 - 6} textAnchor="middle" fill="white" fontSize={11} fontWeight="bold">{name}</text>
+          <text x={x + width / 2} y={y + height / 2 + 10} textAnchor="middle" fill="white" fontSize={13} fontWeight="bold">{size}</text>
+        </>
+      )}
+    </g>
+  );
+}
+
 function GaugeSimple({ value }: { value: number }) {
   const clamped = Math.min(Math.max(value, 0), 150);
   const angle = -90 + (clamped / 150) * 180;
