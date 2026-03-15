@@ -60,27 +60,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const availablePeriods = React.useMemo(() => {
     if (!data) return { years: [], months: [] };
-    const monthSet = new Set<string>();
+    const yearsSet = new Set<number>();
     data.control.forEach(r => {
       const dm = getDeliveryMonth(r);
-      if (dm) monthSet.add(dm);
-      if (r.neg) {
-        const y = r.neg.getFullYear();
-        const m = String(r.neg.getMonth() + 1).padStart(2, '0');
-        monthSet.add(`${y}/${m}`);
+      if (dm) {
+        const [y] = dm.split('/').map(Number);
+        if (y) yearsSet.add(y);
       }
+      if (r.neg) yearsSet.add(r.neg.getFullYear());
     });
-    const years = new Set<number>();
+    const years = Array.from(yearsSet).sort();
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const months: { year: number; month: number; label: string }[] = [];
-    Array.from(monthSet).sort().forEach(s => {
-      const [y, m] = s.split('/').map(Number);
-      if (y && m) {
-        years.add(y);
-        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    years.forEach(y => {
+      for (let m = 1; m <= 12; m++) {
         months.push({ year: y, month: m, label: `${monthNames[m - 1]} ${y}` });
       }
     });
-    return { years: Array.from(years).sort(), months };
+    return { years, months };
   }, [data]);
 
   const filteredControl = React.useMemo(() => {
