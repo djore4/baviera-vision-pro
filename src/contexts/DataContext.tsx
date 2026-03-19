@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { AppData, PeriodFilter, ControlRecord } from '@/types/data';
 import { parseExcel, getDeliveryMonth } from '@/lib/excel-parser';
+import { supabase } from '@/integrations/supabase/client';
 
 interface DataContextValue {
   data: AppData | null;
@@ -15,7 +16,18 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | null>(null);
 
-const STORAGE_KEY = 'baviera-control-data';
+const BUCKET = 'excel-files';
+const FILE_PATH = 'bmw-business-control.xlsx';
+
+function rehydrateDates(records: ControlRecord[]): ControlRecord[] {
+  return records.map(r => ({
+    ...r,
+    neg: r.neg ? new Date(r.neg) : null,
+    dmat: r.dmat ? new Date(r.dmat) : null,
+    date298: r.date298 ? new Date(r.date298) : null,
+    app: r.app ? new Date(r.app) : null,
+  }));
+}
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData | null>(null);
@@ -23,24 +35,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<PeriodFilter>({ years: [], quarters: [], months: [] });
 
+  // Load from cloud storage on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as AppData;
-        // Rehydrate dates
-        parsed.control = parsed.control.map(r => ({
-          ...r,
-          neg: r.neg ? new Date(r.neg) : null,
-          dmat: r.dmat ? new Date(r.dmat) : null,
-          date298: r.date298 ? new Date(r.date298) : null,
-          app: r.app ? new Date(r.app) : null,
-        }));
+    async function loadFromStorage() {
+      setLoading(true);
+      try {
+        const { data: fileData, error: dlError } = await supabase.storage
+          .from(BUCKET)
+          .download(FILE_PATH);
+
+        if (dlError || !fileData) {
+          // No file stored yet — that's fine, user needs to upload first
+          setLoading(false);
+          return;
+        }
+
+        const buffer = await fileData.arrayBuffer();
+        const parsed = parseExcel(buffer);
         setData(parsed);
+      } catch {
+        // No file yet, ignore
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      // ignore
     }
+
+    loadFromStorage();
   }, []);
 
   const uploadFile = useCallback(async (file: File) => {
@@ -49,8 +69,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       const buffer = await file.arrayBuffer();
       const parsed = parseExcel(buffer);
+
+      // Upload to cloud storage (upsert replaces if exists)
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET)
+        .upload(FILE_PATH, file, { upsert: true });
+
+      if (uploadError) {
+        throw new Error(`Erro ao guardar ficheiro: ${uploadError.message}`);
+      }
+
       setData(parsed);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao processar ficheiro');
     } finally {
@@ -114,7 +143,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     </DataContext.Provider>
   );
 }
-
 export function useData() {
   const ctx = useContext(DataContext);
   if (!ctx) throw new Error('useData must be used within DataProvider');
