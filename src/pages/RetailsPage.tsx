@@ -18,7 +18,6 @@ const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', 
 
 export default function RetailsPage() {
   const { filteredControl, data } = useData();
-  const [page, setPage] = useState(0);
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
   const [selectedGar, setSelectedGar] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
@@ -26,7 +25,6 @@ export default function RetailsPage() {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
-  const pageSize = 10;
 
   const baseRecords = useMemo(() =>
     filteredControl.filter(r =>
@@ -111,20 +109,17 @@ export default function RetailsPage() {
     const map: Record<string, number> = {};
     filtered.forEach(r => { if (r.profile) map[r.profile] = (map[r.profile] || 0) + 1; });
     const total = filtered.length || 1;
-    return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) }));
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) }))
+      .sort((a, b) => b.value - a.value);
   }, [filtered]);
 
   const tableData = useMemo(() => {
     return [...filtered].sort((a, b) => (b.date298?.getTime() || 0) - (a.date298?.getTime() || 0));
   }, [filtered]);
 
-  const pagedData = tableData.slice(page * pageSize, (page + 1) * pageSize);
-  const totalPages = Math.ceil(tableData.length / pageSize);
-
-  const resetPage = () => setPage(0);
   const toggle = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, val: T, nullVal: T) => {
     setter(prev => prev === val ? nullVal : val);
-    resetPage();
   };
 
   const handleRespClick = useCallback((respName: string) => { toggle(setSelectedResp, respName, null as string | null); }, []);
@@ -132,8 +127,8 @@ export default function RetailsPage() {
   const handleFinClick = useCallback((finName: string) => { toggle(setSelectedFin, finName, null as string | null); }, []);
   const handleOriginClick = useCallback((name: string) => { toggle(setSelectedOrigin, name, null as string | null); }, []);
   const handleModelClick = useCallback((name: string) => { toggle(setSelectedModel, name, null as string | null); }, []);
-  const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); resetPage(); }, []);
-  const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); resetPage(); }, []);
+  const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
+  const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
 
   if (!data) {
     return (
@@ -162,7 +157,6 @@ export default function RetailsPage() {
     if (type === 'model') setSelectedModel(null);
     if (type === 'qor') setSelectedQor(null);
     if (type === 'bev') setSelectedBev(null);
-    resetPage();
   };
 
   return (
@@ -191,15 +185,15 @@ export default function RetailsPage() {
           <div className="col-span-5 bg-card border border-border rounded-lg p-3">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Status por Responsável</h3>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={statusByResp} barSize={14} onClick={(e) => { if (e?.activeLabel) handleRespClick(e.activeLabel as string); }}>
+              <BarChart data={statusByResp} barSize={14}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
                 <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="Retail" stackId="a" fill="#1C69D4" />
-                <Bar dataKey="Matricula" stackId="a" fill="#06B6D4" />
-                <Bar dataKey="Carteira" stackId="a" fill="#F59E0B">
+                <Bar dataKey="Retail" stackId="a" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)} />
+                <Bar dataKey="Matricula" stackId="a" fill="#06B6D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)} />
+                <Bar dataKey="Carteira" stackId="a" fill="#F59E0B" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
                   <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                 </Bar>
               </BarChart>
@@ -248,28 +242,58 @@ export default function RetailsPage() {
           {/* Método de Pagamento */}
           <div className="col-span-4 bg-card border border-border rounded-lg p-3">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Método de Pagamento</h3>
-            <div className="space-y-1.5">
-              {finData.map((entry, i) => {
-                const isSelected = selectedFin === entry.name;
-                const isDimmed = selectedFin && !isSelected;
-                const barColor = FIN_COLORS[entry.name] || COLORS[i % COLORS.length];
-                const maxVal = finData[0]?.value || 1;
-                return (
-                  <div key={entry.name} className="flex items-center gap-2 cursor-pointer group" onClick={() => handleFinClick(entry.name)}
-                    style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                    <span className="text-[10px] w-10 text-right flex-shrink-0 font-medium">{entry.name}</span>
-                    <div className="flex-1 h-5 bg-muted rounded-sm overflow-hidden relative">
-                      <div className="h-full rounded-sm transition-all" style={{ width: `${(entry.value / maxVal) * 100}%`, backgroundColor: barColor }} />
+            <div className="grid grid-cols-2 gap-2 items-center">
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
+                  <Pie
+                    data={finData}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={72}
+                    stroke="hsl(var(--background))"
+                    strokeWidth={1.5}
+                    onClick={(entry: any) => entry?.name && handleFinClick(entry.name)}
+                    cursor="pointer"
+                  >
+                    {finData.map((entry, i) => {
+                      const isSelected = selectedFin === entry.name;
+                      const isDimmed = selectedFin && !isSelected;
+                      return (
+                        <Cell
+                          key={entry.name}
+                          fill={FIN_COLORS[entry.name] || COLORS[i % COLORS.length]}
+                          opacity={isDimmed ? 0.35 : 1}
+                        />
+                      );
+                    })}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+
+              <div className="space-y-1.5">
+                {finData.map((entry, i) => {
+                  const isSelected = selectedFin === entry.name;
+                  const isDimmed = selectedFin && !isSelected;
+                  return (
+                    <div
+                      key={entry.name}
+                      className="flex items-center gap-2 cursor-pointer"
+                      onClick={() => handleFinClick(entry.name)}
+                      style={{ opacity: isDimmed ? 0.3 : 1 }}
+                    >
+                      <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: FIN_COLORS[entry.name] || COLORS[i % COLORS.length] }} />
+                      <span className="text-[10px] font-medium w-9">{entry.name}</span>
+                      <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
+                      <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
                     </div>
-                    <span className="text-[10px] font-semibold w-8 text-right">{entry.value}</span>
-                    <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
+                  );
+                })}
+                <div className="border-t border-border pt-1 mt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-semibold">Total</span>
+                    <span className="text-[10px] font-bold">{filtered.length}</span>
                   </div>
-                );
-              })}
-              <div className="border-t border-border pt-1 mt-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-semibold w-10 text-right">Total</span>
-                  <span className="text-[10px] font-bold">{filtered.length}</span>
                 </div>
               </div>
             </div>
@@ -320,20 +344,29 @@ export default function RetailsPage() {
           {/* Mix Modelos */}
           <div className="col-span-3 bg-card border border-border rounded-lg p-3">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Mix Modelos</h3>
-            <div className="space-y-1 max-h-40 overflow-y-auto">
+            <ResponsiveContainer width="100%" height={140}>
+              <Treemap
+                data={modelData}
+                dataKey="size"
+                stroke="hsl(var(--card))"
+                onClick={(node: any) => { if (node?.name) handleModelClick(node.name); }}
+                content={<ModelTreemapContent selectedModel={selectedModel} />}
+              />
+            </ResponsiveContainer>
+            <div className="space-y-1 max-h-20 overflow-y-auto pr-1 mt-2">
               {modelData.map((entry, i) => {
                 const isSelected = selectedModel === entry.name;
                 const isDimmed = selectedModel && !isSelected;
-                const maxVal = modelData[0]?.size || 1;
                 return (
-                  <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleModelClick(entry.name)}
-                    style={{ opacity: isDimmed ? 0.3 : 1 }}>
+                  <div
+                    key={entry.name}
+                    className="flex items-center gap-2 cursor-pointer"
+                    onClick={() => handleModelClick(entry.name)}
+                    style={{ opacity: isDimmed ? 0.3 : 1 }}
+                  >
                     <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                     <span className="text-[10px] flex-1 truncate">{entry.name}</span>
-                    <div className="w-16 h-3 bg-muted rounded-sm overflow-hidden">
-                      <div className="h-full rounded-sm" style={{ width: `${(entry.size / maxVal) * 100}%`, backgroundColor: COLORS[i % COLORS.length] }} />
-                    </div>
-                    <span className="text-[10px] font-semibold w-6 text-right">{entry.size}</span>
+                    <span className="text-[10px] font-semibold w-7 text-right">{entry.size}</span>
                     <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
                   </div>
                 );
@@ -353,7 +386,7 @@ export default function RetailsPage() {
           {/* Sales Radar */}
           <div className="col-span-2 bg-card border border-border rounded-lg p-3">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Sales Radar</h3>
-            <SalesRadar records={filtered} height="180px" />
+            <SalesRadar records={filtered} height="230px" />
           </div>
         </div>
 
@@ -377,7 +410,7 @@ export default function RetailsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pagedData.map((r, i) => (
+                {tableData.map((r, i) => (
                   <TableRow key={i} className="text-[11px]">
                     <TableCell className="py-1 font-medium">{r.resp}</TableCell>
                     <TableCell className="py-1">
@@ -396,15 +429,6 @@ export default function RetailsPage() {
               </TableBody>
             </Table>
           </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-3 py-2 border-t border-border">
-              <span className="text-[10px] text-muted-foreground">Página {page + 1} de {totalPages}</span>
-              <div className="flex gap-1">
-                <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-2 py-0.5 text-[10px] rounded bg-accent disabled:opacity-30">Anterior</button>
-                <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="px-2 py-0.5 text-[10px] rounded bg-accent disabled:opacity-30">Seguinte</button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -424,6 +448,40 @@ function GarTreemapContent(props: any) {
         <>
           <text x={x + width / 2} y={y + height / 2 - 6} textAnchor="middle" fill="white" fontSize={11} fontWeight="bold">{name}</text>
           <text x={x + width / 2} y={y + height / 2 + 10} textAnchor="middle" fill="white" fontSize={13} fontWeight="bold">{size}</text>
+        </>
+      )}
+    </g>
+  );
+}
+
+function ModelTreemapContent(props: any) {
+  const { x, y, width, height, name, size, pct, index, selectedModel } = props;
+  if (!width || !height || width < 1 || height < 1) return null;
+
+  const fill = COLORS[index % COLORS.length];
+  const isDimmed = selectedModel && selectedModel !== name;
+
+  return (
+    <g>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill={fill}
+        fillOpacity={isDimmed ? 0.3 : 0.95}
+        stroke="hsl(var(--card))"
+        strokeWidth={2}
+        style={{ cursor: 'pointer' }}
+      />
+      {width > 50 && height > 32 && (
+        <>
+          <text x={x + 6} y={y + 14} textAnchor="start" fill="hsl(var(--primary-foreground))" fontSize={10} fontWeight="bold">
+            {name}
+          </text>
+          <text x={x + 6} y={y + 27} textAnchor="start" fill="hsl(var(--primary-foreground))" fontSize={10}>
+            {size} ({pct}%)
+          </text>
         </>
       )}
     </g>
