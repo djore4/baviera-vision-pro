@@ -1,12 +1,6 @@
 import { useMemo } from 'react';
 import type { ControlRecord } from '@/types/data';
 
-const RESP_COLORS = [
-  '#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6',
-  '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1',
-  '#14B8A6', '#E11D48', '#0EA5E9', '#A855F7',
-];
-
 // Map postal code prefix (2 digits) to approximate SVG coordinates
 // SVG viewBox is 0 0 200 340, representing Portugal mainland
 const PT_SVG_MAP: Record<string, [number, number]> = {
@@ -33,17 +27,12 @@ const PT_SVG_MAP: Record<string, [number, number]> = {
   '83': [82, 295], '84': [75, 290], '85': [120, 308],
 };
 
-function postalToSVG(postalCode: string): [number, number] | null {
+function postalPrefix(postalCode: string): string | null {
   if (!postalCode) return null;
   const clean = postalCode.replace(/[^0-9]/g, '');
   if (clean.length < 2) return null;
   const prefix = clean.substring(0, 2);
-  const base = PT_SVG_MAP[prefix];
-  if (!base) return null;
-  // Small jitter to avoid overlap
-  const jx = (Math.random() - 0.5) * 8;
-  const jy = (Math.random() - 0.5) * 8;
-  return [base[0] + jx, base[1] + jy];
+  return PT_SVG_MAP[prefix] ? prefix : null;
 }
 
 interface SalesRadarProps {
@@ -63,42 +52,85 @@ const PORTUGAL_PATH = `M 75 20 L 65 30 L 55 45 L 60 55 L 55 65 L 65 72
   L 85 18 Z`;
 
 export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
-  const { dots, respColors } = useMemo(() => {
-    const resps = [...new Set(records.map(r => r.resp).filter(Boolean))];
-    const colorMap: Record<string, string> = {};
-    resps.forEach((r, i) => { colorMap[r] = RESP_COLORS[i % RESP_COLORS.length]; });
+  const { dots, topPostals } = useMemo(() => {
+    const counters: Record<string, number> = {};
 
-    const d = records
-      .map(r => {
-        const coords = postalToSVG(r.local);
-        if (!coords) return null;
-        return { x: coords[0], y: coords[1], resp: r.resp, cliente: r.cliente, color: colorMap[r.resp] || '#888' };
-      })
-      .filter(Boolean) as { x: number; y: number; resp: string; cliente: string; color: string }[];
+    records.forEach((r) => {
+      const prefix = postalPrefix(r.local);
+      if (!prefix) return;
+      counters[prefix] = (counters[prefix] || 0) + 1;
+    });
 
-    return { dots: d, respColors: colorMap };
+    const entries = Object.entries(counters)
+      .map(([prefix, count]) => ({
+        prefix,
+        count,
+        x: PT_SVG_MAP[prefix][0],
+        y: PT_SVG_MAP[prefix][1],
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    const maxCount = entries[0]?.count || 1;
+
+    const mapDots = entries.map((entry) => {
+      const intensity = entry.count / maxCount;
+      return {
+        ...entry,
+        intensity,
+        radius: 3 + intensity * 8,
+      };
+    });
+
+    return {
+      dots: mapDots,
+      topPostals: entries.slice(0, 12),
+    };
   }, [records]);
-
-  const legendEntries = Object.entries(respColors).slice(0, 12);
 
   return (
     <div style={{ height }} className="flex flex-col">
       <svg viewBox="0 0 200 340" className="flex-1 w-full" style={{ maxHeight: `calc(${height} - 40px)` }}>
         {/* Portugal outline */}
         <path d={PORTUGAL_PATH} fill="hsl(var(--muted))" stroke="hsl(var(--border))" strokeWidth="1.5" />
-        {/* Dots */}
+        {/* Postal highlights */}
         {dots.map((d, i) => (
-          <circle key={i} cx={d.x} cy={d.y} r="3" fill={d.color} opacity={0.85} stroke="white" strokeWidth="0.5">
-            <title>{d.resp} — {d.cliente}</title>
-          </circle>
+          <g key={i}>
+            <circle
+              cx={d.x}
+              cy={d.y}
+              r={d.radius + 2}
+              fill="hsl(var(--primary))"
+              opacity={0.12 + d.intensity * 0.18}
+            />
+            <circle
+              cx={d.x}
+              cy={d.y}
+              r={d.radius}
+              fill="hsl(var(--primary))"
+              opacity={0.35 + d.intensity * 0.5}
+              stroke="hsl(var(--background))"
+              strokeWidth="0.8"
+            >
+              <title>CP {d.prefix} — {d.count} negócio(s)</title>
+            </circle>
+            <text
+              x={d.x + d.radius + 1.5}
+              y={d.y - d.radius - 0.5}
+              fontSize="4.5"
+              fill="hsl(var(--foreground))"
+              fontWeight="600"
+            >
+              {d.prefix}
+            </text>
+          </g>
         ))}
       </svg>
-      {legendEntries.length > 0 && (
+      {topPostals.length > 0 && (
         <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
-          {legendEntries.map(([resp, color]) => (
-            <div key={resp} className="flex items-center gap-1 text-[9px] text-muted-foreground">
-              <span className="w-2 h-2 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: color }} />
-              {resp}
+          {topPostals.map((item) => (
+            <div key={item.prefix} className="flex items-center gap-1 text-[9px] text-muted-foreground">
+              <span className="w-2 h-2 rounded-full inline-block flex-shrink-0 bg-primary" />
+              CP {item.prefix}: {item.count}
             </div>
           ))}
         </div>
