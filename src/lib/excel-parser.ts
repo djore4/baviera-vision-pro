@@ -102,6 +102,7 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
       if (r[1] && r[3]) {
         objetivosTotal.push({
           mes: str(r[1]),
+          range3: num(r[2]),
           orcado: num(r[3]),
           range2: num(r[4]),
           real: num(r[5]),

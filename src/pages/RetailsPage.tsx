@@ -78,12 +78,32 @@ export default function RetailsPage() {
   }, [filtered]);
 
   const realization = useMemo(() => {
-    if (!data) return { actual: 0, targetBav: 0, targetBMW: 0, pct: 0 };
-    const actual = retails.length;
-    const targetBav = data.objetivosTotal.reduce((s, o) => s + o.orcado, 0);
-    const targetBMW = data.objetivosTotal.reduce((s, o) => s + o.range2, 0);
-    return { actual, targetBav: targetBav || 0, targetBMW: targetBMW || 0, pct: targetBav ? Math.round((actual / targetBav) * 100) : 0 };
-  }, [retails, data]);
+    if (!data) return { actual: 0, targetCaetano: 0, targetBMW: 0, target110: 0, pct: 0 };
+    // Match objetivos to selected period filter
+    const { filter } = { filter: undefined as any };
+    const selectedMonthKeys = new Set<string>();
+    // Build month keys from filteredControl delivery months
+    const monthSet = new Set<string>();
+    filtered.forEach(r => {
+      const dm = r.date298 
+        ? `${r.date298.getFullYear()}/${String(r.date298.getMonth() + 1).padStart(2, '0')}`
+        : r.mes1;
+      if (dm) monthSet.add(dm);
+    });
+
+    // Sum objetivos matching selected periods
+    const matchingObj = data.objetivosTotal.filter(o => {
+      // Try to match mes field (could be "2025/04", "Abr 2025", etc.)
+      return monthSet.has(o.mes) || monthSet.size === 0;
+    });
+
+    const targetCaetano = matchingObj.reduce((s, o) => s + o.orcado, 0);
+    const targetBMW = matchingObj.reduce((s, o) => s + o.range2, 0);
+    const target110 = matchingObj.reduce((s, o) => s + o.range3, 0);
+    const actual = totalStatusSum;
+    const pct = targetBMW ? Math.round((actual / targetBMW) * 100) : 0;
+    return { actual, targetCaetano, targetBMW, target110, pct };
+  }, [data, totalStatusSum, filtered]);
 
   const finData = useMemo(() => {
     const map: Record<string, number> = {};
