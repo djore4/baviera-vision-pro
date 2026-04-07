@@ -78,12 +78,30 @@ export default function RetailsPage() {
   }, [filtered]);
 
   const realization = useMemo(() => {
-    if (!data) return { actual: 0, targetBav: 0, targetBMW: 0, pct: 0 };
-    const actual = retails.length;
-    const targetBav = data.objetivosTotal.reduce((s, o) => s + o.orcado, 0);
-    const targetBMW = data.objetivosTotal.reduce((s, o) => s + o.range2, 0);
-    return { actual, targetBav: targetBav || 0, targetBMW: targetBMW || 0, pct: targetBav ? Math.round((actual / targetBav) * 100) : 0 };
-  }, [retails, data]);
+    if (!data) return { actual: 0, targetCaetano: 0, targetBMW: 0, target110: 0, pct: 0 };
+    // Build month keys from filtered records' delivery months
+    // Build month keys from filteredControl delivery months
+    const monthSet = new Set<string>();
+    filtered.forEach(r => {
+      const dm = r.date298 
+        ? `${r.date298.getFullYear()}/${String(r.date298.getMonth() + 1).padStart(2, '0')}`
+        : r.mes1;
+      if (dm) monthSet.add(dm);
+    });
+
+    // Sum objetivos matching selected periods
+    const matchingObj = data.objetivosTotal.filter(o => {
+      // Try to match mes field (could be "2025/04", "Abr 2025", etc.)
+      return monthSet.has(o.mes) || monthSet.size === 0;
+    });
+
+    const targetCaetano = matchingObj.reduce((s, o) => s + o.orcado, 0);
+    const targetBMW = matchingObj.reduce((s, o) => s + o.range2, 0);
+    const target110 = matchingObj.reduce((s, o) => s + o.range3, 0);
+    const actual = totalStatusSum;
+    const pct = targetBMW ? Math.round((actual / targetBMW) * 100) : 0;
+    return { actual, targetCaetano, targetBMW, target110, pct };
+  }, [data, totalStatusSum, filtered]);
 
   const finData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -283,16 +301,20 @@ export default function RetailsPage() {
                   <p className="text-[10px] text-muted-foreground">Realizado</p>
                 </div>
                 <div>
-                  <p className="text-lg font-bold text-foreground">{realization.targetBav}</p>
-                  <p className="text-[10px] text-muted-foreground">Obj. Baviera</p>
+                  <p className="text-lg font-bold text-foreground">{realization.targetCaetano}</p>
+                  <p className="text-[10px] text-muted-foreground">Caetano</p>
                 </div>
                 <div>
                   <p className="text-lg font-bold text-muted-foreground">{realization.targetBMW}</p>
-                  <p className="text-[10px] text-muted-foreground">Obj. BMW</p>
+                  <p className="text-[10px] text-muted-foreground">BMW</p>
                 </div>
                 <div>
-                  <p className="text-lg font-bold" style={{ color: realization.pct >= 90 ? '#16A34A' : realization.pct >= 70 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p>
-                  <p className="text-[10px] text-muted-foreground">Realização</p>
+                  <p className="text-lg font-bold text-muted-foreground/70">{realization.target110}</p>
+                  <p className="text-[10px] text-muted-foreground">110%</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p>
+                  <p className="text-[10px] text-muted-foreground">vs BMW</p>
                 </div>
               </div>
             </div>

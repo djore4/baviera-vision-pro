@@ -31,6 +31,7 @@ export interface ControlRecord {
 
 export interface ObjetivoTotal {
   mes: string;
+  range3: number;
   orcado: number;
   range2: number;
   real: number;
