@@ -303,16 +303,20 @@ export default function RetailsPage() {
                   <p className="text-[10px] text-muted-foreground">Realizado</p>
                 </div>
                 <div>
-                  <p className="text-lg font-bold text-foreground">{realization.targetBav}</p>
-                  <p className="text-[10px] text-muted-foreground">Obj. Baviera</p>
+                  <p className="text-lg font-bold text-foreground">{realization.targetCaetano}</p>
+                  <p className="text-[10px] text-muted-foreground">Caetano</p>
                 </div>
                 <div>
                   <p className="text-lg font-bold text-muted-foreground">{realization.targetBMW}</p>
-                  <p className="text-[10px] text-muted-foreground">Obj. BMW</p>
+                  <p className="text-[10px] text-muted-foreground">BMW</p>
                 </div>
                 <div>
-                  <p className="text-lg font-bold" style={{ color: realization.pct >= 90 ? '#16A34A' : realization.pct >= 70 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p>
-                  <p className="text-[10px] text-muted-foreground">Realização</p>
+                  <p className="text-lg font-bold text-muted-foreground/70">{realization.target110}</p>
+                  <p className="text-[10px] text-muted-foreground">110%</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p>
+                  <p className="text-[10px] text-muted-foreground">vs BMW</p>
                 </div>
               </div>
             </div>
