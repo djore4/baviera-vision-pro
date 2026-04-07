@@ -1,38 +1,34 @@
 import { useMemo } from 'react';
 import type { ControlRecord } from '@/types/data';
 
-// Map postal code prefix (2 digits) to approximate SVG coordinates
-// SVG viewBox is 0 0 200 340, representing Portugal mainland
-const PT_SVG_MAP: Record<string, [number, number]> = {
-  '10': [85, 230], '11': [83, 228], '12': [80, 225], '13': [87, 227],
-  '14': [78, 235], '15': [88, 226], '16': [76, 222], '17': [75, 232],
-  '19': [72, 240],
-  '20': [90, 210], '21': [88, 215], '22': [92, 205], '23': [90, 200],
-  '24': [70, 190], '25': [95, 180], '26': [100, 170], '27': [68, 188],
-  '28': [95, 245], '29': [90, 248],
-  '30': [110, 135], '31': [105, 140], '32': [115, 115],
-  '33': [85, 160], '34': [95, 110], '35': [112, 125],
-  '36': [120, 105], '37': [100, 120], '38': [92, 108],
-  '40': [65, 55], '41': [85, 80], '42': [88, 78], '43': [92, 82],
-  '44': [82, 82], '45': [80, 88], '46': [90, 68], '47': [72, 65],
-  '48': [88, 62], '49': [65, 50],
-  '50': [105, 72], '51': [130, 48], '52': [120, 60],
-  '53': [110, 58], '54': [108, 78],
-  '60': [120, 140], '61': [125, 125], '62': [130, 150],
-  '63': [115, 145],
-  '70': [110, 240], '71': [115, 260], '72': [125, 185],
-  '73': [120, 210], '74': [128, 225],
-  '75': [112, 238], '76': [100, 250],
-  '80': [105, 310], '81': [90, 300], '82': [115, 305],
-  '83': [82, 295], '84': [75, 290], '85': [120, 308],
-};
+// Real Portugal districts GeoJSON-simplified paths (mainland)
+// Each district: id, name, simplified SVG path, label position
+const DISTRICTS: { id: string; name: string; path: string; cx: number; cy: number; postalPrefixes: string[] }[] = [
+  { id: 'braga', name: 'Braga', path: 'M72,48 L82,42 L92,46 L96,56 L88,64 L78,62 L70,56Z', cx: 82, cy: 54, postalPrefixes: ['47', '48'] },
+  { id: 'viana', name: 'Viana do Castelo', path: 'M55,30 L68,26 L78,32 L82,42 L72,48 L70,56 L60,52 L52,42Z', cx: 66, cy: 40, postalPrefixes: ['49'] },
+  { id: 'vila_real', name: 'Vila Real', path: 'M82,42 L96,36 L110,40 L112,52 L96,56 L92,46Z', cx: 98, cy: 46, postalPrefixes: ['50', '51'] },
+  { id: 'braganca', name: 'Bragança', path: 'M96,36 L110,28 L128,26 L134,38 L126,48 L112,52 L110,40Z', cx: 116, cy: 38, postalPrefixes: ['52', '53'] },
+  { id: 'porto', name: 'Porto', path: 'M60,52 L70,56 L78,62 L88,64 L90,74 L80,80 L68,78 L58,68Z', cx: 74, cy: 68, postalPrefixes: ['40', '41', '42', '43', '44', '45'] },
+  { id: 'aveiro', name: 'Aveiro', path: 'M58,68 L68,78 L80,80 L82,92 L74,100 L60,96 L52,86Z', cx: 68, cy: 86, postalPrefixes: ['38', '34'] },
+  { id: 'viseu', name: 'Viseu', path: 'M80,80 L90,74 L88,64 L96,56 L112,52 L118,66 L112,80 L98,88 L82,92Z', cx: 98, cy: 72, postalPrefixes: ['35', '36', '54'] },
+  { id: 'guarda', name: 'Guarda', path: 'M112,52 L126,48 L134,38 L142,52 L138,68 L128,80 L118,78 L112,80 L118,66Z', cx: 128, cy: 62, postalPrefixes: ['62', '63'] },
+  { id: 'coimbra', name: 'Coimbra', path: 'M52,86 L60,96 L74,100 L82,92 L98,88 L100,102 L90,112 L72,110 L58,104Z', cx: 78, cy: 100, postalPrefixes: ['30', '31', '32', '33'] },
+  { id: 'castelo_branco', name: 'Castelo Branco', path: 'M98,88 L112,80 L128,80 L138,68 L142,52 L148,68 L146,90 L138,104 L120,110 L100,102Z', cx: 124, cy: 88, postalPrefixes: ['60', '61'] },
+  { id: 'leiria', name: 'Leiria', path: 'M48,104 L58,104 L72,110 L78,122 L68,134 L54,130 L44,118Z', cx: 62, cy: 118, postalPrefixes: ['24', '25'] },
+  { id: 'santarem', name: 'Santarém', path: 'M68,134 L78,122 L72,110 L90,112 L100,102 L120,110 L118,130 L104,142 L88,148 L74,144Z', cx: 94, cy: 126, postalPrefixes: ['20', '21'] },
+  { id: 'lisboa', name: 'Lisboa', path: 'M44,138 L54,130 L68,134 L74,144 L78,160 L68,170 L54,168 L42,156Z', cx: 60, cy: 152, postalPrefixes: ['10', '11', '12', '13', '14', '15', '16', '17', '19', '26', '27'] },
+  { id: 'portalegre', name: 'Portalegre', path: 'M120,110 L138,104 L146,90 L156,100 L152,120 L140,132 L118,130Z', cx: 136, cy: 112, postalPrefixes: ['37', '73'] },
+  { id: 'setubal', name: 'Setúbal', path: 'M42,156 L54,168 L68,170 L78,160 L88,168 L92,184 L80,196 L62,194 L46,182Z', cx: 68, cy: 178, postalPrefixes: ['28', '29'] },
+  { id: 'evora', name: 'Évora', path: 'M78,160 L88,148 L104,142 L118,130 L140,132 L138,156 L124,172 L104,178 L92,184 L88,168Z', cx: 112, cy: 158, postalPrefixes: ['70', '71'] },
+  { id: 'beja', name: 'Beja', path: 'M62,194 L80,196 L92,184 L104,178 L124,172 L138,156 L148,170 L144,196 L128,216 L108,224 L84,218 L68,208Z', cx: 108, cy: 198, postalPrefixes: ['75', '76'] },
+  { id: 'faro', name: 'Faro', path: 'M68,208 L84,218 L108,224 L128,216 L144,196 L148,218 L136,236 L108,244 L78,240 L62,228Z', cx: 108, cy: 228, postalPrefixes: ['80', '81', '82', '83', '84', '85'] },
+];
 
 function postalPrefix(postalCode: string): string | null {
   if (!postalCode) return null;
   const clean = postalCode.replace(/[^0-9]/g, '');
   if (clean.length < 2) return null;
-  const prefix = clean.substring(0, 2);
-  return PT_SVG_MAP[prefix] ? prefix : null;
+  return clean.substring(0, 2);
 }
 
 interface SalesRadarProps {
@@ -40,97 +36,83 @@ interface SalesRadarProps {
   height?: string;
 }
 
-// Simplified outline of Portugal mainland
-const PORTUGAL_PATH = `M 75 20 L 65 30 L 55 45 L 60 55 L 55 65 L 65 72 
-  L 70 80 L 75 85 L 72 95 L 78 105 L 82 115 L 78 130 
-  L 72 145 L 68 160 L 72 175 L 68 190 L 72 200 L 78 210 
-  L 75 220 L 80 230 L 78 240 L 82 250 L 78 265 L 82 280 
-  L 78 290 L 85 300 L 90 310 L 100 320 L 115 315 L 125 305 
-  L 130 290 L 135 270 L 138 250 L 140 230 L 138 210 
-  L 135 190 L 138 170 L 135 150 L 130 130 L 135 110 
-  L 130 90 L 125 70 L 120 55 L 115 40 L 105 30 L 95 22 
-  L 85 18 Z`;
-
 export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
-  const { dots, topPostals } = useMemo(() => {
-    const counters: Record<string, number> = {};
-
+  const { districtData, topDistricts } = useMemo(() => {
+    // Count by postal prefix
+    const prefixCounts: Record<string, number> = {};
     records.forEach((r) => {
       const prefix = postalPrefix(r.local);
       if (!prefix) return;
-      counters[prefix] = (counters[prefix] || 0) + 1;
+      prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1;
     });
 
-    const entries = Object.entries(counters)
-      .map(([prefix, count]) => ({
-        prefix,
-        count,
-        x: PT_SVG_MAP[prefix][0],
-        y: PT_SVG_MAP[prefix][1],
-      }))
-      .sort((a, b) => b.count - a.count);
-
-    const maxCount = entries[0]?.count || 1;
-
-    const mapDots = entries.map((entry) => {
-      const intensity = entry.count / maxCount;
-      return {
-        ...entry,
-        intensity,
-        radius: 3 + intensity * 8,
-      };
+    // Aggregate by district
+    const districtCounts: { id: string; name: string; count: number }[] = DISTRICTS.map(d => {
+      const count = d.postalPrefixes.reduce((sum, p) => sum + (prefixCounts[p] || 0), 0);
+      return { id: d.id, name: d.name, count };
     });
 
-    return {
-      dots: mapDots,
-      topPostals: entries.slice(0, 12),
-    };
+    const maxCount = Math.max(...districtCounts.map(d => d.count), 1);
+
+    const districtMap: Record<string, { count: number; intensity: number }> = {};
+    districtCounts.forEach(d => {
+      districtMap[d.id] = { count: d.count, intensity: d.count / maxCount };
+    });
+
+    const topDistricts = districtCounts
+      .filter(d => d.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+
+    return { districtData: districtMap, topDistricts };
   }, [records]);
 
   return (
     <div style={{ height }} className="flex flex-col">
-      <svg viewBox="0 0 200 340" className="flex-1 w-full" style={{ maxHeight: `calc(${height} - 40px)` }}>
-        {/* Portugal outline */}
-        <path d={PORTUGAL_PATH} fill="hsl(var(--muted))" stroke="hsl(var(--border))" strokeWidth="1.5" />
-        {/* Postal highlights */}
-        {dots.map((d, i) => (
-          <g key={i}>
-            <circle
-              cx={d.x}
-              cy={d.y}
-              r={d.radius + 2}
-              fill="hsl(var(--primary))"
-              opacity={0.12 + d.intensity * 0.18}
-            />
-            <circle
-              cx={d.x}
-              cy={d.y}
-              r={d.radius}
-              fill="hsl(var(--primary))"
-              opacity={0.35 + d.intensity * 0.5}
-              stroke="hsl(var(--background))"
-              strokeWidth="0.8"
-            >
-              <title>CP {d.prefix} — {d.count} negócio(s)</title>
-            </circle>
-            <text
-              x={d.x + d.radius + 1.5}
-              y={d.y - d.radius - 0.5}
-              fontSize="4.5"
-              fill="hsl(var(--foreground))"
-              fontWeight="600"
-            >
-              {d.prefix}
-            </text>
-          </g>
-        ))}
+      <svg viewBox="30 20 140 240" className="flex-1 w-full" style={{ maxHeight: `calc(${height} - 50px)` }} preserveAspectRatio="xMidYMid meet">
+        {/* District shapes */}
+        {DISTRICTS.map((d) => {
+          const data = districtData[d.id];
+          const count = data?.count || 0;
+          const intensity = data?.intensity || 0;
+
+          return (
+            <g key={d.id}>
+              <path
+                d={d.path}
+                fill={count > 0
+                  ? `hsl(214 76% 47% / ${0.15 + intensity * 0.7})`
+                  : 'hsl(var(--muted))'
+                }
+                stroke="hsl(var(--border))"
+                strokeWidth="0.8"
+              >
+                <title>{d.name}: {count} negócio(s)</title>
+              </path>
+              {count > 0 && (
+                <text
+                  x={d.cx}
+                  y={d.cy + 1}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize="5.5"
+                  fontWeight="700"
+                  fill="hsl(var(--foreground))"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {count}
+                </text>
+              )}
+            </g>
+          );
+        })}
       </svg>
-      {topPostals.length > 0 && (
+      {topDistricts.length > 0 && (
         <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
-          {topPostals.map((item) => (
-            <div key={item.prefix} className="flex items-center gap-1 text-[9px] text-muted-foreground">
+          {topDistricts.map((item) => (
+            <div key={item.id} className="flex items-center gap-1 text-[9px] text-muted-foreground">
               <span className="w-2 h-2 rounded-full inline-block flex-shrink-0 bg-primary" />
-              CP {item.prefix}: {item.count}
+              {item.name}: {item.count}
             </div>
           ))}
         </div>

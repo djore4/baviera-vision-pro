@@ -33,7 +33,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<PeriodFilter>({ years: [], quarters: [], months: [] });
+  const [filter, setFilter] = useState<PeriodFilter>(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    return { years: [year], quarters: [], months: [year * 100 + month] };
+  });
 
   // Load from cloud storage on mount
   useEffect(() => {

@@ -3,6 +3,7 @@ import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { SalesRadar } from '@/components/SalesRadar';
 import { formatDate } from '@/lib/excel-parser';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Treemap, Legend, LabelList,
@@ -11,10 +12,14 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
 const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
+
+type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'cliente' | 'fin' | 'date298';
+type SortDir = 'asc' | 'desc';
 
 export default function RetailsPage() {
   const { filteredControl, data } = useData();
@@ -25,6 +30,9 @@ export default function RetailsPage() {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('date298');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const baseRecords = useMemo(() =>
     filteredControl.filter(r =>
@@ -57,6 +65,8 @@ export default function RetailsPage() {
     });
     return Object.values(map).sort((a, b) => b.total - a.total);
   }, [filtered]);
+
+  const totalStatusSum = useMemo(() => statusByResp.reduce((s, r) => s + r.total, 0), [statusByResp]);
 
   const garData = useMemo(() => {
     const certo = filtered.filter(r => r.gar === 'GAR').length;
@@ -115,8 +125,54 @@ export default function RetailsPage() {
   }, [filtered]);
 
   const tableData = useMemo(() => {
-    return [...filtered].sort((a, b) => (b.date298?.getTime() || 0) - (a.date298?.getTime() || 0));
-  }, [filtered]);
+    let data = [...filtered];
+    
+    // Search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      data = data.filter(r =>
+        r.resp.toLowerCase().includes(term) ||
+        r.status.toLowerCase().includes(term) ||
+        r.type.toLowerCase().includes(term) ||
+        r.model.toLowerCase().includes(term) ||
+        r.cliente.toLowerCase().includes(term) ||
+        r.fin.toLowerCase().includes(term) ||
+        r.gar.toLowerCase().includes(term)
+      );
+    }
+
+    // Sort
+    data.sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case 'resp': cmp = a.resp.localeCompare(b.resp); break;
+        case 'gar': cmp = a.gar.localeCompare(b.gar); break;
+        case 'status': cmp = a.status.localeCompare(b.status); break;
+        case 'type': cmp = a.type.localeCompare(b.type); break;
+        case 'model': cmp = a.model.localeCompare(b.model); break;
+        case 'cliente': cmp = a.cliente.localeCompare(b.cliente); break;
+        case 'fin': cmp = a.fin.localeCompare(b.fin); break;
+        case 'date298': cmp = (a.date298?.getTime() || 0) - (b.date298?.getTime() || 0); break;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+
+    return data;
+  }, [filtered, sortKey, sortDir, searchTerm]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ col }: { col: SortKey }) => {
+    if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 ml-0.5 opacity-40" />;
+    return sortDir === 'asc' ? <ArrowUp className="h-3 w-3 ml-0.5 text-primary" /> : <ArrowDown className="h-3 w-3 ml-0.5 text-primary" />;
+  };
 
   const toggle = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, val: T, nullVal: T) => {
     setter(prev => prev === val ? nullVal : val);
@@ -160,8 +216,8 @@ export default function RetailsPage() {
   };
 
   return (
-    <div className="flex gap-4 animate-fade-in">
-      <div className="w-44 flex-shrink-0 space-y-3">
+    <div className="flex flex-col lg:flex-row gap-4 animate-fade-in">
+      <div className="w-full lg:w-44 flex-shrink-0 space-y-3">
         <PeriodFilter />
       </div>
 
@@ -180,10 +236,13 @@ export default function RetailsPage() {
         )}
 
         {/* Row 1 */}
-        <div className="grid grid-cols-12 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-3">
           {/* Status por Responsável */}
-          <div className="col-span-5 bg-card border border-border rounded-lg p-3">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Status por Responsável</h3>
+          <div className="xl:col-span-5 bg-card border border-border rounded-lg p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Status por Responsável</h3>
+              <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalStatusSum}</span>
+            </div>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={statusByResp} barSize={14}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -202,7 +261,7 @@ export default function RetailsPage() {
           </div>
 
           {/* Garantia + Realização */}
-          <div className="col-span-3 space-y-3">
+          <div className="xl:col-span-3 space-y-3">
             <div className="bg-card border border-border rounded-lg p-3">
               <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Garantia de Entrega</h3>
               <ResponsiveContainer width="100%" height={100}>
@@ -240,7 +299,7 @@ export default function RetailsPage() {
           </div>
 
           {/* Método de Pagamento */}
-          <div className="col-span-4 bg-card border border-border rounded-lg p-3">
+          <div className="xl:col-span-4 bg-card border border-border rounded-lg p-3">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Método de Pagamento</h3>
             <div className="grid grid-cols-2 gap-2 items-center">
               <ResponsiveContainer width="100%" height={180}>
@@ -302,9 +361,9 @@ export default function RetailsPage() {
         </div>
 
         {/* Row 2 */}
-        <div className="grid grid-cols-12 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-3">
           {/* Entidade */}
-          <div className="col-span-2 bg-card border border-border rounded-lg p-3">
+          <div className="xl:col-span-2 bg-card border border-border rounded-lg p-3">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Entidade</h3>
             {entityData.map(e => (
               <div key={e.name} className="flex items-center gap-1.5 mb-1">
@@ -317,7 +376,7 @@ export default function RetailsPage() {
           </div>
 
           {/* Origem */}
-          <div className="col-span-3 bg-card border border-border rounded-lg p-3">
+          <div className="xl:col-span-3 bg-card border border-border rounded-lg p-3">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Origem dos Negócios</h3>
             <div className="space-y-1">
               {originData.map((entry, i) => {
@@ -342,7 +401,7 @@ export default function RetailsPage() {
           </div>
 
           {/* Mix Modelos */}
-          <div className="col-span-3 bg-card border border-border rounded-lg p-3">
+          <div className="xl:col-span-3 bg-card border border-border rounded-lg p-3">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Mix Modelos</h3>
             <ResponsiveContainer width="100%" height={140}>
               <Treemap
@@ -376,7 +435,7 @@ export default function RetailsPage() {
           </div>
 
           {/* QoR + BEV */}
-          <div className="col-span-2 space-y-3">
+          <div className="xl:col-span-2 space-y-3">
             <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B"
               isActive={selectedQor === true} onClick={handleQorClick} />
             <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A"
@@ -384,7 +443,7 @@ export default function RetailsPage() {
           </div>
 
           {/* Sales Radar */}
-          <div className="col-span-2 bg-card border border-border rounded-lg p-3">
+          <div className="xl:col-span-2 bg-card border border-border rounded-lg p-3">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Sales Radar</h3>
             <SalesRadar records={filtered} height="230px" />
           </div>
@@ -392,21 +451,39 @@ export default function RetailsPage() {
 
         {/* Detail Table */}
         <div className="bg-card border border-border rounded-lg">
-          <div className="px-3 py-2 border-b border-border">
+          <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-2 flex-wrap">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Detalhe ({tableData.length})</h3>
+            <div className="relative w-full sm:w-48">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <Input
+                placeholder="Pesquisar..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="h-7 pl-7 text-[11px]"
+              />
+            </div>
           </div>
-          <div className="overflow-x-auto max-h-64">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="text-[10px]">
-                  <TableHead className="py-1.5">RESP</TableHead>
-                  <TableHead className="py-1.5">GAR</TableHead>
-                  <TableHead className="py-1.5">STATUS</TableHead>
-                  <TableHead className="py-1.5">TIPO</TableHead>
-                  <TableHead className="py-1.5">MODELO</TableHead>
-                  <TableHead className="py-1.5">CLIENTE</TableHead>
-                  <TableHead className="py-1.5">FIN</TableHead>
-                  <TableHead className="py-1.5">298</TableHead>
+                  {([
+                    ['resp', 'RESP'],
+                    ['gar', 'GAR'],
+                    ['status', 'STATUS'],
+                    ['type', 'TIPO'],
+                    ['model', 'MODELO'],
+                    ['cliente', 'CLIENTE'],
+                    ['fin', 'FIN'],
+                    ['date298', '298'],
+                  ] as [SortKey, string][]).map(([key, label]) => (
+                    <TableHead key={key} className="py-1.5 cursor-pointer select-none hover:text-foreground" onClick={() => toggleSort(key)}>
+                      <span className="inline-flex items-center">
+                        {label}
+                        <SortIcon col={key} />
+                      </span>
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -511,7 +588,6 @@ function ClickableDonutCard({ title, count, total, color, isActive, onClick }: {
 }) {
   const pct = total ? Math.round((count / total) * 100) : 0;
   const nonCount = total - count;
-  const nonPct = total ? Math.round((nonCount / total) * 100) : 0;
   const pieData = [
     { name: title, value: count },
     { name: 'Outros', value: nonCount },
