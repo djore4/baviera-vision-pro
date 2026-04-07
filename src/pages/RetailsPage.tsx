@@ -79,9 +79,7 @@ export default function RetailsPage() {
 
   const realization = useMemo(() => {
     if (!data) return { actual: 0, targetCaetano: 0, targetBMW: 0, target110: 0, pct: 0 };
-    // Match objetivos to selected period filter
-    const { filter } = { filter: undefined as any };
-    const selectedMonthKeys = new Set<string>();
+    // Build month keys from filtered records' delivery months
     // Build month keys from filteredControl delivery months
     const monthSet = new Set<string>();
     filtered.forEach(r => {
