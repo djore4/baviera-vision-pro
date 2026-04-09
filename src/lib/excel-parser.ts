@@ -100,8 +100,19 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
 
       // Table 1: cols B(1), D(3), E(4), F(5)
       if (r[1] && r[3]) {
+        // mes may be a Date object from Excel — normalize to YYYY/MM
+        let mesVal = r[1];
+        let mesStr: string;
+        if (mesVal instanceof Date) {
+          mesStr = `${mesVal.getFullYear()}/${String(mesVal.getMonth() + 1).padStart(2, '0')}`;
+        } else if (typeof mesVal === 'number') {
+          const d = new Date((mesVal - 25569) * 86400 * 1000);
+          mesStr = isNaN(d.getTime()) ? str(mesVal) : `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+        } else {
+          mesStr = str(mesVal);
+        }
         objetivosTotal.push({
-          mes: str(r[1]),
+          mes: mesStr,
           range3: num(r[2]),
           orcado: num(r[3]),
           range2: num(r[4]),
