@@ -1,157 +1,153 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, Filter } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
-import { Checkbox } from '@/components/ui/checkbox';
 
-const QUARTER_NAMES = ['Q1', 'Q2', 'Q3', 'Q4'];
 const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 export function PeriodFilter() {
   const { availablePeriods, filter, setFilter } = useData();
-  const [collapsed, setCollapsed] = useState(false);
-  const [expandedYears, setExpandedYears] = useState<number[]>([]);
-  const [expandedQuarters, setExpandedQuarters] = useState<string[]>([]);
 
   if (availablePeriods.years.length === 0) return null;
 
-  const toggleYear = (year: number) => {
-    setFilter(prev => {
-      const has = prev.years.includes(year);
-      const newYears = has ? prev.years.filter(y => y !== year) : [...prev.years, year];
-      const newMonths = has ? prev.months.filter(m => Math.floor(m / 100) !== year) : prev.months;
-      const newQuarters = has ? prev.quarters.filter(q => Math.floor(q / 10) !== year) : prev.quarters;
-      return { ...prev, years: newYears, months: newMonths, quarters: newQuarters };
-    });
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const currentMonthKey = currentYear * 100 + currentMonth;
+
+  const selectCurrentMonth = () => {
+    setFilter({ years: [currentYear], quarters: [], months: [currentMonthKey] });
   };
 
-  const toggleQuarter = (year: number, quarter: number) => {
-    const key = year * 10 + quarter; // e.g. 20261
-    const qMonths = [(quarter - 1) * 3 + 1, (quarter - 1) * 3 + 2, (quarter - 1) * 3 + 3];
+  const selectCurrentYear = () => {
+    setFilter({ years: [currentYear], quarters: [], months: [] });
+  };
+
+  const selectAll = () => {
+    setFilter({ years: [...availablePeriods.years], quarters: [], months: [] });
+  };
+
+  const clearAll = () => {
+    setFilter({ years: [], quarters: [], months: [] });
+  };
+
+  const toggleYear = (year: number) => {
     setFilter(prev => {
-      const has = prev.quarters.includes(key);
-      const newQuarters = has ? prev.quarters.filter(q => q !== key) : [...prev.quarters, key];
-      // Toggle all months of this quarter
-      let newMonths = prev.months;
-      if (has) {
-        newMonths = prev.months.filter(m => !(Math.floor(m / 100) === year && qMonths.includes(m % 100)));
-      } else {
-        const toAdd = qMonths.map(m => year * 100 + m).filter(m => !prev.months.includes(m));
-        newMonths = [...prev.months, ...toAdd];
-      }
-      const newYears = prev.years.includes(year) ? prev.years : [...prev.years, year];
-      return { ...prev, years: newYears, quarters: newQuarters, months: newMonths };
+      const hasYear = prev.years.includes(year);
+      return {
+        years: hasYear ? prev.years.filter(y => y !== year) : [...prev.years, year].sort(),
+        quarters: prev.quarters.filter(q => Math.floor(q / 10) !== year),
+        months: hasYear ? prev.months.filter(m => Math.floor(m / 100) !== year) : prev.months,
+      };
     });
   };
 
   const toggleMonth = (year: number, month: number) => {
     const key = year * 100 + month;
     setFilter(prev => {
-      const has = prev.months.includes(key);
-      const newMonths = has ? prev.months.filter(m => m !== key) : [...prev.months, key];
-      const newYears = prev.years.includes(year) ? prev.years : [...prev.years, year];
-      return { ...prev, years: newYears, months: newMonths };
+      const hasMonth = prev.months.includes(key);
+      return {
+        years: prev.years.includes(year) ? prev.years : [...prev.years, year].sort(),
+        quarters: prev.quarters.filter(q => Math.floor(q / 10) !== year),
+        months: hasMonth ? prev.months.filter(m => m !== key) : [...prev.months, key].sort((a, b) => a - b),
+      };
     });
   };
 
-  const toggleExpandYear = (year: number) => {
-    setExpandedYears(prev => prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year]);
-  };
-
-  const toggleExpandQuarter = (key: string) => {
-    setExpandedQuarters(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
-  };
-
-  const clearAll = () => setFilter({ years: [], quarters: [], months: [] });
-
-  const isQuarterChecked = (year: number, quarter: number) => {
-    const qMonths = [(quarter - 1) * 3 + 1, (quarter - 1) * 3 + 2, (quarter - 1) * 3 + 3];
-    return qMonths.every(m => filter.months.includes(year * 100 + m));
-  };
+  const selectedYears = [...filter.years].sort((a, b) => b - a);
 
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden">
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent/50 transition-colors"
-      >
-        <Filter className="h-3.5 w-3.5 text-primary" />
-        PERÍODO
-        {filter.years.length > 0 && (
-          <span className="ml-auto text-primary text-[10px] font-medium cursor-pointer" onClick={(e) => { e.stopPropagation(); clearAll(); }}>
+    <div className="bg-card border border-border rounded-lg p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Filter className="h-3.5 w-3.5 text-primary" />
+          <span className="text-xs font-semibold text-foreground">PERÍODO</span>
+        </div>
+        {(filter.years.length > 0 || filter.months.length > 0) && (
+          <button
+            onClick={clearAll}
+            className="text-[10px] font-medium text-primary hover:underline"
+          >
             Limpar
-          </span>
+          </button>
         )}
-        {collapsed ? <ChevronRight className="h-3.5 w-3.5 ml-auto" /> : <ChevronDown className="h-3.5 w-3.5 ml-auto" />}
-      </button>
+      </div>
 
-      {!collapsed && (
-        <div className="px-3 pb-3 space-y-1 max-h-72 overflow-y-auto">
-          {availablePeriods.years.map(year => (
-            <div key={year}>
-              <div className="flex items-center gap-2 py-1">
-                <Checkbox
-                  id={`y-${year}`}
-                  checked={filter.years.includes(year)}
-                  onCheckedChange={() => toggleYear(year)}
-                  className="h-3.5 w-3.5"
-                />
-                <button
-                  onClick={() => toggleExpandYear(year)}
-                  className="flex items-center gap-1 text-xs font-medium text-foreground"
-                >
-                  {expandedYears.includes(year) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                  {year}
-                </button>
-              </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <button
+          onClick={selectCurrentMonth}
+          className="rounded-md border border-border bg-secondary px-2 py-1.5 text-[11px] font-medium text-secondary-foreground hover:bg-accent"
+        >
+          Mês atual
+        </button>
+        <button
+          onClick={selectCurrentYear}
+          className="rounded-md border border-border bg-secondary px-2 py-1.5 text-[11px] font-medium text-secondary-foreground hover:bg-accent"
+        >
+          Ano atual
+        </button>
+        <button
+          onClick={selectAll}
+          className="rounded-md border border-border bg-secondary px-2 py-1.5 text-[11px] font-medium text-secondary-foreground hover:bg-accent"
+        >
+          Todos os anos
+        </button>
+        <button
+          onClick={clearAll}
+          className="rounded-md border border-border bg-secondary px-2 py-1.5 text-[11px] font-medium text-secondary-foreground hover:bg-accent"
+        >
+          Sem filtro
+        </button>
+      </div>
 
-              {expandedYears.includes(year) && (
-                <div className="ml-4 space-y-0.5">
-                  {[1, 2, 3, 4].map(q => {
-                    const qKey = `${year}-Q${q}`;
-                    const qMonths = availablePeriods.months.filter(
-                      m => m.year === year && m.month >= (q - 1) * 3 + 1 && m.month <= q * 3
-                    );
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Anos</p>
+        <div className="flex flex-wrap gap-1.5">
+          {availablePeriods.years.map(year => {
+            const active = filter.years.includes(year);
+            return (
+              <button
+                key={year}
+                onClick={() => toggleYear(year)}
+                className={active
+                  ? 'rounded-md border border-primary bg-primary px-2.5 py-1.5 text-[11px] font-semibold text-primary-foreground'
+                  : 'rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent'
+                }
+              >
+                {year}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {selectedYears.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Meses</p>
+          {selectedYears.map(year => {
+            const months = availablePeriods.months.filter(month => month.year === year);
+            return (
+              <div key={year} className="space-y-1">
+                <p className="text-[10px] font-medium text-muted-foreground">{year}</p>
+                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-3">
+                  {months.map(month => {
+                    const key = month.year * 100 + month.month;
+                    const active = filter.months.includes(key);
                     return (
-                      <div key={qKey}>
-                        <div className="flex items-center gap-2 py-0.5">
-                          <Checkbox
-                            id={`q-${qKey}`}
-                            checked={isQuarterChecked(year, q)}
-                            onCheckedChange={() => toggleQuarter(year, q)}
-                            className="h-3 w-3"
-                          />
-                          <button
-                            onClick={() => toggleExpandQuarter(qKey)}
-                            className="flex items-center gap-1 text-[11px] font-medium text-foreground"
-                          >
-                            {expandedQuarters.includes(qKey) ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
-                            {QUARTER_NAMES[q - 1]}
-                          </button>
-                        </div>
-                        {expandedQuarters.includes(qKey) && (
-                          <div className="ml-5 space-y-0.5">
-                            {qMonths.map(m => (
-                              <div key={`${m.year}-${m.month}`} className="flex items-center gap-2 py-0.5">
-                                <Checkbox
-                                  id={`m-${m.year}-${m.month}`}
-                                  checked={filter.months.includes(m.year * 100 + m.month)}
-                                  onCheckedChange={() => toggleMonth(m.year, m.month)}
-                                  className="h-3 w-3"
-                                />
-                                <label htmlFor={`m-${m.year}-${m.month}`} className="text-[11px] text-muted-foreground cursor-pointer">
-                                  {monthNames[m.month - 1]}
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      <button
+                        key={key}
+                        onClick={() => toggleMonth(month.year, month.month)}
+                        className={active
+                          ? 'rounded-md border border-primary bg-primary px-2 py-1.5 text-[11px] font-semibold text-primary-foreground'
+                          : 'rounded-md border border-border bg-background px-2 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent'
+                        }
+                      >
+                        {monthNames[month.month - 1]}
+                      </button>
                     );
                   })}
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

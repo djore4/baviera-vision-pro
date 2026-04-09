@@ -94,14 +94,13 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
       defval: '',
     });
 
-    for (let i = 1; i < objRaw.length; i++) {
+    for (let i = 3; i < objRaw.length; i++) {
       const r = objRaw[i] as unknown[];
       if (!r) continue;
 
-      // Table 1: cols B(1), D(3), E(4), F(5)
-      if (r[1] && r[3]) {
-        // mes may be a Date object from Excel — normalize to YYYY/MM
-        let mesVal = r[1];
+      // Table 1 (ObjetivosVNGaia): cols A(0), B(1), C(2), D(3), E(4)
+      if (r[0] && (r[1] !== '' || r[2] !== '' || r[3] !== '')) {
+        const mesVal = r[0];
         let mesStr: string;
         if (mesVal instanceof Date) {
           mesStr = `${mesVal.getFullYear()}/${String(mesVal.getMonth() + 1).padStart(2, '0')}`;
@@ -111,21 +110,22 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
         } else {
           mesStr = str(mesVal);
         }
+
         objetivosTotal.push({
           mes: mesStr,
-          range3: num(r[2]),
-          orcado: num(r[3]),
-          range2: num(r[4]),
-          real: num(r[5]),
+          range3: num(r[1]),
+          orcado: num(r[2]),
+          range2: num(r[3]),
+          real: num(r[4]),
         });
       }
 
-      // Table 2: cols L(11), M(12), N(13)
-      if (r[11] && r[12]) {
+      // Table 2: cols K(10), L(11), M(12)
+      if (r[10] && r[11]) {
         objetivosResp.push({
-          mes: str(r[11]),
-          resp: str(r[12]),
-          objetivo: num(r[13]),
+          mes: str(r[10]),
+          resp: str(r[11]),
+          objetivo: num(r[12]),
         });
       }
     }
