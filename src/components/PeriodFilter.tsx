@@ -13,6 +13,12 @@ export function PeriodFilter() {
   const currentMonth = now.getMonth() + 1;
   const currentMonthKey = currentYear * 100 + currentMonth;
 
+  // Detect active quick-action states
+  const isCurrentMonth = filter.years.length === 1 && filter.years[0] === currentYear && filter.months.length === 1 && filter.months[0] === currentMonthKey;
+  const isCurrentYear = filter.years.length === 1 && filter.years[0] === currentYear && filter.months.length === 0;
+  const isAllYears = filter.years.length === availablePeriods.years.length && filter.months.length === 0;
+  const isNoFilter = filter.years.length === 0 && filter.months.length === 0;
+
   const selectCurrentMonth = () => {
     setFilter({ years: [currentYear], quarters: [], months: [currentMonthKey] });
   };
@@ -54,6 +60,18 @@ export function PeriodFilter() {
 
   const selectedYears = [...filter.years].sort((a, b) => b - a);
 
+  const quickBtn = (label: string, active: boolean, onClick: () => void) => (
+    <button
+      onClick={onClick}
+      className={active
+        ? 'rounded-md border border-primary bg-primary px-2 py-1.5 text-[11px] font-semibold text-primary-foreground'
+        : 'rounded-md border border-border bg-secondary px-2 py-1.5 text-[11px] font-medium text-secondary-foreground hover:bg-accent'
+      }
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="bg-card border border-border rounded-lg p-3 space-y-3">
       <div className="flex items-center justify-between gap-2">
@@ -62,40 +80,15 @@ export function PeriodFilter() {
           <span className="text-xs font-semibold text-foreground">PERÍODO</span>
         </div>
         {(filter.years.length > 0 || filter.months.length > 0) && (
-          <button
-            onClick={clearAll}
-            className="text-[10px] font-medium text-primary hover:underline"
-          >
-            Limpar
-          </button>
+          <button onClick={clearAll} className="text-[10px] font-medium text-primary hover:underline">Limpar</button>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-1.5">
-        <button
-          onClick={selectCurrentMonth}
-          className="rounded-md border border-border bg-secondary px-2 py-1.5 text-[11px] font-medium text-secondary-foreground hover:bg-accent"
-        >
-          Mês atual
-        </button>
-        <button
-          onClick={selectCurrentYear}
-          className="rounded-md border border-border bg-secondary px-2 py-1.5 text-[11px] font-medium text-secondary-foreground hover:bg-accent"
-        >
-          Ano atual
-        </button>
-        <button
-          onClick={selectAll}
-          className="rounded-md border border-border bg-secondary px-2 py-1.5 text-[11px] font-medium text-secondary-foreground hover:bg-accent"
-        >
-          Todos os anos
-        </button>
-        <button
-          onClick={clearAll}
-          className="rounded-md border border-border bg-secondary px-2 py-1.5 text-[11px] font-medium text-secondary-foreground hover:bg-accent"
-        >
-          Sem filtro
-        </button>
+        {quickBtn('Mês atual', isCurrentMonth, selectCurrentMonth)}
+        {quickBtn('Ano atual', isCurrentYear, selectCurrentYear)}
+        {quickBtn('Todos os anos', isAllYears, selectAll)}
+        {quickBtn('Sem filtro', isNoFilter, clearAll)}
       </div>
 
       <div className="space-y-1.5">

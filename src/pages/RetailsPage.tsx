@@ -6,7 +6,7 @@ import { formatDate, getDeliveryMonth } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Treemap, Legend, LabelList,
+  PieChart, Pie, Cell, Legend, LabelList,
 } from 'recharts';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -16,16 +16,14 @@ import { Input } from '@/components/ui/input';
 
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
-const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
 
-// Consistent status colors used in chart AND table
 const STATUS_COLORS: Record<string, string> = {
   Retail: '#1C69D4',
   Matricula: '#06B6D4',
   Carteira: '#F59E0B',
 };
 
-type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'cliente' | 'fin' | 'date298';
+type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'app';
 type SortDir = 'asc' | 'desc';
 
 export default function RetailsPage() {
@@ -61,8 +59,6 @@ export default function RetailsPage() {
     return result;
   }, [baseRecords, selectedResp, selectedGar, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity]);
 
-  const retails = useMemo(() => filtered.filter(r => r.status === 'Retail'), [filtered]);
-
   const statusByResp = useMemo(() => {
     const map: Record<string, { resp: string; Carteira: number; Matricula: number; Retail: number; total: number }> = {};
     filtered.forEach(r => {
@@ -86,7 +82,6 @@ export default function RetailsPage() {
     ].filter(d => d.size > 0);
   }, [filtered]);
 
-  // Build the set of selected month keys (YYYY/MM) from the period filter
   const selectedMonthKeys = useMemo(() => {
     const keys = new Set<string>();
     if (filter.months.length > 0) {
@@ -108,12 +103,9 @@ export default function RetailsPage() {
   const realization = useMemo(() => {
     if (!data) return { actual: 0, targetCaetano: 0, targetBMW: 0, target110: 0, pct: 0 };
 
-    // Match objetivos by normalizing their mes field to YYYY/MM format
     const matchingObj = data.objetivosTotal.filter(o => {
       if (selectedMonthKeys.size === 0) return true;
-      // Try direct match (mes could be "2025/04")
       if (selectedMonthKeys.has(o.mes)) return true;
-      // Try parsing date strings like "abr/2025", "04/2025", etc.
       const normalized = normalizeMonthKey(o.mes);
       if (normalized && selectedMonthKeys.has(normalized)) return true;
       return false;
@@ -141,8 +133,8 @@ export default function RetailsPage() {
     filtered.forEach(r => { if (r.origin) map[r.origin] = (map[r.origin] || 0) + 1; });
     const total = filtered.length || 1;
     return Object.entries(map)
-      .map(([name, size]) => ({ name, size, pct: Math.round((size / total) * 100) }))
-      .sort((a, b) => b.size - a.size);
+      .map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) }))
+      .sort((a, b) => b.value - a.value);
   }, [filtered]);
 
   const modelData = useMemo(() => {
@@ -150,8 +142,8 @@ export default function RetailsPage() {
     filtered.forEach(r => { if (r.model) map[r.model] = (map[r.model] || 0) + 1; });
     const total = filtered.length || 1;
     return Object.entries(map)
-      .map(([name, size]) => ({ name, size, pct: Math.round((size / total) * 100) }))
-      .sort((a, b) => b.size - a.size);
+      .map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) }))
+      .sort((a, b) => b.value - a.value);
   }, [filtered]);
 
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
@@ -167,20 +159,24 @@ export default function RetailsPage() {
   }, [filtered]);
 
   const tableData = useMemo(() => {
-    let data = [...filtered];
+    let rows = [...filtered];
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      data = data.filter(r =>
+      rows = rows.filter(r =>
         r.resp.toLowerCase().includes(term) ||
         r.status.toLowerCase().includes(term) ||
         r.type.toLowerCase().includes(term) ||
         r.model.toLowerCase().includes(term) ||
         r.cliente.toLowerCase().includes(term) ||
         r.fin.toLowerCase().includes(term) ||
-        r.gar.toLowerCase().includes(term)
+        r.gar.toLowerCase().includes(term) ||
+        r.biz.toLowerCase().includes(term) ||
+        r.enc.toLowerCase().includes(term) ||
+        r.chas.toLowerCase().includes(term) ||
+        r.mat.toLowerCase().includes(term)
       );
     }
-    data.sort((a, b) => {
+    rows.sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
         case 'resp': cmp = a.resp.localeCompare(b.resp); break;
@@ -190,20 +186,23 @@ export default function RetailsPage() {
         case 'model': cmp = a.model.localeCompare(b.model); break;
         case 'cliente': cmp = a.cliente.localeCompare(b.cliente); break;
         case 'fin': cmp = a.fin.localeCompare(b.fin); break;
+        case 'biz': cmp = a.biz.localeCompare(b.biz); break;
+        case 'enc': cmp = a.enc.localeCompare(b.enc); break;
+        case 'chas': cmp = a.chas.localeCompare(b.chas); break;
+        case 'mat': cmp = a.mat.localeCompare(b.mat); break;
+        case 'neg': cmp = (a.neg?.getTime() || 0) - (b.neg?.getTime() || 0); break;
+        case 'dmat': cmp = (a.dmat?.getTime() || 0) - (b.dmat?.getTime() || 0); break;
         case 'date298': cmp = (a.date298?.getTime() || 0) - (b.date298?.getTime() || 0); break;
+        case 'app': cmp = (a.app?.getTime() || 0) - (b.app?.getTime() || 0); break;
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
-    return data;
+    return rows;
   }, [filtered, sortKey, sortDir, searchTerm]);
 
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortKey(key);
-      setSortDir('asc');
-    }
+    if (sortKey === key) setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
   };
 
   const SortIcon = ({ col }: { col: SortKey }) => {
@@ -255,10 +254,121 @@ export default function RetailsPage() {
     if (type === 'bev') setSelectedBev(null);
   };
 
+  // Shared horizontal bar list component for Entidade, Origem, Mix Modelos
+  const HorizontalBarList = ({ data: items, colorMap, fallbackColors, selected, onClick }: {
+    data: { name: string; value: number; pct: number }[];
+    colorMap?: Record<string, string>;
+    fallbackColors?: string[];
+    selected: string | null;
+    onClick: (name: string) => void;
+  }) => {
+    const maxVal = items[0]?.value || 1;
+    const colors = fallbackColors || COLORS;
+    return (
+      <div className="space-y-1">
+        {items.map((entry, i) => {
+          const isSelected = selected === entry.name;
+          const isDimmed = selected && !isSelected;
+          const color = colorMap?.[entry.name] || colors[i % colors.length];
+          return (
+            <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => onClick(entry.name)}
+              style={{ opacity: isDimmed ? 0.3 : 1 }}>
+              <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+              <span className="text-[10px] flex-1 truncate min-w-0">{entry.name}</span>
+              <div className="w-14 h-3 bg-muted rounded-sm overflow-hidden flex-shrink-0">
+                <div className="h-full rounded-sm" style={{ width: `${(entry.value / maxVal) * 100}%`, backgroundColor: color }} />
+              </div>
+              <span className="text-[10px] font-semibold w-6 text-right flex-shrink-0">{entry.value}</span>
+              <span className="text-[10px] text-muted-foreground w-10 text-right flex-shrink-0">({entry.pct}%)</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
+
+  const tableColumns: [SortKey, string][] = [
+    ['resp', 'RESP'],
+    ['gar', 'GAR'],
+    ['status', 'STATUS'],
+    ['type', 'TIPO'],
+    ['model', 'MODELO'],
+    ['cliente', 'CLIENTE'],
+    ['fin', 'FIN'],
+    ['biz', 'Bizagi'],
+    ['enc', 'Encomenda'],
+    ['chas', 'Chassis'],
+    ['mat', 'Matricula'],
+    ['neg', 'Data de Negócio Fechado'],
+    ['dmat', 'Data de Matricula'],
+    ['date298', 'Data de Retail'],
+    ['app', 'Data de Apping'],
+  ];
+
   return (
     <div className="flex flex-col lg:flex-row gap-3 animate-fade-in">
+      {/* Left column: Period filter + Detail table (desktop) */}
       <div className="w-full lg:w-44 flex-shrink-0 space-y-3">
         <PeriodFilter />
+
+        {/* Detail table below filters on desktop only */}
+        <div className="hidden lg:block bg-card border border-border rounded-lg">
+          <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Detalhe ({tableData.length})</h3>
+            <div className="relative w-full">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
+            </div>
+          </div>
+          <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="text-[10px]">
+                  {tableColumns.map(([key, label]) => (
+                    <TableHead key={key} className="py-1.5 cursor-pointer select-none hover:text-foreground whitespace-nowrap" onClick={() => toggleSort(key)}>
+                      <span className="inline-flex items-center">
+                        {label}
+                        <SortIcon col={key} />
+                      </span>
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tableData.map((r, i) => (
+                  <TableRow key={i} className="text-[11px]">
+                    <TableCell className="py-1 font-medium whitespace-nowrap">{r.resp}</TableCell>
+                    <TableCell className="py-1">
+                      <Badge variant="outline" className={r.gar === 'GAR' ? 'border-bmw-green text-bmw-green text-[10px]' : 'text-muted-foreground text-[10px]'}>
+                        {r.gar === 'GAR' ? 'Certo' : 'Incerto'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[r.status] || '#888' }} />
+                        {r.status}
+                      </span>
+                    </TableCell>
+                    <TableCell className="py-1">{r.type}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{r.model}</TableCell>
+                    <TableCell className="py-1 max-w-[120px] truncate">{r.cliente}</TableCell>
+                    <TableCell className="py-1">{r.fin}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{r.biz}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{r.enc}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{r.chas}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{r.mat}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.neg)}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.dmat)}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.date298)}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.app)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 min-w-0 space-y-2">
@@ -298,18 +408,29 @@ export default function RetailsPage() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-            <p className="text-[10px] text-muted-foreground text-center">Clique num responsável para filtrar</p>
           </div>
 
           {/* Garantia (compact) + Realização */}
           <div className="xl:col-span-3 space-y-2">
             <div className="bg-card border border-border rounded-lg p-2">
               <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Garantia de Entrega</h3>
-              <ResponsiveContainer width="100%" height={60}>
-                <Treemap data={garData} dataKey="size" aspectRatio={4} stroke="hsl(var(--card))"
-                  onClick={(node: any) => { if (node?.name) handleGarClick(node.name); }}
-                  content={<GarTreemapContent selectedGar={selectedGar} />} />
-              </ResponsiveContainer>
+              <div className="flex gap-2">
+                {garData.map(d => {
+                  const isSelected = selectedGar === d.name;
+                  const isDimmed = selectedGar && !isSelected;
+                  const color = d.name === 'Certo' ? '#16A34A' : '#94A3B8';
+                  const pct = filtered.length ? Math.round((d.size / filtered.length) * 100) : 0;
+                  return (
+                    <div key={d.name} className="flex-1 rounded-md p-2 text-center cursor-pointer transition-opacity"
+                      style={{ backgroundColor: color, opacity: isDimmed ? 0.3 : 1 }}
+                      onClick={() => handleGarClick(d.name)}>
+                      <p className="text-white text-[10px] font-medium">{d.name}</p>
+                      <p className="text-white text-base font-bold">{d.size}</p>
+                      <p className="text-white/80 text-[9px]">{pct}%</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="bg-card border border-border rounded-lg p-2">
@@ -349,42 +470,23 @@ export default function RetailsPage() {
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
                   <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
-                  <Pie
-                    data={finData}
-                    dataKey="value"
-                    nameKey="name"
-                    outerRadius={65}
-                    stroke="hsl(var(--background))"
-                    strokeWidth={1.5}
-                    onClick={(entry: any) => entry?.name && handleFinClick(entry.name)}
-                    cursor="pointer"
-                  >
+                  <Pie data={finData} dataKey="value" nameKey="name" outerRadius={65} stroke="hsl(var(--background))" strokeWidth={1.5}
+                    onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
                     {finData.map((entry, i) => {
                       const isSelected = selectedFin === entry.name;
                       const isDimmed = selectedFin && !isSelected;
-                      return (
-                        <Cell
-                          key={entry.name}
-                          fill={FIN_COLORS[entry.name] || COLORS[i % COLORS.length]}
-                          opacity={isDimmed ? 0.35 : 1}
-                        />
-                      );
+                      return <Cell key={entry.name} fill={FIN_COLORS[entry.name] || COLORS[i % COLORS.length]} opacity={isDimmed ? 0.35 : 1} />;
                     })}
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
-
               <div className="space-y-1">
                 {finData.map((entry, i) => {
                   const isSelected = selectedFin === entry.name;
                   const isDimmed = selectedFin && !isSelected;
                   return (
-                    <div
-                      key={entry.name}
-                      className="flex items-center gap-2 cursor-pointer"
-                      onClick={() => handleFinClick(entry.name)}
-                      style={{ opacity: isDimmed ? 0.3 : 1 }}
-                    >
+                    <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)}
+                      style={{ opacity: isDimmed ? 0.3 : 1 }}>
                       <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: FIN_COLORS[entry.name] || COLORS[i % COLORS.length] }} />
                       <span className="text-[10px] font-medium w-9">{entry.name}</span>
                       <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
@@ -405,76 +507,23 @@ export default function RetailsPage() {
 
         {/* Row 2 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
-          {/* Entidade - now clickable */}
+          {/* Entidade */}
           <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
-            {entityData.map(e => {
-              const isSelected = selectedEntity === e.name;
-              const isDimmed = selectedEntity && !isSelected;
-              return (
-                <div key={e.name} className="flex items-center gap-1.5 mb-1 cursor-pointer" onClick={() => handleEntityClick(e.name)}
-                  style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                  <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: PROFILE_COLORS[e.name] || '#888' }} />
-                  <span className="text-[10px] flex-1">{e.name}</span>
-                  <span className="text-[10px] font-medium">{e.value}</span>
-                  <span className="text-[10px] text-muted-foreground">({e.pct}%)</span>
-                </div>
-              );
-            })}
-            <p className="text-[10px] text-muted-foreground mt-1 text-center">Clique para filtrar</p>
+            <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
           </div>
 
           {/* Origem */}
           <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Origem dos Negócios</h3>
-            <div className="space-y-1">
-              {originData.map((entry, i) => {
-                const isSelected = selectedOrigin === entry.name;
-                const isDimmed = selectedOrigin && !isSelected;
-                const maxVal = originData[0]?.size || 1;
-                return (
-                  <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleOriginClick(entry.name)}
-                    style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                    <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-[10px] flex-1 truncate">{entry.name}</span>
-                    <div className="w-16 h-3 bg-muted rounded-sm overflow-hidden">
-                      <div className="h-full rounded-sm" style={{ width: `${(entry.size / maxVal) * 100}%`, backgroundColor: COLORS[i % COLORS.length] }} />
-                    </div>
-                    <span className="text-[10px] font-semibold w-6 text-right">{entry.size}</span>
-                    <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1 text-center">Clique para filtrar</p>
+            <HorizontalBarList data={originData} selected={selectedOrigin} onClick={handleOriginClick} />
           </div>
 
           {/* Mix Modelos */}
           <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mix Modelos</h3>
-            <ResponsiveContainer width="100%" height={120}>
-              <Treemap
-                data={modelData}
-                dataKey="size"
-                stroke="hsl(var(--card))"
-                onClick={(node: any) => { if (node?.name) handleModelClick(node.name); }}
-                content={<ModelTreemapContent selectedModel={selectedModel} />}
-              />
-            </ResponsiveContainer>
-            <div className="space-y-0.5 max-h-16 overflow-y-auto pr-1 mt-1">
-              {modelData.map((entry, i) => {
-                const isSelected = selectedModel === entry.name;
-                const isDimmed = selectedModel && !isSelected;
-                return (
-                  <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleModelClick(entry.name)}
-                    style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                    <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-[10px] flex-1 truncate">{entry.name}</span>
-                    <span className="text-[10px] font-semibold w-7 text-right">{entry.size}</span>
-                    <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
-                  </div>
-                );
-              })}
+            <div className="max-h-40 overflow-y-auto pr-1">
+              <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
             </div>
           </div>
 
@@ -493,35 +542,21 @@ export default function RetailsPage() {
           </div>
         </div>
 
-        {/* Detail Table */}
-        <div className="bg-card border border-border rounded-lg">
+        {/* Detail Table - mobile only */}
+        <div className="lg:hidden bg-card border border-border rounded-lg">
           <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Detalhe ({tableData.length})</h3>
             <div className="relative w-full sm:w-48">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="h-7 pl-7 text-[11px]"
-              />
+              <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
             </div>
           </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="text-[10px]">
-                  {([
-                    ['resp', 'RESP'],
-                    ['gar', 'GAR'],
-                    ['status', 'STATUS'],
-                    ['type', 'TIPO'],
-                    ['model', 'MODELO'],
-                    ['cliente', 'CLIENTE'],
-                    ['fin', 'FIN'],
-                    ['date298', '298'],
-                  ] as [SortKey, string][]).map(([key, label]) => (
-                    <TableHead key={key} className="py-1.5 cursor-pointer select-none hover:text-foreground" onClick={() => toggleSort(key)}>
+                  {tableColumns.map(([key, label]) => (
+                    <TableHead key={key} className="py-1.5 cursor-pointer select-none hover:text-foreground whitespace-nowrap" onClick={() => toggleSort(key)}>
                       <span className="inline-flex items-center">
                         {label}
                         <SortIcon col={key} />
@@ -533,23 +568,30 @@ export default function RetailsPage() {
               <TableBody>
                 {tableData.map((r, i) => (
                   <TableRow key={i} className="text-[11px]">
-                    <TableCell className="py-1 font-medium">{r.resp}</TableCell>
+                    <TableCell className="py-1 font-medium whitespace-nowrap">{r.resp}</TableCell>
                     <TableCell className="py-1">
                       <Badge variant="outline" className={r.gar === 'GAR' ? 'border-bmw-green text-bmw-green text-[10px]' : 'text-muted-foreground text-[10px]'}>
                         {r.gar === 'GAR' ? 'Certo' : 'Incerto'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="py-1">
+                    <TableCell className="py-1 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[r.status] || '#888' }} />
                         {r.status}
                       </span>
                     </TableCell>
                     <TableCell className="py-1">{r.type}</TableCell>
-                    <TableCell className="py-1">{r.model}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{r.model}</TableCell>
                     <TableCell className="py-1 max-w-[120px] truncate">{r.cliente}</TableCell>
                     <TableCell className="py-1">{r.fin}</TableCell>
-                    <TableCell className="py-1">{formatDate(r.date298)}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{r.biz}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{r.enc}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{r.chas}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{r.mat}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.neg)}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.dmat)}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.date298)}</TableCell>
+                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.app)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -561,17 +603,13 @@ export default function RetailsPage() {
   );
 }
 
-// Normalize month strings from Excel to YYYY/MM format
 function normalizeMonthKey(mes: string): string | null {
   if (!mes) return null;
-  // Already in YYYY/MM format
   if (/^\d{4}\/\d{2}$/.test(mes)) return mes;
-  // Handle Excel date serial that was converted to date string
   const d = new Date(mes);
   if (!isNaN(d.getTime())) {
     return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
   }
-  // Handle Portuguese month abbreviations like "abr/2025" or "Abr 2025"
   const ptMonths: Record<string, number> = {
     jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
     jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12,
@@ -581,61 +619,35 @@ function normalizeMonthKey(mes: string): string | null {
     const m = ptMonths[match[1].toLowerCase()];
     if (m) return `${match[2]}/${String(m).padStart(2, '0')}`;
   }
-  // Handle MM/YYYY
   const match2 = mes.match(/^(\d{1,2})\/(\d{4})$/);
   if (match2) return `${match2[2]}/${String(Number(match2[1])).padStart(2, '0')}`;
   return null;
 }
 
-function GarTreemapContent(props: any) {
-  const { x, y, width, height, name, size, selectedGar } = props;
-  if (!width || !height || width < 1 || height < 1) return null;
-  return (
-    <g>
-      <rect x={x} y={y} width={width} height={height}
-        fill={name === 'Certo' ? '#16A34A' : '#94A3B8'}
-        stroke="hsl(var(--card))" strokeWidth={2}
-        style={{ cursor: 'pointer', opacity: selectedGar && selectedGar !== name ? 0.3 : 1 }} />
-      {width > 30 && height > 15 && (
-        <>
-          <text x={x + width / 2} y={y + height / 2 - 4} textAnchor="middle" fill="white" fontSize={10} fontWeight="bold">{name}</text>
-          <text x={x + width / 2} y={y + height / 2 + 10} textAnchor="middle" fill="white" fontSize={12} fontWeight="bold">{size}</text>
-        </>
-      )}
-    </g>
-  );
-}
-
-function ModelTreemapContent(props: any) {
-  const { x, y, width, height, name, size, pct, index, selectedModel } = props;
-  if (!width || !height || width < 1 || height < 1) return null;
-  const fill = COLORS[index % COLORS.length];
-  const isDimmed = selectedModel && selectedModel !== name;
-  return (
-    <g>
-      <rect x={x} y={y} width={width} height={height}
-        fill={fill} fillOpacity={isDimmed ? 0.3 : 0.95}
-        stroke="hsl(var(--card))" strokeWidth={2} style={{ cursor: 'pointer' }} />
-      {width > 50 && height > 28 && (
-        <>
-          <text x={x + 6} y={y + 13} textAnchor="start" fill="hsl(var(--primary-foreground))" fontSize={10} fontWeight="bold">{name}</text>
-          <text x={x + 6} y={y + 24} textAnchor="start" fill="hsl(var(--primary-foreground))" fontSize={9}>{size} ({pct}%)</text>
-        </>
-      )}
-    </g>
-  );
-}
-
 function GaugeSimple({ value }: { value: number }) {
-  const clamped = Math.min(Math.max(value, 0), 150);
-  const angle = -90 + (clamped / 150) * 180;
-  const color = value >= 90 ? '#16A34A' : value >= 70 ? '#F59E0B' : '#DC2626';
+  const maxVal = Math.max(100, value);
+  const clamped = Math.min(Math.max(value, 0), maxVal);
+  const angle = -90 + (clamped / maxVal) * 180;
+  const color = value >= 100 ? '#16A34A' : value >= 80 ? '#F59E0B' : '#DC2626';
+
+  // Calculate arc endpoint for 100% mark
+  const markAngle100 = -90 + (100 / maxVal) * 180;
+  const markX = 60 + 45 * Math.cos((markAngle100 * Math.PI) / 180);
+  const markY = 60 + 45 * Math.sin((markAngle100 * Math.PI) / 180);
+
   return (
     <svg viewBox="0 0 120 70" className="w-24 h-auto">
       <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="hsl(var(--border))" strokeWidth="8" strokeLinecap="round" />
+      {/* Color zones */}
       <path d="M 10 60 A 50 50 0 0 1 36.7 18.4" fill="none" stroke="#DC262640" strokeWidth="8" strokeLinecap="round" />
       <path d="M 36.7 18.4 A 50 50 0 0 1 60 10" fill="none" stroke="#F59E0B40" strokeWidth="8" strokeLinecap="round" />
       <path d="M 60 10 A 50 50 0 0 1 110 60" fill="none" stroke="#16A34A40" strokeWidth="8" strokeLinecap="round" />
+      {/* 100% mark */}
+      {maxVal > 100 && (
+        <line x1={markX} y1={markY} x2={60 + 55 * Math.cos((markAngle100 * Math.PI) / 180)} y2={60 + 55 * Math.sin((markAngle100 * Math.PI) / 180)}
+          stroke="hsl(var(--foreground))" strokeWidth="1.5" opacity={0.5} />
+      )}
+      {/* Needle */}
       <line x1="60" y1="60" x2={60 + 40 * Math.cos((angle * Math.PI) / 180)} y2={60 + 40 * Math.sin((angle * Math.PI) / 180)}
         stroke={color} strokeWidth="2.5" strokeLinecap="round" />
       <circle cx="60" cy="60" r="3" fill={color} />
