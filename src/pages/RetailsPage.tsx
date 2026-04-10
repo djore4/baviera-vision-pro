@@ -279,7 +279,7 @@ export default function RetailsPage() {
                 <div className="h-full rounded-sm" style={{ width: `${(entry.value / maxVal) * 100}%`, backgroundColor: color }} />
               </div>
               <span className="text-[10px] font-semibold w-6 text-right flex-shrink-0">{entry.value}</span>
-              <span className="text-[10px] text-muted-foreground w-10 text-right flex-shrink-0">({entry.pct}%)</span>
+              <span className="text-[9px] text-muted-foreground flex-shrink-0">{entry.pct}%</span>
             </div>
           );
         })}
@@ -308,67 +308,11 @@ export default function RetailsPage() {
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row gap-3 animate-fade-in">
-      {/* Left column: Period filter + Detail table (desktop) */}
-      <div className="w-full lg:w-44 flex-shrink-0 space-y-3">
+    <div className="space-y-3 animate-fade-in">
+      <div className="flex flex-col lg:flex-row gap-3">
+      {/* Left column: Period filter */}
+      <div className="w-full lg:w-44 flex-shrink-0">
         <PeriodFilter />
-
-        {/* Detail table below filters on desktop only */}
-        <div className="hidden lg:block bg-card border border-border rounded-lg">
-          <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Detalhe ({tableData.length})</h3>
-            <div className="relative w-full">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-              <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
-            </div>
-          </div>
-          <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="text-[10px]">
-                  {tableColumns.map(([key, label]) => (
-                    <TableHead key={key} className="py-1.5 cursor-pointer select-none hover:text-foreground whitespace-nowrap" onClick={() => toggleSort(key)}>
-                      <span className="inline-flex items-center">
-                        {label}
-                        <SortIcon col={key} />
-                      </span>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tableData.map((r, i) => (
-                  <TableRow key={i} className="text-[11px]">
-                    <TableCell className="py-1 font-medium whitespace-nowrap">{r.resp}</TableCell>
-                    <TableCell className="py-1">
-                      <Badge variant="outline" className={r.gar === 'GAR' ? 'border-bmw-green text-bmw-green text-[10px]' : 'text-muted-foreground text-[10px]'}>
-                        {r.gar === 'GAR' ? 'Certo' : 'Incerto'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[r.status] || '#888' }} />
-                        {r.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="py-1">{r.type}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{r.model}</TableCell>
-                    <TableCell className="py-1 max-w-[120px] truncate">{r.cliente}</TableCell>
-                    <TableCell className="py-1">{r.fin}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{r.biz}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{r.enc}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{r.chas}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{r.mat}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.neg)}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.dmat)}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.date298)}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.app)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
       </div>
 
       <div className="flex-1 min-w-0 space-y-2">
@@ -542,61 +486,63 @@ export default function RetailsPage() {
           </div>
         </div>
 
-        {/* Detail Table - mobile only */}
-        <div className="lg:hidden bg-card border border-border rounded-lg">
-          <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Detalhe ({tableData.length})</h3>
-            <div className="relative w-full sm:w-48">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-              <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
-            </div>
+      </div>
+      </div>
+
+      {/* Detail Table - full width */}
+      <div className="bg-card border border-border rounded-lg">
+        <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Detalhe ({tableData.length})</h3>
+          <div className="relative w-full sm:w-48">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+            <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
           </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="text-[10px]">
-                  {tableColumns.map(([key, label]) => (
-                    <TableHead key={key} className="py-1.5 cursor-pointer select-none hover:text-foreground whitespace-nowrap" onClick={() => toggleSort(key)}>
-                      <span className="inline-flex items-center">
-                        {label}
-                        <SortIcon col={key} />
-                      </span>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tableData.map((r, i) => (
-                  <TableRow key={i} className="text-[11px]">
-                    <TableCell className="py-1 font-medium whitespace-nowrap">{r.resp}</TableCell>
-                    <TableCell className="py-1">
-                      <Badge variant="outline" className={r.gar === 'GAR' ? 'border-bmw-green text-bmw-green text-[10px]' : 'text-muted-foreground text-[10px]'}>
-                        {r.gar === 'GAR' ? 'Certo' : 'Incerto'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[r.status] || '#888' }} />
-                        {r.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="py-1">{r.type}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{r.model}</TableCell>
-                    <TableCell className="py-1 max-w-[120px] truncate">{r.cliente}</TableCell>
-                    <TableCell className="py-1">{r.fin}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{r.biz}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{r.enc}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{r.chas}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{r.mat}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.neg)}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.dmat)}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.date298)}</TableCell>
-                    <TableCell className="py-1 whitespace-nowrap">{formatDate(r.app)}</TableCell>
-                  </TableRow>
+        </div>
+        <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="text-[10px]">
+                {tableColumns.map(([key, label]) => (
+                  <TableHead key={key} className="py-1.5 cursor-pointer select-none hover:text-foreground whitespace-nowrap" onClick={() => toggleSort(key)}>
+                    <span className="inline-flex items-center">
+                      {label}
+                      <SortIcon col={key} />
+                    </span>
+                  </TableHead>
                 ))}
-              </TableBody>
-            </Table>
-          </div>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tableData.map((r, i) => (
+                <TableRow key={i} className="text-[11px]">
+                  <TableCell className="py-1 font-medium whitespace-nowrap">{r.resp}</TableCell>
+                  <TableCell className="py-1">
+                    <Badge variant="outline" className={r.gar === 'GAR' ? 'border-bmw-green text-bmw-green text-[10px]' : 'text-muted-foreground text-[10px]'}>
+                      {r.gar === 'GAR' ? 'Certo' : 'Incerto'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="py-1 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[r.status] || '#888' }} />
+                      {r.status}
+                    </span>
+                  </TableCell>
+                  <TableCell className="py-1">{r.type}</TableCell>
+                  <TableCell className="py-1 whitespace-nowrap">{r.model}</TableCell>
+                  <TableCell className="py-1 max-w-[120px] truncate">{r.cliente}</TableCell>
+                  <TableCell className="py-1">{r.fin}</TableCell>
+                  <TableCell className="py-1 whitespace-nowrap">{r.biz}</TableCell>
+                  <TableCell className="py-1 whitespace-nowrap">{r.enc}</TableCell>
+                  <TableCell className="py-1 whitespace-nowrap">{r.chas}</TableCell>
+                  <TableCell className="py-1 whitespace-nowrap">{r.mat}</TableCell>
+                  <TableCell className="py-1 whitespace-nowrap">{formatDate(r.neg)}</TableCell>
+                  <TableCell className="py-1 whitespace-nowrap">{formatDate(r.dmat)}</TableCell>
+                  <TableCell className="py-1 whitespace-nowrap">{formatDate(r.date298)}</TableCell>
+                  <TableCell className="py-1 whitespace-nowrap">{formatDate(r.app)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </div>
     </div>
