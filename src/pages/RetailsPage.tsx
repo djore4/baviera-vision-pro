@@ -3,16 +3,14 @@ import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { SalesRadar } from '@/components/SalesRadar';
 import { formatDate, getDeliveryMonth } from '@/lib/excel-parser';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle, Download } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LabelList,
 } from 'recharts';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
@@ -37,6 +35,7 @@ export default function RetailsPage() {
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [selectedPark, setSelectedPark] = useState<boolean>(false);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('date298');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,8 +57,9 @@ export default function RetailsPage() {
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
     if (selectedEntity) result = result.filter(r => r.profile === selectedEntity);
     if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P'));
+    if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
     return result;
-  }, [baseRecords, selectedResp, selectedGar, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity, selectedPark]);
+  }, [baseRecords, selectedResp, selectedGar, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity, selectedPark, selectedStatus]);
 
   const statusByResp = useMemo(() => {
     const map: Record<string, { resp: string; Carteira: number; Matricula: number; Retail: number; total: number }> = {};
@@ -230,12 +230,32 @@ export default function RetailsPage() {
   const handleEntityClick = useCallback((name: string) => { toggle(setSelectedEntity, name, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
+  const handleStatusClick = useCallback((statusName: string) => {
+    setSelectedStatus(prev => prev === statusName ? null : statusName);
+  }, []);
+
+  const exportCSV = useCallback(() => {
+    const headers = ['RESP', 'GAR', 'STATUS', 'TIPO', 'MODELO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', 'Data de Negócio', 'Data de Matricula', 'Data de Retail', 'Data de Apping'];
+    const rows = tableData.map(r => [
+      r.resp, r.gar === 'GAR' ? 'Certo' : 'Incerto', r.status, r.type, r.model, r.cliente, r.fin,
+      r.biz, r.enc, r.chas, r.mat,
+      formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.app),
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `detalhe_retails_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [tableData]);
 
   if (!data) {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-muted-foreground">
         <p className="text-lg font-medium">Sem dados carregados</p>
-        <p className="text-sm mt-1">Utilize o botão "Carregar Excel" para importar os dados.</p>
+        <p className="text-sm mt-1">Aceda a <strong>Dados</strong> no menu lateral para importar o ficheiro Excel.</p>
       </div>
     );
   }
@@ -250,6 +270,7 @@ export default function RetailsPage() {
     selectedQor !== null && `QoR: Sim`,
     selectedBev !== null && `BEV: Sim`,
     selectedPark && `Parque`,
+    selectedStatus && `Status: ${selectedStatus}`,
   ].filter(Boolean);
 
   const clearFilter = (type: string) => {
@@ -262,6 +283,7 @@ export default function RetailsPage() {
     if (type === 'qor') setSelectedQor(null);
     if (type === 'bev') setSelectedBev(null);
     if (type === 'park') setSelectedPark(false);
+    if (type === 'status') setSelectedStatus(null);
   };
 
   const HorizontalBarList = ({ data: items, colorMap, fallbackColors, selected, onClick }: {
@@ -316,13 +338,19 @@ export default function RetailsPage() {
     ['app', 'Data de Apping'],
   ];
 
+  // Custom legend click handler for status chart
+  const handleLegendClick = (e: any) => {
+    if (e?.value) {
+      handleStatusClick(e.value);
+    }
+  };
+
   return (
     <div className="space-y-3 animate-fade-in">
       <div className="flex flex-col lg:flex-row gap-3">
       {/* Left column: Period filter + Park filter */}
       <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
         <PeriodFilter />
-        {/* Park filter */}
         <button
           onClick={() => setSelectedPark(prev => !prev)}
           className={`w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 transition-all ${
@@ -352,6 +380,7 @@ export default function RetailsPage() {
             {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR ✕</Badge>}
             {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV ✕</Badge>}
             {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('park')}>Parque ✕</Badge>}
+            {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('status')}>Status: {selectedStatus} ✕</Badge>}
           </div>
         )}
 
@@ -369,10 +398,16 @@ export default function RetailsPage() {
                 <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
                 <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)} />
-                <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)} />
-                <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
+                <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick} />
+                <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer"
+                  opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1}
+                  onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)} />
+                <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer"
+                  opacity={selectedStatus && selectedStatus !== 'Matricula' ? 0.2 : 1}
+                  onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)} />
+                <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer"
+                  opacity={selectedStatus && selectedStatus !== 'Carteira' ? 0.2 : 1}
+                  onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
                   <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                 </Bar>
               </BarChart>
@@ -476,19 +511,16 @@ export default function RetailsPage() {
 
         {/* Row 2 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
-          {/* Entidade */}
           <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
             <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
           </div>
 
-          {/* Origem */}
           <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Origem dos Negócios</h3>
             <HorizontalBarList data={originData} selected={selectedOrigin} onClick={handleOriginClick} />
           </div>
 
-          {/* Mix Modelos */}
           <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mix Modelos</h3>
             <div className="max-h-40 overflow-y-auto pr-1">
@@ -496,7 +528,6 @@ export default function RetailsPage() {
             </div>
           </div>
 
-          {/* QoR + BEV side by side on mobile */}
           <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
             <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B"
               isActive={selectedQor === true} onClick={handleQorClick} />
@@ -504,7 +535,6 @@ export default function RetailsPage() {
               isActive={selectedBev === true} onClick={handleBevClick} />
           </div>
 
-          {/* Sales Radar */}
           <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
             <SalesRadar records={filtered} height="200px" />
@@ -518,56 +548,64 @@ export default function RetailsPage() {
       <div className="bg-card border border-border rounded-lg">
         <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
           <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Detalhe ({tableData.length})</h3>
-          <div className="relative w-full sm:w-48">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-            <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
+          <div className="flex items-center gap-2">
+            <div className="relative w-full sm:w-48">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
+            </div>
+            <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
+              <Download className="h-3 w-3" />
+              CSV
+            </Button>
           </div>
         </div>
-        <div className="overflow-x-auto max-h-[60vh] overflow-y-auto relative">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-card">
-              <TableRow className="text-[10px]">
+        <div className="overflow-auto max-h-[60vh] relative">
+          <table className="w-full caption-bottom text-sm">
+            <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
+              <tr className="text-[10px]">
                 {tableColumns.map(([key, label]) => (
-                  <TableHead key={key} className="py-1.5 cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card" onClick={() => toggleSort(key)}>
+                  <th key={key}
+                    className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card"
+                    onClick={() => toggleSort(key)}>
                     <span className="inline-flex items-center">
                       {label}
                       <SortIcon col={key} />
                     </span>
-                  </TableHead>
+                  </th>
                 ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+              </tr>
+            </thead>
+            <tbody>
               {tableData.map((r, i) => (
-                <TableRow key={i} className="text-[11px]">
-                  <TableCell className="py-1 font-medium whitespace-nowrap">{r.resp}</TableCell>
-                  <TableCell className="py-1">
+                <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
+                  <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
+                  <td className="px-3 py-1">
                     <Badge variant="outline" className={r.gar === 'GAR' ? 'border-bmw-green text-bmw-green text-[10px]' : 'text-muted-foreground text-[10px]'}>
                       {r.gar === 'GAR' ? 'Certo' : 'Incerto'}
                     </Badge>
-                  </TableCell>
-                  <TableCell className="py-1 whitespace-nowrap">
+                  </td>
+                  <td className="px-3 py-1 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[r.status] || '#888' }} />
                       {r.status}
                     </span>
-                  </TableCell>
-                  <TableCell className="py-1">{r.type}</TableCell>
-                  <TableCell className="py-1 whitespace-nowrap">{r.model}</TableCell>
-                  <TableCell className="py-1 max-w-[120px] truncate">{r.cliente}</TableCell>
-                  <TableCell className="py-1">{r.fin}</TableCell>
-                  <TableCell className="py-1 whitespace-nowrap">{r.biz}</TableCell>
-                  <TableCell className="py-1 whitespace-nowrap">{r.enc}</TableCell>
-                  <TableCell className="py-1 whitespace-nowrap">{r.chas}</TableCell>
-                  <TableCell className="py-1 whitespace-nowrap">{r.mat}</TableCell>
-                  <TableCell className="py-1 whitespace-nowrap">{formatDate(r.neg)}</TableCell>
-                  <TableCell className="py-1 whitespace-nowrap">{formatDate(r.dmat)}</TableCell>
-                  <TableCell className="py-1 whitespace-nowrap">{formatDate(r.date298)}</TableCell>
-                  <TableCell className="py-1 whitespace-nowrap">{formatDate(r.app)}</TableCell>
-                </TableRow>
+                  </td>
+                  <td className="px-3 py-1">{r.type}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
+                  <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
+                  <td className="px-3 py-1">{r.fin}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.chas}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.mat}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.dmat)}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.date298)}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.app)}</td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

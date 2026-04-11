@@ -1,6 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X } from 'lucide-react';
-import { ExcelUpload } from '@/components/ExcelUpload';
+import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database } from 'lucide-react';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
 import { useState, useEffect } from 'react';
@@ -11,6 +10,7 @@ const NAV_ITEMS = [
   { path: '/producao', label: 'PRODUÇÃO', icon: TrendingUp },
   { path: '/carteira', label: 'CARTEIRA', icon: Briefcase },
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
+  { path: '/dados', label: 'DADOS', icon: Database },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -20,24 +20,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const week = getCurrentWeek();
 
-  // Close sidebar on route change on mobile
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
   }, [location.pathname, isMobile]);
 
-  // Sync sidebar with breakpoint
   useEffect(() => {
     setSidebarOpen(!isMobile);
   }, [isMobile]);
 
   return (
     <div className="min-h-screen flex w-full bg-background">
-      {/* Mobile overlay */}
       {isMobile && sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`
           ${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative'}
@@ -79,7 +75,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-11 border-b border-border bg-card flex items-center justify-between px-3 sm:px-4 flex-shrink-0">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -90,11 +85,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {NAV_ITEMS.find(n => n.path === location.pathname)?.label || 'Dashboard'}
             </span>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <ExcelUpload />
-            <div className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
-              S{week}
-            </div>
+          <div className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
+            S{week}
           </div>
         </header>
 
