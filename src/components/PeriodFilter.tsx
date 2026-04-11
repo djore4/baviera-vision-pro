@@ -12,23 +12,25 @@ export function PeriodFilter() {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
   const currentMonthKey = currentYear * 100 + currentMonth;
+  const currentQuarter = Math.ceil(currentMonth / 3);
 
-  // Detect active quick-action states
   const isCurrentMonth = filter.years.length === 1 && filter.years[0] === currentYear && filter.months.length === 1 && filter.months[0] === currentMonthKey;
+  const isCurrentQuarter = filter.years.length === 1 && filter.years[0] === currentYear && filter.months.length === 3 &&
+    [1, 2, 3].map(i => currentYear * 100 + (currentQuarter - 1) * 3 + i).every(k => filter.months.includes(k));
   const isCurrentYear = filter.years.length === 1 && filter.years[0] === currentYear && filter.months.length === 0;
-  const isAllYears = filter.years.length === availablePeriods.years.length && filter.months.length === 0;
-  const isNoFilter = filter.years.length === 0 && filter.months.length === 0;
 
   const selectCurrentMonth = () => {
     setFilter({ years: [currentYear], quarters: [], months: [currentMonthKey] });
   };
 
-  const selectCurrentYear = () => {
-    setFilter({ years: [currentYear], quarters: [], months: [] });
+  const selectCurrentQuarter = () => {
+    const startMonth = (currentQuarter - 1) * 3 + 1;
+    const months = [1, 2, 3].map(i => currentYear * 100 + startMonth + i - 1);
+    setFilter({ years: [currentYear], quarters: [], months });
   };
 
-  const selectAll = () => {
-    setFilter({ years: [...availablePeriods.years], quarters: [], months: [] });
+  const selectCurrentYear = () => {
+    setFilter({ years: [currentYear], quarters: [], months: [] });
   };
 
   const clearAll = () => {
@@ -84,8 +86,9 @@ export function PeriodFilter() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
         {quickBtn('Mês atual', isCurrentMonth, selectCurrentMonth)}
+        {quickBtn(`T${currentQuarter} atual`, isCurrentQuarter, selectCurrentQuarter)}
         {quickBtn('Ano atual', isCurrentYear, selectCurrentYear)}
       </div>
 
