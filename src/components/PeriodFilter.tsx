@@ -92,7 +92,7 @@ export function PeriodFilter() {
       <div className="space-y-1.5">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Anos</p>
         <div className="flex flex-wrap gap-1.5">
-          {availablePeriods.years.map(year => {
+          {availablePeriods.years.filter(y => y >= 2021).map(year => {
             const active = filter.years.includes(year);
             return (
               <button

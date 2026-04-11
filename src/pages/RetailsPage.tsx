@@ -3,7 +3,7 @@ import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { SalesRadar } from '@/components/SalesRadar';
 import { formatDate, getDeliveryMonth } from '@/lib/excel-parser';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LabelList,
@@ -36,6 +36,7 @@ export default function RetailsPage() {
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
+  const [selectedPark, setSelectedPark] = useState<boolean>(false);
   const [sortKey, setSortKey] = useState<SortKey>('date298');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
@@ -56,8 +57,9 @@ export default function RetailsPage() {
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
     if (selectedEntity) result = result.filter(r => r.profile === selectedEntity);
+    if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P'));
     return result;
-  }, [baseRecords, selectedResp, selectedGar, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity]);
+  }, [baseRecords, selectedResp, selectedGar, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity, selectedPark]);
 
   const statusByResp = useMemo(() => {
     const map: Record<string, { resp: string; Carteira: number; Matricula: number; Retail: number; total: number }> = {};
@@ -122,10 +124,15 @@ export default function RetailsPage() {
   const finData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(r => { if (r.fin) map[r.fin] = (map[r.fin] || 0) + 1; });
-    const total = filtered.length || 1;
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) }))
+    const totalWithFin = Object.values(map).reduce((s, v) => s + v, 0);
+    const diff = filtered.length - totalWithFin;
+    const entries = Object.entries(map)
+      .map(([name, value]) => ({ name, value, pct: Math.round((value / (filtered.length || 1)) * 100) }))
       .sort((a, b) => b.value - a.value);
+    if (diff > 0) {
+      entries.push({ name: 'N/A', value: diff, pct: Math.round((diff / (filtered.length || 1)) * 100) });
+    }
+    return entries;
   }, [filtered]);
 
   const originData = useMemo(() => {
@@ -148,6 +155,7 @@ export default function RetailsPage() {
 
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
   const bevCount = useMemo(() => filtered.filter(r => r.bev === 1).length, [filtered]);
+  const parkCount = useMemo(() => filtered.filter(r => r.week198.toUpperCase().includes('P')).length, [filtered]);
 
   const entityData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -241,6 +249,7 @@ export default function RetailsPage() {
     selectedEntity && `Entidade: ${selectedEntity}`,
     selectedQor !== null && `QoR: Sim`,
     selectedBev !== null && `BEV: Sim`,
+    selectedPark && `Parque`,
   ].filter(Boolean);
 
   const clearFilter = (type: string) => {
@@ -252,9 +261,9 @@ export default function RetailsPage() {
     if (type === 'entity') setSelectedEntity(null);
     if (type === 'qor') setSelectedQor(null);
     if (type === 'bev') setSelectedBev(null);
+    if (type === 'park') setSelectedPark(false);
   };
 
-  // Shared horizontal bar list component for Entidade, Origem, Mix Modelos
   const HorizontalBarList = ({ data: items, colorMap, fallbackColors, selected, onClick }: {
     data: { name: string; value: number; pct: number }[];
     colorMap?: Record<string, string>;
@@ -310,9 +319,24 @@ export default function RetailsPage() {
   return (
     <div className="space-y-3 animate-fade-in">
       <div className="flex flex-col lg:flex-row gap-3">
-      {/* Left column: Period filter */}
-      <div className="w-full lg:w-44 flex-shrink-0">
+      {/* Left column: Period filter + Park filter */}
+      <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
         <PeriodFilter />
+        {/* Park filter */}
+        <button
+          onClick={() => setSelectedPark(prev => !prev)}
+          className={`w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 transition-all ${
+            selectedPark
+              ? 'border-primary bg-primary/10 ring-1 ring-primary'
+              : 'border-border bg-card hover:bg-accent'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <ParkingCircle className={`h-4 w-4 ${selectedPark ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className="text-[11px] font-semibold uppercase">Em Parque</span>
+          </div>
+          <Badge variant={selectedPark ? 'default' : 'secondary'} className="text-[10px]">{parkCount}</Badge>
+        </button>
       </div>
 
       <div className="flex-1 min-w-0 space-y-2">
@@ -327,6 +351,7 @@ export default function RetailsPage() {
             {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('entity')}>{selectedEntity} ✕</Badge>}
             {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR ✕</Badge>}
             {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV ✕</Badge>}
+            {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('park')}>Parque ✕</Badge>}
           </div>
         )}
 
@@ -339,7 +364,7 @@ export default function RetailsPage() {
               <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalStatusSum}</span>
             </div>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={statusByResp} barSize={14}>
+              <BarChart data={statusByResp} barSize={28}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
                 <YAxis tick={{ fontSize: 10 }} />
@@ -419,7 +444,7 @@ export default function RetailsPage() {
                     {finData.map((entry, i) => {
                       const isSelected = selectedFin === entry.name;
                       const isDimmed = selectedFin && !isSelected;
-                      return <Cell key={entry.name} fill={FIN_COLORS[entry.name] || COLORS[i % COLORS.length]} opacity={isDimmed ? 0.35 : 1} />;
+                      return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
                     })}
                   </Pie>
                 </PieChart>
@@ -431,7 +456,7 @@ export default function RetailsPage() {
                   return (
                     <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)}
                       style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                      <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: FIN_COLORS[entry.name] || COLORS[i % COLORS.length] }} />
+                      <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
                       <span className="text-[10px] font-medium w-9">{entry.name}</span>
                       <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
                       <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
@@ -471,8 +496,8 @@ export default function RetailsPage() {
             </div>
           </div>
 
-          {/* QoR + BEV */}
-          <div className="xl:col-span-2 space-y-2">
+          {/* QoR + BEV side by side on mobile */}
+          <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
             <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B"
               isActive={selectedQor === true} onClick={handleQorClick} />
             <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A"
@@ -498,12 +523,12 @@ export default function RetailsPage() {
             <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
           </div>
         </div>
-        <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
+        <div className="overflow-x-auto max-h-[60vh] overflow-y-auto relative">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-card">
               <TableRow className="text-[10px]">
                 {tableColumns.map(([key, label]) => (
-                  <TableHead key={key} className="py-1.5 cursor-pointer select-none hover:text-foreground whitespace-nowrap" onClick={() => toggleSort(key)}>
+                  <TableHead key={key} className="py-1.5 cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card" onClick={() => toggleSort(key)}>
                     <span className="inline-flex items-center">
                       {label}
                       <SortIcon col={key} />
@@ -576,7 +601,6 @@ function GaugeSimple({ value }: { value: number }) {
   const angle = -90 + (clamped / maxVal) * 180;
   const color = value >= 100 ? '#16A34A' : value >= 80 ? '#F59E0B' : '#DC2626';
 
-  // Calculate arc endpoint for 100% mark
   const markAngle100 = -90 + (100 / maxVal) * 180;
   const markX = 60 + 45 * Math.cos((markAngle100 * Math.PI) / 180);
   const markY = 60 + 45 * Math.sin((markAngle100 * Math.PI) / 180);
@@ -584,16 +608,13 @@ function GaugeSimple({ value }: { value: number }) {
   return (
     <svg viewBox="0 0 120 70" className="w-24 h-auto">
       <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="hsl(var(--border))" strokeWidth="8" strokeLinecap="round" />
-      {/* Color zones */}
       <path d="M 10 60 A 50 50 0 0 1 36.7 18.4" fill="none" stroke="#DC262640" strokeWidth="8" strokeLinecap="round" />
       <path d="M 36.7 18.4 A 50 50 0 0 1 60 10" fill="none" stroke="#F59E0B40" strokeWidth="8" strokeLinecap="round" />
       <path d="M 60 10 A 50 50 0 0 1 110 60" fill="none" stroke="#16A34A40" strokeWidth="8" strokeLinecap="round" />
-      {/* 100% mark */}
       {maxVal > 100 && (
         <line x1={markX} y1={markY} x2={60 + 55 * Math.cos((markAngle100 * Math.PI) / 180)} y2={60 + 55 * Math.sin((markAngle100 * Math.PI) / 180)}
           stroke="hsl(var(--foreground))" strokeWidth="1.5" opacity={0.5} />
       )}
-      {/* Needle */}
       <line x1="60" y1="60" x2={60 + 40 * Math.cos((angle * Math.PI) / 180)} y2={60 + 40 * Math.sin((angle * Math.PI) / 180)}
         stroke={color} strokeWidth="2.5" strokeLinecap="round" />
       <circle cx="60" cy="60" r="3" fill={color} />
