@@ -437,15 +437,15 @@ export default function RetailsPage() {
               </div>
             </div>
 
-            <div className="bg-card border border-border rounded-lg p-2">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Realização vs Objetivo</p>
+            <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3">
+              <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
               <div className="flex items-end justify-center">
                 <GaugeSimple value={realization.pct} />
               </div>
               <div className="grid grid-cols-5 gap-1 mt-2 text-center">
                 <div>
-                  <p className="text-base font-bold text-primary">{realization.actual}</p>
-                  <p className="text-[9px] text-muted-foreground">Realizado</p>
+                  <p className="text-lg font-extrabold text-primary">{realization.actual}</p>
+                  <p className="text-[9px] font-medium text-muted-foreground">Realizado</p>
                 </div>
                 <div>
                   <p className="text-base font-bold text-foreground">{realization.targetCaetano}</p>
@@ -460,8 +460,8 @@ export default function RetailsPage() {
                   <p className="text-[9px] text-muted-foreground">110%</p>
                 </div>
                 <div>
-                  <p className="text-base font-bold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p>
-                  <p className="text-[9px] text-muted-foreground">vs BMW</p>
+                  <p className="text-lg font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p>
+                  <p className="text-[9px] font-medium text-muted-foreground">vs BMW</p>
                 </div>
               </div>
             </div>
@@ -470,11 +470,11 @@ export default function RetailsPage() {
           {/* Método de Pagamento */}
           <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
-            <div className="grid grid-cols-2 gap-1 items-center">
-              <ResponsiveContainer width="100%" height={160}>
+            <div className="flex items-center gap-2">
+              <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
                 <PieChart>
                   <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
-                  <Pie data={finData} dataKey="value" nameKey="name" outerRadius={65} stroke="hsl(var(--background))" strokeWidth={1.5}
+                  <Pie data={finData} dataKey="value" nameKey="name" outerRadius={45} stroke="hsl(var(--background))" strokeWidth={1.5}
                     onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
                     {finData.map((entry, i) => {
                       const isSelected = selectedFin === entry.name;
@@ -484,7 +484,7 @@ export default function RetailsPage() {
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
-              <div className="space-y-1">
+              <div className="space-y-1 flex-1">
                 {finData.map((entry, i) => {
                   const isSelected = selectedFin === entry.name;
                   const isDimmed = selectedFin && !isSelected;
