@@ -417,7 +417,7 @@ export default function RetailsPage() {
           </div>
 
           {/* Detail table on mobile - right after Status por Responsável */}
-          {isMobile && <DetailTable tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} filtered={filtered} formatDate={formatDate} STATUS_COLORS={STATUS_COLORS} />}
+          {isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
 
           {/* Garantia (compact) + Realização */}
           <div className="xl:col-span-3 space-y-2">
@@ -549,70 +549,8 @@ export default function RetailsPage() {
       </div>
       </div>
 
-      {/* Detail Table - full width */}
-      <div className="bg-card border border-border rounded-lg">
-        <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
-          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Detalhe ({tableData.length})</h3>
-          <div className="flex items-center gap-2">
-            <div className="relative w-full sm:w-48">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-              <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
-            </div>
-            <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
-              <Download className="h-3 w-3" />
-              CSV
-            </Button>
-          </div>
-        </div>
-        <div className="overflow-auto max-h-[60vh] relative">
-          <table className="w-full caption-bottom text-sm">
-            <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
-              <tr className="text-[10px]">
-                {tableColumns.map(([key, label]) => (
-                  <th key={key}
-                    className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card"
-                    onClick={() => toggleSort(key)}>
-                    <span className="inline-flex items-center">
-                      {label}
-                      <SortIcon col={key} />
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {tableData.map((r, i) => (
-                <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
-                  <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
-                  <td className="px-3 py-1">
-                    <Badge variant="outline" className={r.gar === 'GAR' ? 'border-bmw-green text-bmw-green text-[10px]' : 'text-muted-foreground text-[10px]'}>
-                      {r.gar === 'GAR' ? 'Certo' : 'Incerto'}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-1 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[r.status] || '#888' }} />
-                      {r.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-1">{r.type}</td>
-                  <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
-                  <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
-                  <td className="px-3 py-1">{r.fin}</td>
-                  <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
-                  <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
-                  <td className="px-3 py-1 whitespace-nowrap">{r.chas}</td>
-                  <td className="px-3 py-1 whitespace-nowrap">{r.mat}</td>
-                  <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>
-                  <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.dmat)}</td>
-                  <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.date298)}</td>
-                  <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.app)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Detail Table - full width, hidden on mobile (shown above instead) */}
+      {!isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
     </div>
   );
 }
