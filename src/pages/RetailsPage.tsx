@@ -416,6 +416,9 @@ export default function RetailsPage() {
             </ResponsiveContainer>
           </div>
 
+          {/* Detail table on mobile - right after Status por Responsável */}
+          {isMobile && <DetailTable tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} filtered={filtered} formatDate={formatDate} STATUS_COLORS={STATUS_COLORS} />}
+
           {/* Garantia (compact) + Realização */}
           <div className="xl:col-span-3 space-y-2">
             <div className="bg-card border border-border rounded-lg p-2">
