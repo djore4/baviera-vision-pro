@@ -86,12 +86,10 @@ export function PeriodFilter() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
         {quickBtn('Mês atual', isCurrentMonth, selectCurrentMonth)}
-        {quickBtn('Ano atual', isCurrentYear, selectCurrentYear)}
-      </div>
-      <div>
         {quickBtn('Trimestre atual', isCurrentQuarter, selectCurrentQuarter)}
+        {quickBtn('Ano atual', isCurrentYear, selectCurrentYear)}
       </div>
 
       <div className="space-y-1.5">

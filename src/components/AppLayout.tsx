@@ -4,6 +4,7 @@ import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
 import { useState, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import bmwLogo from '@/assets/bmw-logo.png';
 
 const NAV_ITEMS = [
   { path: '/retails', label: 'RETAILS', icon: BarChart3 },
@@ -81,12 +82,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-muted-foreground hover:text-foreground">
               {sidebarOpen && !isMobile ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </button>
+            <img src={bmwLogo} alt="BMW" className="h-6 w-6" />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide hidden sm:inline">
               {NAV_ITEMS.find(n => n.path === location.pathname)?.label || 'Dashboard'}
             </span>
           </div>
           <div className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
-            S{week}
+            Semana {week}
           </div>
         </header>
 
