@@ -650,27 +650,63 @@ function normalizeMonthKey(mes: string): string | null {
 function GaugeSimple({ value }: { value: number }) {
   const maxVal = Math.max(100, value);
   const clamped = Math.min(Math.max(value, 0), maxVal);
-  const angle = -90 + (clamped / maxVal) * 180;
   const color = value >= 100 ? '#16A34A' : value >= 80 ? '#F59E0B' : '#DC2626';
 
-  const markAngle100 = -90 + (100 / maxVal) * 180;
-  const markX = 60 + 45 * Math.cos((markAngle100 * Math.PI) / 180);
-  const markY = 60 + 45 * Math.sin((markAngle100 * Math.PI) / 180);
+  const cx = 60, cy = 60, r = 50;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+
+  // Arc from angle (degrees, 0=right, -90=top) to SVG point
+  const arcPoint = (pct: number) => {
+    const ang = -180 + (pct / maxVal) * 180;
+    return { x: cx + r * Math.cos(toRad(ang)), y: cy + r * Math.sin(toRad(ang)) };
+  };
+
+  const describeArc = (startPct: number, endPct: number) => {
+    const s = arcPoint(startPct);
+    const e = arcPoint(endPct);
+    const sweep = ((endPct - startPct) / maxVal) * 180;
+    const largeArc = sweep > 180 ? 1 : 0;
+    return `M ${s.x} ${s.y} A ${r} ${r} 0 ${largeArc} 1 ${e.x} ${e.y}`;
+  };
+
+  // Needle angle: -180 (left/0%) to 0 (right/maxVal)
+  const needleAng = -180 + (clamped / maxVal) * 180;
+  const needleLen = 40;
+
+  // 100% mark
+  const mark100Ang = -180 + (100 / maxVal) * 180;
+  const mark100Inner = { x: cx + 43 * Math.cos(toRad(mark100Ang)), y: cy + 43 * Math.sin(toRad(mark100Ang)) };
+  const mark100Outer = { x: cx + 57 * Math.cos(toRad(mark100Ang)), y: cy + 57 * Math.sin(toRad(mark100Ang)) };
+
+  // Zone boundaries (as percentages of maxVal)
+  const zone80 = Math.min(80, maxVal);
+  const zone100 = Math.min(100, maxVal);
 
   return (
-    <svg viewBox="0 0 120 70" className="w-24 h-auto">
-      <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="hsl(var(--border))" strokeWidth="8" strokeLinecap="round" />
-      <path d="M 10 60 A 50 50 0 0 1 36.7 18.4" fill="none" stroke="#DC262640" strokeWidth="8" strokeLinecap="round" />
-      <path d="M 36.7 18.4 A 50 50 0 0 1 60 10" fill="none" stroke="#F59E0B40" strokeWidth="8" strokeLinecap="round" />
-      <path d="M 60 10 A 50 50 0 0 1 110 60" fill="none" stroke="#16A34A40" strokeWidth="8" strokeLinecap="round" />
+    <svg viewBox="0 0 120 70" className="w-28 h-auto">
+      {/* Background arc */}
+      <path d={describeArc(0, maxVal)} fill="none" stroke="hsl(var(--border))" strokeWidth="8" strokeLinecap="round" />
+      {/* Red zone: 0-80% */}
+      <path d={describeArc(0, zone80)} fill="none" stroke="#DC262640" strokeWidth="8" strokeLinecap="round" />
+      {/* Yellow zone: 80-100% */}
+      {zone80 < zone100 && (
+        <path d={describeArc(zone80, zone100)} fill="none" stroke="#F59E0B40" strokeWidth="8" strokeLinecap="round" />
+      )}
+      {/* Green zone: 100%+ */}
       {maxVal > 100 && (
-        <line x1={markX} y1={markY} x2={60 + 55 * Math.cos((markAngle100 * Math.PI) / 180)} y2={60 + 55 * Math.sin((markAngle100 * Math.PI) / 180)}
+        <path d={describeArc(zone100, maxVal)} fill="none" stroke="#16A34A40" strokeWidth="8" strokeLinecap="round" />
+      )}
+      {/* 100% tick mark */}
+      {maxVal > 100 && (
+        <line x1={mark100Inner.x} y1={mark100Inner.y} x2={mark100Outer.x} y2={mark100Outer.y}
           stroke="hsl(var(--foreground))" strokeWidth="1.5" opacity={0.5} />
       )}
-      <line x1="60" y1="60" x2={60 + 40 * Math.cos((angle * Math.PI) / 180)} y2={60 + 40 * Math.sin((angle * Math.PI) / 180)}
+      {/* Needle */}
+      <line x1={cx} y1={cy} x2={cx + needleLen * Math.cos(toRad(needleAng))} y2={cy + needleLen * Math.sin(toRad(needleAng))}
         stroke={color} strokeWidth="2.5" strokeLinecap="round" />
-      <circle cx="60" cy="60" r="3" fill={color} />
-      <text x="60" y="56" textAnchor="middle" className="text-[10px] font-bold" fill={color}>{value}%</text>
+      <circle cx={cx} cy={cy} r="3" fill={color} />
+      {/* Value label */}
+      <text x={cx} y="52" textAnchor="middle" className="text-[11px] font-bold" fill={color}>{value}%</text>
     </svg>
   );
 }

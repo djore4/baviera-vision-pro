@@ -86,7 +86,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           </div>
           <div className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
-            S{week}
+            Semana {week}
           </div>
         </header>
 
