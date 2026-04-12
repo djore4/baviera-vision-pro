@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { SalesRadar } from '@/components/SalesRadar';
@@ -26,6 +27,7 @@ type SortDir = 'asc' | 'desc';
 
 export default function RetailsPage() {
   const { filteredControl, data, filter } = useData();
+  const isMobile = useIsMobile();
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
   const [selectedGar, setSelectedGar] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
