@@ -447,7 +447,7 @@ export default function RetailsPage() {
             <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3">
               <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
               <div className="flex items-end justify-center">
-                <GaugeSimple value={realization.pct} />
+                <GaugeSimple value={realization.pct} retailPct={realization.targetBMW ? Math.round((realization.retails / realization.targetBMW) * 100) : undefined} />
               </div>
               <div className="grid grid-cols-6 gap-1 mt-2 text-center">
                 <div>
