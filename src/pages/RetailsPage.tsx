@@ -449,10 +449,14 @@ export default function RetailsPage() {
               <div className="flex items-end justify-center">
                 <GaugeSimple value={realization.pct} />
               </div>
-              <div className="grid grid-cols-5 gap-1 mt-2 text-center">
+              <div className="grid grid-cols-6 gap-1 mt-2 text-center">
                 <div>
                   <p className="text-lg font-extrabold text-primary">{realization.actual}</p>
-                  <p className="text-[9px] font-medium text-muted-foreground">Realizado</p>
+                  <p className="text-[9px] font-medium text-muted-foreground">Total</p>
+                </div>
+                <div>
+                  <p className="text-lg font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p>
+                  <p className="text-[9px] font-medium text-muted-foreground">Retails</p>
                 </div>
                 <div>
                   <p className="text-base font-bold text-foreground">{realization.targetCaetano}</p>
@@ -518,7 +522,7 @@ export default function RetailsPage() {
 
         {/* Row 2 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
-          <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+          <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
             <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
           </div>
@@ -535,7 +539,7 @@ export default function RetailsPage() {
             </div>
           </div>
 
-          <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
+          <div className="xl:col-span-1 grid grid-cols-2 xl:grid-cols-1 gap-2">
             <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B"
               isActive={selectedQor === true} onClick={handleQorClick} />
             <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A"
