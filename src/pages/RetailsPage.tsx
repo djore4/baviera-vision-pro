@@ -309,12 +309,12 @@ export default function RetailsPage() {
             <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => onClick(entry.name)}
               style={{ opacity: isDimmed ? 0.3 : 1 }}>
               <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
-              <span className="text-[10px] flex-1 truncate min-w-0">{entry.name}</span>
-              <div className="w-14 h-3 bg-muted rounded-sm overflow-hidden flex-shrink-0">
+              <span className="text-[10px] w-16 truncate flex-shrink-0">{entry.name}</span>
+              <div className="flex-1 h-3 bg-muted rounded-sm overflow-hidden min-w-0">
                 <div className="h-full rounded-sm" style={{ width: `${(entry.value / maxVal) * 100}%`, backgroundColor: color }} />
               </div>
               <span className="text-[10px] font-semibold w-6 text-right flex-shrink-0">{entry.value}</span>
-              <span className="text-[9px] text-muted-foreground flex-shrink-0">{entry.pct}%</span>
+              <span className="text-[9px] text-muted-foreground w-8 text-right flex-shrink-0">{entry.pct}%</span>
             </div>
           );
         })}
@@ -653,7 +653,7 @@ function normalizeMonthKey(mes: string): string | null {
   return null;
 }
 
-function GaugeSimple({ value }: { value: number }) {
+function GaugeSimple({ value, retailPct }: { value: number; retailPct?: number }) {
   const maxVal = Math.max(100, value);
   const clamped = Math.min(Math.max(value, 0), maxVal);
   const color = value >= 100 ? '#16A34A' : value >= 80 ? '#F59E0B' : '#DC2626';
@@ -661,7 +661,6 @@ function GaugeSimple({ value }: { value: number }) {
   const cx = 60, cy = 60, r = 50;
   const toRad = (deg: number) => (deg * Math.PI) / 180;
 
-  // Arc from angle (degrees, 0=right, -90=top) to SVG point
   const arcPoint = (pct: number) => {
     const ang = -180 + (pct / maxVal) * 180;
     return { x: cx + r * Math.cos(toRad(ang)), y: cy + r * Math.sin(toRad(ang)) };
@@ -675,43 +674,44 @@ function GaugeSimple({ value }: { value: number }) {
     return `M ${s.x} ${s.y} A ${r} ${r} 0 ${largeArc} 1 ${e.x} ${e.y}`;
   };
 
-  // Needle angle: -180 (left/0%) to 0 (right/maxVal)
   const needleAng = -180 + (clamped / maxVal) * 180;
   const needleLen = 40;
 
-  // 100% mark
   const mark100Ang = -180 + (100 / maxVal) * 180;
   const mark100Inner = { x: cx + 43 * Math.cos(toRad(mark100Ang)), y: cy + 43 * Math.sin(toRad(mark100Ang)) };
   const mark100Outer = { x: cx + 57 * Math.cos(toRad(mark100Ang)), y: cy + 57 * Math.sin(toRad(mark100Ang)) };
 
-  // Zone boundaries (as percentages of maxVal)
   const zone80 = Math.min(80, maxVal);
   const zone100 = Math.min(100, maxVal);
 
+  // Retail tick mark
+  const retailClamped = retailPct != null ? Math.min(Math.max(retailPct, 0), maxVal) : null;
+  const retailAng = retailClamped != null ? -180 + (retailClamped / maxVal) * 180 : null;
+  const retailInner = retailAng != null ? { x: cx + 42 * Math.cos(toRad(retailAng)), y: cy + 42 * Math.sin(toRad(retailAng)) } : null;
+  const retailOuter = retailAng != null ? { x: cx + 58 * Math.cos(toRad(retailAng)), y: cy + 58 * Math.sin(toRad(retailAng)) } : null;
+
   return (
     <svg viewBox="0 0 120 70" className="w-28 h-auto">
-      {/* Background arc */}
       <path d={describeArc(0, maxVal)} fill="none" stroke="hsl(var(--border))" strokeWidth="8" strokeLinecap="round" />
-      {/* Red zone: 0-80% */}
       <path d={describeArc(0, zone80)} fill="none" stroke="#DC262640" strokeWidth="8" strokeLinecap="round" />
-      {/* Yellow zone: 80-100% */}
       {zone80 < zone100 && (
         <path d={describeArc(zone80, zone100)} fill="none" stroke="#F59E0B40" strokeWidth="8" strokeLinecap="round" />
       )}
-      {/* Green zone: 100%+ */}
       {maxVal > 100 && (
         <path d={describeArc(zone100, maxVal)} fill="none" stroke="#16A34A40" strokeWidth="8" strokeLinecap="round" />
       )}
-      {/* 100% tick mark */}
       {maxVal > 100 && (
         <line x1={mark100Inner.x} y1={mark100Inner.y} x2={mark100Outer.x} y2={mark100Outer.y}
           stroke="hsl(var(--foreground))" strokeWidth="1.5" opacity={0.5} />
       )}
-      {/* Needle */}
+      {/* Retail tick mark */}
+      {retailInner && retailOuter && (
+        <line x1={retailInner.x} y1={retailInner.y} x2={retailOuter.x} y2={retailOuter.y}
+          stroke="#1C69D4" strokeWidth="2" strokeLinecap="round" />
+      )}
       <line x1={cx} y1={cy} x2={cx + needleLen * Math.cos(toRad(needleAng))} y2={cy + needleLen * Math.sin(toRad(needleAng))}
         stroke={color} strokeWidth="2.5" strokeLinecap="round" />
       <circle cx={cx} cy={cy} r="3" fill={color} />
-      {/* Value label */}
       <text x={cx} y="52" textAnchor="middle" className="text-[11px] font-bold" fill={color}>{value}%</text>
     </svg>
   );
