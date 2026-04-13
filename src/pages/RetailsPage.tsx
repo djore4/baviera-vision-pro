@@ -104,8 +104,10 @@ export default function RetailsPage() {
     return keys;
   }, [filter]);
 
+  const retailCount = useMemo(() => filtered.filter(r => r.status === 'Retail').length, [filtered]);
+
   const realization = useMemo(() => {
-    if (!data) return { actual: 0, targetCaetano: 0, targetBMW: 0, target110: 0, pct: 0 };
+    if (!data) return { actual: 0, retails: 0, targetCaetano: 0, targetBMW: 0, target110: 0, pct: 0 };
 
     const matchingObj = data.objetivosTotal.filter(o => {
       if (selectedMonthKeys.size === 0) return true;
@@ -120,8 +122,8 @@ export default function RetailsPage() {
     const target110 = matchingObj.reduce((s, o) => s + o.range3, 0);
     const actual = totalStatusSum;
     const pct = targetBMW ? Math.round((actual / targetBMW) * 100) : 0;
-    return { actual, targetCaetano, targetBMW, target110, pct };
-  }, [data, totalStatusSum, selectedMonthKeys]);
+    return { actual, retails: retailCount, targetCaetano, targetBMW, target110, pct };
+  }, [data, totalStatusSum, selectedMonthKeys, retailCount]);
 
   const finData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -447,10 +449,14 @@ export default function RetailsPage() {
               <div className="flex items-end justify-center">
                 <GaugeSimple value={realization.pct} />
               </div>
-              <div className="grid grid-cols-5 gap-1 mt-2 text-center">
+              <div className="grid grid-cols-6 gap-1 mt-2 text-center">
                 <div>
                   <p className="text-lg font-extrabold text-primary">{realization.actual}</p>
-                  <p className="text-[9px] font-medium text-muted-foreground">Realizado</p>
+                  <p className="text-[9px] font-medium text-muted-foreground">Total</p>
+                </div>
+                <div>
+                  <p className="text-lg font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p>
+                  <p className="text-[9px] font-medium text-muted-foreground">Retails</p>
                 </div>
                 <div>
                   <p className="text-base font-bold text-foreground">{realization.targetCaetano}</p>
@@ -516,7 +522,7 @@ export default function RetailsPage() {
 
         {/* Row 2 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
-          <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+          <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
             <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
           </div>
@@ -533,7 +539,7 @@ export default function RetailsPage() {
             </div>
           </div>
 
-          <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
+          <div className="xl:col-span-1 grid grid-cols-2 xl:grid-cols-1 gap-2">
             <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B"
               isActive={selectedQor === true} onClick={handleQorClick} />
             <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A"
