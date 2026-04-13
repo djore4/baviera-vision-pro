@@ -104,8 +104,10 @@ export default function RetailsPage() {
     return keys;
   }, [filter]);
 
+  const retailCount = useMemo(() => filtered.filter(r => r.status === 'Retail').length, [filtered]);
+
   const realization = useMemo(() => {
-    if (!data) return { actual: 0, targetCaetano: 0, targetBMW: 0, target110: 0, pct: 0 };
+    if (!data) return { actual: 0, retails: 0, targetCaetano: 0, targetBMW: 0, target110: 0, pct: 0 };
 
     const matchingObj = data.objetivosTotal.filter(o => {
       if (selectedMonthKeys.size === 0) return true;
@@ -120,8 +122,8 @@ export default function RetailsPage() {
     const target110 = matchingObj.reduce((s, o) => s + o.range3, 0);
     const actual = totalStatusSum;
     const pct = targetBMW ? Math.round((actual / targetBMW) * 100) : 0;
-    return { actual, targetCaetano, targetBMW, target110, pct };
-  }, [data, totalStatusSum, selectedMonthKeys]);
+    return { actual, retails: retailCount, targetCaetano, targetBMW, target110, pct };
+  }, [data, totalStatusSum, selectedMonthKeys, retailCount]);
 
   const finData = useMemo(() => {
     const map: Record<string, number> = {};
