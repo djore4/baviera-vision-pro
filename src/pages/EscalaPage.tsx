@@ -22,11 +22,13 @@ export default function EscalaPage() {
   return (
     <div className="h-full flex flex-col animate-fade-in">
       {pdfUrl ? (
-        <iframe
-          src={pdfUrl}
-          className="flex-1 w-full rounded-lg border border-border"
-          title="Escala de Serviço"
-        />
+<object
+  data={pdfUrl}
+  type="application/pdf"
+  className="flex-1 w-full rounded-lg border border-border"
+>
+  <p className="text-sm text-muted-foreground">O teu browser não suporta visualização de PDF.</p>
+</object>
       ) : (
         <div className="flex flex-col items-center justify-center flex-1 text-center space-y-3">
           <FileText className="h-12 w-12 text-muted-foreground" />
