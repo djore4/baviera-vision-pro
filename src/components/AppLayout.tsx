@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays } from 'lucide-react';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
 import { useState, useEffect } from 'react';
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { path: '/producao', label: 'PRODUÇÃO', icon: TrendingUp },
   { path: '/carteira', label: 'CARTEIRA', icon: Briefcase },
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
+  { path: '/escala', label: 'ESCALA', icon: CalendarDays },
   { path: '/dados', label: 'DADOS', icon: Database },
 ];
 
