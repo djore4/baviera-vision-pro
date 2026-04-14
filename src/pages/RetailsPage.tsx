@@ -539,14 +539,14 @@ export default function RetailsPage() {
             </div>
           </div>
 
-          <div className="xl:col-span-1 grid grid-cols-2 xl:grid-cols-1 gap-2">
+          <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
             <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B"
               isActive={selectedQor === true} onClick={handleQorClick} />
             <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A"
               isActive={selectedBev === true} onClick={handleBevClick} />
           </div>
 
-          <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
+          <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
             <SalesRadar records={filtered} height="200px" />
           </div>
