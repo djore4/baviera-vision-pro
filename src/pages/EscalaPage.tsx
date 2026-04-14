@@ -2,21 +2,7 @@ import { useEffect, useState } from 'react';
 import { FileText } from 'lucide-react';
 
 export default function EscalaPage() {
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    const stored = localStorage.getItem('escala_pdf');
-    if (stored) setPdfUrl(stored);
-  }, []);
-
-  useEffect(() => {
-    const handler = () => {
-      const stored = localStorage.getItem('escala_pdf');
-      if (stored) setPdfUrl(stored);
-    };
-    window.addEventListener('escala_updated', handler);
-    return () => window.removeEventListener('escala_updated', handler);
-  }, []);
+  const pdfUrl = '/baviera-vision-pro/escala/ABR.pdf';
 
   if (!pdfUrl) {
     return (
