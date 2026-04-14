@@ -301,7 +301,7 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
                 setTooltip={setTooltip}
                 width={800}
                 height={900}
-                scale={6000}
+                scale={5500}
               />
             </div>
             {topConcelhos.length > 0 && (
