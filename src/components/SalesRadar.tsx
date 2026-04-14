@@ -135,7 +135,7 @@ function MapContent({
       )}
       <ComposableMap
         projection="geoMercator"
-        projectionConfig={{ center: [-8.0, 39.5], scale }}
+        projectionConfig={{ center: [-8.0, 38.5], scale }}
         width={width}
         height={height}
         style={{ width: '100%', height: '100%' }}
@@ -284,8 +284,8 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
                 tooltip={tooltip}
                 setTooltip={setTooltip}
                 width={800}
-                height={700}
-                scale={4000}
+                height={900}
+                scale={6000}
               />
             </div>
             {topConcelhos.length > 0 && (
