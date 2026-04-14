@@ -143,14 +143,12 @@ function MapContent({
         <Geographies geography={GEO_URL}>
   {({ geographies }) =>
     geographies
-      .filter((geo) => {
-        const bbox = geo.geometry?.bbox;
-        if (bbox) return bbox[0] > -10;
-        const coords = geo.geometry?.coordinates?.[0]?.[0];
-        const lon = Array.isArray(coords?.[0]) ? coords[0][0] : coords?.[0];
-        return (lon ?? 0) > -10;
-      })
-      .map((geo) => {
+  .filter((geo) => {
+    const name = getConcelhoName(geo);
+    const lon = geo.bbox?.[0] ?? (geo.geometry?.coordinates?.flat?.(4)?.[0] ?? 0);
+    return Number(lon) > -10;
+  })
+  .map((geo) => {
               const rawName = getConcelhoName(geo);
               const entry = normalizedSales[normalize(rawName)];
               const count = entry?.count ?? 0;
