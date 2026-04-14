@@ -143,11 +143,21 @@ function MapContent({
         <Geographies geography={GEO_URL}>
   {({ geographies }) =>
     geographies
-  .filter((geo) => {
-    const name = getConcelhoName(geo);
-    const lon = geo.bbox?.[0] ?? (geo.geometry?.coordinates?.flat?.(4)?.[0] ?? 0);
-    return Number(lon) > -10;
-  })
+.filter((geo) => {
+  try {
+    const type = geo.geometry?.type;
+    const coords = geo.geometry?.coordinates;
+    let lon = 0;
+    if (type === 'Polygon') {
+      lon = coords?.[0]?.[0]?.[0];
+    } else if (type === 'MultiPolygon') {
+      lon = coords?.[0]?.[0]?.[0]?.[0];
+    }
+    return typeof lon === 'number' && lon > -10;
+  } catch {
+    return true;
+  }
+})
   .map((geo) => {
               const rawName = getConcelhoName(geo);
               const entry = normalizedSales[normalize(rawName)];
