@@ -3,7 +3,7 @@ import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import type { ControlRecord } from '@/types/data';
 
 const GEO_URL =
-  '/data/concelhos.geojson';
+  '/baviera-vision-pro/data/concelhos.geojson';
 
 // CTT CP4 → Concelho
 // Covers all 62 CP4 codes observed in the dataset + surrounding codes
