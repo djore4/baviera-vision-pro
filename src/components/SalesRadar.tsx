@@ -1,34 +1,158 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import type { ControlRecord } from '@/types/data';
 
-// Real Portugal districts GeoJSON-simplified paths (mainland)
-// Each district: id, name, simplified SVG path, label position
-const DISTRICTS: { id: string; name: string; path: string; cx: number; cy: number; postalPrefixes: string[] }[] = [
-  { id: 'braga', name: 'Braga', path: 'M72,48 L82,42 L92,46 L96,56 L88,64 L78,62 L70,56Z', cx: 82, cy: 54, postalPrefixes: ['47', '48'] },
-  { id: 'viana', name: 'Viana do Castelo', path: 'M55,30 L68,26 L78,32 L82,42 L72,48 L70,56 L60,52 L52,42Z', cx: 66, cy: 40, postalPrefixes: ['49'] },
-  { id: 'vila_real', name: 'Vila Real', path: 'M82,42 L96,36 L110,40 L112,52 L96,56 L92,46Z', cx: 98, cy: 46, postalPrefixes: ['50', '51'] },
-  { id: 'braganca', name: 'Bragança', path: 'M96,36 L110,28 L128,26 L134,38 L126,48 L112,52 L110,40Z', cx: 116, cy: 38, postalPrefixes: ['52', '53'] },
-  { id: 'porto', name: 'Porto', path: 'M60,52 L70,56 L78,62 L88,64 L90,74 L80,80 L68,78 L58,68Z', cx: 74, cy: 68, postalPrefixes: ['40', '41', '42', '43', '44', '45'] },
-  { id: 'aveiro', name: 'Aveiro', path: 'M58,68 L68,78 L80,80 L82,92 L74,100 L60,96 L52,86Z', cx: 68, cy: 86, postalPrefixes: ['38', '34'] },
-  { id: 'viseu', name: 'Viseu', path: 'M80,80 L90,74 L88,64 L96,56 L112,52 L118,66 L112,80 L98,88 L82,92Z', cx: 98, cy: 72, postalPrefixes: ['35', '36', '54'] },
-  { id: 'guarda', name: 'Guarda', path: 'M112,52 L126,48 L134,38 L142,52 L138,68 L128,80 L118,78 L112,80 L118,66Z', cx: 128, cy: 62, postalPrefixes: ['62', '63'] },
-  { id: 'coimbra', name: 'Coimbra', path: 'M52,86 L60,96 L74,100 L82,92 L98,88 L100,102 L90,112 L72,110 L58,104Z', cx: 78, cy: 100, postalPrefixes: ['30', '31', '32', '33'] },
-  { id: 'castelo_branco', name: 'Castelo Branco', path: 'M98,88 L112,80 L128,80 L138,68 L142,52 L148,68 L146,90 L138,104 L120,110 L100,102Z', cx: 124, cy: 88, postalPrefixes: ['60', '61'] },
-  { id: 'leiria', name: 'Leiria', path: 'M48,104 L58,104 L72,110 L78,122 L68,134 L54,130 L44,118Z', cx: 62, cy: 118, postalPrefixes: ['24', '25'] },
-  { id: 'santarem', name: 'Santarém', path: 'M68,134 L78,122 L72,110 L90,112 L100,102 L120,110 L118,130 L104,142 L88,148 L74,144Z', cx: 94, cy: 126, postalPrefixes: ['20', '21'] },
-  { id: 'lisboa', name: 'Lisboa', path: 'M44,138 L54,130 L68,134 L74,144 L78,160 L68,170 L54,168 L42,156Z', cx: 60, cy: 152, postalPrefixes: ['10', '11', '12', '13', '14', '15', '16', '17', '19', '26', '27'] },
-  { id: 'portalegre', name: 'Portalegre', path: 'M120,110 L138,104 L146,90 L156,100 L152,120 L140,132 L118,130Z', cx: 136, cy: 112, postalPrefixes: ['37', '73'] },
-  { id: 'setubal', name: 'Setúbal', path: 'M42,156 L54,168 L68,170 L78,160 L88,168 L92,184 L80,196 L62,194 L46,182Z', cx: 68, cy: 178, postalPrefixes: ['28', '29'] },
-  { id: 'evora', name: 'Évora', path: 'M78,160 L88,148 L104,142 L118,130 L140,132 L138,156 L124,172 L104,178 L92,184 L88,168Z', cx: 112, cy: 158, postalPrefixes: ['70', '71'] },
-  { id: 'beja', name: 'Beja', path: 'M62,194 L80,196 L92,184 L104,178 L124,172 L138,156 L148,170 L144,196 L128,216 L108,224 L84,218 L68,208Z', cx: 108, cy: 198, postalPrefixes: ['75', '76'] },
-  { id: 'faro', name: 'Faro', path: 'M68,208 L84,218 L108,224 L128,216 L144,196 L148,218 L136,236 L108,244 L78,240 L62,228Z', cx: 108, cy: 228, postalPrefixes: ['80', '81', '82', '83', '84', '85'] },
-];
+const GEO_URL =
+  'https://raw.githubusercontent.com/dssg-pt/mp-mapas-portugal/master/concelhos.geojson';
 
-function postalPrefix(postalCode: string): string | null {
-  if (!postalCode) return null;
-  const clean = postalCode.replace(/[^0-9]/g, '');
-  if (clean.length < 2) return null;
-  return clean.substring(0, 2);
+// CTT CP4 → Concelho
+// Covers all 62 CP4 codes observed in the dataset + surrounding codes
+const CP4_TO_CONCELHO: Record<string, string> = {
+  // Lisboa
+  '1000': 'Lisboa', '1100': 'Lisboa', '1200': 'Lisboa', '1300': 'Lisboa',
+  '1400': 'Lisboa', '1500': 'Lisboa', '1600': 'Lisboa', '1700': 'Lisboa',
+  '1800': 'Lisboa', '1900': 'Lisboa', '1990': 'Lisboa',
+  // Grande Lisboa
+  '2620': 'Loures', '2630': 'Loures', '2660': 'Loures',
+  '2670': 'Odivelas', '2680': 'Loures',
+  '2600': 'Vila Franca de Xira',
+  '2700': 'Amadora', '2720': 'Amadora',
+  '2690': 'Sintra', '2710': 'Sintra', '2745': 'Sintra',
+  '2730': 'Oeiras', '2740': 'Oeiras', '2780': 'Oeiras', '2785': 'Oeiras', '2790': 'Oeiras',
+  '2750': 'Cascais', '2760': 'Cascais', '2770': 'Cascais',
+  // Setúbal
+  '2800': 'Almada', '2810': 'Almada',
+  '2820': 'Seixal', '2840': 'Seixal',
+  '2830': 'Barreiro', '2860': 'Moita', '2870': 'Montijo',
+  '2900': 'Setúbal', '2910': 'Setúbal',
+  '2925': 'Sesimbra', '2970': 'Sesimbra',
+  '2950': 'Palmela', '2975': 'Palmela',
+  // Coimbra / Aveiro districts
+  '3000': 'Coimbra', '3020': 'Coimbra', '3030': 'Coimbra', '3040': 'Coimbra',
+  '3050': 'Mealhada',
+  '3060': 'Cantanhede',
+  '3080': 'Figueira da Foz',
+  // Aveiro
+  '3700': 'São João da Madeira',
+  '3710': 'Oliveira de Azeméis', '3720': 'Oliveira de Azeméis',
+  '3730': 'Vale de Cambra',
+  '3740': 'Anadia', '3770': 'Anadia',
+  '3750': 'Águeda', '3760': 'Águeda',
+  '3800': 'Aveiro', '3810': 'Aveiro', '3820': 'Aveiro',
+  '3830': 'Ílhavo', '3840': 'Murtosa',
+  '3850': 'Albergaria-a-Velha',
+  '3860': 'Estarreja',
+  '3870': 'Espinho',
+  '3880': 'Ovar', '3885': 'Ovar',
+  '3890': 'Santa Maria da Feira',
+  // Viseu
+  '3500': 'Viseu', '3510': 'Viseu', '3515': 'Viseu',
+  '3520': 'Nelas', '3530': 'Mangualde',
+  '3570': 'Castro Daire', '3600': 'Castro Daire',
+  '3610': 'Cinfães',
+  '3620': 'Resende', '3630': 'Resende', '3670': 'Resende',
+  '3680': 'Arouca', '3690': 'São Pedro do Sul',
+  // Porto cidade
+  '4000': 'Porto', '4050': 'Porto', '4100': 'Porto', '4150': 'Porto',
+  '4200': 'Porto', '4250': 'Porto', '4300': 'Porto', '4350': 'Porto',
+  // Vila Nova de Gaia
+  '4400': 'Vila Nova de Gaia', '4410': 'Vila Nova de Gaia',
+  '4415': 'Vila Nova de Gaia', '4430': 'Vila Nova de Gaia',
+  '4435': 'Vila Nova de Gaia', '4445': 'Vila Nova de Gaia',
+  // Gondomar
+  '4420': 'Gondomar', '4425': 'Gondomar',
+  // Valongo
+  '4440': 'Valongo',
+  // Maia
+  '4405': 'Maia', '4470': 'Maia', '4475': 'Maia', '4480': 'Maia', '4485': 'Maia',
+  // Matosinhos
+  '4450': 'Matosinhos', '4455': 'Matosinhos', '4460': 'Matosinhos', '4465': 'Matosinhos',
+  // Póvoa de Varzim / Vila do Conde
+  '4490': 'Póvoa de Varzim',
+  '4495': 'Vila do Conde', '4485': 'Vila do Conde',
+  // Espinho
+  '4500': 'Espinho', '4505': 'Espinho',
+  // Santo Tirso
+  '4510': 'Santo Tirso', '4780': 'Santo Tirso',
+  // Santa Maria da Feira
+  '4515': 'Santa Maria da Feira', '4520': 'Santa Maria da Feira',
+  '4525': 'Santa Maria da Feira', '4530': 'Santa Maria da Feira',
+  '4535': 'Santa Maria da Feira', '4540': 'Santa Maria da Feira',
+  // Arouca
+  '4545': 'Arouca', '4550': 'Arouca', '4555': 'Arouca',
+  // Paredes
+  '4560': 'Paredes', '4565': 'Paredes', '4570': 'Paredes',
+  // Penafiel
+  '4575': 'Penafiel',
+  // Paços de Ferreira
+  '4580': 'Paços de Ferreira', '4585': 'Paços de Ferreira',
+  '4590': 'Paços de Ferreira', '4595': 'Paços de Ferreira',
+  // Amarante
+  '4600': 'Amarante', '4610': 'Amarante', '4615': 'Amarante',
+  // Lousada
+  '4620': 'Lousada', '4625': 'Lousada',
+  // Felgueiras
+  '4630': 'Felgueiras', '4635': 'Felgueiras',
+  '4640': 'Felgueiras', '4650': 'Felgueiras',
+  // Baião
+  '4660': 'Baião', '4670': 'Baião',
+  // Marco de Canaveses
+  '4690': 'Marco de Canaveses',
+  // Braga
+  '4700': 'Braga', '4705': 'Braga', '4710': 'Braga', '4715': 'Braga',
+  // Amares / Barcelos
+  '4720': 'Amares',
+  '4730': 'Barcelos', '4750': 'Barcelos', '4755': 'Barcelos', '4790': 'Barcelos',
+  // Esposende
+  '4740': 'Esposende',
+  // Trofa
+  '4745': 'Trofa', '4785': 'Trofa',
+  // Vila Nova de Famalicão
+  '4760': 'Vila Nova de Famalicão', '4765': 'Vila Nova de Famalicão',
+  '4770': 'Vila Nova de Famalicão', '4775': 'Vila Nova de Famalicão',
+  // Vila do Conde
+  '4795': 'Vila do Conde',
+  // Guimarães
+  '4800': 'Guimarães', '4805': 'Guimarães',
+  '4810': 'Guimarães', '4815': 'Guimarães', '4835': 'Guimarães',
+  // Fafe / Vizela
+  '4820': 'Fafe', '4825': 'Vizela',
+  // Arcos de Valdevez
+  '4870': 'Arcos de Valdevez',
+  // Viana do Castelo
+  '4900': 'Viana do Castelo', '4905': 'Viana do Castelo',
+  // Caminha / Valença / Monção
+  '4910': 'Caminha', '4920': 'Vila Nova de Cerveira',
+  '4930': 'Valença', '4940': 'Monção', '4950': 'Monção',
+  // Vila Real
+  '5000': 'Vila Real',
+  // Lamego
+  '5100': 'Lamego', '5110': 'Lamego',
+  // Bragança
+  '5300': 'Bragança', '5320': 'Bragança',
+  // Faro
+  '8000': 'Faro', '8005': 'Faro',
+};
+
+// Resolve GeoJSON property name regardless of which field the GeoJSON uses
+function getConcelhoName(geo: any): string {
+  return (
+    geo.properties?.Concelho ||
+    geo.properties?.NAME_2 ||
+    geo.properties?.name ||
+    geo.properties?.NOME ||
+    ''
+  );
+}
+
+// Normalize for fuzzy matching (accents + case insensitive)
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\./g, '')
+    .trim();
 }
 
 interface SalesRadarProps {
@@ -37,82 +161,115 @@ interface SalesRadarProps {
 }
 
 export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
-  const { districtData, topDistricts } = useMemo(() => {
-    // Count by postal prefix
-    const prefixCounts: Record<string, number> = {};
+  const [tooltip, setTooltip] = useState<string | null>(null);
+
+  // Count sales per Concelho
+  const concelhoSales = useMemo(() => {
+    const counts: Record<string, number> = {};
     records.forEach((r) => {
-      const prefix = postalPrefix(r.local);
-      if (!prefix) return;
-      prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1;
+      if (!r.local) return;
+      const cp4 = String(r.local)
+        .replace(/\.0$/, '')
+        .replace(/[^0-9]/g, '')
+        .substring(0, 4)
+        .padStart(4, '0');
+      const concelho = CP4_TO_CONCELHO[cp4];
+      if (concelho) {
+        counts[concelho] = (counts[concelho] || 0) + 1;
+      }
     });
-
-    // Aggregate by district
-    const districtCounts: { id: string; name: string; count: number }[] = DISTRICTS.map(d => {
-      const count = d.postalPrefixes.reduce((sum, p) => sum + (prefixCounts[p] || 0), 0);
-      return { id: d.id, name: d.name, count };
-    });
-
-    const maxCount = Math.max(...districtCounts.map(d => d.count), 1);
-
-    const districtMap: Record<string, { count: number; intensity: number }> = {};
-    districtCounts.forEach(d => {
-      districtMap[d.id] = { count: d.count, intensity: d.count / maxCount };
-    });
-
-    const topDistricts = districtCounts
-      .filter(d => d.count > 0)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
-
-    return { districtData: districtMap, topDistricts };
+    return counts;
   }, [records]);
+
+  // Normalized lookup for GeoJSON name matching
+  const normalizedSales = useMemo(() => {
+    const map: Record<string, { name: string; count: number }> = {};
+    Object.entries(concelhoSales).forEach(([name, count]) => {
+      map[normalize(name)] = { name, count };
+    });
+    return map;
+  }, [concelhoSales]);
+
+  const maxCount = useMemo(() => {
+    const vals = Object.values(concelhoSales);
+    return vals.length > 0 ? Math.max(...vals) : 1;
+  }, [concelhoSales]);
+
+  const topConcelhos = useMemo(() => {
+    return Object.entries(concelhoSales)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8);
+  }, [concelhoSales]);
 
   return (
     <div style={{ height }} className="flex flex-col">
-      <svg viewBox="30 20 140 240" className="flex-1 w-full" style={{ maxHeight: `calc(${height} - 50px)` }} preserveAspectRatio="xMidYMid meet">
-        {/* District shapes */}
-        {DISTRICTS.map((d) => {
-          const data = districtData[d.id];
-          const count = data?.count || 0;
-          const intensity = data?.intensity || 0;
+      <div className="relative flex-1" style={{ minHeight: 0 }}>
+        {tooltip && (
+          <div className="pointer-events-none absolute left-1 top-1 z-10 rounded border border-border bg-background px-1.5 py-0.5 text-[9px] shadow-sm">
+            {tooltip}
+          </div>
+        )}
+        <ComposableMap
+          projection="geoMercator"
+          projectionConfig={{ center: [-8.0, 39.5], scale: 3500 }}
+          width={300}
+          height={390}
+          style={{ width: '100%', height: '100%' }}
+        >
+          <Geographies geography={GEO_URL}>
+            {({ geographies }) =>
+              geographies.map((geo) => {
+                const rawName = getConcelhoName(geo);
+                const entry = normalizedSales[normalize(rawName)];
+                const count = entry?.count ?? 0;
+                const intensity = count / maxCount;
 
-          return (
-            <g key={d.id}>
-              <path
-                d={d.path}
-                fill={count > 0
-                  ? `hsl(214 76% 47% / ${0.15 + intensity * 0.7})`
-                  : 'hsl(var(--muted))'
-                }
-                stroke="hsl(var(--border))"
-                strokeWidth="0.8"
-              >
-                <title>{d.name}: {count} negócio(s)</title>
-              </path>
-              {count > 0 && (
-                <text
-                  x={d.cx}
-                  y={d.cy + 1}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize="5.5"
-                  fontWeight="700"
-                  fill="hsl(var(--foreground))"
-                  style={{ pointerEvents: 'none' }}
-                >
-                  {count}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-      {topDistricts.length > 0 && (
-        <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
-          {topDistricts.map((item) => (
-            <div key={item.id} className="flex items-center gap-1 text-[9px] text-muted-foreground">
-              <span className="w-2 h-2 rounded-full inline-block flex-shrink-0 bg-primary" />
-              {item.name}: {item.count}
+                return (
+                  <Geography
+                    key={geo.rsmKey}
+                    geography={geo}
+                    fill={
+                      count > 0
+                        ? `hsl(214 76% 47% / ${(0.2 + intensity * 0.75).toFixed(2)})`
+                        : 'hsl(var(--muted))'
+                    }
+                    stroke="hsl(var(--border))"
+                    strokeWidth={0.3}
+                    style={{
+                      default: { outline: 'none' },
+                      hover: {
+                        fill:
+                          count > 0
+                            ? 'hsl(214 90% 58%)'
+                            : 'hsl(var(--muted-foreground) / 0.3)',
+                        outline: 'none',
+                        cursor: 'default',
+                      },
+                      pressed: { outline: 'none' },
+                    }}
+                    onMouseEnter={() =>
+                      setTooltip(
+                        count > 0 ? `${rawName}: ${count} negócio(s)` : rawName
+                      )
+                    }
+                    onMouseLeave={() => setTooltip(null)}
+                  />
+                );
+              })
+            }
+          </Geographies>
+        </ComposableMap>
+      </div>
+
+      {topConcelhos.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+          {topConcelhos.map(([name, count]) => (
+            <div
+              key={name}
+              className="flex items-center gap-1 text-[9px] text-muted-foreground"
+            >
+              <span className="inline-block h-2 w-2 flex-shrink-0 rounded-full bg-primary" />
+              {name}: {count}
             </div>
           ))}
         </div>
