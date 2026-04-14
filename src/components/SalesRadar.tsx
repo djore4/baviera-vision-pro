@@ -230,23 +230,20 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
                     geography={geo}
                     fill={
                       count > 0
-                        ? `hsl(214 76% 47% / ${(0.2 + intensity * 0.75).toFixed(2)})`
-                        : 'hsl(var(--muted))'
+                        ? `rgba(28, 105, 212, ${(0.2 + intensity * 0.75).toFixed(2)})`
+                        : '#e2e8f0'
                     }
                     stroke="hsl(var(--border))"
                     strokeWidth={0.3}
                     style={{
-                      default: { outline: 'none' },
-                      hover: {
-                        fill:
-                          count > 0
-                            ? 'hsl(214 90% 58%)'
-                            : 'hsl(var(--muted-foreground) / 0.3)',
-                        outline: 'none',
-                        cursor: 'default',
-                      },
-                      pressed: { outline: 'none' },
-                    }}
+  default: { outline: 'none' },
+  hover: {
+    fill: count > 0 ? '#1C69D4' : '#cbd5e1',
+    outline: 'none',
+    cursor: 'default',
+  },
+  pressed: { outline: 'none' },
+}}
                     onMouseEnter={() =>
                       setTooltip(
                         count > 0 ? `${rawName}: ${count} negócio(s)` : rawName
