@@ -137,10 +137,10 @@ const CP4_TO_CONCELHO: Record<string, string> = {
 // Resolve GeoJSON property name regardless of which field the GeoJSON uses
 function getConcelhoName(geo: any): string {
   return (
+    geo.properties?.shapeName ||
     geo.properties?.Concelho ||
     geo.properties?.NAME_2 ||
     geo.properties?.name ||
-    geo.properties?.NOME ||
     ''
   );
 }
