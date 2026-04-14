@@ -141,8 +141,16 @@ function MapContent({
         style={{ width: '100%', height: '100%' }}
       >
         <Geographies geography={GEO_URL}>
-          {({ geographies }) =>
-            geographies.map((geo) => {
+  {({ geographies }) =>
+    geographies
+      .filter((geo) => {
+        const bbox = geo.geometry?.bbox;
+        if (bbox) return bbox[0] > -10;
+        const coords = geo.geometry?.coordinates?.[0]?.[0];
+        const lon = Array.isArray(coords?.[0]) ? coords[0][0] : coords?.[0];
+        return (lon ?? 0) > -10;
+      })
+      .map((geo) => {
               const rawName = getConcelhoName(geo);
               const entry = normalizedSales[normalize(rawName)];
               const count = entry?.count ?? 0;
