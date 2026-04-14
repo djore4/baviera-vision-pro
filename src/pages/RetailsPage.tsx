@@ -522,17 +522,17 @@ export default function RetailsPage() {
 
         {/* Row 2 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
-          <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
+          <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
             <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
           </div>
 
-          <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
+          <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Origem dos Negócios</h3>
             <HorizontalBarList data={originData} selected={selectedOrigin} onClick={handleOriginClick} />
           </div>
 
-          <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
+          <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mix Modelos</h3>
             <div className="max-h-40 overflow-y-auto pr-1">
               <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
@@ -546,7 +546,7 @@ export default function RetailsPage() {
               isActive={selectedBev === true} onClick={handleBevClick} />
           </div>
 
-          <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+          <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
             <SalesRadar records={filtered} height="200px" />
           </div>
