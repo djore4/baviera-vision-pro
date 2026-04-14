@@ -228,7 +228,7 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
                   <Geography
                     key={geo.rsmKey}
                     geography={geo}
-                    fill={count > 0 ? 'red' : 'lightgray'}
+                    fill={count > 0 ? `hsl(214, 76%, ${Math.round(70 - intensity * 40)}%)` : '#e2e8f0'}
                     stroke="hsl(var(--border))"
                     strokeWidth={0.3}
                     style={{
