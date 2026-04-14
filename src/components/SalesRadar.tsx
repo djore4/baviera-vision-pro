@@ -211,9 +211,9 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
         )}
         <ComposableMap
           projection="geoMercator"
-          projectionConfig={{ center: [-8.0, 39.5], scale: 3500 }}
+          projectionConfig={{ center: [-8.0, 39.5], scale: 5500 }}
           width={300}
-          height={390}
+          height={300}
           style={{ width: '100%', height: '100%' }}
         >
           <Geographies geography={GEO_URL}>
