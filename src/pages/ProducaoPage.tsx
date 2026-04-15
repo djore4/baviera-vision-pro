@@ -17,7 +17,7 @@ const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899'
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
 const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
 
-type SortKey = 'neg' | 'mes1' | 'resp' | 'type' | 'model' | 'cliente' | 'fin' | 'biz' | 'enc' | 'chas' | 'mat' | 'dmat' | 'date298' | 'app';
+type SortKey = 'neg' | 'mes1' | 'resp' | 'type' | 'model' | 'version' | 'cliente' | 'fin' | 'biz' | 'enc' | 'chas' | 'mat' | 'dmat' | 'date298' | 'app';
 type SortDir = 'asc' | 'desc';
 
 export default function ProducaoPage() {
@@ -230,8 +230,9 @@ data.objetivosResp.forEach(o => {
   const tableColumns: [SortKey, string][] = [
     ['resp', 'RESP'],
     ['type', 'TIPO'],
-    ['model', 'MODELO'],
-    ['cliente', 'CLIENTE'],
+['model', 'Modelo'],
+['version', 'Versão'],
+['cliente', 'CLIENTE'],
     ['fin', 'FIN'],
     ['biz', 'Bizagi'],
     ['enc', 'Encomenda'],
@@ -498,8 +499,9 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
               <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
                 <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
                 <td className="px-3 py-1">{r.type}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
-                <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
+<td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
+<td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
+<td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
                 <td className="px-3 py-1">{r.fin}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
