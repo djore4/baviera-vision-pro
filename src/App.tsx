@@ -13,6 +13,7 @@ import PendentesPage from "./pages/PendentesPage";
 import DadosPage from "./pages/DadosPage";
 import EscalaPage from "./pages/EscalaPage";
 import NotFound from "./pages/NotFound";
+import FunilPage from "./pages/FunilPage";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/pendentes" element={<AppLayout><PendentesPage /></AppLayout>} />
             <Route path="/escala" element={<AppLayout><EscalaPage /></AppLayout>} />
             <Route path="/dados" element={<AppLayout><DadosPage /></AppLayout>} />
+            <Route path="/funil" element={<AppLayout><FunilPage /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
