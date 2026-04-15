@@ -61,7 +61,7 @@ export default function RetailsPage() {
     if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail');
     if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
     return result;
-  }, [baseRecords, selectedResp, selectedGar, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity, selectedPark, selectedStatus]);
+  }, [baseRecords, selectedResps, selectedGar, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity, selectedPark, selectedStatus]);
 
   const statusByResp = useMemo(() => {
     const map: Record<string, { resp: string; Carteira: number; Matricula: number; Retail: number; total: number }> = {};
