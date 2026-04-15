@@ -5,6 +5,7 @@ import { useData } from '@/contexts/DataContext';
 import { useState, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import bmwLogo from '@/assets/bmw-logo.png';
+import { ..., Filter } from 'lucide-react';
 
 const NAV_ITEMS = [
   { path: '/retails', label: 'RETAILS', icon: BarChart3 },
@@ -13,6 +14,9 @@ const NAV_ITEMS = [
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
   { path: '/dados', label: 'DADOS', icon: Database },
+  { path: '/carteira', label: 'CARTEIRA', icon: Briefcase },
+  { path: '/funil', label: 'FUNIL DE VENDAS', icon: Filter },
+  { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
