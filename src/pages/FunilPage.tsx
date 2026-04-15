@@ -10,13 +10,13 @@ const STATUS_CONFIG = {
 type FunilStatus = keyof typeof STATUS_CONFIG;
 
 export default function FunilPage() {
-  const { filteredControl } = useData();
+  const { data } = useData();
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
 
-  const records = useMemo(() =>
-    filteredControl.filter(r => ['Frio', 'Morno', 'Quente'].includes(r.status)),
-    [filteredControl]
-  );
+ const records = useMemo(() =>
+  (data?.control ?? []).filter(r => ['Frio', 'Morno', 'Quente'].includes(r.status)),
+  [data]
+);
 
   const responsaveis = useMemo(() => {
     const set = new Set(records.map(r => r.resp));
