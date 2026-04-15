@@ -85,7 +85,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {sidebarOpen && !isMobile ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </button>
             <img src={bmwLogo} alt="BMW" className="h-8 w-8" />
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide hidden sm:inline">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               {NAV_ITEMS.find(n => n.path === location.pathname)?.label || 'Dashboard'}
             </span>
           </div>
