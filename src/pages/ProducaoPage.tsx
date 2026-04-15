@@ -70,8 +70,18 @@ const negByResp = useMemo(() => {
   if (!data) return [];
   const map: Record<string, number> = {};
   filtered.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
-  const targetMap: Record<string, number> = {};
-  data.objetivosResp.forEach(o => { targetMap[o.resp] = (targetMap[o.resp] || 0) + o.objetivo; });
+const targetMap: Record<string, number> = {};
+data.objetivosResp.forEach(o => {
+  const [oy, om] = o.mes.split('/').map(Number);
+  if (!oy || !om) return;
+  if (filter.months.length > 0) {
+    const match = filter.months.some(fm => Math.floor(fm / 100) === oy && fm % 100 === om);
+    if (!match) return;
+  } else if (filter.years.length > 0) {
+    if (!filter.years.includes(oy)) return;
+  }
+  targetMap[o.resp] = (targetMap[o.resp] || 0) + o.objetivo;
+});
   const allResps = new Set([...Object.keys(map), ...Object.keys(targetMap)]);
   return Array.from(allResps).map(resp => ({
     resp,
