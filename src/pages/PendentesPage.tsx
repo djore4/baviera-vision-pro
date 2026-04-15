@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 export default function PendentesPage() {
   const { data } = useData();
-  const control = data?.control || [];
+  const cutoff = new Date(2025, 11, 31);
+  const control = (data?.control || []).filter(r => r.neg instanceof Date && r.neg > cutoff);
 
   // Apping: Retail deals missing APP
   const appingDeals = useMemo(() => control.filter(isMissingApping), [control]);
