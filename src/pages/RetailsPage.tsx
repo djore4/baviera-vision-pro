@@ -28,7 +28,7 @@ type SortDir = 'asc' | 'desc';
 export default function RetailsPage() {
   const { filteredControl, data, filter } = useData();
   const isMobile = useIsMobile();
-  const [selectedResp, setSelectedResp] = useState<string | null>(null);
+  const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
   const [selectedGar, setSelectedGar] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
   const [selectedOrigin, setSelectedOrigin] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export default function RetailsPage() {
 
   const filtered = useMemo(() => {
     let result = baseRecords;
-    if (selectedResp) result = result.filter(r => r.resp === selectedResp);
+    if (selectedResps.size > 0) result = result.filter(r => selectedResps.has(r.resp));
     if (selectedGar) result = result.filter(r => (r.gar === 'GAR' ? 'Certo' : 'Incerto') === selectedGar);
     if (selectedFin) result = result.filter(r => r.fin === selectedFin);
     if (selectedOrigin) result = result.filter(r => r.origin === selectedOrigin);
@@ -226,7 +226,19 @@ export default function RetailsPage() {
     setter(prev => prev === val ? nullVal : val);
   };
 
-  const handleRespClick = useCallback((respName: string) => { toggle(setSelectedResp, respName, null as string | null); }, []);
+  const handleRespClick = useCallback((resp: string, ctrlKey = false) => {
+    setSelectedResps(prev => {
+      const next = new Set(prev);
+      if (ctrlKey) {
+        if (next.has(resp)) next.delete(resp);
+        else next.add(resp);
+      } else {
+        if (next.size === 1 && next.has(resp)) next.clear();
+        else { next.clear(); next.add(resp); }
+      }
+      return next;
+    });
+  }, []);
   const handleGarClick = useCallback((garName: string) => { toggle(setSelectedGar, garName, null as string | null); }, []);
   const handleFinClick = useCallback((finName: string) => { toggle(setSelectedFin, finName, null as string | null); }, []);
   const handleOriginClick = useCallback((name: string) => { toggle(setSelectedOrigin, name, null as string | null); }, []);
@@ -265,7 +277,7 @@ export default function RetailsPage() {
   }
 
   const activeFilters = [
-    selectedResp && `Resp: ${selectedResp}`,
+    selectedResps.size > 0 && `Resp: ${Array.from(selectedResps).join(', ')}`,
     selectedGar && `Garantia: ${selectedGar}`,
     selectedFin && `Fin: ${selectedFin}`,
     selectedOrigin && `Origem: ${selectedOrigin}`,
@@ -278,7 +290,7 @@ export default function RetailsPage() {
   ].filter(Boolean);
 
   const clearFilter = (type: string) => {
-    if (type === 'resp') setSelectedResp(null);
+    if (type === 'resp') setSelectedResps(new Set());
     if (type === 'gar') setSelectedGar(null);
     if (type === 'fin') setSelectedFin(null);
     if (type === 'origin') setSelectedOrigin(null);
@@ -376,7 +388,7 @@ export default function RetailsPage() {
         {activeFilters.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] text-muted-foreground">Filtros:</span>
-            {selectedResp && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('resp')}>{selectedResp} ✕</Badge>}
+            {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => setSelectedResps(new Set())}>{Array.from(selectedResps).join(', ')} ✕</Badge>}
             {selectedGar && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('gar')}>{selectedGar} ✕</Badge>}
             {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} ✕</Badge>}
             {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('origin')}>{selectedOrigin} ✕</Badge>}
@@ -406,10 +418,10 @@ export default function RetailsPage() {
                 <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick} />
                 <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer"
                   opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1}
-                  onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)} />
+                  onClick={(entry: any, _: any, event: any) => entry?.resp && handleRespClick(entry.resp, event?.ctrlKey || event?.metaKey)} />
                 <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer"
                   opacity={selectedStatus && selectedStatus !== 'Matricula' ? 0.2 : 1}
-                  onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)} />
+                  onClick={(entry: any, _: any, event: any) => entry?.resp && handleRespClick(entry.resp, event?.ctrlKey || event?.metaKey)} />
                 <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer"
                   opacity={selectedStatus && selectedStatus !== 'Carteira' ? 0.2 : 1}
                   onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
