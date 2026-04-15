@@ -348,7 +348,7 @@ data.objetivosResp.forEach(o => {
 
             {isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
 
-            {/* Realização vs Objetivo */}
+{/* Realização vs Objetivo */}
             <div className="xl:col-span-3">
               <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full">
                 <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
