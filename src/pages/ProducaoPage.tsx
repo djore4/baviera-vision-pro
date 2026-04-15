@@ -21,7 +21,7 @@ type SortKey = 'neg' | 'mes1' | 'resp' | 'type' | 'model' | 'cliente' | 'fin' | 
 type SortDir = 'asc' | 'desc';
 
 export default function ProducaoPage() {
-  const { filteredControl, data, filter } = useData();
+  const { data, filter } = useData();
   const isMobile = useIsMobile();
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
@@ -35,10 +35,19 @@ export default function ProducaoPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Base: deals with neg date in period
-  const baseRecords = useMemo(() =>
-    filteredControl.filter(r => r.neg),
-    [filteredControl]
-  );
+const baseRecords = useMemo(() => {
+  if (!data) return [];
+  return data.control.filter(r => {
+    if (!r.neg) return false;
+    const y = r.neg.getFullYear();
+    const m = r.neg.getMonth() + 1;
+    if (filter.months.length > 0) {
+      return filter.months.some(fm => Math.floor(fm / 100) === y && fm % 100 === m);
+    }
+    if (filter.years.length > 0) return filter.years.includes(y);
+    return true;
+  });
+}, [data, filter]);
 
   const filtered = useMemo(() => {
     let result = baseRecords;
