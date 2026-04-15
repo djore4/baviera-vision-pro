@@ -46,7 +46,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       >
         <div className="px-4 py-5 border-b border-white/10 flex items-center justify-between">
           <h1 className="text-lg font-bold tracking-tight text-white whitespace-nowrap">
-            BAVIERA<span className="text-bmw-blue ml-1">CONTROL</span>
+            Caetano<span className="text-bmw-blue ml-1">BMW</span>
           </h1>
           {isMobile && (
             <button onClick={() => setSidebarOpen(false)} className="text-white/60 hover:text-white">
