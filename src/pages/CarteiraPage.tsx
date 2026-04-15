@@ -336,6 +336,36 @@ const baseRecords = useMemo(() =>
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+</div>
+
+        {/* Distribuição por Responsável */}
+        <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Distribuição Carteira</h3>
+          <ResponsiveContainer width="100%" height={100}>
+            <PieChart>
+              <Tooltip formatter={(value: number, name: string) => [`${value} (${Math.round((value / (totalCarteira || 1)) * 100)}%)`, name]}
+                contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+              <Pie data={resps.map((resp, i) => ({
+                name: resp,
+                value: respChartData.reduce((s, m) => s + ((m as any)[resp] || 0), 0),
+                fill: COLORS[i % COLORS.length],
+              })).filter(d => d.value > 0)}
+                dataKey="value" nameKey="name" outerRadius={42} innerRadius={18}
+                cursor="pointer" onClick={(entry: any) => entry?.name && handleRespClick(entry.name)}>
+                {resps.map((resp, i) => (
+                  <Cell key={resp} fill={COLORS[i % COLORS.length]}
+                    opacity={selectedResp && selectedResp !== resp ? 0.2 : 1} />
+                ))}
+              </Pie>
+              <Legend wrapperStyle={{ fontSize: 9 }}
+                formatter={(value, entry: any) => {
+                  const total = resps.map((r, i) => ({ name: r, value: respChartData.reduce((s, m) => s + ((m as any)[r] || 0), 0) })).find(d => d.name === value);
+                  const pct = total ? Math.round((total.value / (totalCarteira || 1)) * 100) : 0;
+                  return `${value} (${pct}%)`;
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Método de Pagamento */}
@@ -396,7 +426,7 @@ const baseRecords = useMemo(() =>
           </div>
         </div>
         <div className="xl:col-span-1" />
-        <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
+<div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
           <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
           <SalesRadar records={filtered} height="200px" />
         </div>
