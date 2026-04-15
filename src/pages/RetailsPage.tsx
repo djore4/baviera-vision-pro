@@ -58,7 +58,7 @@ export default function RetailsPage() {
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
     if (selectedEntity) result = result.filter(r => r.profile === selectedEntity);
-    if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P'));
+    if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail');
     if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
     return result;
   }, [baseRecords, selectedResp, selectedGar, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity, selectedPark, selectedStatus]);
@@ -159,7 +159,7 @@ export default function RetailsPage() {
 
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
   const bevCount = useMemo(() => filtered.filter(r => r.bev === 1).length, [filtered]);
-  const parkCount = useMemo(() => filtered.filter(r => r.week198.toUpperCase().includes('P')).length, [filtered]);
+  const parkCount = useMemo(() => filtered.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail').length, [filtered]);
 
   const entityData = useMemo(() => {
     const map: Record<string, number> = {};
