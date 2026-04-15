@@ -1,13 +1,12 @@
 import { useMemo, useState, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useData } from '@/contexts/DataContext';
-import { PeriodFilter } from '@/components/PeriodFilter';
 import { SalesRadar } from '@/components/SalesRadar';
 import { formatDate } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LabelList,
+  PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -21,7 +20,7 @@ type SortKey = 'resp' | 'neg' | 'mes1' | 'type' | 'model' | 'version' | 'cliente
 type SortDir = 'asc' | 'desc';
 
 export default function CarteiraPage() {
-  const { filteredControl, data } = useData();
+  const { data } = useData();
   const isMobile = useIsMobile();
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
@@ -30,13 +29,14 @@ export default function CarteiraPage() {
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
+  const [hiddenResps, setHiddenResps] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('mes1');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [searchTerm, setSearchTerm] = useState('');
 
   const baseRecords = useMemo(() =>
-    filteredControl.filter(r => r.status === 'Carteira' || r.status === 'Matricula'),
-    [filteredControl]
+    (data?.control ?? []).filter(r => r.status === 'Carteira' || r.status === 'Matricula'),
+    [data]
   );
 
   const filtered = useMemo(() => {
@@ -52,7 +52,7 @@ export default function CarteiraPage() {
   }, [baseRecords, selectedResp, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity]);
 
   // Carteira por Responsável ao longo do tempo (mes1)
-  const { chartData, resps } = useMemo(() => {
+  const { respChartData, resps } = useMemo(() => {
     const respSet = new Set(baseRecords.map(r => r.resp).filter(Boolean));
     const allResps = Array.from(respSet).sort();
     const monthMap: Record<string, Record<string, number>> = {};
@@ -62,12 +62,24 @@ export default function CarteiraPage() {
       monthMap[r.mes1][r.resp] = (monthMap[r.mes1][r.resp] || 0) + 1;
     });
     const months = Object.keys(monthMap).sort();
-    const data = months.map(m => {
+    const chartData = months.map(m => {
       const total = Object.values(monthMap[m]).reduce((s, v) => s + v, 0);
-      return { month: m, ...monthMap[m], total };
+      return { month: m, ...monthMap[m], _total: total };
     });
-    return { chartData: data, resps: allResps };
+    return { respChartData: chartData, resps: allResps };
   }, [filtered, baseRecords]);
+
+  // Carteira Tipologia (QoR + BEV) ao longo do tempo
+  const tipoChartData = useMemo(() => {
+    const monthMap: Record<string, { month: string; QoR: number; BEV: number }> = {};
+    filtered.forEach(r => {
+      if (!r.mes1) return;
+      if (!monthMap[r.mes1]) monthMap[r.mes1] = { month: r.mes1, QoR: 0, BEV: 0 };
+      if (r.qor === 1) monthMap[r.mes1].QoR++;
+      if (r.bev === 1) monthMap[r.mes1].BEV++;
+    });
+    return Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month));
+  }, [filtered]);
 
   const totalCarteira = filtered.length;
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
@@ -156,6 +168,17 @@ export default function CarteiraPage() {
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
 
+  const handleLegendClick = useCallback((e: any) => {
+    const key = e?.dataKey;
+    if (!key) return;
+    setHiddenResps(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
   const exportCSV = useCallback(() => {
     const headers = ['RESP', 'D.FECHO', 'MÊS1', 'TIPO', 'MODELO', 'VERSÃO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Origem', 'Perfil', '198'];
     const rows = tableData.map(r => [
@@ -173,21 +196,10 @@ export default function CarteiraPage() {
   }, [tableData]);
 
   const tableColumns: [SortKey, string][] = [
-    ['resp', 'RESP'],
-    ['neg', 'D.Fecho'],
-    ['mes1', 'Mês1'],
-    ['type', 'Tipo'],
-    ['model', 'Modelo'],
-    ['version', 'Versão'],
-    ['cliente', 'Cliente'],
-    ['fin', 'Fin'],
-    ['biz', 'Bizagi'],
-    ['enc', 'Encomenda'],
-    ['chas', 'Chassis'],
-    ['mat', 'Matrícula'],
-    ['origin', 'Origem'],
-    ['profile', 'Perfil'],
-    ['week198', '198'],
+    ['resp', 'RESP'], ['neg', 'D.Fecho'], ['mes1', 'Mês1'], ['type', 'Tipo'],
+    ['model', 'Modelo'], ['version', 'Versão'], ['cliente', 'Cliente'], ['fin', 'Fin'],
+    ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matrícula'],
+    ['origin', 'Origem'], ['profile', 'Perfil'], ['week198', '198'],
   ];
 
   const activeFilters = [selectedResp, selectedFin, selectedOrigin, selectedModel, selectedEntity, selectedQor, selectedBev].some(Boolean);
@@ -242,228 +254,187 @@ export default function CarteiraPage() {
 
   return (
     <div className="space-y-3 animate-fade-in">
-      <div className="flex flex-col lg:flex-row gap-3">
-        <div className="w-full lg:w-44 flex-shrink-0">
-          <PeriodFilter />
+      {activeFilters && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] text-muted-foreground">Filtros:</span>
+          {selectedResp && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('resp')}>{selectedResp} ✕</Badge>}
+          {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} ✕</Badge>}
+          {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('origin')}>{selectedOrigin} ✕</Badge>}
+          {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} ✕</Badge>}
+          {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('entity')}>{selectedEntity} ✕</Badge>}
+          {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR ✕</Badge>}
+          {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV ✕</Badge>}
+        </div>
+      )}
+
+      {/* Row 1 */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
+        {/* Carteira por Responsável */}
+        <div className="xl:col-span-6 bg-card border border-border rounded-lg p-2">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira por Responsável</h3>
+            <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalCarteira}</span>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={respChartData} barSize={32} barCategoryGap="20%">
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="month" tick={{ fontSize: 9 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+              <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick} />
+              {resps.map((resp, i) => (
+                <Bar
+                  key={resp}
+                  dataKey={resp}
+                  stackId="a"
+                  fill={COLORS[i % COLORS.length]}
+                  cursor="pointer"
+                  hide={hiddenResps.has(resp)}
+                  opacity={selectedResp && selectedResp !== resp ? 0.2 : 1}
+                  onClick={() => handleRespClick(resp)}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
-        <div className="flex-1 min-w-0 space-y-2">
-          {activeFilters && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] text-muted-foreground">Filtros:</span>
-              {selectedResp && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('resp')}>{selectedResp} ✕</Badge>}
-              {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} ✕</Badge>}
-              {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('origin')}>{selectedOrigin} ✕</Badge>}
-              {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} ✕</Badge>}
-              {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('entity')}>{selectedEntity} ✕</Badge>}
-              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR ✕</Badge>}
-              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV ✕</Badge>}
+        {/* Carteira Tipologia */}
+        <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Tipologia</h3>
+            <div className="flex gap-2 text-[10px]">
+              <span className="font-semibold" style={{ color: '#F59E0B' }}>{qorCount} QoR</span>
+              <span className="font-semibold" style={{ color: '#16A34A' }}>{bevCount} BEV</span>
             </div>
-          )}
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={tipoChartData} barSize={32} barCategoryGap="20%">
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="month" tick={{ fontSize: 9 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+              <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} />
+              <Bar dataKey="QoR" fill="#F59E0B" stackId="a" cursor="pointer" onClick={handleQorClick}
+                opacity={selectedQor === false ? 0.2 : 1} />
+              <Bar dataKey="BEV" fill="#16A34A" stackId="a" cursor="pointer" onClick={handleBevClick}
+                opacity={selectedBev === false ? 0.2 : 1} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
 
-          {/* Row 1 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-2">
-            {/* Carteira por Responsável ao longo do tempo */}
-            <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira por Responsável</h3>
-                <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalCarteira}</span>
-              </div>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={chartData} barSize={18}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" tick={{ fontSize: 9 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                  {resps.map((resp, i) => (
-                    <Bar
-                      key={resp}
-                      dataKey={resp}
-                      stackId="a"
-                      fill={COLORS[i % COLORS.length]}
-                      cursor="pointer"
-                      opacity={selectedResp && selectedResp !== resp ? 0.2 : 1}
-                      onClick={() => handleRespClick(resp)}
-                    >
-                      {i === resps.length - 1 && (
-                        <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
-                      )}
-                    </Bar>
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
-
-            {/* KPIs */}
-            <div className="xl:col-span-3 space-y-2">
-              <div className="bg-card border border-border rounded-lg p-3 text-center">
-                <p className="text-[10px] text-muted-foreground uppercase">Total Carteira</p>
-                <p className="text-3xl font-bold text-primary">{totalCarteira}</p>
-              </div>
-              <ClickableDonutCard title="QoR" count={qorCount} total={totalCarteira} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
-              <ClickableDonutCard title="BEV" count={bevCount} total={totalCarteira} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
-            </div>
-
-            {/* Método de Pagamento */}
-            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
-              <div className="flex items-center gap-2">
-                <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
-                  <PieChart>
-                    <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
-                    <Pie data={finData} dataKey="value" nameKey="name" outerRadius={45} stroke="hsl(var(--background))" strokeWidth={1.5}
-                      onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
-                      {finData.map((entry, i) => {
-                        const isSelected = selectedFin === entry.name;
-                        const isDimmed = selectedFin && !isSelected;
-                        return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
-                      })}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="space-y-1 flex-1">
+        {/* Método de Pagamento */}
+        <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
+          <div className="flex items-center gap-2">
+            <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
+              <PieChart>
+                <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
+                <Pie data={finData} dataKey="value" nameKey="name" outerRadius={45} stroke="hsl(var(--background))" strokeWidth={1.5}
+                  onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
                   {finData.map((entry, i) => {
                     const isSelected = selectedFin === entry.name;
                     const isDimmed = selectedFin && !isSelected;
-                    return (
-                      <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                        <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
-                        <span className="text-[10px] font-medium w-9">{entry.name}</span>
-                        <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
-                        <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
-                      </div>
-                    );
+                    return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
                   })}
-                  <div className="border-t border-border pt-1 mt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-semibold">Total</span>
-                      <span className="text-[10px] font-bold">{filtered.length}</span>
-                    </div>
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="space-y-1 flex-1">
+              {finData.map((entry, i) => {
+                const isSelected = selectedFin === entry.name;
+                const isDimmed = selectedFin && !isSelected;
+                return (
+                  <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
+                    <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
+                    <span className="text-[10px] font-medium w-9">{entry.name}</span>
+                    <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
+                    <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
                   </div>
+                );
+              })}
+              <div className="border-t border-border pt-1 mt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold">Total</span>
+                  <span className="text-[10px] font-bold">{filtered.length}</span>
                 </div>
               </div>
             </div>
           </div>
-
-          {/* Row 2 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
-              <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
-            </div>
-
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Origem dos Negócios</h3>
-              <HorizontalBarList data={originData} selected={selectedOrigin} onClick={handleOriginClick} />
-            </div>
-
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mix Modelos</h3>
-              <div className="max-h-40 overflow-y-auto pr-1">
-                <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
-              </div>
-            </div>
-
-            <div className="xl:col-span-1" />
-
-            <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
-              <SalesRadar records={filtered} height="200px" />
-            </div>
-          </div>
         </div>
       </div>
 
-      {!isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
-    </div>
-  );
-}
-
-function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, toggleSort, SortIcon, exportCSV }: {
-  tableData: any[]; tableColumns: [SortKey, string][]; searchTerm: string; setSearchTerm: (v: string) => void;
-  toggleSort: (k: SortKey) => void; SortIcon: React.FC<{ col: SortKey }>; exportCSV: () => void;
-}) {
-  return (
-    <div className="bg-card border border-border rounded-lg">
-      <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira ({tableData.length})</h3>
-        <div className="flex items-center gap-2">
-          <div className="relative w-full sm:w-48">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-            <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
+      {/* Row 2 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
+        <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
+          <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
+        </div>
+        <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Origem dos Negócios</h3>
+          <HorizontalBarList data={originData} selected={selectedOrigin} onClick={handleOriginClick} />
+        </div>
+        <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mix Modelos</h3>
+          <div className="max-h-40 overflow-y-auto pr-1">
+            <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
           </div>
-          <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
-            <Download className="h-3 w-3" />
-            CSV
-          </Button>
+        </div>
+        <div className="xl:col-span-1" />
+        <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
+          <SalesRadar records={filtered} height="200px" />
         </div>
       </div>
-      <div className="overflow-auto max-h-[60vh] relative">
-        <table className="w-full caption-bottom text-sm">
-          <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
-            <tr className="text-[10px]">
-              {tableColumns.map(([key, label]) => (
-                <th key={key}
-                  className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card"
-                  onClick={() => toggleSort(key)}>
-                  <span className="inline-flex items-center">
-                    {label}
-                    <SortIcon col={key} />
-                  </span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {tableData.map((r, i) => (
-              <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
-                <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{r.mes1}</td>
-                <td className="px-3 py-1">{r.type}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
-                <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
-                <td className="px-3 py-1">{r.fin}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{r.chas}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{r.mat}</td>
-                <td className="px-3 py-1">{r.origin}</td>
-                <td className="px-3 py-1">{r.profile}</td>
-                <td className="px-3 py-1">{r.week198}</td>
+
+      {/* Tabela */}
+      <div className="bg-card border border-border rounded-lg">
+        <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira ({tableData.length})</h3>
+          <div className="flex items-center gap-2">
+            <div className="relative w-full sm:w-48">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
+            </div>
+            <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
+              <Download className="h-3 w-3" />CSV
+            </Button>
+          </div>
+        </div>
+        <div className="overflow-auto max-h-[60vh]">
+          <table className="w-full caption-bottom text-sm">
+            <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
+              <tr className="text-[10px]">
+                {tableColumns.map(([key, label]) => (
+                  <th key={key}
+                    className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card"
+                    onClick={() => toggleSort(key)}>
+                    <span className="inline-flex items-center">{label}<SortIcon col={key} /></span>
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function ClickableDonutCard({ title, count, total, color, isActive, onClick }: {
-  title: string; count: number; total: number; color: string; isActive: boolean; onClick: () => void;
-}) {
-  const pct = total ? Math.round((count / total) * 100) : 0;
-  const pieData = [{ name: title, value: count }, { name: 'Outros', value: Math.max(0, total - count) }];
-  return (
-    <div className={`bg-card border rounded-lg p-2 cursor-pointer transition-all ${isActive ? 'border-primary ring-1 ring-primary' : 'border-border'}`} onClick={onClick}>
-      <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-0.5">{title}</h3>
-      <div className="flex items-center gap-2">
-        <ResponsiveContainer width={50} height={50}>
-          <PieChart>
-            <Pie data={pieData} innerRadius={15} outerRadius={22} dataKey="value" strokeWidth={0}>
-              <Cell fill={color} />
-              <Cell fill="hsl(var(--border))" />
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
-        <div>
-          <p className="text-lg font-bold" style={{ color }}>{count}</p>
-          <p className="text-[10px] text-muted-foreground">{pct}% do total</p>
+            </thead>
+            <tbody>
+              {tableData.map((r, i) => (
+                <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
+                  <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.mes1}</td>
+                  <td className="px-3 py-1">{r.type}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
+                  <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
+                  <td className="px-3 py-1">{r.fin}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.chas}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.mat}</td>
+                  <td className="px-3 py-1">{r.origin}</td>
+                  <td className="px-3 py-1">{r.profile}</td>
+                  <td className="px-3 py-1">{r.week198}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
