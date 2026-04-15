@@ -189,17 +189,6 @@ const baseRecords = useMemo(() =>
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
 
-  const handleLegendClick = useCallback((e: any) => {
-    const key = e?.dataKey;
-    if (!key) return;
-    setHiddenResps(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }, []);
-
   const exportCSV = useCallback(() => {
     const headers = ['RESP', 'D.FECHO', 'MÊS1', 'TIPO', 'MODELO', 'VERSÃO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Origem', 'Perfil', '198'];
     const rows = tableData.map(r => [
