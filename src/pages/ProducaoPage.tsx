@@ -338,10 +338,12 @@ data.objetivosResp.forEach(o => {
   <YAxis tick={{ fontSize: 10 }} />
   <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
   <Legend wrapperStyle={{ fontSize: 10 }} />
-  <Bar dataKey="total" name="Fechados" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
-    <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
-  </Bar>
-  <Bar dataKey="objetivo" name="Objetivo" fill="#334155" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)} />
+<Bar dataKey="total" name="Negócios Fechados" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
+  <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
+</Bar>
+<Bar dataKey="objetivo" name="Objetivo" fill="#334155" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
+  <LabelList dataKey="objetivo" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
+</Bar>
 </BarChart>
               </ResponsiveContainer>
             </div>
