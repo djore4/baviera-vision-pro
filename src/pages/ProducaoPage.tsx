@@ -12,6 +12,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, LabelList, Legend,
+} from 'recharts';
 
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
@@ -322,15 +326,17 @@ const negByResp = useMemo(() => {
                 <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalNeg}</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={negByResp} barSize={28}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                  <Bar dataKey="total" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
-                    <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
-                  </Bar>
-                </BarChart>
+<BarChart data={negByResp} barSize={20}>
+  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+  <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
+  <YAxis tick={{ fontSize: 10 }} />
+  <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+  <Legend wrapperStyle={{ fontSize: 10 }} />
+  <Bar dataKey="total" name="Fechados" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
+    <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
+  </Bar>
+  <Bar dataKey="objetivo" name="Objetivo" fill="#334155" />
+</BarChart>
               </ResponsiveContainer>
             </div>
 
