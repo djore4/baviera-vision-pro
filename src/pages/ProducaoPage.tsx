@@ -350,28 +350,30 @@ data.objetivosResp.forEach(o => {
 
 {/* Realização vs Objetivo */}
             <div className="xl:col-span-3">
-              <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full">
+              <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
                 <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
-                <div className="flex items-end justify-center">
-                  <GaugeSimple value={realization.pct} />
+                <div className="flex-1">
+                  <ResponsiveContainer width="100%" height={130}>
+                    <BarChart data={[{ name: 'Total', fechados: realization.actual, objetivo: realization.targetBMW }]} barSize={40} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10 }} />
+                      <YAxis type="category" dataKey="name" hide />
+                      <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                      <Legend wrapperStyle={{ fontSize: 10 }} />
+                      <Bar dataKey="fechados" name="Fechados" fill="#1C69D4">
+                        <LabelList dataKey="fechados" position="insideRight" fontSize={11} fontWeight="bold" fill="white" />
+                      </Bar>
+                      <Bar dataKey="objetivo" name="Objetivo" fill="#334155">
+                        <LabelList dataKey="objetivo" position="insideRight" fontSize={11} fontWeight="bold" fill="white" />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-                <div className="grid grid-cols-4 gap-1 mt-2 text-center items-end">
-                  <div>
-                    <p className="text-lg font-extrabold text-primary">{realization.actual}</p>
-                    <p className="text-[9px] font-medium text-muted-foreground">Total</p>
-                  </div>
-                  <div>
-                    <p className="text-base font-bold text-foreground">{realization.targetCaetano}</p>
-                    <p className="text-[9px] text-muted-foreground">Caetano</p>
-                  </div>
-                  <div>
-                    <p className="text-base font-bold text-muted-foreground">{realization.targetBMW}</p>
-                    <p className="text-[9px] text-muted-foreground">BMW</p>
-                  </div>
-                  <div>
-                    <p className="text-lg font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p>
-                    <p className="text-[9px] font-medium text-muted-foreground">vs BMW</p>
-                  </div>
+                <div className="text-center mt-2">
+                  <p className="text-2xl font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>
+                    {realization.pct}%
+                  </p>
+                  <p className="text-[9px] text-muted-foreground">{realization.actual} fechados / {realization.targetBMW} objetivo</p>
                 </div>
               </div>
             </div>
