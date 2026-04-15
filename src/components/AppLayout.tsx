@@ -14,8 +14,6 @@ const NAV_ITEMS = [
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
   { path: '/dados', label: 'DADOS', icon: Database },
-  { path: '/carteira', label: 'CARTEIRA', icon: Briefcase },
-  { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
