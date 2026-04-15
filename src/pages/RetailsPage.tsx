@@ -449,7 +449,7 @@ export default function RetailsPage() {
               <div className="flex items-end justify-center">
                 <GaugeSimple value={realization.pct} retailPct={realization.targetBMW ? Math.round((realization.retails / realization.targetBMW) * 100) : undefined} />
               </div>
-              <div className="grid grid-cols-6 gap-1 mt-2 text-center">
+              <div className="grid grid-cols-6 gap-1 mt-2 text-center items-end">
                 <div>
                   <p className="text-lg font-extrabold text-primary">{realization.actual}</p>
                   <p className="text-[9px] font-medium text-muted-foreground">Total</p>
