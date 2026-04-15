@@ -62,11 +62,19 @@ const baseRecords = useMemo(() => {
   }, [baseRecords, selectedResp, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity]);
 
   // Negócios por Responsável vs Objetivo
-  const negByResp = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
-    return Object.entries(map).map(([resp, total]) => ({ resp, total })).sort((a, b) => b.total - a.total);
-  }, [filtered]);
+const negByResp = useMemo(() => {
+  if (!data) return [];
+  const map: Record<string, number> = {};
+  filtered.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
+  const targetMap: Record<string, number> = {};
+  data.objetivosResp.forEach(o => { targetMap[o.resp] = (targetMap[o.resp] || 0) + o.objetivo; });
+  const allResps = new Set([...Object.keys(map), ...Object.keys(targetMap)]);
+  return Array.from(allResps).map(resp => ({
+    resp,
+    total: map[resp] || 0,
+    objetivo: targetMap[resp] || 0,
+  })).sort((a, b) => b.total - a.total);
+}, [filtered, data]);
 
   const totalNeg = useMemo(() => negByResp.reduce((s, r) => s + r.total, 0), [negByResp]);
 
