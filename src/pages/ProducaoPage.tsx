@@ -327,6 +327,25 @@ data.objetivosResp.forEach(o => {
             </div>
           )}
 
+          {/* Filtro Responsável */}
+          {negByResp.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {negByResp.map(r => (
+                <button
+                  key={r.resp}
+                  onClick={() => handleRespClick(r.resp)}
+                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                    selectedResp === r.resp
+                      ? 'bg-primary text-white'
+                      : 'bg-muted text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  {r.resp}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Row 1 */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-2">
             {/* Negócios por Responsável */}
