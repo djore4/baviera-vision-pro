@@ -52,7 +52,7 @@ const baseRecords = useMemo(() =>
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
     if (selectedEntity) result = result.filter(r => r.profile === selectedEntity);
     return result;
-  }, [baseRecords, selectedResp, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity]);
+  }, [baseRecords, selectedResps, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity]);
 
   // Carteira por Responsável ao longo do tempo (mes1)
   const { respChartData, resps } = useMemo(() => {
@@ -215,7 +215,7 @@ const baseRecords = useMemo(() =>
   const activeFilters = [selectedResps.size > 0, selectedFin, selectedOrigin, selectedModel, selectedEntity, selectedQor, selectedBev].some(Boolean);
 
   const clearFilter = (type: string) => {
-    if (type === 'resp') setSelectedResp(null);
+    if (type === 'resp') setSelectedResps(new Set());
     if (type === 'fin') setSelectedFin(null);
     if (type === 'origin') setSelectedOrigin(null);
     if (type === 'model') setSelectedModel(null);
@@ -364,7 +364,7 @@ opacity={selectedResps.size > 0 && !selectedResps.has(resp) ? 0.2 : 1}
                 cursor="pointer" onClick={(entry: any) => entry?.name && handleRespClick(entry.name)}>
                 {resps.map((resp, i) => (
                   <Cell key={resp} fill={COLORS[i % COLORS.length]}
-                    opacity={selectedResp && selectedResp !== resp ? 0.2 : 1} />
+                    opacity={selectedResps.size > 0 && !selectedResps.has(resp) ? 0.2 : 1} />
                 ))}
               </Pie>
               <Legend wrapperStyle={{ fontSize: 9 }}
