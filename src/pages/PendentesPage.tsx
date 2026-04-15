@@ -8,16 +8,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 export default function PendentesPage() {
   const { data } = useData();
-const control = data?.control || [];
+const control = (data?.control || []).filter(r => r.resp !== 'JD');
   const cutoff2026 = new Date(2026, 0, 1);
 
-  // Apping: tem date298 >= 1/1/2026 mas não tem data de apping
-  const appingDeals = useMemo(() =>
+const appingBase = useMemo(() =>
     control.filter(r =>
       r.date298 instanceof Date &&
-      r.date298 >= cutoff2026 &&
-      !r.app
+      r.date298 >= cutoff2026
     ), [control]);
+
+  const appingDeals = useMemo(() =>
+    appingBase.filter(r => !r.app),
+    [appingBase]);
+
+  const appRate = appingBase.length
+    ? Math.round(((appingBase.length - appingDeals.length) / appingBase.length) * 100)
+    : 0;
   const appingByResp = useMemo(() => {
     const map: Record<string, number> = {};
     appingDeals.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
@@ -58,9 +64,9 @@ const control = data?.control || [];
   return (
     <div className="grid grid-cols-3 gap-4 animate-fade-in">
       {/* APPING */}
-      <PendingSection
+<PendingSection
         title="APPING"
-        subtitle="Responsáveis pelos Retails s/ Apping"
+        subtitle={`App Rate: ${appRate}% (${appingBase.length - appingDeals.length}/${appingBase.length})`}
         color="#DC2626"
         total={appingDeals.length}
         totalLabel="s/ Apping"
