@@ -295,7 +295,19 @@ const baseRecords = useMemo(() =>
               <XAxis dataKey="month" tick={{ fontSize: 9 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-              <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick} />
+              <Legend
+                wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
+                onClick={handleLegendClick}
+                formatter={(value: string) => (
+                  <span style={{
+                    opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1,
+                    fontWeight: selectedResps.has(value) ? 'bold' : 'normal',
+                    transition: 'opacity 0.2s',
+                  }}>
+                    {value}
+                  </span>
+                )}
+              />
          {resps.map((resp, i) => (
                 <Bar
                   key={resp}
