@@ -345,7 +345,23 @@ opacity={selectedResps.size > 0 && !selectedResps.has(resp) ? 0.2 : 1}
               <XAxis dataKey="month" tick={{ fontSize: 9 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-              <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} />
+              <Legend
+                wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
+                onClick={(e: any) => {
+                  if (e?.dataKey === 'QoR' || e?.value === 'QoR') handleQorClick();
+                  if (e?.dataKey === 'BEV' || e?.value === 'BEV') handleBevClick();
+                }}
+                formatter={(value: string) => (
+                  <span style={{
+                    opacity: (value === 'QoR' && selectedQor === null && selectedBev !== null) ||
+                             (value === 'BEV' && selectedBev === null && selectedQor !== null) ? 0.3 : 1,
+                    fontWeight: (value === 'QoR' && selectedQor !== null) || (value === 'BEV' && selectedBev !== null) ? 'bold' : 'normal',
+                    transition: 'opacity 0.2s',
+                  }}>
+                    {value}
+                  </span>
+                )}
+              />
 <Bar dataKey="QoR" fill="#F59E0B" stackId="a" cursor="pointer" onClick={handleQorClick}
                 opacity={selectedQor === false ? 0.2 : 1}>
                 <LabelList dataKey="QoR" position="inside" fontSize={8} fill="white"
