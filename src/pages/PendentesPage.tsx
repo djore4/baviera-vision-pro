@@ -8,27 +8,43 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 export default function PendentesPage() {
   const { data } = useData();
-  const cutoff = new Date(2025, 11, 31);
-  const control = (data?.control || []).filter(r => r.neg instanceof Date && r.neg > cutoff);
+const control = data?.control || [];
+  const cutoff2026 = new Date(2026, 0, 1);
 
-  // Apping: Retail deals missing APP
-  const appingDeals = useMemo(() => control.filter(isMissingApping), [control]);
+  // Apping: tem date298 >= 1/1/2026 mas não tem data de apping
+  const appingDeals = useMemo(() =>
+    control.filter(r =>
+      r.date298 instanceof Date &&
+      r.date298 >= cutoff2026 &&
+      !r.app
+    ), [control]);
   const appingByResp = useMemo(() => {
     const map: Record<string, number> = {};
     appingDeals.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
     return Object.entries(map).map(([resp, count]) => ({ resp, count })).sort((a, b) => b.count - a.count);
   }, [appingDeals]);
 
-  // Bizagi: active deals missing BIZ
-  const bizagiDeals = useMemo(() => control.filter(isMissingBizagi), [control]);
+// Bizagi: tem neg >= 1/1/2026 mas não tem número Bizagi
+  const bizagiDeals = useMemo(() =>
+    control.filter(r =>
+      r.neg instanceof Date &&
+      r.neg >= cutoff2026 &&
+      !r.biz
+    ), [control]);
   const bizagiByResp = useMemo(() => {
     const map: Record<string, number> = {};
     bizagiDeals.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
     return Object.entries(map).map(([resp, count]) => ({ resp, count })).sort((a, b) => b.count - a.count);
   }, [bizagiDeals]);
 
-  // CME: BEV deals missing CME
-  const cmeDeals = useMemo(() => control.filter(isMissingCME), [control]);
+// CME: BEV com neg >= 1/1/2026 sem CME preenchido
+  const cmeDeals = useMemo(() =>
+    control.filter(r =>
+      r.neg instanceof Date &&
+      r.neg >= cutoff2026 &&
+      r.bev === 1 &&
+      !r.cme
+    ), [control]);
   const cmeByResp = useMemo(() => {
     const map: Record<string, number> = {};
     cmeDeals.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
