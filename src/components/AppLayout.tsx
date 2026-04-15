@@ -5,7 +5,6 @@ import { useData } from '@/contexts/DataContext';
 import { useState, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import bmwLogo from '@/assets/bmw-logo.png';
-import { ..., Filter } from 'lucide-react';
 
 const NAV_ITEMS = [
   { path: '/retails', label: 'RETAILS', icon: BarChart3 },
