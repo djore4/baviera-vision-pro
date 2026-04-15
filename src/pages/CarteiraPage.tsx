@@ -29,7 +29,7 @@ export default function CarteiraPage() {
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
-  const [hiddenResps, setHiddenResps] = useState<Set<string>>(new Set());
+  const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('mes1');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [searchTerm, setSearchTerm] = useState('');
@@ -44,7 +44,7 @@ const baseRecords = useMemo(() =>
 
   const filtered = useMemo(() => {
     let result = baseRecords;
-    if (selectedResp) result = result.filter(r => r.resp === selectedResp);
+    if (selectedResps.size > 0) result = result.filter(r => selectedResps.has(r.resp));
     if (selectedFin) result = result.filter(r => r.fin === selectedFin);
     if (selectedOrigin) result = result.filter(r => r.origin === selectedOrigin);
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
@@ -163,7 +163,25 @@ const baseRecords = useMemo(() =>
     setter(prev => prev === val ? nullVal : val);
   };
 
-  const handleRespClick = useCallback((resp: string) => { toggle(setSelectedResp, resp, null as string | null); }, []);
+  const handleRespClick = useCallback((resp: string, ctrlKey = false) => {
+    setSelectedResps(prev => {
+      const next = new Set(prev);
+      if (ctrlKey) {
+        if (next.has(resp)) next.delete(resp);
+        else next.add(resp);
+      } else {
+        if (next.size === 1 && next.has(resp)) next.clear();
+        else { next.clear(); next.add(resp); }
+      }
+      return next;
+    });
+  }, []);
+
+  const handleLegendClick = useCallback((e: any, _: any, event?: MouseEvent) => {
+    const key = e?.dataKey ?? e?.value;
+    if (!key) return;
+    handleRespClick(key, event?.ctrlKey || event?.metaKey);
+  }, [handleRespClick]);
   const handleFinClick = useCallback((fin: string) => { toggle(setSelectedFin, fin, null as string | null); }, []);
   const handleOriginClick = useCallback((name: string) => { toggle(setSelectedOrigin, name, null as string | null); }, []);
   const handleModelClick = useCallback((name: string) => { toggle(setSelectedModel, name, null as string | null); }, []);
@@ -205,7 +223,7 @@ const baseRecords = useMemo(() =>
     ['origin', 'Origem'], ['profile', 'Perfil'], ['week198', '198'],
   ];
 
-  const activeFilters = [selectedResp, selectedFin, selectedOrigin, selectedModel, selectedEntity, selectedQor, selectedBev].some(Boolean);
+  const activeFilters = [selectedResps.size > 0, selectedFin, selectedOrigin, selectedModel, selectedEntity, selectedQor, selectedBev].some(Boolean);
 
   const clearFilter = (type: string) => {
     if (type === 'resp') setSelectedResp(null);
@@ -260,7 +278,11 @@ const baseRecords = useMemo(() =>
       {activeFilters && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] text-muted-foreground">Filtros:</span>
-          {selectedResp && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('resp')}>{selectedResp} ✕</Badge>}
+          {selectedResps.size > 0 && (
+                <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => setSelectedResps(new Set())}>
+                  {Array.from(selectedResps).join(', ')} ✕
+                </Badge>
+              )}
           {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} ✕</Badge>}
           {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('origin')}>{selectedOrigin} ✕</Badge>}
           {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} ✕</Badge>}
@@ -292,9 +314,8 @@ const baseRecords = useMemo(() =>
                   stackId="a"
                   fill={COLORS[i % COLORS.length]}
                   cursor="pointer"
-                  hide={hiddenResps.has(resp)}
-                  opacity={selectedResp && selectedResp !== resp ? 0.2 : 1}
-                  onClick={() => handleRespClick(resp)}
+opacity={selectedResps.size > 0 && !selectedResps.has(resp) ? 0.2 : 1}
+                  onClick={(_, __, event: any) => handleRespClick(resp, event?.ctrlKey || event?.metaKey)}
                 >
                   <LabelList dataKey={resp} position="inside" fontSize={8} fill="white"
                     formatter={(v: number) => v > 0 ? v : ''} />
