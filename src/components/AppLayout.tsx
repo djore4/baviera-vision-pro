@@ -9,13 +9,13 @@ import { ..., Filter } from 'lucide-react';
 
 const NAV_ITEMS = [
   { path: '/retails', label: 'RETAILS', icon: BarChart3 },
+  { path: '/funil', label: 'FUNIL', icon: Filter },
   { path: '/producao', label: 'PRODUÇÃO', icon: TrendingUp },
   { path: '/carteira', label: 'CARTEIRA', icon: Briefcase },
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
   { path: '/dados', label: 'DADOS', icon: Database },
   { path: '/carteira', label: 'CARTEIRA', icon: Briefcase },
-  { path: '/funil', label: 'FUNIL', icon: Filter },
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
 ];
 
