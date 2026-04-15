@@ -5,10 +5,6 @@ import { PeriodFilter } from '@/components/PeriodFilter';
 import { SalesRadar } from '@/components/SalesRadar';
 import { formatDate } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LabelList,
-} from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -345,7 +341,7 @@ data.objetivosResp.forEach(o => {
   <Bar dataKey="total" name="Fechados" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
     <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
   </Bar>
-  <Bar dataKey="objetivo" name="Objetivo" fill="#334155" />
+  <Bar dataKey="objetivo" name="Objetivo" fill="#334155" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)} />
 </BarChart>
               </ResponsiveContainer>
             </div>
