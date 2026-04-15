@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
   { path: '/dados', label: 'DADOS', icon: Database },
   { path: '/carteira', label: 'CARTEIRA', icon: Briefcase },
-  { path: '/funil', label: 'FUNIL DE VENDAS', icon: Filter },
+  { path: '/funil', label: 'FUNIL', icon: Filter },
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
 ];
 
