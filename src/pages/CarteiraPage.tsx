@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell, Legend, LabelList,
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -278,14 +278,14 @@ const baseRecords = useMemo(() =>
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira por Responsável</h3>
             <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalCarteira}</span>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={275}>
             <BarChart data={respChartData} barSize={32} barCategoryGap="20%">
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="month" tick={{ fontSize: 9 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
               <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick} />
-              {resps.map((resp, i) => (
+         {resps.map((resp, i) => (
                 <Bar
                   key={resp}
                   dataKey={resp}
@@ -295,7 +295,14 @@ const baseRecords = useMemo(() =>
                   hide={hiddenResps.has(resp)}
                   opacity={selectedResp && selectedResp !== resp ? 0.2 : 1}
                   onClick={() => handleRespClick(resp)}
-                />
+                >
+                  <LabelList dataKey={resp} position="inside" fontSize={8} fill="white"
+                    formatter={(v: number) => v > 0 ? v : ''} />
+                  {i === resps.length - 1 && (
+                    <LabelList dataKey="_total" position="top" fontSize={9} fontWeight="bold"
+                      fill="hsl(var(--foreground))" formatter={(v: number) => v > 0 ? v : ''} />
+                  )}
+                </Bar>
               ))}
             </BarChart>
           </ResponsiveContainer>
@@ -310,17 +317,23 @@ const baseRecords = useMemo(() =>
               <span className="font-semibold" style={{ color: '#16A34A' }}>{bevCount} BEV</span>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={275}>
             <BarChart data={tipoChartData} barSize={32} barCategoryGap="20%">
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="month" tick={{ fontSize: 9 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
               <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} />
-              <Bar dataKey="QoR" fill="#F59E0B" stackId="a" cursor="pointer" onClick={handleQorClick}
-                opacity={selectedQor === false ? 0.2 : 1} />
+<Bar dataKey="QoR" fill="#F59E0B" stackId="a" cursor="pointer" onClick={handleQorClick}
+                opacity={selectedQor === false ? 0.2 : 1}>
+                <LabelList dataKey="QoR" position="inside" fontSize={8} fill="white"
+                  formatter={(v: number) => v > 0 ? v : ''} />
+              </Bar>
               <Bar dataKey="BEV" fill="#16A34A" stackId="a" cursor="pointer" onClick={handleBevClick}
-                opacity={selectedBev === false ? 0.2 : 1} />
+                opacity={selectedBev === false ? 0.2 : 1}>
+                <LabelList dataKey="BEV" position="inside" fontSize={8} fill="white"
+                  formatter={(v: number) => v > 0 ? v : ''} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -403,7 +416,7 @@ const baseRecords = useMemo(() =>
             </Button>
           </div>
         </div>
-        <div className="overflow-auto max-h-[60vh]">
+        <div className="overflow-auto max-h-[35vh]">
           <table className="w-full caption-bottom text-sm">
             <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
               <tr className="text-[10px]">
