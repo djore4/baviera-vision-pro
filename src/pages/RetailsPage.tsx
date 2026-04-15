@@ -22,7 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
   Carteira: '#F59E0B',
 };
 
-type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'app';
+type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'version' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'app';
 type SortDir = 'asc' | 'desc';
 
 export default function RetailsPage() {
@@ -329,8 +329,9 @@ export default function RetailsPage() {
     ['gar', 'GAR'],
     ['status', 'STATUS'],
     ['type', 'TIPO'],
-    ['model', 'MODELO'],
-    ['cliente', 'CLIENTE'],
+['model', 'MODELO'],
+['version', 'VERSÃO'],
+['cliente', 'CLIENTE'],
     ['fin', 'FIN'],
     ['biz', 'Bizagi'],
     ['enc', 'Encomenda'],
@@ -612,8 +613,9 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                   </span>
                 </td>
                 <td className="px-3 py-1">{r.type}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
-                <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
+<td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
+<td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
+<td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
                 <td className="px-3 py-1">{r.fin}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
