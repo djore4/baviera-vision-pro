@@ -356,11 +356,9 @@ export default function RetailsPage() {
   ];
 
   // Custom legend click handler for status chart
-  const handleLegendClick = (e: any) => {
-    if (e?.value) {
-      handleStatusClick(e.value);
-    }
-  };
+const handleLegendClick = useCallback((e: any) => {
+    if (e?.value) handleStatusClick(e.value);
+  }, [handleStatusClick]);
 
   return (
     <div className="space-y-3 animate-fade-in">
@@ -410,24 +408,12 @@ export default function RetailsPage() {
               <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalStatusSum}</span>
             </div>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={statusByResp} barSize={28}>
+<BarChart data={statusByResp} barSize={28}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
                 <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                <Legend
-                  wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
-                  onClick={handleLegendClick}
-                  formatter={(value: string) => (
-                    <span style={{
-                      opacity: selectedResps.size > 0 ? 0.3 : 1,
-                      fontWeight: 'normal',
-                      transition: 'opacity 0.2s',
-                    }}>
-                      {value}
-                    </span>
-                  )}
-                />
+                <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick} />
                 <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer"
                   opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1}
                   onClick={(entry: any, _: any, event: any) => entry?.resp && handleRespClick(entry.resp, event?.ctrlKey || event?.metaKey)} />
@@ -436,7 +422,7 @@ export default function RetailsPage() {
                   onClick={(entry: any, _: any, event: any) => entry?.resp && handleRespClick(entry.resp, event?.ctrlKey || event?.metaKey)} />
                 <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer"
                   opacity={selectedStatus && selectedStatus !== 'Carteira' ? 0.2 : 1}
-                  onClick={(entry: any, _: any, event: any) => entry?.resp && handleRespClick(entry.resp, event?.ctrlKey || event?.metaKey)}>
+                  onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
                   <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                 </Bar>
               </BarChart>
