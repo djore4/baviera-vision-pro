@@ -415,7 +415,19 @@ export default function RetailsPage() {
                 <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
                 <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick} />
+                <Legend
+                  wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
+                  onClick={handleLegendClick}
+                  formatter={(value: string) => (
+                    <span style={{
+                      opacity: selectedResps.size > 0 ? 0.3 : 1,
+                      fontWeight: 'normal',
+                      transition: 'opacity 0.2s',
+                    }}>
+                      {value}
+                    </span>
+                  )}
+                />
                 <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer"
                   opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1}
                   onClick={(entry: any, _: any, event: any) => entry?.resp && handleRespClick(entry.resp, event?.ctrlKey || event?.metaKey)} />
@@ -424,7 +436,7 @@ export default function RetailsPage() {
                   onClick={(entry: any, _: any, event: any) => entry?.resp && handleRespClick(entry.resp, event?.ctrlKey || event?.metaKey)} />
                 <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer"
                   opacity={selectedStatus && selectedStatus !== 'Carteira' ? 0.2 : 1}
-                  onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
+                  onClick={(entry: any, _: any, event: any) => entry?.resp && handleRespClick(entry.resp, event?.ctrlKey || event?.metaKey)}>
                   <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                 </Bar>
               </BarChart>
