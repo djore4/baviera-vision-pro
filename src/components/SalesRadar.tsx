@@ -4,7 +4,7 @@ import { Maximize2, X } from 'lucide-react';
 import type { ControlRecord } from '@/types/data';
 
 // Importação direta do objeto. Ajusta a extensão se renomeaste o ficheiro.
-import geoData from './concelhos.geojson';
+import geoData from './concelhos.json';
 
 const CP4_TO_CONCELHO: Record<string, string> = {
   '1000': 'Lisboa', '1100': 'Lisboa', '1200': 'Lisboa', '1300': 'Lisboa',
