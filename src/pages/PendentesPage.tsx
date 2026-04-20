@@ -119,7 +119,7 @@ export default function PendentesPage() {
           <p className="text-2xl font-bold mt-1" style={{ color: '#DC2626' }}>
             {appingResp ? appingTable.length : appingDeals.length} <span className="text-xs font-normal text-muted-foreground">s/ Apping</span>
           </p>
-          {appingResp && <button onClick={() => setAppingResp(null)} className="text-[10px] text-muted-foreground underline mt-1">{appingResp} ✕</button>}
+          
         </div>
         <div className="bg-card border border-border rounded-lg p-2">
           <ResponsiveContainer width="100%" height={160}>
@@ -129,11 +129,7 @@ export default function PendentesPage() {
               <XAxis dataKey="resp" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} width={24} />
               <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-              <Bar dataKey="count" name="Total" label={{ position: 'top', fontSize: 9 }} cursor="pointer">
-                {appingByResp.map(entry => (
-                  <rect key={entry.resp} fill={appingResp && appingResp !== entry.resp ? '#DC262640' : '#DC2626'} />
-                ))}
-              </Bar>
+<Bar dataKey="count" fill="#DC2626" name="Total" label={{ position: 'top', fontSize: 9 }} cursor="pointer" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -181,7 +177,7 @@ export default function PendentesPage() {
           <p className="text-2xl font-bold mt-1" style={{ color: '#1C69D4' }}>
             {bizagiResp ? bizagiTable.length : bizagiDeals.length} <span className="text-xs font-normal text-muted-foreground">s/ Bizagi</span>
           </p>
-          {bizagiResp && <button onClick={() => setBizagiResp(null)} className="text-[10px] text-muted-foreground underline mt-1">{bizagiResp} ✕</button>}
+          
         </div>
         <div className="bg-card border border-border rounded-lg p-2">
           <ResponsiveContainer width="100%" height={160}>
@@ -241,7 +237,7 @@ export default function PendentesPage() {
           <p className="text-2xl font-bold mt-1" style={{ color: '#1E40AF' }}>
             {cmeResp ? cmeTable.length : cmeDeals.length} <span className="text-xs font-normal text-muted-foreground">pendentes</span>
           </p>
-          {cmeResp && <button onClick={() => setCmeResp(null)} className="text-[10px] text-muted-foreground underline mt-1">{cmeResp} ✕</button>}
+          
         </div>
         <div className="bg-card border border-border rounded-lg p-2">
           <ResponsiveContainer width="100%" height={160}>
