@@ -3,12 +3,9 @@ import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import { Maximize2, X } from 'lucide-react';
 import type { ControlRecord } from '@/types/data';
 
-// IMPORTAÇÃO RECOMENDADA: Acaba com os 404s em ambientes locais.
-// Descomenta a linha abaixo e ajusta o caminho para a tua pasta.
-// import GEO_URL from '@/data/concelhos.geojson';
-
-// Usa isto apenas se garantires que o servidor expõe este caminho exato.
-const GEO_URL = '${import.meta.env.BASE_URL}data/concelhos.json';
+// O caminho adapta-se dinamicamente se usares Vite. 
+// Se usares Create React App, muda para: const GEO_URL = `${process.env.PUBLIC_URL}/data/concelhos.json`;
+const GEO_URL = `${import.meta.env.BASE_URL}data/concelhos.json`;
 
 const CP4_TO_CONCELHO: Record<string, string> = {
   '1000': 'Lisboa', '1100': 'Lisboa', '1200': 'Lisboa', '1300': 'Lisboa',
@@ -162,7 +159,8 @@ function MapContent({
                   }
                   return typeof lon === 'number' && lon > -10;
                 } catch {
-                  return false; // Falhar de forma segura. Retornar true num erro causa crashes lá à frente.
+                  // Previne crashes de renderização por polígonos corrompidos no ficheiro json
+                  return false; 
                 }
               })
               .map((geo) => {
@@ -217,7 +215,7 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
   const concelhoSales = useMemo(() => {
     const counts: Record<string, number> = {};
     records.forEach((r) => {
-      // Falha rápida se local não vier populado corretamente
+      // Ignora de imediato registos sem local, evitando processamento desnecessário e lixo na base
       if (r.local == null || String(r.local).trim() === '') return;
       
       const cp4 = String(r.local)
@@ -255,7 +253,6 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
 
   return (
     <>
-      {/* Widget normal */}
       <div style={{ height }} className="flex flex-col">
         <div className="relative flex-1" style={{ minHeight: 0 }}>
           <button
@@ -287,7 +284,6 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
         )}
       </div>
 
-      {/* Modal fullscreen */}
       {expanded && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
