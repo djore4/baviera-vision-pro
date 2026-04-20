@@ -135,7 +135,7 @@ function MapContent({
       )}
       <ComposableMap
         projection="geoMercator"
-        projectionConfig={{ center: [-8.0, 38.5], scale }}
+        projectionConfig={{ center: [-8.0, 39.5], scale }}
         width={width}
         height={height}
         style={{ width: '100%', height: '100%' }}
@@ -171,7 +171,7 @@ function MapContent({
                   fill={
                     count > 0
                       ? `hsl(214, 76%, ${Math.round(70 - intensity * 40)}%)`
-                      : '#e2e8f0'
+                      : '#cbd5e1'
                   }
                   stroke="#94a3b8"
                   strokeWidth={0.3}
@@ -259,7 +259,7 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
             setTooltip={setTooltip}
             width={300}
             height={300}
-            scale={5500}
+            scale={2800}
           />
         </div>
         {topConcelhos.length > 0 && (
