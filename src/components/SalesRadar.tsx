@@ -133,13 +133,14 @@ function MapContent({
           {tooltip}
         </div>
       )}
-      <ComposableMap
+<ComposableMap
         projection="geoMercator"
-        projectionConfig={{ center: [-8.0, 39.5], scale, rotate: [0, 0, 0] }}
+        projectionConfig={{ center: [-8.0, 39.5], scale }}
         width={width}
         height={height}
-        style={{ width: '100%', height: '100%', background: 'white' }}
+        style={{ width: '100%', height: '100%' }}
       >
+        <rect width={width} height={height} fill="white" />
         <Geographies geography={GEO_URL}>
   {({ geographies }) =>
     geographies
@@ -259,7 +260,7 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
             setTooltip={setTooltip}
             width={300}
             height={300}
-            scale={1800}
+            scale={2500}
           />
         </div>
         {topConcelhos.length > 0 && (
