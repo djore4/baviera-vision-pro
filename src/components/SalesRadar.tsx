@@ -8,7 +8,7 @@ import type { ControlRecord } from '@/types/data';
 // import GEO_URL from '@/data/concelhos.geojson';
 
 // Usa isto apenas se garantires que o servidor expõe este caminho exato.
-const GEO_URL = '/baviera-vision-pro/data/concelhos.geojson';
+const GEO_URL = `${import.meta.env.BASE_URL}data/concelhos.json`;
 
 const CP4_TO_CONCELHO: Record<string, string> = {
   '1000': 'Lisboa', '1100': 'Lisboa', '1200': 'Lisboa', '1300': 'Lisboa',
