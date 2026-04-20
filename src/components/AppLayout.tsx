@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
 import { useState, useEffect } from 'react';
@@ -89,8 +90,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {NAV_ITEMS.find(n => n.path === location.pathname)?.label || 'Dashboard'}
             </span>
           </div>
-          <div className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
-            Semana {week}
+<div className="flex items-center gap-2">
+            <div className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
+              Semana {week}
+            </div>
+            <button onClick={() => supabase.auth.signOut()} className="text-muted-foreground hover:text-foreground">
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </header>
 
