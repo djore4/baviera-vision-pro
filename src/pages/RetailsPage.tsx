@@ -77,9 +77,10 @@ export default function RetailsPage() {
 
   const totalStatusSum = useMemo(() => statusByResp.reduce((s, r) => s + r.total, 0), [statusByResp]);
 
-  const garData = useMemo(() => {
-    const certo = filtered.filter(r => r.gar === 'GAR').length;
-    const incerto = filtered.length - certo;
+const garData = useMemo(() => {
+    const pipeline = filtered.filter(r => r.status === 'Carteira' || r.status === 'Matricula');
+    const certo = pipeline.filter(r => r.gar === 'GAR').length;
+    const incerto = pipeline.length - certo;
     return [
       { name: 'Certo', size: certo },
       { name: 'Incerto', size: incerto },
