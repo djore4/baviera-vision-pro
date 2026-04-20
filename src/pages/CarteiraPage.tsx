@@ -397,8 +397,8 @@ export default function CarteiraPage() {
                   onClick={(entry: any) => entry?.name && handleRespClick(entry.name)}
                   label={({ name, percent }) => `${name} ${Math.round(percent * 100)}%`}
                   labelLine={true}>
-                  {distData.map((entry, i) => (
-                    <Cell key={entry.name} fill={COLORS[i % COLORS.length]}
+{distData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill}
                       opacity={selectedResps.size > 0 && !selectedResps.has(entry.name) ? 0.2 : 1} />
                   ))}
                 </Pie>
