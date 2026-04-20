@@ -80,9 +80,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .from(BUCKET)
         .upload(FILE_PATH, file, { upsert: true });
 
-      if (uploadError) {
+if (uploadError) {
+        console.error('Supabase upload error:', uploadError);
         throw new Error(`Erro ao guardar ficheiro: ${uploadError.message}`);
       }
+      console.log('Upload bem sucedido');
 
       setData(parsed);
     } catch (e) {
