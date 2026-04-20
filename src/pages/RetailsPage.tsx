@@ -356,9 +356,9 @@ export default function RetailsPage() {
   ];
 
   // Custom legend click handler for status chart
-const handleLegendClick = useCallback((e: any) => {
+const handleLegendClick = (e: any) => {
     if (e?.value) handleStatusClick(e.value);
-  }, [handleStatusClick]);
+  };
 
   return (
     <div className="space-y-3 animate-fade-in">
