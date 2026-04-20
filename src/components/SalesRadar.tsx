@@ -3,6 +3,11 @@ import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import { Maximize2, X } from 'lucide-react';
 import type { ControlRecord } from '@/types/data';
 
+// IMPORTAÇÃO RECOMENDADA: Acaba com os 404s em ambientes locais.
+// Descomenta a linha abaixo e ajusta o caminho para a tua pasta.
+// import GEO_URL from '@/data/concelhos.geojson';
+
+// Usa isto apenas se garantires que o servidor expõe este caminho exato.
 const GEO_URL = '/baviera-vision-pro/data/concelhos.geojson';
 
 const CP4_TO_CONCELHO: Record<string, string> = {
@@ -96,6 +101,7 @@ function getConcelhoName(geo: any): string {
 }
 
 function normalize(s: string): string {
+  if (!s) return '';
   return s
     .toLowerCase()
     .normalize('NFD')
@@ -133,7 +139,7 @@ function MapContent({
           {tooltip}
         </div>
       )}
-<ComposableMap
+      <ComposableMap
         projection="geoMercator"
         projectionConfig={{ center: [-8.0, 39.5], scale }}
         width={width}
@@ -142,58 +148,61 @@ function MapContent({
       >
         <rect width={width} height={height} fill="white" />
         <Geographies geography={GEO_URL}>
-  {({ geographies }) =>
-    geographies
-.filter((geo) => {
-  try {
-    const type = geo.geometry?.type;
-    const coords = geo.geometry?.coordinates;
-    let lon = 0;
-    if (type === 'Polygon') {
-      lon = coords?.[0]?.[0]?.[0];
-    } else if (type === 'MultiPolygon') {
-      lon = coords?.[0]?.[0]?.[0]?.[0];
-    }
-    return typeof lon === 'number' && lon > -10;
-  } catch {
-    return true;
-  }
-})
-  .map((geo) => {
-              const rawName = getConcelhoName(geo);
-              const entry = normalizedSales[normalize(rawName)];
-              const count = entry?.count ?? 0;
-              const intensity = count / maxCount;
+          {({ geographies }) =>
+            geographies
+              .filter((geo) => {
+                try {
+                  const type = geo.geometry?.type;
+                  const coords = geo.geometry?.coordinates;
+                  let lon = 0;
+                  if (type === 'Polygon') {
+                    lon = coords?.[0]?.[0]?.[0];
+                  } else if (type === 'MultiPolygon') {
+                    lon = coords?.[0]?.[0]?.[0]?.[0];
+                  }
+                  return typeof lon === 'number' && lon > -10;
+                } catch {
+                  return false; // Falhar de forma segura. Retornar true num erro causa crashes lá à frente.
+                }
+              })
+              .map((geo) => {
+                const rawName = getConcelhoName(geo);
+                const normalizedName = normalize(rawName);
+                const entry = normalizedSales[normalizedName];
+                const count = entry?.count ?? 0;
+                
+                // Salvaguarda visual para não ultrapassar limites de cor se count < 0
+                const intensity = Math.min(Math.max(count / maxCount, 0), 1);
 
-              return (
-                <Geography
-                  key={geo.rsmKey}
-                  geography={geo}
-                  fill={
-                    count > 0
-                      ? `hsl(214, 76%, ${Math.round(70 - intensity * 40)}%)`
-                      : '#cbd5e1'
-                  }
-                  stroke="#94a3b8"
-                  strokeWidth={0.3}
-                  style={{
-                    default: { outline: 'none' },
-                    hover: {
-                      fill: count > 0 ? '#1C69D4' : '#cbd5e1',
-                      outline: 'none',
-                      cursor: 'default',
-                    },
-                    pressed: { outline: 'none' },
-                  }}
-                  onMouseEnter={() =>
-                    setTooltip(
-                      count > 0 ? `${rawName}: ${count} negócio(s)` : rawName
-                    )
-                  }
-                  onMouseLeave={() => setTooltip(null)}
-                />
-              );
-            })
+                return (
+                  <Geography
+                    key={geo.rsmKey}
+                    geography={geo}
+                    fill={
+                      count > 0
+                        ? `hsl(214, 76%, ${Math.round(70 - intensity * 40)}%)`
+                        : '#cbd5e1'
+                    }
+                    stroke="#94a3b8"
+                    strokeWidth={0.3}
+                    style={{
+                      default: { outline: 'none' },
+                      hover: {
+                        fill: count > 0 ? '#1C69D4' : '#cbd5e1',
+                        outline: 'none',
+                        cursor: 'default',
+                      },
+                      pressed: { outline: 'none' },
+                    }}
+                    onMouseEnter={() =>
+                      setTooltip(
+                        count > 0 ? `${rawName}: ${count} negócio(s)` : rawName
+                      )
+                    }
+                    onMouseLeave={() => setTooltip(null)}
+                  />
+                );
+              })
           }
         </Geographies>
       </ComposableMap>
@@ -208,12 +217,15 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
   const concelhoSales = useMemo(() => {
     const counts: Record<string, number> = {};
     records.forEach((r) => {
-      if (!r.local) return;
+      // Falha rápida se local não vier populado corretamente
+      if (r.local == null || String(r.local).trim() === '') return;
+      
       const cp4 = String(r.local)
         .replace(/\.0$/, '')
         .replace(/[^0-9]/g, '')
         .substring(0, 4)
         .padStart(4, '0');
+        
       const concelho = CP4_TO_CONCELHO[cp4];
       if (concelho) {
         counts[concelho] = (counts[concelho] || 0) + 1;
