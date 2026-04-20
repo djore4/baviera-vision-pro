@@ -138,7 +138,7 @@ function MapContent({
         projectionConfig={{ center: [-8.0, 39.5], scale }}
         width={width}
         height={height}
-        style={{ width: '100%', height: '100%' }}
+        style={{ width: '100%', height: '100%', background: 'white' }}
       >
         <Geographies geography={GEO_URL}>
   {({ geographies }) =>
@@ -259,7 +259,7 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
             setTooltip={setTooltip}
             width={300}
             height={300}
-            scale={2800}
+            scale={1800}
           />
         </div>
         {topConcelhos.length > 0 && (
@@ -301,7 +301,7 @@ export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
                 setTooltip={setTooltip}
                 width={800}
                 height={900}
-                scale={5500}
+                scale={3500}
               />
             </div>
             {topConcelhos.length > 0 && (
