@@ -14,8 +14,23 @@ import DadosPage from "./pages/DadosPage";
 import EscalaPage from "./pages/EscalaPage";
 import NotFound from "./pages/NotFound";
 import FunilPage from "./pages/FunilPage";
+import LoginPage from "./pages/LoginPage";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const queryClient = new QueryClient();
+
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<any>(undefined);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
+    return () => subscription.unsubscribe();
+  }, []);
+  if (session === undefined) return null;
+  if (!session) return <LoginPage />;
+  return <>{children}</>;
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
