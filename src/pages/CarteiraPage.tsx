@@ -1,5 +1,4 @@
 import { useMemo, useState, useCallback } from 'react';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { useData } from '@/contexts/DataContext';
 import { SalesRadar } from '@/components/SalesRadar';
 import { formatDate } from '@/lib/excel-parser';
@@ -21,8 +20,6 @@ type SortDir = 'asc' | 'desc';
 
 export default function CarteiraPage() {
   const { data } = useData();
-  const isMobile = useIsMobile();
-  const [selectedResp, setSelectedResp] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
   const [selectedOrigin, setSelectedOrigin] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -34,13 +31,11 @@ export default function CarteiraPage() {
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [searchTerm, setSearchTerm] = useState('');
 
-const baseRecords = useMemo(() =>
-  (data?.control ?? []).filter(r =>
-    (r.status === 'Carteira' || r.status === 'Matricula') &&
-    r.neg instanceof Date && r.neg >= new Date(2026, 0, 1)
-  ),
-  [data]
-);
+  const baseRecords = useMemo(() =>
+    (data?.control ?? []).filter(r =>
+      (r.status === 'Carteira' || r.status === 'Matricula') &&
+      r.neg instanceof Date && r.neg >= new Date(2026, 0, 1)
+    ), [data]);
 
   const filtered = useMemo(() => {
     let result = baseRecords;
@@ -54,7 +49,6 @@ const baseRecords = useMemo(() =>
     return result;
   }, [baseRecords, selectedResps, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity]);
 
-  // Carteira por Responsável ao longo do tempo (mes1)
   const { respChartData, resps } = useMemo(() => {
     const respSet = new Set(baseRecords.map(r => r.resp).filter(Boolean));
     const allResps = Array.from(respSet).sort();
@@ -72,7 +66,6 @@ const baseRecords = useMemo(() =>
     return { respChartData: chartData, resps: allResps };
   }, [filtered, baseRecords]);
 
-  // Carteira Tipologia (QoR + BEV) ao longo do tempo
   const tipoChartData = useMemo(() => {
     const monthMap: Record<string, { month: string; QoR: number; BEV: number }> = {};
     filtered.forEach(r => {
@@ -120,6 +113,15 @@ const baseRecords = useMemo(() =>
     const total = filtered.length || 1;
     return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) })).sort((a, b) => b.value - a.value);
   }, [filtered]);
+
+  // Distribuição por responsável (para o pie)
+  const distData = useMemo(() =>
+    resps.map((resp, i) => ({
+      name: resp,
+      value: respChartData.reduce((s, m) => s + ((m as any)[resp] || 0), 0),
+      fill: COLORS[i % COLORS.length],
+    })).filter(d => d.value > 0),
+    [resps, respChartData]);
 
   const tableData = useMemo(() => {
     let rows = [...filtered];
@@ -182,6 +184,7 @@ const baseRecords = useMemo(() =>
     if (!key) return;
     handleRespClick(key, event?.ctrlKey || event?.metaKey);
   }, [handleRespClick]);
+
   const handleFinClick = useCallback((fin: string) => { toggle(setSelectedFin, fin, null as string | null); }, []);
   const handleOriginClick = useCallback((name: string) => { toggle(setSelectedOrigin, name, null as string | null); }, []);
   const handleModelClick = useCallback((name: string) => { toggle(setSelectedModel, name, null as string | null); }, []);
@@ -191,17 +194,12 @@ const baseRecords = useMemo(() =>
 
   const exportCSV = useCallback(() => {
     const headers = ['RESP', 'D.FECHO', 'MÊS1', 'TIPO', 'MODELO', 'VERSÃO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Origem', 'Perfil', '198'];
-    const rows = tableData.map(r => [
-      r.resp, formatDate(r.neg), r.mes1, r.type, r.model, r.version,
-      r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, r.origin, r.profile, r.week198,
-    ]);
+    const rows = tableData.map(r => [r.resp, formatDate(r.neg), r.mes1, r.type, r.model, r.version, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, r.origin, r.profile, r.week198]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `carteira_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
+    a.href = url; a.download = `carteira_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     URL.revokeObjectURL(url);
   }, [tableData]);
 
@@ -262,16 +260,14 @@ const baseRecords = useMemo(() =>
     );
   }
 
+  const CHART_HEIGHT = 240;
+
   return (
     <div className="space-y-3 animate-fade-in">
       {activeFilters && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] text-muted-foreground">Filtros:</span>
-          {selectedResps.size > 0 && (
-                <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => setSelectedResps(new Set())}>
-                  {Array.from(selectedResps).join(', ')} ✕
-                </Badge>
-              )}
+          {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => setSelectedResps(new Set())}>{Array.from(selectedResps).join(', ')} ✕</Badge>}
           {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} ✕</Badge>}
           {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('origin')}>{selectedOrigin} ✕</Badge>}
           {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} ✕</Badge>}
@@ -281,168 +277,139 @@ const baseRecords = useMemo(() =>
         </div>
       )}
 
-      {/* Row 1 */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
-        {/* Carteira por Responsável */}
-        <div className="xl:col-span-6 bg-card border border-border rounded-lg p-2">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira por Responsável</h3>
-            <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalCarteira}</span>
-          </div>
-          <ResponsiveContainer width="100%" height={275}>
-            <BarChart data={respChartData} barSize={32} barCategoryGap="20%">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="month" tick={{ fontSize: 9 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-              <Legend
-                wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
-                onClick={handleLegendClick}
-                formatter={(value: string) => (
-                  <span style={{
-                    opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1,
-                    fontWeight: selectedResps.has(value) ? 'bold' : 'normal',
-                    transition: 'opacity 0.2s',
-                  }}>
-                    {value}
-                  </span>
-                )}
-              />
-         {resps.map((resp, i) => (
-                <Bar
-                  key={resp}
-                  dataKey={resp}
-                  stackId="a"
-                  fill={COLORS[i % COLORS.length]}
-                  cursor="pointer"
-opacity={selectedResps.size > 0 && !selectedResps.has(resp) ? 0.2 : 1}
-                  onClick={(_, __, event: any) => handleRespClick(resp, event?.ctrlKey || event?.metaKey)}
-                >
-                  <LabelList dataKey={resp} position="inside" fontSize={8} fill="white"
-                    formatter={(v: number) => v > 0 ? v : ''} />
-                  {i === resps.length - 1 && (
-                    <LabelList dataKey="_total" position="top" fontSize={9} fontWeight="bold"
-                      fill="hsl(var(--foreground))" formatter={(v: number) => v > 0 ? v : ''} />
-                  )}
-                </Bar>
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      {/* Row 1 — duas colunas principais */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
 
-        {/* Carteira Tipologia */}
-        <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Tipologia</h3>
-            <div className="flex gap-2 text-[10px]">
-              <span className="font-semibold" style={{ color: '#F59E0B' }}>{qorCount} QoR</span>
-              <span className="font-semibold" style={{ color: '#16A34A' }}>{bevCount} BEV</span>
+        {/* Coluna esquerda: Carteira por Responsável + Tipologia */}
+        <div className="space-y-2">
+          <div className="bg-card border border-border rounded-lg p-2">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira por Responsável</h3>
+              <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalCarteira}</span>
             </div>
-          </div>
-          <ResponsiveContainer width="100%" height={275}>
-            <BarChart data={tipoChartData} barSize={32} barCategoryGap="20%">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="month" tick={{ fontSize: 9 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-              <Legend
-                wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
-                onClick={(e: any) => {
-                  if (e?.dataKey === 'QoR' || e?.value === 'QoR') handleQorClick();
-                  if (e?.dataKey === 'BEV' || e?.value === 'BEV') handleBevClick();
-                }}
-                formatter={(value: string) => (
-                  <span style={{
-                    opacity: (value === 'QoR' && selectedQor === null && selectedBev !== null) ||
-                             (value === 'BEV' && selectedBev === null && selectedQor !== null) ? 0.3 : 1,
-                    fontWeight: (value === 'QoR' && selectedQor !== null) || (value === 'BEV' && selectedBev !== null) ? 'bold' : 'normal',
-                    transition: 'opacity 0.2s',
-                  }}>
-                    {value}
-                  </span>
-                )}
-              />
-<Bar dataKey="QoR" fill="#F59E0B" stackId="a" cursor="pointer" onClick={handleQorClick}
-                opacity={selectedQor === false ? 0.2 : 1}>
-                <LabelList dataKey="QoR" position="inside" fontSize={8} fill="white"
-                  formatter={(v: number) => v > 0 ? v : ''} />
-              </Bar>
-              <Bar dataKey="BEV" fill="#16A34A" stackId="a" cursor="pointer" onClick={handleBevClick}
-                opacity={selectedBev === false ? 0.2 : 1}>
-                <LabelList dataKey="BEV" position="inside" fontSize={8} fill="white"
-                  formatter={(v: number) => v > 0 ? v : ''} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-</div>
-
-        {/* Distribuição por Responsável */}
-        <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
-          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Distribuição Carteira</h3>
-          <ResponsiveContainer width="100%" height={100}>
-            <PieChart>
-              <Tooltip formatter={(value: number, name: string) => [`${value} (${Math.round((value / (totalCarteira || 1)) * 100)}%)`, name]}
-                contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-              <Pie data={resps.map((resp, i) => ({
-                name: resp,
-                value: respChartData.reduce((s, m) => s + ((m as any)[resp] || 0), 0),
-                fill: COLORS[i % COLORS.length],
-              })).filter(d => d.value > 0)}
-                dataKey="value" nameKey="name" outerRadius={42} innerRadius={18}
-                cursor="pointer" onClick={(entry: any) => entry?.name && handleRespClick(entry.name)}>
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+              <BarChart data={respChartData} barSize={32} barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="month" tick={{ fontSize: 9 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
+                  formatter={(value: string) => (
+                    <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal', transition: 'opacity 0.2s' }}>{value}</span>
+                  )} />
                 {resps.map((resp, i) => (
-                  <Cell key={resp} fill={COLORS[i % COLORS.length]}
-                    opacity={selectedResps.size > 0 && !selectedResps.has(resp) ? 0.2 : 1} />
+                  <Bar key={resp} dataKey={resp} stackId="a" fill={COLORS[i % COLORS.length]} cursor="pointer"
+                    opacity={selectedResps.size > 0 && !selectedResps.has(resp) ? 0.2 : 1}
+                    onClick={(_, __, event: any) => handleRespClick(resp, event?.ctrlKey || event?.metaKey)}>
+                    <LabelList dataKey={resp} position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
+                    {i === resps.length - 1 && (
+                      <LabelList dataKey="_total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" formatter={(v: number) => v > 0 ? v : ''} />
+                    )}
+                  </Bar>
                 ))}
-              </Pie>
-              <Legend wrapperStyle={{ fontSize: 9 }}
-                formatter={(value, entry: any) => {
-                  const total = resps.map((r, i) => ({ name: r, value: respChartData.reduce((s, m) => s + ((m as any)[r] || 0), 0) })).find(d => d.name === value);
-                  const pct = total ? Math.round((total.value / (totalCarteira || 1)) * 100) : 0;
-                  return `${value} (${pct}%)`;
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-card border border-border rounded-lg p-2">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Tipologia</h3>
+              <div className="flex gap-2 text-[10px]">
+                <span className="font-semibold" style={{ color: '#F59E0B' }}>{qorCount} QoR</span>
+                <span className="font-semibold" style={{ color: '#16A34A' }}>{bevCount} BEV</span>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+              <BarChart data={tipoChartData} barSize={32} barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="month" tick={{ fontSize: 9 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
+                  onClick={(e: any) => {
+                    if (e?.dataKey === 'QoR' || e?.value === 'QoR') handleQorClick();
+                    if (e?.dataKey === 'BEV' || e?.value === 'BEV') handleBevClick();
+                  }}
+                  formatter={(value: string) => (
+                    <span style={{
+                      opacity: (value === 'QoR' && selectedQor === null && selectedBev !== null) || (value === 'BEV' && selectedBev === null && selectedQor !== null) ? 0.3 : 1,
+                      fontWeight: (value === 'QoR' && selectedQor !== null) || (value === 'BEV' && selectedBev !== null) ? 'bold' : 'normal',
+                      transition: 'opacity 0.2s',
+                    }}>{value}</span>
+                  )} />
+                <Bar dataKey="QoR" fill="#F59E0B" stackId="a" cursor="pointer" onClick={handleQorClick} opacity={selectedQor === false ? 0.2 : 1}>
+                  <LabelList dataKey="QoR" position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
+                </Bar>
+                <Bar dataKey="BEV" fill="#16A34A" stackId="a" cursor="pointer" onClick={handleBevClick} opacity={selectedBev === false ? 0.2 : 1}>
+                  <LabelList dataKey="BEV" position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        {/* Método de Pagamento */}
-        <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
-          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
-          <div className="flex items-center gap-2">
-            <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
-              <PieChart>
-                <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
-                <Pie data={finData} dataKey="value" nameKey="name" outerRadius={45} stroke="hsl(var(--background))" strokeWidth={1.5}
-                  onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
-                  {finData.map((entry, i) => {
-                    const isSelected = selectedFin === entry.name;
-                    const isDimmed = selectedFin && !isSelected;
-                    return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
-                  })}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="space-y-1 flex-1">
-              {finData.map((entry, i) => {
-                const isSelected = selectedFin === entry.name;
-                const isDimmed = selectedFin && !isSelected;
-                return (
-                  <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                    <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
-                    <span className="text-[10px] font-medium w-9">{entry.name}</span>
-                    <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
-                    <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
-                  </div>
-                );
-              })}
-              <div className="border-t border-border pt-1 mt-1">
-                <div className="flex items-center justify-between">
+        {/* Coluna direita: Método de Pagamento + Distribuição Carteira */}
+        <div className="space-y-2">
+          <div className="bg-card border border-border rounded-lg p-2">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
+            <div className="flex items-center gap-2">
+              <ResponsiveContainer width="50%" height={Math.max(120, finData.length * 28 + 20)}>
+                <PieChart>
+                  <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
+                  <Pie data={finData} dataKey="value" nameKey="name" outerRadius={50} stroke="hsl(var(--background))" strokeWidth={1.5}
+                    onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
+                    {finData.map((entry, i) => {
+                      const isDimmed = selectedFin && selectedFin !== entry.name;
+                      return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
+                    })}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1 flex-1">
+                {finData.map((entry, i) => {
+                  const isDimmed = selectedFin && selectedFin !== entry.name;
+                  return (
+                    <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
+                      <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
+                      <span className="text-[10px] font-medium w-9">{entry.name}</span>
+                      <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
+                      <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
+                    </div>
+                  );
+                })}
+                <div className="border-t border-border pt-1 mt-1 flex items-center justify-between">
                   <span className="text-[10px] font-semibold">Total</span>
                   <span className="text-[10px] font-bold">{filtered.length}</span>
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-lg p-2">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Distribuição Carteira</h3>
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT + 60}>
+              <PieChart>
+                <Tooltip formatter={(value: number, name: string) => [`${value} (${Math.round((value / (totalCarteira || 1)) * 100)}%)`, name]}
+                  contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                <Pie data={distData} dataKey="value" nameKey="name"
+                  outerRadius="65%" innerRadius="35%"
+                  cursor="pointer"
+                  onClick={(entry: any) => entry?.name && handleRespClick(entry.name)}
+                  label={({ name, percent }) => `${name} ${Math.round(percent * 100)}%`}
+                  labelLine={true}>
+                  {distData.map((entry, i) => (
+                    <Cell key={entry.name} fill={COLORS[i % COLORS.length]}
+                      opacity={selectedResps.size > 0 && !selectedResps.has(entry.name) ? 0.2 : 1} />
+                  ))}
+                </Pie>
+                <Legend wrapperStyle={{ fontSize: 10 }}
+                  formatter={(value) => {
+                    const d = distData.find(d => d.name === value);
+                    const pct = d ? Math.round((d.value / (totalCarteira || 1)) * 100) : 0;
+                    return `${value} — ${d?.value ?? 0} (${pct}%)`;
+                  }} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
@@ -464,7 +431,7 @@ opacity={selectedResps.size > 0 && !selectedResps.has(resp) ? 0.2 : 1}
           </div>
         </div>
         <div className="xl:col-span-1" />
-<div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
+        <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
           <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
           <SalesRadar records={filtered} height="200px" />
         </div>
@@ -489,9 +456,7 @@ opacity={selectedResps.size > 0 && !selectedResps.has(resp) ? 0.2 : 1}
             <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
               <tr className="text-[10px]">
                 {tableColumns.map(([key, label]) => (
-                  <th key={key}
-                    className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card"
-                    onClick={() => toggleSort(key)}>
+                  <th key={key} className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card" onClick={() => toggleSort(key)}>
                     <span className="inline-flex items-center">{label}<SortIcon col={key} /></span>
                   </th>
                 ))}
