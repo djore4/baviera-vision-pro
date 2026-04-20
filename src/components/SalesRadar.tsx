@@ -3,9 +3,8 @@ import { ComposableMap, Geographies, Geography } from 'react-simple-maps';
 import { Maximize2, X } from 'lucide-react';
 import type { ControlRecord } from '@/types/data';
 
-// IMPORTAÇÃO DIRETA: Acaba com os problemas de rede e caminhos do GitHub
-// Garante que o ficheiro está na mesma pasta que este ficheiro .tsx
-import geoData from './concelhos.json'; 
+// Importação direta do objeto. Ajusta a extensão se renomeaste o ficheiro.
+import geoData from './concelhos.geojson';
 
 const CP4_TO_CONCELHO: Record<string, string> = {
   '1000': 'Lisboa', '1100': 'Lisboa', '1200': 'Lisboa', '1300': 'Lisboa',
@@ -79,7 +78,7 @@ const CP4_TO_CONCELHO: Record<string, string> = {
   '4820': 'Fafe', '4825': 'Vizela',
   '4870': 'Arcos de Valdevez',
   '4900': 'Viana do Castelo', '4905': 'Viana do Castelo',
-  '4910': 'Cminha', '4920': 'Vila Nova de Cerveira',
+  '4910': 'Caminha', '4920': 'Vila Nova de Cerveira',
   '4930': 'Valença', '4940': 'Monção', '4950': 'Monção',
   '5000': 'Vila Real',
   '5100': 'Lamego', '5110': 'Lamego',
@@ -99,7 +98,17 @@ function getConcelhoName(geo: any): string {
 
 function normalize(s: string): string {
   if (!s) return '';
-  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\./g, '').trim();
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\./g, '')
+    .trim();
+}
+
+interface SalesRadarProps {
+  records: ControlRecord[];
+  height?: string;
 }
 
 function MapContent({
@@ -110,56 +119,67 @@ function MapContent({
   width,
   height,
   scale,
-}: any) {
+}: {
+  normalizedSales: Record<string, { name: string; count: number }>;
+  maxCount: number;
+  tooltip: string | null;
+  setTooltip: (v: string | null) => void;
+  width: number;
+  height: number;
+  scale: number;
+}) {
   return (
     <div className="relative w-full h-full">
       {tooltip && (
-        <div className="pointer-events-none absolute left-2 top-2 z-50 rounded border border-border bg-background px-2 py-1 text-[11px] shadow-sm">
+        <div className="pointer-events-none absolute left-2 top-2 z-10 rounded border border-border bg-background px-2 py-1 text-[11px] shadow-sm">
           {tooltip}
         </div>
       )}
       <ComposableMap
         projection="geoMercator"
-        projectionConfig={{ center: [-8.2, 39.5], scale }} // Ajustado centro para Portugal Continental
+        projectionConfig={{ center: [-8.0, 39.5], scale }}
         width={width}
         height={height}
         style={{ width: '100%', height: '100%' }}
       >
-        {/* Passamos o objeto geoData diretamente aqui */}
+        <rect width={width} height={height} fill="white" />
         <Geographies geography={geoData}>
           {({ geographies }) =>
-            geographies
-              .filter((geo) => {
-                const type = geo.geometry?.type;
-                const coords = geo.geometry?.coordinates;
-                let lon = 0;
-                if (type === 'Polygon') lon = coords?.[0]?.[0]?.[0];
-                else if (type === 'MultiPolygon') lon = coords?.[0]?.[0]?.[0]?.[0];
-                return typeof lon === 'number' && lon > -12; // Filtro para garantir que estamos no continente
-              })
-              .map((geo) => {
-                const rawName = getConcelhoName(geo);
-                const entry = normalizedSales[normalize(rawName)];
-                const count = entry?.count ?? 0;
-                const intensity = Math.min(count / maxCount, 1);
+            geographies.map((geo) => {
+              const rawName = getConcelhoName(geo);
+              const entry = normalizedSales[normalize(rawName)];
+              const count = entry?.count ?? 0;
+              const intensity = maxCount > 0 ? count / maxCount : 0;
 
-                return (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    fill={count > 0 ? `hsl(214, 76%, ${Math.round(70 - intensity * 40)}%)` : '#cbd5e1'}
-                    stroke="#94a3b8"
-                    strokeWidth={0.2}
-                    style={{
-                      default: { outline: 'none' },
-                      hover: { fill: count > 0 ? '#1C69D4' : '#94a3b8', outline: 'none' },
-                      pressed: { outline: 'none' },
-                    }}
-                    onMouseEnter={() => setTooltip(count > 0 ? `${rawName}: ${count} negócio(s)` : rawName)}
-                    onMouseLeave={() => setTooltip(null)}
-                  />
-                );
-              })
+              return (
+                <Geography
+                  key={geo.rsmKey || Math.random().toString()}
+                  geography={geo}
+                  fill={
+                    count > 0
+                      ? `hsl(214, 76%, ${Math.round(70 - intensity * 40)}%)`
+                      : '#cbd5e1'
+                  }
+                  stroke="#94a3b8"
+                  strokeWidth={0.3}
+                  style={{
+                    default: { outline: 'none' },
+                    hover: {
+                      fill: count > 0 ? '#1C69D4' : '#cbd5e1',
+                      outline: 'none',
+                      cursor: 'default',
+                    },
+                    pressed: { outline: 'none' },
+                  }}
+                  onMouseEnter={() =>
+                    setTooltip(
+                      count > 0 ? `${rawName}: ${count} negócio(s)` : rawName
+                    )
+                  }
+                  onMouseLeave={() => setTooltip(null)}
+                />
+              );
+            })
           }
         </Geographies>
       </ComposableMap>
@@ -167,7 +187,7 @@ function MapContent({
   );
 }
 
-export function SalesRadar({ records, height = '350px' }: { records: ControlRecord[], height?: string }) {
+export function SalesRadar({ records, height = '280px' }: SalesRadarProps) {
   const [tooltip, setTooltip] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
@@ -175,9 +195,15 @@ export function SalesRadar({ records, height = '350px' }: { records: ControlReco
     const counts: Record<string, number> = {};
     records.forEach((r) => {
       if (!r.local) return;
-      const cp4 = String(r.local).replace(/[^0-9]/g, '').substring(0, 4).padStart(4, '0');
+      const cp4 = String(r.local)
+        .replace(/\.0$/, '')
+        .replace(/[^0-9]/g, '')
+        .substring(0, 4)
+        .padStart(4, '0');
       const concelho = CP4_TO_CONCELHO[cp4];
-      if (concelho) counts[concelho] = (counts[concelho] || 0) + 1;
+      if (concelho) {
+        counts[concelho] = (counts[concelho] || 0) + 1;
+      }
     });
     return counts;
   }, [records]);
@@ -196,58 +222,88 @@ export function SalesRadar({ records, height = '350px' }: { records: ControlReco
   }, [concelhoSales]);
 
   const topConcelhos = useMemo(() => {
-    return Object.entries(concelhoSales).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return Object.entries(concelhoSales)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8);
   }, [concelhoSales]);
 
   return (
-    <div style={{ height }} className="flex flex-col border rounded-lg p-2 bg-card">
-      <div className="relative flex-1">
-        <button 
-          onClick={() => setExpanded(true)}
-          className="absolute right-0 top-0 z-10 p-1 hover:bg-accent rounded"
-        >
-          <Maximize2 className="h-4 w-4" />
-        </button>
-        <MapContent
-          normalizedSales={normalizedSales}
-          maxCount={maxCount}
-          tooltip={tooltip}
-          setTooltip={setTooltip}
-          width={400}
-          height={500}
-          scale={4500}
-        />
-      </div>
-      {/* Listagem de Top Concelhos para validação visual rápida */}
-      <div className="mt-2 flex gap-2 flex-wrap justify-center">
-        {topConcelhos.map(([name, count]) => (
-          <span key={name} className="text-[10px] bg-muted px-2 py-0.5 rounded border">
-            {name}: {count}
-          </span>
-        ))}
+    <>
+      {/* Widget normal - Estrutura Original Restaurada */}
+      <div style={{ height }} className="flex flex-col">
+        <div className="relative flex-1" style={{ minHeight: 0 }}>
+          <button
+            onClick={() => setExpanded(true)}
+            className="absolute right-1 top-1 z-10 rounded p-1 bg-background/80 border border-border hover:bg-accent transition-colors"
+            title="Expandir"
+          >
+            <Maximize2 className="h-3 w-3 text-muted-foreground" />
+          </button>
+          <MapContent
+            normalizedSales={normalizedSales}
+            maxCount={maxCount}
+            tooltip={tooltip}
+            setTooltip={setTooltip}
+            width={300}
+            height={300}
+            scale={2500}
+          />
+        </div>
+        {topConcelhos.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+            {topConcelhos.map(([name, count]) => (
+              <div key={name} className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                <span className="inline-block h-2 w-2 flex-shrink-0 rounded-full bg-primary" />
+                {name}: {count}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
+      {/* Modal fullscreen - Estrutura Original Restaurada */}
       {expanded && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => setExpanded(false)}>
-          <div className="bg-background w-full h-full max-w-4xl max-h-[90vh] rounded-xl flex flex-col p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold">Distribuição Geográfica</h3>
-              <button onClick={() => setExpanded(false)}><X /></button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => setExpanded(false)}
+        >
+          <div
+            className="relative bg-card border border-border rounded-xl shadow-2xl w-[90vw] h-[90vh] flex flex-col p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold uppercase text-muted-foreground">Sales Radar</h2>
+              <button
+                onClick={() => setExpanded(false)}
+                className="rounded p-1 hover:bg-accent transition-colors"
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
             </div>
             <div className="flex-1 min-h-0">
-               <MapContent
+              <MapContent
                 normalizedSales={normalizedSales}
                 maxCount={maxCount}
                 tooltip={tooltip}
                 setTooltip={setTooltip}
                 width={800}
-                height={1000}
-                scale={9000}
+                height={900}
+                scale={4000}
               />
             </div>
+            {topConcelhos.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                {topConcelhos.map(([name, count]) => (
+                  <div key={name} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <span className="inline-block h-2 w-2 flex-shrink-0 rounded-full bg-primary" />
+                    {name}: {count}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
