@@ -135,7 +135,7 @@ function MapContent({
       )}
       <ComposableMap
         projection="geoMercator"
-        projectionConfig={{ center: [-8.0, 39.5], scale }}
+        projectionConfig={{ center: [-8.0, 39.5], scale, rotate: [0, 0, 0] }}
         width={width}
         height={height}
         style={{ width: '100%', height: '100%', background: 'white' }}
