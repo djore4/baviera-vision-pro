@@ -51,7 +51,10 @@ export default function RetailsPage() {
   const filtered = useMemo(() => {
     let result = baseRecords;
     if (selectedResps.size > 0) result = result.filter(r => selectedResps.has(r.resp));
-    if (selectedGar) result = result.filter(r => (r.gar === 'GAR' ? 'Certo' : 'Incerto') === selectedGar);
+    if (selectedGar) result = result.filter(r =>
+      (r.status === 'Carteira' || r.status === 'Matricula') &&
+      (r.gar === 'GAR' ? 'Certo' : 'Incerto') === selectedGar
+    );
     if (selectedFin) result = result.filter(r => r.fin === selectedFin);
     if (selectedOrigin) result = result.filter(r => r.origin === selectedOrigin);
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
