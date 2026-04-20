@@ -37,21 +37,23 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <DataProvider>
-        <HashRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/retails" element={<AppLayout><RetailsPage /></AppLayout>} />
-            <Route path="/producao" element={<AppLayout><ProducaoPage /></AppLayout>} />
-            <Route path="/carteira" element={<AppLayout><CarteiraPage /></AppLayout>} />
-            <Route path="/pendentes" element={<AppLayout><PendentesPage /></AppLayout>} />
-            <Route path="/escala" element={<AppLayout><EscalaPage /></AppLayout>} />
-            <Route path="/dados" element={<AppLayout><DadosPage /></AppLayout>} />
-            <Route path="/funil" element={<AppLayout><FunilPage /></AppLayout>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </HashRouter>
-      </DataProvider>
+      <AuthGate>
+        <DataProvider>
+          <HashRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/retails" element={<AppLayout><RetailsPage /></AppLayout>} />
+              <Route path="/producao" element={<AppLayout><ProducaoPage /></AppLayout>} />
+              <Route path="/carteira" element={<AppLayout><CarteiraPage /></AppLayout>} />
+              <Route path="/pendentes" element={<AppLayout><PendentesPage /></AppLayout>} />
+              <Route path="/escala" element={<AppLayout><EscalaPage /></AppLayout>} />
+              <Route path="/dados" element={<AppLayout><DadosPage /></AppLayout>} />
+              <Route path="/funil" element={<AppLayout><FunilPage /></AppLayout>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </HashRouter>
+        </DataProvider>
+      </AuthGate>
     </TooltipProvider>
   </QueryClientProvider>
 );
