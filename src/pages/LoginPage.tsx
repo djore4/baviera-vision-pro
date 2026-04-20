@@ -24,7 +24,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center gap-3">
           <img src={bmwLogo} alt="BMW" className="h-12 w-12" />
           <div className="text-center">
-            <h1 className="text-lg font-bold text-foreground">BAVIERA <span className="text-primary">CONTROL</span></h1>
+            <h1 className="text-lg font-bold text-foreground">Caetano <span className="text-primary">BMW</span></h1>
             <p className="text-xs text-muted-foreground mt-1">Acesso restrito à equipa Caetano Baviera</p>
           </div>
         </div>
