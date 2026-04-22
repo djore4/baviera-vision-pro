@@ -349,10 +349,10 @@ data.objetivosResp.forEach(o => {
               </ResponsiveContainer>
             </div>
 
-            {isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
+{isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
 
 {/* Realização vs Objetivo */}
-            <div className="xl:col-span-3">
+            <div className="xl:col-span-3 order-2 xl:order-none">
               <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
                 <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
                 <div className="flex-1">
@@ -382,7 +382,7 @@ data.objetivosResp.forEach(o => {
             </div>
 
             {/* Método de Pagamento */}
-            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
+            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2 order-3 xl:order-none">
               <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
               <div className="flex items-center gap-2">
                 <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
