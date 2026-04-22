@@ -295,7 +295,7 @@ export default function RetailsPage() {
 
   const tableColumns: [SortKey, string][] = [
     ['resp', 'Resp'], ['gar', 'Gar'], ['status', 'Status'], ['type', 'Tipo'],
-    ['model', 'Modelo'], ['version', 'Versão'], ['cliente', 'Cliente'], ['fin', 'Pag'],
+    ['cliente', 'Cliente'], ['model', 'Modelo'], ['version', 'Versão'], ['fin', 'Pag'],
     ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matricula'],
     ['neg', 'Data Fecho'], ['dmat', 'Data Matricula'], ['date298', 'Data Retail'], ['app', 'Data Apping'],
   ];
