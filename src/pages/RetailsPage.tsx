@@ -341,22 +341,22 @@ const garData = useMemo(() => {
   const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
 
   const tableColumns: [SortKey, string][] = [
-    ['resp', 'RESP'],
-    ['gar', 'GAR'],
-    ['status', 'STATUS'],
-    ['type', 'TIPO'],
-['model', 'MODELO'],
-['version', 'VERSÃO'],
-['cliente', 'CLIENTE'],
-    ['fin', 'FIN'],
+    ['resp', 'Resp'],
+    ['gar', 'Gar'],
+    ['status', 'Status'],
+    ['type', 'Tipo'],
+    ['model', 'Modelo'],
+    ['version', 'Versão'],
+    ['cliente', 'Cliente'],
+    ['fin', 'Pag'],
     ['biz', 'Bizagi'],
     ['enc', 'Encomenda'],
     ['chas', 'Chassis'],
     ['mat', 'Matricula'],
-    ['neg', 'Data de Negócio Fechado'],
-    ['dmat', 'Data de Matricula'],
-    ['date298', 'Data de Retail'],
-    ['app', 'Data de Apping'],
+    ['neg', 'Data Fecho'],
+    ['dmat', 'Data Matricula'],
+    ['date298', 'Data Retail'],
+    ['app', 'Data Apping'],
   ];
 
   // Custom legend click handler for status chart
