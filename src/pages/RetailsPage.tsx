@@ -15,12 +15,7 @@ import { Button } from '@/components/ui/button';
 
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
-
-const STATUS_COLORS: Record<string, string> = {
-  Retail: '#1C69D4',
-  Matricula: '#06B6D4',
-  Carteira: '#F59E0B',
-};
+const STATUS_COLORS: Record<string, string> = { Retail: '#1C69D4', Matricula: '#06B6D4', Carteira: '#F59E0B' };
 
 type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'version' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'app';
 type SortDir = 'asc' | 'desc';
@@ -80,30 +75,22 @@ export default function RetailsPage() {
 
   const totalStatusSum = useMemo(() => statusByResp.reduce((s, r) => s + r.total, 0), [statusByResp]);
 
-const garData = useMemo(() => {
+  const garData = useMemo(() => {
     const pipeline = filtered.filter(r => r.status === 'Carteira' || r.status === 'Matricula');
     const certo = pipeline.filter(r => r.gar === 'GAR').length;
     const incerto = pipeline.length - certo;
-    return [
-      { name: 'Certo', size: certo },
-      { name: 'Incerto', size: incerto },
-    ].filter(d => d.size > 0);
+    return [{ name: 'Certo', size: certo }, { name: 'Incerto', size: incerto }].filter(d => d.size > 0);
   }, [filtered]);
 
   const selectedMonthKeys = useMemo(() => {
     const keys = new Set<string>();
     if (filter.months.length > 0) {
       filter.months.forEach(fm => {
-        const fy = Math.floor(fm / 100);
-        const fmo = fm % 100;
+        const fy = Math.floor(fm / 100); const fmo = fm % 100;
         keys.add(`${fy}/${String(fmo).padStart(2, '0')}`);
       });
     } else if (filter.years.length > 0) {
-      filter.years.forEach(y => {
-        for (let m = 1; m <= 12; m++) {
-          keys.add(`${y}/${String(m).padStart(2, '0')}`);
-        }
-      });
+      filter.years.forEach(y => { for (let m = 1; m <= 12; m++) keys.add(`${y}/${String(m).padStart(2, '0')}`); });
     }
     return keys;
   }, [filter]);
@@ -112,21 +99,17 @@ const garData = useMemo(() => {
 
   const realization = useMemo(() => {
     if (!data) return { actual: 0, retails: 0, targetCaetano: 0, targetBMW: 0, target110: 0, pct: 0 };
-
     const matchingObj = data.objetivosTotal.filter(o => {
       if (selectedMonthKeys.size === 0) return true;
       if (selectedMonthKeys.has(o.mes)) return true;
       const normalized = normalizeMonthKey(o.mes);
-      if (normalized && selectedMonthKeys.has(normalized)) return true;
-      return false;
+      return normalized ? selectedMonthKeys.has(normalized) : false;
     });
-
     const targetCaetano = matchingObj.reduce((s, o) => s + o.orcado, 0);
     const targetBMW = matchingObj.reduce((s, o) => s + o.range2, 0);
     const target110 = matchingObj.reduce((s, o) => s + o.range3, 0);
-    const actual = totalStatusSum;
-    const pct = targetBMW ? Math.round((actual / targetBMW) * 100) : 0;
-    return { actual, retails: retailCount, targetCaetano, targetBMW, target110, pct };
+    const pct = targetBMW ? Math.round((totalStatusSum / targetBMW) * 100) : 0;
+    return { actual: totalStatusSum, retails: retailCount, targetCaetano, targetBMW, target110, pct };
   }, [data, totalStatusSum, selectedMonthKeys, retailCount]);
 
   const finData = useMemo(() => {
@@ -134,12 +117,8 @@ const garData = useMemo(() => {
     filtered.forEach(r => { if (r.fin) map[r.fin] = (map[r.fin] || 0) + 1; });
     const totalWithFin = Object.values(map).reduce((s, v) => s + v, 0);
     const diff = filtered.length - totalWithFin;
-    const entries = Object.entries(map)
-      .map(([name, value]) => ({ name, value, pct: Math.round((value / (filtered.length || 1)) * 100) }))
-      .sort((a, b) => b.value - a.value);
-    if (diff > 0) {
-      entries.push({ name: 'N/A', value: diff, pct: Math.round((diff / (filtered.length || 1)) * 100) });
-    }
+    const entries = Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / (filtered.length || 1)) * 100) })).sort((a, b) => b.value - a.value);
+    if (diff > 0) entries.push({ name: 'N/A', value: diff, pct: Math.round((diff / (filtered.length || 1)) * 100) });
     return entries;
   }, [filtered]);
 
@@ -147,18 +126,14 @@ const garData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(r => { if (r.origin) map[r.origin] = (map[r.origin] || 0) + 1; });
     const total = filtered.length || 1;
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) }))
-      .sort((a, b) => b.value - a.value);
+    return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) })).sort((a, b) => b.value - a.value);
   }, [filtered]);
 
   const modelData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(r => { if (r.model) map[r.model] = (map[r.model] || 0) + 1; });
     const total = filtered.length || 1;
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) }))
-      .sort((a, b) => b.value - a.value);
+    return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) })).sort((a, b) => b.value - a.value);
   }, [filtered]);
 
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
@@ -169,9 +144,7 @@ const garData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(r => { if (r.profile) map[r.profile] = (map[r.profile] || 0) + 1; });
     const total = filtered.length || 1;
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) }))
-      .sort((a, b) => b.value - a.value);
+    return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) })).sort((a, b) => b.value - a.value);
   }, [filtered]);
 
   const tableData = useMemo(() => {
@@ -179,17 +152,11 @@ const garData = useMemo(() => {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       rows = rows.filter(r =>
-        r.resp.toLowerCase().includes(term) ||
-        r.status.toLowerCase().includes(term) ||
-        r.type.toLowerCase().includes(term) ||
-        r.model.toLowerCase().includes(term) ||
-        r.cliente.toLowerCase().includes(term) ||
-        r.fin.toLowerCase().includes(term) ||
-        r.gar.toLowerCase().includes(term) ||
-        r.biz.toLowerCase().includes(term) ||
-        r.enc.toLowerCase().includes(term) ||
-        r.chas.toLowerCase().includes(term) ||
-        r.mat.toLowerCase().includes(term)
+        r.resp.toLowerCase().includes(term) || r.status.toLowerCase().includes(term) ||
+        r.type.toLowerCase().includes(term) || r.model.toLowerCase().includes(term) ||
+        r.cliente.toLowerCase().includes(term) || r.fin.toLowerCase().includes(term) ||
+        r.gar.toLowerCase().includes(term) || r.biz.toLowerCase().includes(term) ||
+        r.enc.toLowerCase().includes(term) || r.chas.toLowerCase().includes(term) || r.mat.toLowerCase().includes(term)
       );
     }
     rows.sort((a, b) => {
@@ -233,16 +200,12 @@ const garData = useMemo(() => {
   const handleRespClick = useCallback((resp: string, ctrlKey = false) => {
     setSelectedResps(prev => {
       const next = new Set(prev);
-      if (ctrlKey) {
-        if (next.has(resp)) next.delete(resp);
-        else next.add(resp);
-      } else {
-        if (next.size === 1 && next.has(resp)) next.clear();
-        else { next.clear(); next.add(resp); }
-      }
+      if (ctrlKey) { if (next.has(resp)) next.delete(resp); else next.add(resp); }
+      else { if (next.size === 1 && next.has(resp)) next.clear(); else { next.clear(); next.add(resp); } }
       return next;
     });
   }, []);
+
   const handleGarClick = useCallback((garName: string) => { toggle(setSelectedGar, garName, null as string | null); }, []);
   const handleFinClick = useCallback((finName: string) => { toggle(setSelectedFin, finName, null as string | null); }, []);
   const handleOriginClick = useCallback((name: string) => { toggle(setSelectedOrigin, name, null as string | null); }, []);
@@ -250,24 +213,17 @@ const garData = useMemo(() => {
   const handleEntityClick = useCallback((name: string) => { toggle(setSelectedEntity, name, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
-  const handleStatusClick = useCallback((statusName: string) => {
-    setSelectedStatus(prev => prev === statusName ? null : statusName);
-  }, []);
+  const handleStatusClick = useCallback((statusName: string) => { setSelectedStatus(prev => prev === statusName ? null : statusName); }, []);
+  const handleLegendClick = (e: any) => { if (e?.value) handleStatusClick(e.value); };
 
   const exportCSV = useCallback(() => {
-    const headers = ['RESP', 'GAR', 'STATUS', 'TIPO', 'MODELO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', 'Data de Negócio', 'Data de Matricula', 'Data de Retail', 'Data de Apping'];
-    const rows = tableData.map(r => [
-      r.resp, r.gar === 'GAR' ? 'Certo' : 'Incerto', r.status, r.type, r.model, r.cliente, r.fin,
-      r.biz, r.enc, r.chas, r.mat,
-      formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.app),
-    ]);
+    const headers = ['RESP', 'GAR', 'STATUS', 'TIPO', 'MODELO', 'VERSÃO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', 'Data de Negócio', 'Data de Matricula', 'Data de Retail', 'Data de Apping'];
+    const rows = tableData.map(r => [r.resp, r.gar === 'GAR' ? 'Certo' : 'Incerto', r.status, r.type, r.model, r.version, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.app)]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `detalhe_retails_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
+    const a = document.createElement('a'); a.href = url;
+    a.download = `detalhe_retails_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     URL.revokeObjectURL(url);
   }, [tableData]);
 
@@ -306,24 +262,21 @@ const garData = useMemo(() => {
     if (type === 'status') setSelectedStatus(null);
   };
 
-  const HorizontalBarList = ({ data: items, colorMap, fallbackColors, selected, onClick }: {
+  const HorizontalBarList = ({ data: items, colorMap, selected, onClick }: {
     data: { name: string; value: number; pct: number }[];
     colorMap?: Record<string, string>;
-    fallbackColors?: string[];
     selected: string | null;
     onClick: (name: string) => void;
   }) => {
     const maxVal = items[0]?.value || 1;
-    const colors = fallbackColors || COLORS;
     return (
       <div className="space-y-1">
         {items.map((entry, i) => {
           const isSelected = selected === entry.name;
           const isDimmed = selected && !isSelected;
-          const color = colorMap?.[entry.name] || colors[i % colors.length];
+          const color = colorMap?.[entry.name] || COLORS[i % COLORS.length];
           return (
-            <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => onClick(entry.name)}
-              style={{ opacity: isDimmed ? 0.3 : 1 }}>
+            <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => onClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
               <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
               <span className="text-[10px] w-16 truncate flex-shrink-0">{entry.name}</span>
               <div className="flex-1 h-3 bg-muted rounded-sm overflow-hidden min-w-0">
@@ -341,191 +294,129 @@ const garData = useMemo(() => {
   const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
 
   const tableColumns: [SortKey, string][] = [
-    ['resp', 'Resp'],
-    ['gar', 'Gar'],
-    ['status', 'Status'],
-    ['type', 'Tipo'],
-    ['model', 'Modelo'],
-    ['version', 'Versão'],
-    ['cliente', 'Cliente'],
-    ['fin', 'Pag'],
-    ['biz', 'Bizagi'],
-    ['enc', 'Encomenda'],
-    ['chas', 'Chassis'],
-    ['mat', 'Matricula'],
-    ['neg', 'Data Fecho'],
-    ['dmat', 'Data Matricula'],
-    ['date298', 'Data Retail'],
-    ['app', 'Data Apping'],
+    ['resp', 'Resp'], ['gar', 'Gar'], ['status', 'Status'], ['type', 'Tipo'],
+    ['model', 'Modelo'], ['version', 'Versão'], ['cliente', 'Cliente'], ['fin', 'Pag'],
+    ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matricula'],
+    ['neg', 'Data Fecho'], ['dmat', 'Data Matricula'], ['date298', 'Data Retail'], ['app', 'Data Apping'],
   ];
 
-  // Custom legend click handler for status chart
-const handleLegendClick = (e: any) => {
-    if (e?.value) handleStatusClick(e.value);
-  };
+  const pipelineForGar = filtered.filter(r => r.status === 'Carteira' || r.status === 'Matricula');
 
   return (
     <div className="space-y-3 animate-fade-in">
       <div className="flex flex-col lg:flex-row gap-3">
-      {/* Left column: Period filter + Park filter */}
-      <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
-        <PeriodFilter />
-        <button
-          onClick={() => setSelectedPark(prev => !prev)}
-          className={`w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 transition-all ${
-            selectedPark
-              ? 'border-primary bg-primary/10 ring-1 ring-primary'
-              : 'border-border bg-card hover:bg-accent'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <ParkingCircle className={`h-4 w-4 ${selectedPark ? 'text-primary' : 'text-muted-foreground'}`} />
-            <span className="text-[11px] font-semibold uppercase">Em Parque</span>
-          </div>
-          <Badge variant={selectedPark ? 'default' : 'secondary'} className="text-[10px]">{parkCount}</Badge>
-        </button>
-      </div>
-
-      <div className="flex-1 min-w-0 space-y-2">
-        {activeFilters.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] text-muted-foreground">Filtros:</span>
-            {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => setSelectedResps(new Set())}>{Array.from(selectedResps).join(', ')} ✕</Badge>}
-            {selectedGar && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('gar')}>{selectedGar} ✕</Badge>}
-            {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} ✕</Badge>}
-            {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('origin')}>{selectedOrigin} ✕</Badge>}
-            {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} ✕</Badge>}
-            {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('entity')}>{selectedEntity} ✕</Badge>}
-            {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR ✕</Badge>}
-            {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV ✕</Badge>}
-            {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('park')}>Parque ✕</Badge>}
-            {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('status')}>Status: {selectedStatus} ✕</Badge>}
-          </div>
-        )}
-
-        {/* Row 1 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-2">
-          {/* Status por Responsável */}
-          <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Status por Responsável</h3>
-              <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalStatusSum}</span>
-            </div>
-            <ResponsiveContainer width="100%" height={200}>
-<BarChart data={statusByResp} barSize={28}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick} />
-                <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer"
-                  opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1}
-                  onClick={(entry: any, _: any, event: any) => entry?.resp && handleRespClick(entry.resp, event?.ctrlKey || event?.metaKey)} />
-                <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer"
-                  opacity={selectedStatus && selectedStatus !== 'Matricula' ? 0.2 : 1}
-                  onClick={(entry: any, _: any, event: any) => entry?.resp && handleRespClick(entry.resp, event?.ctrlKey || event?.metaKey)} />
-                <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer"
-                  opacity={selectedStatus && selectedStatus !== 'Carteira' ? 0.2 : 1}
-                  onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
-                  <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Detail table on mobile - right after Status por Responsável */}
-          {isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
-
-          {/* Garantia (compact) + Realização */}
-          <div className="xl:col-span-3 space-y-2">
-            <div className="bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Garantia de Entrega</h3>
-              <div className="flex gap-2">
-                {garData.map(d => {
-                  const isSelected = selectedGar === d.name;
-                  const isDimmed = selectedGar && !isSelected;
-                  const color = d.name === 'Certo' ? '#16A34A' : '#94A3B8';
-                  const pct = filtered.length ? Math.round((d.size / filtered.length) * 100) : 0;
-                  return (
-                    <div key={d.name} className="flex-1 rounded-md p-2 text-center cursor-pointer transition-opacity"
-                      style={{ backgroundColor: color, opacity: isDimmed ? 0.3 : 1 }}
-                      onClick={() => handleGarClick(d.name)}>
-                      <p className="text-white text-[10px] font-medium">{d.name}</p>
-                      <p className="text-white text-base font-bold">{d.size}</p>
-                      <p className="text-white/80 text-[9px]">{pct}%</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3">
-              <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
-              <div className="flex items-end justify-center">
-                <GaugeSimple value={realization.pct} retailPct={realization.targetBMW ? Math.round((realization.retails / realization.targetBMW) * 100) : undefined} />
-              </div>
-              <div className="grid grid-cols-6 gap-1 mt-2 text-center items-end">
-                <div>
-                  <p className="text-lg font-extrabold text-primary">{realization.actual}</p>
-                  <p className="text-[9px] font-medium text-muted-foreground">Total</p>
-                </div>
-                <div>
-                  <p className="text-lg font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p>
-                  <p className="text-[9px] font-medium text-muted-foreground">Retails</p>
-                </div>
-                <div>
-                  <p className="text-base font-bold text-foreground">{realization.targetCaetano}</p>
-                  <p className="text-[9px] text-muted-foreground">Caetano</p>
-                </div>
-                <div>
-                  <p className="text-base font-bold text-muted-foreground">{realization.targetBMW}</p>
-                  <p className="text-[9px] text-muted-foreground">BMW</p>
-                </div>
-                <div>
-                  <p className="text-base font-bold text-muted-foreground/70">{realization.target110}</p>
-                  <p className="text-[9px] text-muted-foreground">110%</p>
-                </div>
-                <div>
-                  <p className="text-lg font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p>
-                  <p className="text-[9px] font-medium text-muted-foreground">vs BMW</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Método de Pagamento */}
-          <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
+        {/* Left column: Period filter + Park filter */}
+        <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
+          <PeriodFilter />
+          <button
+            onClick={() => setSelectedPark(prev => !prev)}
+            className={`w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 transition-all ${selectedPark ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-card hover:bg-accent'}`}
+          >
             <div className="flex items-center gap-2">
-              <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
-                <PieChart>
-                  <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
-                  <Pie data={finData} dataKey="value" nameKey="name" outerRadius={45} stroke="hsl(var(--background))" strokeWidth={1.5}
-                    onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
-                    {finData.map((entry, i) => {
-                      const isSelected = selectedFin === entry.name;
-                      const isDimmed = selectedFin && !isSelected;
-                      return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
-                    })}
-                  </Pie>
-                </PieChart>
+              <ParkingCircle className={`h-4 w-4 ${selectedPark ? 'text-primary' : 'text-muted-foreground'}`} />
+              <span className="text-[11px] font-semibold uppercase">Em Parque</span>
+            </div>
+            <Badge variant={selectedPark ? 'default' : 'secondary'} className="text-[10px]">{parkCount}</Badge>
+          </button>
+        </div>
+
+        <div className="flex-1 min-w-0 space-y-2">
+          {activeFilters.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] text-muted-foreground">Filtros:</span>
+              {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => setSelectedResps(new Set())}>{Array.from(selectedResps).join(', ')} ✕</Badge>}
+              {selectedGar && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('gar')}>{selectedGar} ✕</Badge>}
+              {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} ✕</Badge>}
+              {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('origin')}>{selectedOrigin} ✕</Badge>}
+              {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} ✕</Badge>}
+              {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('entity')}>{selectedEntity} ✕</Badge>}
+              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR ✕</Badge>}
+              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV ✕</Badge>}
+              {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('park')}>Parque ✕</Badge>}
+              {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('status')}>Status: {selectedStatus} ✕</Badge>}
+            </div>
+          )}
+
+          {/* Row 1 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-2">
+            {/* Status por Responsável */}
+            <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Status por Responsável</h3>
+                <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalStatusSum}</span>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={statusByResp} barSize={28}
+                  onClick={(chartData: any, _: any, event: any) => {
+                    const resp = chartData?.activePayload?.[0]?.payload?.resp;
+                    if (resp) handleRespClick(resp, event?.ctrlKey || event?.metaKey);
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                  <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
+                    formatter={(value: string) => (
+                      <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal', transition: 'opacity 0.2s' }}>{value}</span>
+                    )} />
+                  <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1} />
+                  <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Matricula' ? 0.2 : 1} />
+                  <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Carteira' ? 0.2 : 1}>
+                    <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
-              <div className="space-y-1 flex-1">
-                {finData.map((entry, i) => {
-                  const isSelected = selectedFin === entry.name;
-                  const isDimmed = selectedFin && !isSelected;
-                  return (
-                    <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)}
-                      style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                      <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
-                      <span className="text-[10px] font-medium w-9">{entry.name}</span>
-                      <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
-                      <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
-                    </div>
-                  );
-                })}
-                <div className="border-t border-border pt-1 mt-1">
-                  <div className="flex items-center justify-between">
+            </div>
+
+            {isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
+
+            {/* Realização vs Objetivo — ocupa col-span-3 completo */}
+            <div className="xl:col-span-3">
+              <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
+                <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
+                <div className="flex items-end justify-center flex-1">
+                  <GaugeSimple value={realization.pct} retailPct={realization.targetBMW ? Math.round((realization.retails / realization.targetBMW) * 100) : undefined} />
+                </div>
+                <div className="grid grid-cols-6 gap-1 mt-2 text-center items-end">
+                  <div><p className="text-lg font-extrabold text-primary">{realization.actual}</p><p className="text-[9px] font-medium text-muted-foreground">Total</p></div>
+                  <div><p className="text-lg font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] font-medium text-muted-foreground">Retails</p></div>
+                  <div><p className="text-base font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Caetano</p></div>
+                  <div><p className="text-base font-bold text-muted-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">BMW</p></div>
+                  <div><p className="text-base font-bold text-muted-foreground/70">{realization.target110}</p><p className="text-[9px] text-muted-foreground">110%</p></div>
+                  <div><p className="text-lg font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p><p className="text-[9px] font-medium text-muted-foreground">vs BMW</p></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Método de Pagamento */}
+            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
+              <div className="flex items-center gap-2">
+                <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
+                  <PieChart>
+                    <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
+                    <Pie data={finData} dataKey="value" nameKey="name" outerRadius={45} stroke="hsl(var(--background))" strokeWidth={1.5} onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
+                      {finData.map((entry, i) => {
+                        const isDimmed = selectedFin && selectedFin !== entry.name;
+                        return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
+                      })}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-1 flex-1">
+                  {finData.map((entry, i) => {
+                    const isDimmed = selectedFin && selectedFin !== entry.name;
+                    return (
+                      <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
+                        <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
+                        <span className="text-[10px] font-medium w-9">{entry.name}</span>
+                        <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
+                        <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
+                      </div>
+                    );
+                  })}
+                  <div className="border-t border-border pt-1 mt-1 flex items-center justify-between">
                     <span className="text-[10px] font-semibold">Total</span>
                     <span className="text-[10px] font-bold">{filtered.length}</span>
                   </div>
@@ -533,44 +424,57 @@ const handleLegendClick = (e: any) => {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Row 2 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
-          <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
-            <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
-          </div>
-
-          <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Origem dos Negócios</h3>
-            <HorizontalBarList data={originData} selected={selectedOrigin} onClick={handleOriginClick} />
-          </div>
-
-          <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mix Modelos</h3>
-            <div className="max-h-40 overflow-y-auto pr-1">
-              <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
+          {/* Row 2 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
+            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
+              <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
+            </div>
+            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Origem dos Negócios</h3>
+              <HorizontalBarList data={originData} selected={selectedOrigin} onClick={handleOriginClick} />
+            </div>
+            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mix Modelos</h3>
+              <div className="max-h-40 overflow-y-auto pr-1">
+                <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
+              </div>
+            </div>
+            <div className="xl:col-span-1 grid grid-cols-2 xl:grid-cols-1 gap-2">
+              <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
+              <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
+            </div>
+            {/* Sales Radar — col-span-3 */}
+            <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
+              <SalesRadar records={filtered} height="200px" />
+            </div>
+            {/* Garantia de Entrega — col-span-2, movida para Row 2 */}
+            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Garantia de Entrega</h3>
+              <div className="flex flex-col gap-2 mt-1">
+                {garData.map(d => {
+                  const isSelected = selectedGar === d.name;
+                  const isDimmed = selectedGar && !isSelected;
+                  const color = d.name === 'Certo' ? '#16A34A' : '#94A3B8';
+                  const pct = pipelineForGar.length ? Math.round((d.size / pipelineForGar.length) * 100) : 0;
+                  return (
+                    <div key={d.name} className="flex-1 rounded-md p-3 text-center cursor-pointer transition-opacity"
+                      style={{ backgroundColor: color, opacity: isDimmed ? 0.3 : 1 }}
+                      onClick={() => handleGarClick(d.name)}>
+                      <p className="text-white text-[10px] font-medium">{d.name}</p>
+                      <p className="text-white text-xl font-bold">{d.size}</p>
+                      <p className="text-white/80 text-[9px]">{pct}%</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
-
-          <div className="xl:col-span-1 grid grid-cols-2 xl:grid-cols-1 gap-2">
-            <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B"
-              isActive={selectedQor === true} onClick={handleQorClick} />
-            <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A"
-              isActive={selectedBev === true} onClick={handleBevClick} />
-          </div>
-
-          <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
-            <SalesRadar records={filtered} height="200px" />
-          </div>
         </div>
-
-      </div>
       </div>
 
-      {/* Detail Table - full width, hidden on mobile (shown above instead) */}
       {!isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
     </div>
   );
@@ -590,8 +494,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
             <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
           </div>
           <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
-            <Download className="h-3 w-3" />
-            CSV
+            <Download className="h-3 w-3" />CSV
           </Button>
         </div>
       </div>
@@ -600,13 +503,8 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
           <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
             <tr className="text-[10px]">
               {tableColumns.map(([key, label]) => (
-                <th key={key}
-                  className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card"
-                  onClick={() => toggleSort(key)}>
-                  <span className="inline-flex items-center">
-                    {label}
-                    <SortIcon col={key} />
-                  </span>
+                <th key={key} className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card" onClick={() => toggleSort(key)}>
+                  <span className="inline-flex items-center">{label}<SortIcon col={key} /></span>
                 </th>
               ))}
             </tr>
@@ -616,7 +514,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
               <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
                 <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
                 <td className="px-3 py-1">
-                  <Badge variant="outline" className={r.gar === 'GAR' ? 'border-bmw-green text-bmw-green text-[10px]' : 'text-muted-foreground text-[10px]'}>
+                  <Badge variant="outline" className={r.gar === 'GAR' ? 'border-green-600 text-green-600 text-[10px]' : 'text-muted-foreground text-[10px]'}>
                     {r.gar === 'GAR' ? 'Certo' : 'Incerto'}
                   </Badge>
                 </td>
@@ -627,9 +525,9 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                   </span>
                 </td>
                 <td className="px-3 py-1">{r.type}</td>
-<td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
-<td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
-<td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
+                <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
+                <td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
+                <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
                 <td className="px-3 py-1">{r.fin}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
@@ -652,18 +550,10 @@ function normalizeMonthKey(mes: string): string | null {
   if (!mes) return null;
   if (/^\d{4}\/\d{2}$/.test(mes)) return mes;
   const d = new Date(mes);
-  if (!isNaN(d.getTime())) {
-    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-  }
-  const ptMonths: Record<string, number> = {
-    jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
-    jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12,
-  };
+  if (!isNaN(d.getTime())) return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const ptMonths: Record<string, number> = { jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6, jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12 };
   const match = mes.match(/^(\w{3})\W*(\d{4})$/i);
-  if (match) {
-    const m = ptMonths[match[1].toLowerCase()];
-    if (m) return `${match[2]}/${String(m).padStart(2, '0')}`;
-  }
+  if (match) { const m = ptMonths[match[1].toLowerCase()]; if (m) return `${match[2]}/${String(m).padStart(2, '0')}`; }
   const match2 = mes.match(/^(\d{1,2})\/(\d{4})$/);
   if (match2) return `${match2[2]}/${String(Number(match2[1])).padStart(2, '0')}`;
   return null;
@@ -673,60 +563,32 @@ function GaugeSimple({ value, retailPct }: { value: number; retailPct?: number }
   const maxVal = Math.max(100, value);
   const clamped = Math.min(Math.max(value, 0), maxVal);
   const color = value >= 100 ? '#16A34A' : value >= 80 ? '#F59E0B' : '#DC2626';
-
   const cx = 60, cy = 60, r = 50;
   const toRad = (deg: number) => (deg * Math.PI) / 180;
-
-  const arcPoint = (pct: number) => {
-    const ang = -180 + (pct / maxVal) * 180;
-    return { x: cx + r * Math.cos(toRad(ang)), y: cy + r * Math.sin(toRad(ang)) };
-  };
-
+  const arcPoint = (pct: number) => { const ang = -180 + (pct / maxVal) * 180; return { x: cx + r * Math.cos(toRad(ang)), y: cy + r * Math.sin(toRad(ang)) }; };
   const describeArc = (startPct: number, endPct: number) => {
-    const s = arcPoint(startPct);
-    const e = arcPoint(endPct);
+    const s = arcPoint(startPct); const e = arcPoint(endPct);
     const sweep = ((endPct - startPct) / maxVal) * 180;
-    const largeArc = sweep > 180 ? 1 : 0;
-    return `M ${s.x} ${s.y} A ${r} ${r} 0 ${largeArc} 1 ${e.x} ${e.y}`;
+    return `M ${s.x} ${s.y} A ${r} ${r} 0 ${sweep > 180 ? 1 : 0} 1 ${e.x} ${e.y}`;
   };
-
   const needleAng = -180 + (clamped / maxVal) * 180;
-  const needleLen = 40;
-
   const mark100Ang = -180 + (100 / maxVal) * 180;
   const mark100Inner = { x: cx + 43 * Math.cos(toRad(mark100Ang)), y: cy + 43 * Math.sin(toRad(mark100Ang)) };
   const mark100Outer = { x: cx + 57 * Math.cos(toRad(mark100Ang)), y: cy + 57 * Math.sin(toRad(mark100Ang)) };
-
-  const zone80 = Math.min(80, maxVal);
-  const zone100 = Math.min(100, maxVal);
-
-  // Retail tick mark
+  const zone80 = Math.min(80, maxVal); const zone100 = Math.min(100, maxVal);
   const retailClamped = retailPct != null ? Math.min(Math.max(retailPct, 0), maxVal) : null;
   const retailAng = retailClamped != null ? -180 + (retailClamped / maxVal) * 180 : null;
   const retailInner = retailAng != null ? { x: cx + 42 * Math.cos(toRad(retailAng)), y: cy + 42 * Math.sin(toRad(retailAng)) } : null;
   const retailOuter = retailAng != null ? { x: cx + 58 * Math.cos(toRad(retailAng)), y: cy + 58 * Math.sin(toRad(retailAng)) } : null;
-
   return (
     <svg viewBox="0 0 120 70" className="w-28 h-auto">
       <path d={describeArc(0, maxVal)} fill="none" stroke="hsl(var(--border))" strokeWidth="8" strokeLinecap="round" />
       <path d={describeArc(0, zone80)} fill="none" stroke="#DC262640" strokeWidth="8" strokeLinecap="round" />
-      {zone80 < zone100 && (
-        <path d={describeArc(zone80, zone100)} fill="none" stroke="#F59E0B40" strokeWidth="8" strokeLinecap="round" />
-      )}
-      {maxVal > 100 && (
-        <path d={describeArc(zone100, maxVal)} fill="none" stroke="#16A34A40" strokeWidth="8" strokeLinecap="round" />
-      )}
-      {maxVal > 100 && (
-        <line x1={mark100Inner.x} y1={mark100Inner.y} x2={mark100Outer.x} y2={mark100Outer.y}
-          stroke="hsl(var(--foreground))" strokeWidth="1.5" opacity={0.5} />
-      )}
-      {/* Retail tick mark */}
-      {retailInner && retailOuter && (
-        <line x1={retailInner.x} y1={retailInner.y} x2={retailOuter.x} y2={retailOuter.y}
-          stroke="#1C69D4" strokeWidth="2" strokeLinecap="round" />
-      )}
-      <line x1={cx} y1={cy} x2={cx + needleLen * Math.cos(toRad(needleAng))} y2={cy + needleLen * Math.sin(toRad(needleAng))}
-        stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+      {zone80 < zone100 && <path d={describeArc(zone80, zone100)} fill="none" stroke="#F59E0B40" strokeWidth="8" strokeLinecap="round" />}
+      {maxVal > 100 && <path d={describeArc(zone100, maxVal)} fill="none" stroke="#16A34A40" strokeWidth="8" strokeLinecap="round" />}
+      {maxVal > 100 && <line x1={mark100Inner.x} y1={mark100Inner.y} x2={mark100Outer.x} y2={mark100Outer.y} stroke="hsl(var(--foreground))" strokeWidth="1.5" opacity={0.5} />}
+      {retailInner && retailOuter && <line x1={retailInner.x} y1={retailInner.y} x2={retailOuter.x} y2={retailOuter.y} stroke="#1C69D4" strokeWidth="2" strokeLinecap="round" />}
+      <line x1={cx} y1={cy} x2={cx + 40 * Math.cos(toRad(needleAng))} y2={cy + 40 * Math.sin(toRad(needleAng))} stroke={color} strokeWidth="2.5" strokeLinecap="round" />
       <circle cx={cx} cy={cy} r="3" fill={color} />
       <text x={cx} y="52" textAnchor="middle" className="text-[11px] font-bold" fill={color}>{value}%</text>
     </svg>
@@ -737,12 +599,7 @@ function ClickableDonutCard({ title, count, total, color, isActive, onClick }: {
   title: string; count: number; total: number; color: string; isActive: boolean; onClick: () => void;
 }) {
   const pct = total ? Math.round((count / total) * 100) : 0;
-  const nonCount = total - count;
-  const pieData = [
-    { name: title, value: count },
-    { name: 'Outros', value: nonCount },
-  ];
-
+  const pieData = [{ name: title, value: count }, { name: 'Outros', value: Math.max(0, total - count) }];
   return (
     <div className={`bg-card border rounded-lg p-2 cursor-pointer transition-all ${isActive ? 'border-primary ring-1 ring-primary' : 'border-border'}`} onClick={onClick}>
       <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-0.5">{title}</h3>
@@ -750,8 +607,7 @@ function ClickableDonutCard({ title, count, total, color, isActive, onClick }: {
         <ResponsiveContainer width={50} height={50}>
           <PieChart>
             <Pie data={pieData} innerRadius={15} outerRadius={22} dataKey="value" strokeWidth={0}>
-              <Cell fill={color} />
-              <Cell fill="hsl(var(--border))" />
+              <Cell fill={color} /><Cell fill="hsl(var(--border))" />
             </Pie>
           </PieChart>
         </ResponsiveContainer>
