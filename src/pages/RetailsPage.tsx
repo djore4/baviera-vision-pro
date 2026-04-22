@@ -445,27 +445,6 @@ export default function RetailsPage() {
               <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
               <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
             </div>
-{/* Garantia de Entrega — col-span-2 */}
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Garantia de Entrega</h3>
-              <div className="flex flex-col gap-2 mt-1">
-                {garData.map(d => {
-                  const isSelected = selectedGar === d.name;
-                  const isDimmed = selectedGar && !isSelected;
-                  const color = d.name === 'Certo' ? '#16A34A' : '#94A3B8';
-                  const pct = pipelineForGar.length ? Math.round((d.size / pipelineForGar.length) * 100) : 0;
-                  return (
-                    <div key={d.name} className="flex-1 rounded-md p-3 text-center cursor-pointer transition-opacity"
-                      style={{ backgroundColor: color, opacity: isDimmed ? 0.3 : 1 }}
-                      onClick={() => handleGarClick(d.name)}>
-                      <p className="text-white text-[10px] font-medium">{d.name}</p>
-                      <p className="text-white text-xl font-bold">{d.size}</p>
-                      <p className="text-white/80 text-[9px]">{pct}%</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
             {/* Garantia de Entrega — col-span-2 */}
             <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
               <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Garantia de Entrega</h3>
