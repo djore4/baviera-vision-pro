@@ -376,7 +376,7 @@ export default function RetailsPage() {
               <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
                 <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
                 <div className="flex items-end justify-center flex-1">
-                  <GaugeSimple value={realization.pct} retailPct={realization.targetBMW ? Math.round((realization.retails / realization.targetBMW) * 100) : undefined} />
+                  <GaugeSimple value={realization.pct} retailPct={realization.targetBMW ? Math.round((realization.retails / realization.targetBMW) * 100) : undefined} size="lg" />
                 </div>
                 <div className="grid grid-cols-6 gap-1 mt-2 text-center items-end">
                   <div><p className="text-lg font-extrabold text-primary">{realization.actual}</p><p className="text-[9px] font-medium text-muted-foreground">Total</p></div>
@@ -396,7 +396,7 @@ export default function RetailsPage() {
                 <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
                   <PieChart>
                     <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
-                    <Pie data={finData} dataKey="value" nameKey="name" outerRadius={45} stroke="hsl(var(--background))" strokeWidth={1.5} onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
+                    <Pie data={finData} dataKey="value" nameKey="name" outerRadius={60} stroke="hsl(var(--background))" strokeWidth={1.5} onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
                       {finData.map((entry, i) => {
                         const isDimmed = selectedFin && selectedFin !== entry.name;
                         return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
@@ -445,12 +445,7 @@ export default function RetailsPage() {
               <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
               <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
             </div>
-            {/* Sales Radar — col-span-3 */}
-            <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
-              <SalesRadar records={filtered} height="200px" />
-            </div>
-            {/* Garantia de Entrega — col-span-2, movida para Row 2 */}
+{/* Garantia de Entrega — col-span-2 */}
             <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
               <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Garantia de Entrega</h3>
               <div className="flex flex-col gap-2 mt-1">
@@ -470,6 +465,32 @@ export default function RetailsPage() {
                   );
                 })}
               </div>
+            </div>
+            {/* Garantia de Entrega — col-span-2 */}
+            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Garantia de Entrega</h3>
+              <div className="flex flex-col gap-2 mt-1">
+                {garData.map(d => {
+                  const isSelected = selectedGar === d.name;
+                  const isDimmed = selectedGar && !isSelected;
+                  const color = d.name === 'Certo' ? '#16A34A' : '#94A3B8';
+                  const pct = pipelineForGar.length ? Math.round((d.size / pipelineForGar.length) * 100) : 0;
+                  return (
+                    <div key={d.name} className="flex-1 rounded-md p-3 text-center cursor-pointer transition-opacity"
+                      style={{ backgroundColor: color, opacity: isDimmed ? 0.3 : 1 }}
+                      onClick={() => handleGarClick(d.name)}>
+                      <p className="text-white text-[10px] font-medium">{d.name}</p>
+                      <p className="text-white text-xl font-bold">{d.size}</p>
+                      <p className="text-white/80 text-[9px]">{pct}%</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Sales Radar — col-span-3 */}
+            <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
+              <SalesRadar records={filtered} height="200px" />
             </div>
           </div>
         </div>
@@ -559,7 +580,7 @@ function normalizeMonthKey(mes: string): string | null {
   return null;
 }
 
-function GaugeSimple({ value, retailPct }: { value: number; retailPct?: number }) {
+function GaugeSimple({ value, retailPct, size = 'sm' }: { value: number; retailPct?: number; size?: 'sm' | 'lg' }) {
   const maxVal = Math.max(100, value);
   const clamped = Math.min(Math.max(value, 0), maxVal);
   const color = value >= 100 ? '#16A34A' : value >= 80 ? '#F59E0B' : '#DC2626';
@@ -581,7 +602,7 @@ function GaugeSimple({ value, retailPct }: { value: number; retailPct?: number }
   const retailInner = retailAng != null ? { x: cx + 42 * Math.cos(toRad(retailAng)), y: cy + 42 * Math.sin(toRad(retailAng)) } : null;
   const retailOuter = retailAng != null ? { x: cx + 58 * Math.cos(toRad(retailAng)), y: cy + 58 * Math.sin(toRad(retailAng)) } : null;
   return (
-    <svg viewBox="0 0 120 70" className="w-28 h-auto">
+    <svg viewBox="0 0 120 70" className={size === 'lg' ? 'w-44 h-auto' : 'w-28 h-auto'}>
       <path d={describeArc(0, maxVal)} fill="none" stroke="hsl(var(--border))" strokeWidth="8" strokeLinecap="round" />
       <path d={describeArc(0, zone80)} fill="none" stroke="#DC262640" strokeWidth="8" strokeLinecap="round" />
       {zone80 < zone100 && <path d={describeArc(zone80, zone100)} fill="none" stroke="#F59E0B40" strokeWidth="8" strokeLinecap="round" />}
