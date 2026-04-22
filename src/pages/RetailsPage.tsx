@@ -17,7 +17,7 @@ const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899'
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
 const STATUS_COLORS: Record<string, string> = { Retail: '#1C69D4', Matricula: '#06B6D4', Carteira: '#F59E0B' };
 
-type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'version' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'app';
+type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'version' | 'week198' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'app';
 type SortDir = 'asc' | 'desc';
 
 export default function RetailsPage() {
@@ -173,6 +173,7 @@ export default function RetailsPage() {
         case 'enc': cmp = a.enc.localeCompare(b.enc); break;
         case 'chas': cmp = a.chas.localeCompare(b.chas); break;
         case 'mat': cmp = a.mat.localeCompare(b.mat); break;
+        case 'week198': cmp = (a.week198 || '').localeCompare(b.week198 || ''); break;
         case 'neg': cmp = (a.neg?.getTime() || 0) - (b.neg?.getTime() || 0); break;
         case 'dmat': cmp = (a.dmat?.getTime() || 0) - (b.dmat?.getTime() || 0); break;
         case 'date298': cmp = (a.date298?.getTime() || 0) - (b.date298?.getTime() || 0); break;
@@ -295,7 +296,7 @@ export default function RetailsPage() {
 
   const tableColumns: [SortKey, string][] = [
     ['resp', 'Resp'], ['gar', 'Gar'], ['status', 'Status'], ['type', 'Tipo'],
-    ['cliente', 'Cliente'], ['model', 'Modelo'], ['version', 'Versão'], ['fin', 'Pag'],
+    ['cliente', 'Cliente'], ['model', 'Modelo'], ['version', 'Versão'], ['week198', '198'], ['fin', 'Pag'],
     ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matricula'],
     ['neg', 'Data Fecho'], ['dmat', 'Data Matricula'], ['date298', 'Data Retail'], ['app', 'Data Apping'],
   ];
@@ -466,19 +467,18 @@ export default function RetailsPage() {
                 })}
               </div>
             </div>
-{/* Sales Radar — col-span-3 */}
-            <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2 xl:row-span-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
-              <SalesRadar records={filtered} height="calc(100% - 24px)" />
-            </div>
           </div>
         </div>
       </div>
 
-      {!isMobile && (
+{!isMobile && (
         <div className="flex gap-2">
           <div className="flex-1 min-w-0">
             <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />
+          </div>
+          <div className="w-72 flex-shrink-0 bg-card border border-border rounded-lg p-2">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
+            <SalesRadar records={filtered} height="calc(100% - 24px)" />
           </div>
         </div>
       )}
@@ -532,7 +532,8 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 </td>
                 <td className="px-3 py-1">{r.type}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
+<td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
+                <td className="px-3 py-1 whitespace-nowrap">{r.week198}</td>
                 <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
                 <td className="px-3 py-1">{r.fin}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
