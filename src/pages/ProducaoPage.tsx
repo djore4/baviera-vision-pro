@@ -349,7 +349,7 @@ data.objetivosResp.forEach(o => {
               </ResponsiveContainer>
             </div>
 
-{isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
+{isMobile && <div className="order-4 xl:order-none"><DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} /></div>}
 
 {/* Realização vs Objetivo */}
             <div className="xl:col-span-3 order-2 xl:order-none">
