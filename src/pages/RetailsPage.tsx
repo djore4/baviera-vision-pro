@@ -38,18 +38,13 @@ export default function RetailsPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const baseRecords = useMemo(() =>
-    filteredControl.filter(r =>
-      ['Carteira', 'Matricula', 'Retail'].includes(r.status) &&
-      (r.type === 'VN' || r.type === 'VD')
-    ), [filteredControl]);
+    filteredControl.filter(r => ['Carteira', 'Matricula', 'Retail'].includes(r.status) && (r.type === 'VN' || r.type === 'VD')),
+    [filteredControl]);
 
   const filtered = useMemo(() => {
     let result = baseRecords;
     if (selectedResps.size > 0) result = result.filter(r => selectedResps.has(r.resp));
-    if (selectedGar) result = result.filter(r =>
-      (r.status === 'Carteira' || r.status === 'Matricula') &&
-      (r.gar === 'GAR' ? 'Certo' : 'Incerto') === selectedGar
-    );
+    if (selectedGar) result = result.filter(r => (r.status === 'Carteira' || r.status === 'Matricula') && (r.gar === 'GAR' ? 'Certo' : 'Incerto') === selectedGar);
     if (selectedFin) result = result.filter(r => r.fin === selectedFin);
     if (selectedOrigin) result = result.filter(r => r.origin === selectedOrigin);
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
@@ -79,19 +74,13 @@ export default function RetailsPage() {
     const pipeline = filtered.filter(r => r.status === 'Carteira' || r.status === 'Matricula');
     const certo = pipeline.filter(r => r.gar === 'GAR').length;
     const incerto = pipeline.length - certo;
-    return [{ name: 'Certo', size: certo }, { name: 'Incerto', size: incerto }].filter(d => d.size > 0);
+    return [{ name: 'Certo', size: certo, total: pipeline.length }, { name: 'Incerto', size: incerto, total: pipeline.length }].filter(d => d.size > 0);
   }, [filtered]);
 
   const selectedMonthKeys = useMemo(() => {
     const keys = new Set<string>();
-    if (filter.months.length > 0) {
-      filter.months.forEach(fm => {
-        const fy = Math.floor(fm / 100); const fmo = fm % 100;
-        keys.add(`${fy}/${String(fmo).padStart(2, '0')}`);
-      });
-    } else if (filter.years.length > 0) {
-      filter.years.forEach(y => { for (let m = 1; m <= 12; m++) keys.add(`${y}/${String(m).padStart(2, '0')}`); });
-    }
+    if (filter.months.length > 0) filter.months.forEach(fm => keys.add(`${Math.floor(fm / 100)}/${String(fm % 100).padStart(2, '0')}`));
+    else if (filter.years.length > 0) filter.years.forEach(y => { for (let m = 1; m <= 12; m++) keys.add(`${y}/${String(m).padStart(2, '0')}`); });
     return keys;
   }, [filter]);
 
@@ -167,13 +156,14 @@ export default function RetailsPage() {
         case 'status': cmp = a.status.localeCompare(b.status); break;
         case 'type': cmp = a.type.localeCompare(b.type); break;
         case 'model': cmp = a.model.localeCompare(b.model); break;
+        case 'version': cmp = (a.version || '').localeCompare(b.version || ''); break;
+        case 'week198': cmp = (a.week198 || '').localeCompare(b.week198 || ''); break;
         case 'cliente': cmp = a.cliente.localeCompare(b.cliente); break;
         case 'fin': cmp = a.fin.localeCompare(b.fin); break;
         case 'biz': cmp = a.biz.localeCompare(b.biz); break;
         case 'enc': cmp = a.enc.localeCompare(b.enc); break;
         case 'chas': cmp = a.chas.localeCompare(b.chas); break;
         case 'mat': cmp = a.mat.localeCompare(b.mat); break;
-        case 'week198': cmp = (a.week198 || '').localeCompare(b.week198 || ''); break;
         case 'neg': cmp = (a.neg?.getTime() || 0) - (b.neg?.getTime() || 0); break;
         case 'dmat': cmp = (a.dmat?.getTime() || 0) - (b.dmat?.getTime() || 0); break;
         case 'date298': cmp = (a.date298?.getTime() || 0) - (b.date298?.getTime() || 0); break;
@@ -207,20 +197,20 @@ export default function RetailsPage() {
     });
   }, []);
 
-  const handleGarClick = useCallback((garName: string) => { toggle(setSelectedGar, garName, null as string | null); }, []);
-  const handleFinClick = useCallback((finName: string) => { toggle(setSelectedFin, finName, null as string | null); }, []);
-  const handleOriginClick = useCallback((name: string) => { toggle(setSelectedOrigin, name, null as string | null); }, []);
-  const handleModelClick = useCallback((name: string) => { toggle(setSelectedModel, name, null as string | null); }, []);
-  const handleEntityClick = useCallback((name: string) => { toggle(setSelectedEntity, name, null as string | null); }, []);
+  const handleGarClick = useCallback((g: string) => { toggle(setSelectedGar, g, null as string | null); }, []);
+  const handleFinClick = useCallback((f: string) => { toggle(setSelectedFin, f, null as string | null); }, []);
+  const handleOriginClick = useCallback((n: string) => { toggle(setSelectedOrigin, n, null as string | null); }, []);
+  const handleModelClick = useCallback((n: string) => { toggle(setSelectedModel, n, null as string | null); }, []);
+  const handleEntityClick = useCallback((n: string) => { toggle(setSelectedEntity, n, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
-  const handleStatusClick = useCallback((statusName: string) => { setSelectedStatus(prev => prev === statusName ? null : statusName); }, []);
+  const handleStatusClick = useCallback((s: string) => { setSelectedStatus(prev => prev === s ? null : s); }, []);
   const handleLegendClick = (e: any) => { if (e?.value) handleStatusClick(e.value); };
 
   const exportCSV = useCallback(() => {
-    const headers = ['RESP', 'GAR', 'STATUS', 'TIPO', 'MODELO', 'VERSÃO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', 'Data de Negócio', 'Data de Matricula', 'Data de Retail', 'Data de Apping'];
-    const rows = tableData.map(r => [r.resp, r.gar === 'GAR' ? 'Certo' : 'Incerto', r.status, r.type, r.model, r.version, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.app)]);
-    const csv = [headers, ...rows].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const headers = ['RESP', 'GAR', 'STATUS', 'TIPO', 'MODELO', 'VERSÃO', '198', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', 'Data Negócio', 'Data Matricula', 'Data Retail', 'Data Apping'];
+    const rows = tableData.map(r => [r.resp, r.gar === 'GAR' ? 'Certo' : 'Incerto', r.status, r.type, r.model, r.version, r.week198, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.app)]);
+    const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
@@ -239,42 +229,32 @@ export default function RetailsPage() {
 
   const activeFilters = [
     selectedResps.size > 0 && `Resp: ${Array.from(selectedResps).join(', ')}`,
-    selectedGar && `Garantia: ${selectedGar}`,
-    selectedFin && `Fin: ${selectedFin}`,
-    selectedOrigin && `Origem: ${selectedOrigin}`,
-    selectedModel && `Modelo: ${selectedModel}`,
-    selectedEntity && `Entidade: ${selectedEntity}`,
-    selectedQor !== null && `QoR: Sim`,
-    selectedBev !== null && `BEV: Sim`,
-    selectedPark && `Parque`,
-    selectedStatus && `Status: ${selectedStatus}`,
+    selectedGar && `Garantia: ${selectedGar}`, selectedFin && `Fin: ${selectedFin}`,
+    selectedOrigin && `Origem: ${selectedOrigin}`, selectedModel && `Modelo: ${selectedModel}`,
+    selectedEntity && `Entidade: ${selectedEntity}`, selectedQor !== null && `QoR: Sim`,
+    selectedBev !== null && `BEV: Sim`, selectedPark && `Parque`, selectedStatus && `Status: ${selectedStatus}`,
   ].filter(Boolean);
 
   const clearFilter = (type: string) => {
     if (type === 'resp') setSelectedResps(new Set());
-    if (type === 'gar') setSelectedGar(null);
-    if (type === 'fin') setSelectedFin(null);
-    if (type === 'origin') setSelectedOrigin(null);
-    if (type === 'model') setSelectedModel(null);
-    if (type === 'entity') setSelectedEntity(null);
-    if (type === 'qor') setSelectedQor(null);
-    if (type === 'bev') setSelectedBev(null);
-    if (type === 'park') setSelectedPark(false);
+    if (type === 'gar') setSelectedGar(null); if (type === 'fin') setSelectedFin(null);
+    if (type === 'origin') setSelectedOrigin(null); if (type === 'model') setSelectedModel(null);
+    if (type === 'entity') setSelectedEntity(null); if (type === 'qor') setSelectedQor(null);
+    if (type === 'bev') setSelectedBev(null); if (type === 'park') setSelectedPark(false);
     if (type === 'status') setSelectedStatus(null);
   };
 
+  const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
+
   const HorizontalBarList = ({ data: items, colorMap, selected, onClick }: {
     data: { name: string; value: number; pct: number }[];
-    colorMap?: Record<string, string>;
-    selected: string | null;
-    onClick: (name: string) => void;
+    colorMap?: Record<string, string>; selected: string | null; onClick: (name: string) => void;
   }) => {
     const maxVal = items[0]?.value || 1;
     return (
       <div className="space-y-1">
         {items.map((entry, i) => {
-          const isSelected = selected === entry.name;
-          const isDimmed = selected && !isSelected;
+          const isDimmed = selected && selected !== entry.name;
           const color = colorMap?.[entry.name] || COLORS[i % COLORS.length];
           return (
             <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => onClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
@@ -292,27 +272,21 @@ export default function RetailsPage() {
     );
   };
 
-  const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
-
   const tableColumns: [SortKey, string][] = [
     ['resp', 'Resp'], ['gar', 'Gar'], ['status', 'Status'], ['type', 'Tipo'],
-    ['cliente', 'Cliente'], ['model', 'Modelo'], ['version', 'Versão'], ['week198', '198'], ['fin', 'Pag'],
-    ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matricula'],
+    ['model', 'Modelo'], ['version', 'Versão'], ['week198', '198'], ['cliente', 'Cliente'],
+    ['fin', 'Pag'], ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matricula'],
     ['neg', 'Data Fecho'], ['dmat', 'Data Matricula'], ['date298', 'Data Retail'], ['app', 'Data Apping'],
   ];
-
-  const pipelineForGar = filtered.filter(r => r.status === 'Carteira' || r.status === 'Matricula');
 
   return (
     <div className="space-y-3 animate-fade-in">
       <div className="flex flex-col lg:flex-row gap-3">
-        {/* Left column: Period filter + Park filter */}
+        {/* Left column: Period filter + Park */}
         <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
           <PeriodFilter />
-          <button
-            onClick={() => setSelectedPark(prev => !prev)}
-            className={`w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 transition-all ${selectedPark ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-card hover:bg-accent'}`}
-          >
+          <button onClick={() => setSelectedPark(prev => !prev)}
+            className={`w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 transition-all ${selectedPark ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-card hover:bg-accent'}`}>
             <div className="flex items-center gap-2">
               <ParkingCircle className={`h-4 w-4 ${selectedPark ? 'text-primary' : 'text-muted-foreground'}`} />
               <span className="text-[11px] font-semibold uppercase">Em Parque</span>
@@ -321,6 +295,7 @@ export default function RetailsPage() {
           </button>
         </div>
 
+        {/* Main content */}
         <div className="flex-1 min-w-0 space-y-2">
           {activeFilters.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -338,150 +313,164 @@ export default function RetailsPage() {
             </div>
           )}
 
-          {/* Row 1 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-2">
-            {/* Status por Responsável */}
-            <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Status por Responsável</h3>
-                <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalStatusSum}</span>
-              </div>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={statusByResp} barSize={28}
-                  onClick={(chartData: any, _: any, event: any) => {
-                    const resp = chartData?.activePayload?.[0]?.payload?.resp;
-                    if (resp) handleRespClick(resp, event?.ctrlKey || event?.metaKey);
-                  }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                  <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
-                    formatter={(value: string) => (
-                      <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal', transition: 'opacity 0.2s' }}>{value}</span>
-                    )} />
-                  <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1} />
-                  <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Matricula' ? 0.2 : 1} />
-                  <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Carteira' ? 0.2 : 1}>
-                    <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
-
-            {/* Realização vs Objetivo — ocupa col-span-3 completo */}
-            <div className="xl:col-span-3">
-              <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
-                <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
-                <div className="flex items-end justify-center flex-1">
-                  <GaugeSimple value={realization.pct} retailPct={realization.targetBMW ? Math.round((realization.retails / realization.targetBMW) * 100) : undefined} size="lg" />
+          {/* Desktop: duas colunas — conteúdo principal + coluna direita fixa */}
+          <div className="flex gap-2">
+            {/* Coluna principal */}
+            <div className="flex-1 min-w-0 space-y-2">
+              {/* Row 1 */}
+              <div className="grid grid-cols-1 xl:grid-cols-8 gap-2">
+                {/* Status por Responsável */}
+                <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Status por Responsável</h3>
+                    <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalStatusSum}</span>
+                  </div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={statusByResp} barSize={28}
+                      onClick={(chartData: any, _: any, event: any) => {
+                        const resp = chartData?.activePayload?.[0]?.payload?.resp;
+                        if (resp) handleRespClick(resp, event?.ctrlKey || event?.metaKey);
+                      }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                      <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
+                        formatter={(value: string) => (
+                          <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal' }}>{value}</span>
+                        )} />
+                      <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1} />
+                      <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Matricula' ? 0.2 : 1} />
+                      <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Carteira' ? 0.2 : 1}>
+                        <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-                <div className="grid grid-cols-6 gap-1 mt-2 text-center items-end">
-                  <div><p className="text-lg font-extrabold text-primary">{realization.actual}</p><p className="text-[9px] font-medium text-muted-foreground">Total</p></div>
-                  <div><p className="text-lg font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] font-medium text-muted-foreground">Retails</p></div>
-                  <div><p className="text-base font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Caetano</p></div>
-                  <div><p className="text-base font-bold text-muted-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">BMW</p></div>
-                  <div><p className="text-base font-bold text-muted-foreground/70">{realization.target110}</p><p className="text-[9px] text-muted-foreground">110%</p></div>
-                  <div><p className="text-lg font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p><p className="text-[9px] font-medium text-muted-foreground">vs BMW</p></div>
-                </div>
-              </div>
-            </div>
 
-            {/* Método de Pagamento */}
-            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
-              <div className="flex items-center gap-2">
-                <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
-                  <PieChart>
-                    <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
-                    <Pie data={finData} dataKey="value" nameKey="name" outerRadius={60} stroke="hsl(var(--background))" strokeWidth={1.5} onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
-                      {finData.map((entry, i) => {
-                        const isDimmed = selectedFin && selectedFin !== entry.name;
-                        return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
-                      })}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="space-y-1 flex-1">
-                  {finData.map((entry, i) => {
-                    const isDimmed = selectedFin && selectedFin !== entry.name;
-                    return (
-                      <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                        <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
-                        <span className="text-[10px] font-medium w-9">{entry.name}</span>
-                        <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
-                        <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
-                      </div>
-                    );
-                  })}
-                  <div className="border-t border-border pt-1 mt-1 flex items-center justify-between">
-                    <span className="text-[10px] font-semibold">Total</span>
-                    <span className="text-[10px] font-bold">{filtered.length}</span>
+                {/* Realização vs Objetivo */}
+                <div className="xl:col-span-3">
+                  <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
+                    <p className="text-xs font-bold text-primary uppercase mb-1 tracking-wide">Realização vs Objetivo</p>
+                    <div className="flex items-center justify-center flex-1">
+                      <GaugeSimple value={realization.pct} retailPct={realization.targetBMW ? Math.round((realization.retails / realization.targetBMW) * 100) : undefined} size="lg" />
+                    </div>
+                    <div className="grid grid-cols-6 gap-1 mt-1 text-center items-end">
+                      <div><p className="text-lg font-extrabold text-primary">{realization.actual}</p><p className="text-[9px] font-medium text-muted-foreground">Total</p></div>
+                      <div><p className="text-lg font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] font-medium text-muted-foreground">Retails</p></div>
+                      <div><p className="text-base font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Caetano</p></div>
+                      <div><p className="text-base font-bold text-muted-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">BMW</p></div>
+                      <div><p className="text-base font-bold text-muted-foreground/70">{realization.target110}</p><p className="text-[9px] text-muted-foreground">110%</p></div>
+                      <div><p className="text-lg font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p><p className="text-[9px] font-medium text-muted-foreground">vs BMW</p></div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Row 2 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
-              <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
-            </div>
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Origem dos Negócios</h3>
-              <HorizontalBarList data={originData} selected={selectedOrigin} onClick={handleOriginClick} />
-            </div>
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mix Modelos</h3>
-              <div className="max-h-40 overflow-y-auto pr-1">
-                <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
+              {/* Mobile: table here */}
+              {isMobile && (
+                <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />
+              )}
+
+              {/* Row 2 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-8 gap-2">
+                <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
+                  <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
+                </div>
+                <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Origem dos Negócios</h3>
+                  <HorizontalBarList data={originData} selected={selectedOrigin} onClick={handleOriginClick} />
+                </div>
+                <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
+                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mix Modelos</h3>
+                  <div className="max-h-40 overflow-y-auto pr-1">
+                    <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
+                  </div>
+                </div>
+                <div className="xl:col-span-1 grid grid-cols-2 xl:grid-cols-1 gap-2">
+                  <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
+                  <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
+                </div>
+                {/* Garantia de Entrega */}
+                <div className="xl:col-span-1 bg-card border border-border rounded-lg p-2">
+                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Garantia</h3>
+                  <div className="flex flex-col gap-1.5 mt-1">
+                    {garData.map(d => {
+                      const isDimmed = selectedGar && selectedGar !== d.name;
+                      const color = d.name === 'Certo' ? '#16A34A' : '#94A3B8';
+                      const pct = d.total ? Math.round((d.size / d.total) * 100) : 0;
+                      return (
+                        <div key={d.name} className="flex-1 rounded-md p-2 text-center cursor-pointer transition-opacity"
+                          style={{ backgroundColor: color, opacity: isDimmed ? 0.3 : 1 }}
+                          onClick={() => handleGarClick(d.name)}>
+                          <p className="text-white text-[10px] font-medium">{d.name}</p>
+                          <p className="text-white text-lg font-bold">{d.size}</p>
+                          <p className="text-white/80 text-[9px]">{pct}%</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
+
+              {/* Tabela Detalhe */}
+              {!isMobile && (
+                <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />
+              )}
             </div>
-            <div className="xl:col-span-1 grid grid-cols-2 xl:grid-cols-1 gap-2">
-              <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
-              <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
-            </div>
-            {/* Garantia de Entrega — col-span-2 */}
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Garantia de Entrega</h3>
-              <div className="flex flex-col gap-2 mt-1">
-                {garData.map(d => {
-                  const isSelected = selectedGar === d.name;
-                  const isDimmed = selectedGar && !isSelected;
-                  const color = d.name === 'Certo' ? '#16A34A' : '#94A3B8';
-                  const pct = pipelineForGar.length ? Math.round((d.size / pipelineForGar.length) * 100) : 0;
-                  return (
-                    <div key={d.name} className="flex-1 rounded-md p-3 text-center cursor-pointer transition-opacity"
-                      style={{ backgroundColor: color, opacity: isDimmed ? 0.3 : 1 }}
-                      onClick={() => handleGarClick(d.name)}>
-                      <p className="text-white text-[10px] font-medium">{d.name}</p>
-                      <p className="text-white text-xl font-bold">{d.size}</p>
-                      <p className="text-white/80 text-[9px]">{pct}%</p>
+
+            {/* Coluna direita fixa — Método de Pagamento + Sales Radar */}
+            {!isMobile && (
+              <div className="w-72 flex-shrink-0 flex flex-col gap-2">
+                {/* Método de Pagamento */}
+                <div className="bg-card border border-border rounded-lg p-2">
+                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
+                  <div className="flex items-center gap-2">
+                    <ResponsiveContainer width="50%" height={Math.max(140, finData.length * 32 + 20)}>
+                      <PieChart>
+                        <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
+                        <Pie data={finData} dataKey="value" nameKey="name" outerRadius={60} stroke="hsl(var(--background))" strokeWidth={1.5}
+                          onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
+                          {finData.map((entry, i) => {
+                            const isDimmed = selectedFin && selectedFin !== entry.name;
+                            return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
+                          })}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="space-y-1 flex-1">
+                      {finData.map((entry, i) => {
+                        const isDimmed = selectedFin && selectedFin !== entry.name;
+                        return (
+                          <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
+                            <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
+                            <span className="text-[10px] font-medium w-9">{entry.name}</span>
+                            <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
+                            <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
+                          </div>
+                        );
+                      })}
+                      <div className="border-t border-border pt-1 mt-1 flex items-center justify-between">
+                        <span className="text-[10px] font-semibold">Total</span>
+                        <span className="text-[10px] font-bold">{filtered.length}</span>
+                      </div>
                     </div>
-                  );
-                })}
+                  </div>
+                </div>
+
+                {/* Sales Radar — preenche o resto da altura */}
+                <div className="flex-1 bg-card border border-border rounded-lg p-2 flex flex-col">
+                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
+                  <div className="flex-1">
+                    <SalesRadar records={filtered} height="100%" />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
-
-{!isMobile && (
-        <div className="flex gap-2">
-          <div className="flex-1 min-w-0">
-            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />
-          </div>
-          <div className="w-72 flex-shrink-0 bg-card border border-border rounded-lg p-2">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
-            <SalesRadar records={filtered} height="calc(100% - 24px)" />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -532,7 +521,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 </td>
                 <td className="px-3 py-1">{r.type}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
-<td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
+                <td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.week198}</td>
                 <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
                 <td className="px-3 py-1">{r.fin}</td>
@@ -573,10 +562,10 @@ function GaugeSimple({ value, retailPct, size = 'sm' }: { value: number; retailP
   const cx = 60, cy = 60, r = 50;
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const arcPoint = (pct: number) => { const ang = -180 + (pct / maxVal) * 180; return { x: cx + r * Math.cos(toRad(ang)), y: cy + r * Math.sin(toRad(ang)) }; };
-  const describeArc = (startPct: number, endPct: number) => {
-    const s = arcPoint(startPct); const e = arcPoint(endPct);
-    const sweep = ((endPct - startPct) / maxVal) * 180;
-    return `M ${s.x} ${s.y} A ${r} ${r} 0 ${sweep > 180 ? 1 : 0} 1 ${e.x} ${e.y}`;
+  const describeArc = (s: number, e: number) => {
+    const sp = arcPoint(s); const ep = arcPoint(e);
+    const sweep = ((e - s) / maxVal) * 180;
+    return `M ${sp.x} ${sp.y} A ${r} ${r} 0 ${sweep > 180 ? 1 : 0} 1 ${ep.x} ${ep.y}`;
   };
   const needleAng = -180 + (clamped / maxVal) * 180;
   const mark100Ang = -180 + (100 / maxVal) * 180;
