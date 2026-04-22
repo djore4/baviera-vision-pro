@@ -466,16 +466,22 @@ export default function RetailsPage() {
                 })}
               </div>
             </div>
-            {/* Sales Radar — col-span-3 */}
-            <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2">
+{/* Sales Radar — col-span-3 */}
+            <div className="xl:col-span-3 bg-card border border-border rounded-lg p-2 xl:row-span-2">
               <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
-              <SalesRadar records={filtered} height="200px" />
+              <SalesRadar records={filtered} height="calc(100% - 24px)" />
             </div>
           </div>
         </div>
       </div>
 
-      {!isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
+      {!isMobile && (
+        <div className="flex gap-2">
+          <div className="flex-1 min-w-0">
+            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
