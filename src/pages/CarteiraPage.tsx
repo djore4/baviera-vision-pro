@@ -34,7 +34,6 @@ export default function CarteiraPage() {
   const baseRecords = useMemo(() =>
     (data?.control ?? []).filter(r =>
       (r.status === 'Carteira' || r.status === 'Matricula') &&
-      r.neg instanceof Date && r.neg >= new Date(2026, 0, 1)
     ), [data]);
 
   const filtered = useMemo(() => {
