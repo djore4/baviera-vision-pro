@@ -31,10 +31,12 @@ export default function CarteiraPage() {
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const baseRecords = useMemo(() =>
-    (data?.control ?? []).filter(r =>
-      (r.status === 'Carteira' || r.status === 'Matricula') &&
-    ), [data]);
+const baseRecords = useMemo(() =>
+  (data?.control ?? []).filter(r =>
+    r.status === 'Carteira' || r.status === 'Matricula'
+  ),
+  [data]
+);
 
   const filtered = useMemo(() => {
     let result = baseRecords;
