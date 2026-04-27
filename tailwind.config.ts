@@ -10,7 +10,11 @@ export default {
       padding: "1rem",
       screens: { "2xl": "1400px" },
     },
-    extend: {
+extend: {
+      screens: {
+        'xl': '1400px',
+        '2xl': '1600px',
+      },
       fontFamily: {
         sans: ["BMWTypeNext", "Inter", "system-ui", "sans-serif"],
       },
