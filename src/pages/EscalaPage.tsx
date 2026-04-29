@@ -9,16 +9,17 @@ export default function EscalaPage() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadPdf = async () => {
+const loadPdf = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.storage
         .from(ESCALA_BUCKET)
-        .createSignedUrl(ESCALA_PATH, 3600);
-      if (error || !data?.signedUrl) {
+        .download(ESCALA_PATH);
+      if (error || !data) {
         setPdfUrl(null);
       } else {
-        setPdfUrl(data.signedUrl);
+        const url = URL.createObjectURL(data);
+        setPdfUrl(url);
       }
     } catch {
       setPdfUrl(null);
