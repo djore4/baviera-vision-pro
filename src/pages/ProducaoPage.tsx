@@ -132,9 +132,9 @@ data.objetivosResp.forEach(o => {
       });
       return Object.values(tMap).reduce((s, v) => s + v, 0);
     })();
-    const target = targetBMW || totalObjetivoResp;
+    const target = totalObjetivoResp || targetBMW;
     const pct = target ? Math.round((totalNeg / target) * 100) : 0;
-    return { actual: totalNeg, targetCaetano, targetBMW: targetBMW || totalObjetivoResp, target110, pct };
+    return { actual: totalNeg, targetCaetano, targetBMW: totalObjetivoResp || targetBMW, target110, pct };
   }, [data, totalNeg, selectedMonthKeys]);
 
   const finData = useMemo(() => {
