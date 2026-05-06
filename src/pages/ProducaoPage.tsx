@@ -118,7 +118,20 @@ data.objetivosResp.forEach(o => {
     const targetCaetano = matchingObj.reduce((s, o) => s + o.orcado, 0);
     const targetBMW = matchingObj.reduce((s, o) => s + o.range2, 0);
     const target110 = matchingObj.reduce((s, o) => s + o.range3, 0);
-    const totalObjetivoResp = negByResp.reduce((s, r) => s + r.objetivo, 0);
+    const totalObjetivoResp = (() => {
+      const tMap: Record<string, number> = {};
+      data.objetivosResp.forEach(o => {
+        const [oy, om] = o.mes.split('/').map(Number);
+        if (!oy || !om) return;
+        if (filter.months.length > 0) {
+          if (!filter.months.some(fm => Math.floor(fm / 100) === oy && fm % 100 === om)) return;
+        } else if (filter.years.length > 0) {
+          if (!filter.years.includes(oy)) return;
+        }
+        tMap[o.resp] = (tMap[o.resp] || 0) + o.objetivo;
+      });
+      return Object.values(tMap).reduce((s, v) => s + v, 0);
+    })();
     const target = targetBMW || totalObjetivoResp;
     const pct = target ? Math.round((totalNeg / target) * 100) : 0;
     return { actual: totalNeg, targetCaetano, targetBMW: targetBMW || totalObjetivoResp, target110, pct };
