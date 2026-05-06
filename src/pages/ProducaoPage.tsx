@@ -70,7 +70,6 @@ const targetMap: Record<string, number> = {};
 data.objetivosResp.forEach(o => {
   const [oy, om] = o.mes.split('/').map(Number);
   if (!oy || !om) return;
-  console.log('objetivo:', o.mes, 'oy:', oy, 'om:', om, 'filter.months:', filter.months);
   if (filter.months.length > 0) {
     const match = filter.months.some(fm => Math.floor(fm / 100) === oy && fm % 100 === om);
     if (!match) return;
