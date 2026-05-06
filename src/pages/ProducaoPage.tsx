@@ -118,8 +118,10 @@ data.objetivosResp.forEach(o => {
     const targetCaetano = matchingObj.reduce((s, o) => s + o.orcado, 0);
     const targetBMW = matchingObj.reduce((s, o) => s + o.range2, 0);
     const target110 = matchingObj.reduce((s, o) => s + o.range3, 0);
-    const pct = targetBMW ? Math.round((totalNeg / targetBMW) * 100) : 0;
-    return { actual: totalNeg, targetCaetano, targetBMW, target110, pct };
+    const totalObjetivoResp = negByResp.reduce((s, r) => s + r.objetivo, 0);
+    const target = targetBMW || totalObjetivoResp;
+    const pct = target ? Math.round((totalNeg / target) * 100) : 0;
+    return { actual: totalNeg, targetCaetano, targetBMW: targetBMW || totalObjetivoResp, target110, pct };
   }, [data, totalNeg, selectedMonthKeys]);
 
   const finData = useMemo(() => {
