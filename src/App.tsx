@@ -10,6 +10,7 @@ import RetailsPage from "./pages/RetailsPage";
 import ProducaoPage from "./pages/ProducaoPage";
 import CarteiraPage from "./pages/CarteiraPage";
 import PendentesPage from "./pages/PendentesPage";
+import MultasPage from "./pages/MultasPage";
 import DadosPage from "./pages/DadosPage";
 import EscalaPage from "./pages/EscalaPage";
 import NotFound from "./pages/NotFound";
@@ -46,6 +47,7 @@ const App = () => (
               <Route path="/producao" element={<AppLayout><ProducaoPage /></AppLayout>} />
               <Route path="/carteira" element={<AppLayout><CarteiraPage /></AppLayout>} />
               <Route path="/pendentes" element={<AppLayout><PendentesPage /></AppLayout>} />
+              <Route path="/multas" element={<AppLayout><MultasPage /></AppLayout>} />
               <Route path="/escala" element={<AppLayout><EscalaPage /></AppLayout>} />
               <Route path="/dados" element={<AppLayout><DadosPage /></AppLayout>} />
               <Route path="/funil" element={<AppLayout><FunilPage /></AppLayout>} />
