@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { path: '/producao', label: 'PRODUÇÃO', icon: TrendingUp },
   { path: '/carteira', label: 'CARTEIRA', icon: Briefcase },
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
+  { path: '/multas', label: 'MULTAS', icon: Coins },
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
   { path: '/dados', label: 'DADOS', icon: Database },
 ];
