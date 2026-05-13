@@ -167,6 +167,14 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
                 {infractions.map(i => <option key={i.id} value={i.id}>{i.name} — €{i.value.toFixed(2)}</option>)}
               </select>
             </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground uppercase font-medium">Registado por</label>
+              <select value={registeredBy} onChange={e => setRegisteredBy(e.target.value)}
+                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                <option value="">Selecionar...</option>
+                {resps.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
           </div>
           <div className="flex gap-2 justify-end">
             <Button size="sm" variant="outline" onClick={() => setShowForm(false)} className="text-[11px]">Cancelar</Button>
