@@ -43,6 +43,7 @@ export default function MultasPage() {
   const [selectedInfraction, setSelectedInfraction] = useState('');
   const [registeredBy, setRegisteredBy] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
+  const [lastPenalty, setLastPenalty] = useState<{ resp: string; infraction: string; value: number } | null>(null);
 
 const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
 
@@ -85,6 +86,7 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
     setShowForm(false);
     setRegisteredBy('');
     setSubmitting(false);
+    setLastPenalty({ resp: selectedResp, infraction: inf.name, value: inf.value });
     await loadData();
   }
 
@@ -185,6 +187,32 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={() => setConfirmReset(false)} className="text-[11px]">Cancelar</Button>
             <Button size="sm" variant="destructive" onClick={doReset} className="text-[11px]">Confirmar Reset</Button>
+          </div>
+        </div>
+      )}
+
+      {lastPenalty && (
+        <div className="bg-card border border-border rounded-lg p-4 flex items-center justify-between gap-3">
+          <div className="text-sm">
+            <p className="font-semibold">✅ Multa registada</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {lastPenalty.resp} — {lastPenalty.infraction} — <span className="font-semibold text-destructive">€{lastPenalty.value.toFixed(2)}</span>
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {typeof navigator !== 'undefined' && 'share' in navigator && (
+              <Button size="sm" variant="outline" className="text-[11px] gap-1"
+                onClick={() => {
+                  const date = new Date();
+                  const dateStr = `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${String(date.getFullYear()).slice(2)}`;
+                  navigator.share({
+                    text: `🚨 *Multa Registada*\n👤 Responsável: ${lastPenalty.resp}\n⚠️ Infração: ${lastPenalty.infraction}\n💶 Valor: €${lastPenalty.value.toFixed(2)}\n📅 ${dateStr}`,
+                  });
+                }}>
+                Partilhar
+              </Button>
+            )}
+            <button onClick={() => setLastPenalty(null)} className="text-[10px] text-muted-foreground hover:text-foreground">✕</button>
           </div>
         </div>
       )}
