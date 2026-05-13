@@ -94,11 +94,6 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
     await loadData();
   }
 
-  async function deletePenalty(id: string) {
-    await supabase.from('penalties').delete().eq('id', id);
-    await loadData();
-  }
-
   const currentPenalties = penalties.filter(p => p.cycle_id === currentCycle);
   const allTimePenalties = penalties;
 
@@ -287,7 +282,6 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Valor</th>
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Ciclo</th>
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Registado por</th>
-                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>
@@ -299,9 +293,6 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
                   <td className="px-3 py-1 font-semibold text-destructive">€{Number(p.value).toFixed(2)}</td>
                   <td className="px-3 py-1"><Badge variant="outline" className="text-[9px]">#{p.cycle_id}</Badge></td>
                   <td className="px-3 py-1 text-muted-foreground">{p.registered_by}</td>
-                  <td className="px-3 py-1">
-                    <button onClick={() => deletePenalty(p.id)} className="text-[10px] text-muted-foreground hover:text-destructive transition-colors">✕</button>
-                  </td>
                 </tr>
               ))}
             </tbody>
