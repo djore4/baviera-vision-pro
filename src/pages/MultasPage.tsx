@@ -44,10 +44,7 @@ export default function MultasPage() {
   const [registeredBy, setRegisteredBy] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
 
-  const resps = useMemo(() => {
-    if (!data) return [];
-    return Array.from(new Set(data.control.map(r => r.resp).filter(Boolean))).sort();
-  }, [data]);
+const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JP', 'MC', 'SA', "TO"];
 
   const currentUser = useMemo(async () => {
     const { data: { user } } = await supabase.auth.getUser();
