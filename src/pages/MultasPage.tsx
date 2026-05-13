@@ -47,11 +47,6 @@ export default function MultasPage() {
 
 const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
 
-  const currentUser = useMemo(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user?.email || 'desconhecido';
-  }, []);
-
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
