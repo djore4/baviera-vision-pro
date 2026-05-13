@@ -41,6 +41,7 @@ export default function MultasPage() {
   const [showForm, setShowForm] = useState(false);
   const [selectedResp, setSelectedResp] = useState('');
   const [selectedInfraction, setSelectedInfraction] = useState('');
+  const [registeredBy, setRegisteredBy] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
 
   const resps = useMemo(() => {
@@ -79,12 +80,13 @@ export default function MultasPage() {
       infraction_id: inf.id,
       infraction_name: inf.name,
       value: inf.value,
-      registered_by: user?.email || 'desconhecido',
+      registered_by: registeredBy,
       cycle_id: currentCycle,
     });
     setSelectedResp('');
     setSelectedInfraction('');
     setShowForm(false);
+    setRegisteredBy('');
     setSubmitting(false);
     await loadData();
   }
@@ -149,7 +151,7 @@ export default function MultasPage() {
       {showForm && (
         <div className="bg-card border border-border rounded-lg p-4 space-y-3">
           <h2 className="text-sm font-semibold">Nova Multa</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground uppercase font-medium">Responsável</label>
               <select value={selectedResp} onChange={e => setSelectedResp(e.target.value)}
@@ -169,7 +171,7 @@ export default function MultasPage() {
           </div>
           <div className="flex gap-2 justify-end">
             <Button size="sm" variant="outline" onClick={() => setShowForm(false)} className="text-[11px]">Cancelar</Button>
-            <Button size="sm" onClick={submitPenalty} disabled={!selectedResp || !selectedInfraction || submitting} className="text-[11px]">
+            <Button size="sm" onClick={submitPenalty} disabled={!selectedResp || !selectedInfraction || !registeredBy || submitting} className="text-[11px]">
               {submitting ? 'A registar...' : 'Confirmar Multa'}
             </Button>
           </div>
