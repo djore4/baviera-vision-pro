@@ -317,7 +317,9 @@ export default function RetailsPage() {
             </div>
           )}
         </div>
+
         {/* Main content — full width */}
+        <div className="flex-1 min-w-0 space-y-2">
           {/* Row 1 */}
           <div className="grid grid-cols-1 xl:grid-cols-8 gap-2">
             {/* Status por Responsável */}
