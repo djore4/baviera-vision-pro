@@ -358,12 +358,12 @@ export default function RetailsPage() {
                   <GaugeSimple value={realization.pct} retailPct={realization.targetBMW ? Math.round((realization.retails / realization.targetBMW) * 100) : undefined} size="lg" />
                 </div>
                 <div className="grid grid-cols-6 gap-1 mt-1 text-center items-end">
-                  <div><p className="text-lg font-extrabold text-primary">{realization.actual}</p><p className="text-[9px] font-medium text-muted-foreground">Total</p></div>
+                  <div><p className="text-lg font-extrabold text-primary">{realization.actual}</p><p className="text-[9px] font-medium text-muted-foreground">Previsão</p></div>
                   <div><p className="text-lg font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] font-medium text-muted-foreground">Retails</p></div>
                   <div><p className="text-base font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Caetano</p></div>
                   <div><p className="text-base font-bold text-muted-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">BMW</p></div>
-                  <div><p className="text-base font-bold text-muted-foreground/70">{realization.target110}</p><p className="text-[9px] text-muted-foreground">110%</p></div>
-                  <div><p className="text-lg font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p><p className="text-[9px] font-medium text-muted-foreground">vs BMW</p></div>
+                  <div><p className="text-base font-bold text-muted-foreground/70">{realization.target110}</p><p className="text-[9px] text-muted-foreground">BMW 110%</p></div>
+                  <div><p className="text-lg font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p><p className="text-[9px] font-medium text-muted-foreground">Previsão %</p></div>
                 </div>
               </div>
             </div>
