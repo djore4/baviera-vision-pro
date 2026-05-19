@@ -301,24 +301,23 @@ export default function RetailsPage() {
           </button>
         </div>
 
-        {/* Main content — full width */}
-        <div className="flex-1 min-w-0 space-y-2">
-          {activeFilters.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] text-muted-foreground">Filtros:</span>
-              {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => setSelectedResps(new Set())}>{Array.from(selectedResps).join(', ')} ✕</Badge>}
-              {selectedGar && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('gar')}>{selectedGar} ✕</Badge>}
-              {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} ✕</Badge>}
-              {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('origin')}>{selectedOrigin} ✕</Badge>}
-              {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} ✕</Badge>}
-              {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('entity')}>{selectedEntity} ✕</Badge>}
-              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR ✕</Badge>}
-              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV ✕</Badge>}
-              {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('park')}>Parque ✕</Badge>}
-              {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('status')}>Status: {selectedStatus} ✕</Badge>}
+{activeFilters.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
+              {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => setSelectedResps(new Set())}>{Array.from(selectedResps).join(', ')} ✕</Badge>}
+              {selectedGar && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('gar')}>{selectedGar} ✕</Badge>}
+              {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('fin')}>{selectedFin} ✕</Badge>}
+              {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('origin')}>{selectedOrigin} ✕</Badge>}
+              {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} ✕</Badge>}
+              {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('entity')}>{selectedEntity} ✕</Badge>}
+              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR ✕</Badge>}
+              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV ✕</Badge>}
+              {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('park')}>Parque ✕</Badge>}
+              {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('status')}>Status: {selectedStatus} ✕</Badge>}
             </div>
           )}
-
+        </div>
+        {/* Main content — full width */}
           {/* Row 1 */}
           <div className="grid grid-cols-1 xl:grid-cols-8 gap-2">
             {/* Status por Responsável */}
