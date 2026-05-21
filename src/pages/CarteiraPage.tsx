@@ -251,230 +251,219 @@ export default function CarteiraPage() {
 
   return (
     <div className="space-y-3 animate-fade-in">
-      <div className="flex flex-col lg:flex-row gap-3">
 
-        {/* Left column — filtros */}
-        <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
-          {hasFilters && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
-              {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('resp')}>{Array.from(selectedResps).join(', ')} x</Badge>}
-              {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
-              {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('origin')}>{selectedOrigin} x</Badge>}
-              {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
-              {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('entity')}>{selectedEntity} x</Badge>}
-              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
-              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
+      {/* Filtros ativos — linha horizontal no topo */}
+      {hasFilters && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
+          {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('resp')}>{Array.from(selectedResps).join(', ')} x</Badge>}
+          {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
+          {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('origin')}>{selectedOrigin} x</Badge>}
+          {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
+          {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('entity')}>{selectedEntity} x</Badge>}
+          {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR x</Badge>}
+          {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV x</Badge>}
+        </div>
+      )}
+
+      {/* Row 1 — Carteira/Tipologia | Metodo/Distribuicao */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+
+        {/* Coluna esquerda */}
+        <div className="space-y-2">
+          <div className="bg-card border border-border rounded-lg p-2">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira por Responsavel</h3>
+              <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalCarteira}</span>
             </div>
-          )}
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+              <BarChart data={respChartData} barSize={32} barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="month" tick={{ fontSize: 9 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
+                  formatter={(value: string) => (
+                    <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal', transition: 'opacity 0.2s' }}>{value}</span>
+                  )} />
+                {resps.map((resp, i) => (
+                  <Bar key={resp} dataKey={resp} stackId="a" fill={COLORS[i % COLORS.length]} cursor="pointer"
+                    opacity={selectedResps.size > 0 && !selectedResps.has(resp) ? 0.2 : 1}
+                    onClick={(_, __, event: any) => handleRespClick(resp, event?.ctrlKey || event?.metaKey)}>
+                    <LabelList dataKey={resp} position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
+                    {i === resps.length - 1 && (
+                      <LabelList dataKey="_total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" formatter={(v: number) => v > 0 ? v : ''} />
+                    )}
+                  </Bar>
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-card border border-border rounded-lg p-2">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Tipologia</h3>
+              <div className="flex gap-2 text-[10px]">
+                <span className="font-semibold" style={{ color: '#F59E0B' }}>{qorCount} QoR</span>
+                <span className="font-semibold" style={{ color: '#16A34A' }}>{bevCount} BEV</span>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+              <BarChart data={tipoChartData} barSize={32} barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="month" tick={{ fontSize: 9 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
+                  onClick={(e: any) => {
+                    if (e?.dataKey === 'QoR' || e?.value === 'QoR') handleQorClick();
+                    if (e?.dataKey === 'BEV' || e?.value === 'BEV') handleBevClick();
+                  }}
+                  formatter={(value: string) => (
+                    <span style={{
+                      opacity: (value === 'QoR' && selectedQor === null && selectedBev !== null) || (value === 'BEV' && selectedBev === null && selectedQor !== null) ? 0.3 : 1,
+                      fontWeight: (value === 'QoR' && selectedQor !== null) || (value === 'BEV' && selectedBev !== null) ? 'bold' : 'normal',
+                    }}>{value}</span>
+                  )} />
+                <Bar dataKey="QoR" fill="#F59E0B" stackId="a" cursor="pointer" onClick={handleQorClick} opacity={selectedQor === false ? 0.2 : 1}>
+                  <LabelList dataKey="QoR" position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
+                </Bar>
+                <Bar dataKey="BEV" fill="#16A34A" stackId="a" cursor="pointer" onClick={handleBevClick} opacity={selectedBev === false ? 0.2 : 1}>
+                  <LabelList dataKey="BEV" position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        {/* Main content */}
-        <div className="flex-1 min-w-0 space-y-2">
-
-          {/* Row 1 — Carteira por Responsavel + Tipologia | Metodo Pagamento + Distribuicao */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-
-            {/* Coluna esquerda */}
-            <div className="space-y-2">
-              <div className="bg-card border border-border rounded-lg p-2">
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira por Responsavel</h3>
-                  <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalCarteira}</span>
-                </div>
-                <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-                  <BarChart data={respChartData} barSize={32} barCategoryGap="20%">
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="month" tick={{ fontSize: 9 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                    <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
-                      formatter={(value: string) => (
-                        <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal', transition: 'opacity 0.2s' }}>{value}</span>
-                      )} />
-                    {resps.map((resp, i) => (
-                      <Bar key={resp} dataKey={resp} stackId="a" fill={COLORS[i % COLORS.length]} cursor="pointer"
-                        opacity={selectedResps.size > 0 && !selectedResps.has(resp) ? 0.2 : 1}
-                        onClick={(_, __, event: any) => handleRespClick(resp, event?.ctrlKey || event?.metaKey)}>
-                        <LabelList dataKey={resp} position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
-                        {i === resps.length - 1 && (
-                          <LabelList dataKey="_total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" formatter={(v: number) => v > 0 ? v : ''} />
-                        )}
-                      </Bar>
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="bg-card border border-border rounded-lg p-2">
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Tipologia</h3>
-                  <div className="flex gap-2 text-[10px]">
-                    <span className="font-semibold" style={{ color: '#F59E0B' }}>{qorCount} QoR</span>
-                    <span className="font-semibold" style={{ color: '#16A34A' }}>{bevCount} BEV</span>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-                  <BarChart data={tipoChartData} barSize={32} barCategoryGap="20%">
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="month" tick={{ fontSize: 9 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                    <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
-                      onClick={(e: any) => {
-                        if (e?.dataKey === 'QoR' || e?.value === 'QoR') handleQorClick();
-                        if (e?.dataKey === 'BEV' || e?.value === 'BEV') handleBevClick();
-                      }}
-                      formatter={(value: string) => (
-                        <span style={{
-                          opacity: (value === 'QoR' && selectedQor === null && selectedBev !== null) || (value === 'BEV' && selectedBev === null && selectedQor !== null) ? 0.3 : 1,
-                          fontWeight: (value === 'QoR' && selectedQor !== null) || (value === 'BEV' && selectedBev !== null) ? 'bold' : 'normal',
-                        }}>{value}</span>
-                      )} />
-                    <Bar dataKey="QoR" fill="#F59E0B" stackId="a" cursor="pointer" onClick={handleQorClick} opacity={selectedQor === false ? 0.2 : 1}>
-                      <LabelList dataKey="QoR" position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
-                    </Bar>
-                    <Bar dataKey="BEV" fill="#16A34A" stackId="a" cursor="pointer" onClick={handleBevClick} opacity={selectedBev === false ? 0.2 : 1}>
-                      <LabelList dataKey="BEV" position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Coluna direita */}
-            <div className="space-y-2">
-              <div className="bg-card border border-border rounded-lg p-2">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Metodo de Pagamento</h3>
-                <div className="flex items-center gap-2">
-                  <ResponsiveContainer width="50%" height={Math.max(120, finData.length * 28 + 20)}>
-                    <PieChart>
-                      <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
-                      <Pie data={finData} dataKey="value" nameKey="name" outerRadius={50} stroke="hsl(var(--background))" strokeWidth={1.5}
-                        onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
-                        {finData.map((entry, i) => {
-                          const isDimmed = selectedFin && selectedFin !== entry.name;
-                          return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
-                        })}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="space-y-1 flex-1">
+        {/* Coluna direita */}
+        <div className="space-y-2">
+          <div className="bg-card border border-border rounded-lg p-2">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Metodo de Pagamento</h3>
+            <div className="flex items-center gap-2">
+              <ResponsiveContainer width="50%" height={Math.max(120, finData.length * 28 + 20)}>
+                <PieChart>
+                  <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]} />
+                  <Pie data={finData} dataKey="value" nameKey="name" outerRadius={50} stroke="hsl(var(--background))" strokeWidth={1.5}
+                    onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
                     {finData.map((entry, i) => {
                       const isDimmed = selectedFin && selectedFin !== entry.name;
-                      return (
-                        <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
-                          <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
-                          <span className="text-[10px] font-medium w-9">{entry.name}</span>
-                          <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
-                          <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
-                        </div>
-                      );
+                      return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
                     })}
-                    <div className="border-t border-border pt-1 mt-1 flex items-center justify-between">
-                      <span className="text-[10px] font-semibold">Total</span>
-                      <span className="text-[10px] font-bold">{filtered.length}</span>
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1 flex-1">
+                {finData.map((entry, i) => {
+                  const isDimmed = selectedFin && selectedFin !== entry.name;
+                  return (
+                    <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
+                      <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
+                      <span className="text-[10px] font-medium w-9">{entry.name}</span>
+                      <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
+                      <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
                     </div>
-                  </div>
+                  );
+                })}
+                <div className="border-t border-border pt-1 mt-1 flex items-center justify-between">
+                  <span className="text-[10px] font-semibold">Total</span>
+                  <span className="text-[10px] font-bold">{filtered.length}</span>
                 </div>
-              </div>
-
-              <div className="bg-card border border-border rounded-lg p-2">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Distribuicao Carteira</h3>
-                <ResponsiveContainer width="100%" height={CHART_HEIGHT + 60}>
-                  <PieChart>
-                    <Tooltip formatter={(value: number, name: string) => [`${value} (${Math.round((value / (totalCarteira || 1)) * 100)}%)`, name]}
-                      contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                    <Pie data={distData} dataKey="value" nameKey="name" outerRadius="65%" innerRadius="35%"
-                      cursor="pointer" onClick={(entry: any) => entry?.name && handleRespClick(entry.name)}
-                      label={({ name, percent }) => `${name} ${Math.round(percent * 100)}%`} labelLine>
-                      {distData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} opacity={selectedResps.size > 0 && !selectedResps.has(entry.name) ? 0.2 : 1} />
-                      ))}
-                    </Pie>
-                    <Legend wrapperStyle={{ fontSize: 10 }}
-                      formatter={(value) => {
-                        const d = distData.find(d => d.name === value);
-                        const pct = d ? Math.round((d.value / (totalCarteira || 1)) * 100) : 0;
-                        return `${value} — ${d?.value ?? 0} (${pct}%)`;
-                      }} />
-                  </PieChart>
-                </ResponsiveContainer>
               </div>
             </div>
           </div>
 
-          {/* Row 2 — Analise dropdown + espacos */}
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
-            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Analise</h3>
-                <select
-                  value={analysisTab}
-                  onChange={e => setAnalysisTab(e.target.value as AnalysisTab)}
-                  className="text-[10px] bg-muted border border-border rounded px-2 py-0.5 cursor-pointer focus:outline-none"
-                >
-                  <option value="entidade">Entidade</option>
-                  <option value="origem">Origem</option>
-                  <option value="modelos">Mix Modelos</option>
-                </select>
-              </div>
-              <div className="max-h-44 overflow-y-auto pr-1">
-                <HorizontalBarList data={analysisData} colorMap={analysisColorMap} selected={analysisSelected} onClick={analysisClick} />
-              </div>
-            </div>
-            <div className="xl:col-span-8" />
-          </div>
-
-          {/* Tabela */}
-          <div className="bg-card border border-border rounded-lg">
-            <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira ({tableData.length})</h3>
-              <div className="flex items-center gap-2">
-                <div className="relative w-full sm:w-48">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                  <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
-                </div>
-                <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
-                  <Download className="h-3 w-3" />CSV
-                </Button>
-              </div>
-            </div>
-            <div className="overflow-auto max-h-[35vh]">
-              <table className="w-full caption-bottom text-sm">
-                <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
-                  <tr className="text-[10px]">
-                    {tableColumns.map(([key, label]) => (
-                      <th key={key} className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card" onClick={() => toggleSort(key)}>
-                        <span className="inline-flex items-center">{label}<SortIcon col={key} /></span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableData.map((r, i) => (
-                    <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
-                      <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
-                      <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>
-                      <td className="px-3 py-1 whitespace-nowrap">{r.mes1}</td>
-                      <td className="px-3 py-1">{r.type}</td>
-                      <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
-                      <td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
-                      <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
-                      <td className="px-3 py-1">{r.fin}</td>
-                      <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
-                      <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
-                      <td className="px-3 py-1 whitespace-nowrap">{r.chas}</td>
-                      <td className="px-3 py-1 whitespace-nowrap">{r.mat}</td>
-                      <td className="px-3 py-1">{r.origin}</td>
-                      <td className="px-3 py-1">{r.profile}</td>
-                      <td className="px-3 py-1">{r.week198}</td>
-                    </tr>
+          <div className="bg-card border border-border rounded-lg p-2">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Distribuicao Carteira</h3>
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT + 60}>
+              <PieChart>
+                <Tooltip formatter={(value: number, name: string) => [`${value} (${Math.round((value / (totalCarteira || 1)) * 100)}%)`, name]}
+                  contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                <Pie data={distData} dataKey="value" nameKey="name" outerRadius="65%" innerRadius="35%"
+                  cursor="pointer" onClick={(entry: any) => entry?.name && handleRespClick(entry.name)}
+                  label={({ name, percent }) => `${name} ${Math.round(percent * 100)}%`} labelLine>
+                  {distData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} opacity={selectedResps.size > 0 && !selectedResps.has(entry.name) ? 0.2 : 1} />
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </Pie>
+                <Legend wrapperStyle={{ fontSize: 10 }}
+                  formatter={(value) => {
+                    const d = distData.find(d => d.name === value);
+                    const pct = d ? Math.round((d.value / (totalCarteira || 1)) * 100) : 0;
+                    return `${value} — ${d?.value ?? 0} (${pct}%)`;
+                  }} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
+        </div>
+      </div>
+
+      {/* Row 2 — Analise full width */}
+      <div className="bg-card border border-border rounded-lg p-2">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Analise</h3>
+          <select
+            value={analysisTab}
+            onChange={e => setAnalysisTab(e.target.value as AnalysisTab)}
+            className="text-[10px] bg-muted border border-border rounded px-2 py-0.5 cursor-pointer focus:outline-none"
+          >
+            <option value="entidade">Entidade</option>
+            <option value="origem">Origem</option>
+            <option value="modelos">Mix Modelos</option>
+          </select>
+        </div>
+        <div className="max-h-44 overflow-y-auto pr-1">
+          <HorizontalBarList data={analysisData} colorMap={analysisColorMap} selected={analysisSelected} onClick={analysisClick} />
+        </div>
+      </div>
+
+      {/* Tabela */}
+      <div className="bg-card border border-border rounded-lg">
+        <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira ({tableData.length})</h3>
+          <div className="flex items-center gap-2">
+            <div className="relative w-full sm:w-48">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
+            </div>
+            <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
+              <Download className="h-3 w-3" />CSV
+            </Button>
+          </div>
+        </div>
+        <div className="overflow-auto max-h-[35vh]">
+          <table className="w-full caption-bottom text-sm">
+            <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
+              <tr className="text-[10px]">
+                {tableColumns.map(([key, label]) => (
+                  <th key={key} className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card" onClick={() => toggleSort(key)}>
+                    <span className="inline-flex items-center">{label}<SortIcon col={key} /></span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {tableData.map((r, i) => (
+                <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
+                  <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.mes1}</td>
+                  <td className="px-3 py-1">{r.type}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
+                  <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
+                  <td className="px-3 py-1">{r.fin}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.chas}</td>
+                  <td className="px-3 py-1 whitespace-nowrap">{r.mat}</td>
+                  <td className="px-3 py-1">{r.origin}</td>
+                  <td className="px-3 py-1">{r.profile}</td>
+                  <td className="px-3 py-1">{r.week198}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
