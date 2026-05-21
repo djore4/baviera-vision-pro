@@ -44,6 +44,7 @@ export default function MultasPage() {
   const [registeredBy, setRegisteredBy] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const [lastPenalty, setLastPenalty] = useState<{ resp: string; infraction: string; value: number } | null>(null);
+  const [filterResp, setFilterResp] = useState<string | null>(null);
 
 const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
 
@@ -231,10 +232,11 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
             {currentByResp.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">Sem multas no ciclo atual</p>
             ) : currentByResp.map((r, i) => (
-              <div key={r.resp} className="flex items-center gap-2">
+<div key={r.resp} className="flex items-center gap-2 cursor-pointer" onClick={() => setFilterResp(prev => prev === r.resp ? null : r.resp)}
+                style={{ opacity: filterResp && filterResp !== r.resp ? 0.3 : 1 }}>
                 <span className="text-[11px] font-medium w-10 flex-shrink-0">{r.resp}</span>
                 <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
-                  <div className="h-full bg-primary rounded transition-all" style={{ width: `${(r.total / maxCurrent) * 100}%` }} />
+                  <div className="h-full bg-amber-500 rounded transition-all" style={{ width: `${(r.total / maxAllTime) * 100}%` }} />
                 </div>
                 <span className="text-[11px] font-bold w-12 text-right">€{r.total.toFixed(2)}</span>
               </div>
@@ -255,10 +257,11 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
             {allTimeByResp.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">Sem registos</p>
             ) : allTimeByResp.map((r) => (
-              <div key={r.resp} className="flex items-center gap-2">
+<div key={r.resp} className="flex items-center gap-2 cursor-pointer" onClick={() => setFilterResp(prev => prev === r.resp ? null : r.resp)}
+                style={{ opacity: filterResp && filterResp !== r.resp ? 0.3 : 1 }}>
                 <span className="text-[11px] font-medium w-10 flex-shrink-0">{r.resp}</span>
                 <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
-                  <div className="h-full bg-amber-500 rounded transition-all" style={{ width: `${(r.total / maxAllTime) * 100}%` }} />
+                  <div className="h-full bg-primary rounded transition-all" style={{ width: `${(r.total / maxCurrent) * 100}%` }} />
                 </div>
                 <span className="text-[11px] font-bold w-12 text-right">€{r.total.toFixed(2)}</span>
               </div>
@@ -270,7 +273,14 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
       {/* Histórico */}
       <div className="bg-card border border-border rounded-lg">
         <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase">Histórico ({penalties.length})</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-[11px] font-semibold text-muted-foreground uppercase">
+              Histórico ({filterResp ? penalties.filter(p => p.resp === filterResp).length : penalties.length})
+            </h2>
+            {filterResp && (
+              <button onClick={() => setFilterResp(null)} className="text-[10px] text-primary underline">{filterResp} x</button>
+            )}
+          </div>
         </div>
         <div className="overflow-auto max-h-[50vh]">
           <table className="w-full text-sm">
@@ -285,7 +295,7 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
               </tr>
             </thead>
             <tbody>
-              {penalties.map(p => (
+              {(filterResp ? penalties.filter(p => p.resp === filterResp) : penalties).map(p => (
                 <tr key={p.id} className="text-[11px] border-b border-border hover:bg-muted/50">
                   <td className="px-3 py-1 whitespace-nowrap">{formatDate(new Date(p.created_at))}</td>
                   <td className="px-3 py-1 font-medium">{p.resp}</td>
