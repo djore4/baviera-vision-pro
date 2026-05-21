@@ -2,7 +2,6 @@ import { useMemo, useState, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
-import { SalesRadar } from '@/components/SalesRadar';
 import { formatDate } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +18,7 @@ const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', 
 
 type SortKey = 'neg' | 'mes1' | 'resp' | 'type' | 'model' | 'version' | 'cliente' | 'fin' | 'biz' | 'enc' | 'chas' | 'mat' | 'dmat' | 'date298' | 'app';
 type SortDir = 'asc' | 'desc';
+type AnalysisTab = 'entidade' | 'origem' | 'modelos';
 
 export default function ProducaoPage() {
   const { data, filter } = useData();
@@ -30,24 +30,22 @@ export default function ProducaoPage() {
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('entidade');
   const [sortKey, setSortKey] = useState<SortKey>('neg');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Base: deals with neg date in period
-const baseRecords = useMemo(() => {
-  if (!data) return [];
-  return data.control.filter(r => {
-    if (!r.neg) return false;
-    const y = r.neg.getFullYear();
-    const m = r.neg.getMonth() + 1;
-    if (filter.months.length > 0) {
-      return filter.months.some(fm => Math.floor(fm / 100) === y && fm % 100 === m);
-    }
-    if (filter.years.length > 0) return filter.years.includes(y);
-    return true;
-  });
-}, [data, filter]);
+  const baseRecords = useMemo(() => {
+    if (!data) return [];
+    return data.control.filter(r => {
+      if (!r.neg) return false;
+      const y = r.neg.getFullYear();
+      const m = r.neg.getMonth() + 1;
+      if (filter.months.length > 0) return filter.months.some(fm => Math.floor(fm / 100) === y && fm % 100 === m);
+      if (filter.years.length > 0) return filter.years.includes(y);
+      return true;
+    });
+  }, [data, filter]);
 
   const filtered = useMemo(() => {
     let result = baseRecords;
@@ -61,49 +59,33 @@ const baseRecords = useMemo(() => {
     return result;
   }, [baseRecords, selectedResp, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity]);
 
-  // Negócios por Responsável vs Objetivo
-const negByResp = useMemo(() => {
-  if (!data) return [];
-  const map: Record<string, number> = {};
-  filtered.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
-const targetMap: Record<string, number> = {};
-data.objetivosResp.forEach(o => {
-  const [oy, om] = o.mes.split('/').map(Number);
-  if (!oy || !om) return;
-  if (filter.months.length > 0) {
-    const match = filter.months.some(fm => Math.floor(fm / 100) === oy && fm % 100 === om);
-    if (!match) return;
-  } else if (filter.years.length > 0) {
-    if (!filter.years.includes(oy)) return;
-  }
-  targetMap[o.resp] = (targetMap[o.resp] || 0) + o.objetivo;
-});
-  const allResps = new Set([...Object.keys(map), ...Object.keys(targetMap)]);
-  return Array.from(allResps).map(resp => ({
-    resp,
-    total: map[resp] || 0,
-    objetivo: targetMap[resp] || 0,
-  })).sort((a, b) => b.total - a.total);
-}, [filtered, data]);
+  const negByResp = useMemo(() => {
+    if (!data) return [];
+    const map: Record<string, number> = {};
+    filtered.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
+    const targetMap: Record<string, number> = {};
+    data.objetivosResp.forEach(o => {
+      const [oy, om] = o.mes.split('/').map(Number);
+      if (!oy || !om) return;
+      if (filter.months.length > 0) {
+        if (!filter.months.some(fm => Math.floor(fm / 100) === oy && fm % 100 === om)) return;
+      } else if (filter.years.length > 0) {
+        if (!filter.years.includes(oy)) return;
+      }
+      targetMap[o.resp] = (targetMap[o.resp] || 0) + o.objetivo;
+    });
+    const allResps = new Set([...Object.keys(map), ...Object.keys(targetMap)]);
+    return Array.from(allResps).map(resp => ({
+      resp, total: map[resp] || 0, objetivo: targetMap[resp] || 0,
+    })).sort((a, b) => b.total - a.total);
+  }, [filtered, data, filter]);
 
   const totalNeg = useMemo(() => negByResp.reduce((s, r) => s + r.total, 0), [negByResp]);
 
-  // Realização vs Objetivo (placeholder — lógica a definir)
   const selectedMonthKeys = useMemo(() => {
     const keys = new Set<string>();
-    if (filter.months.length > 0) {
-      filter.months.forEach(fm => {
-        const fy = Math.floor(fm / 100);
-        const fmo = fm % 100;
-        keys.add(`${fy}/${String(fmo).padStart(2, '0')}`);
-      });
-    } else if (filter.years.length > 0) {
-      filter.years.forEach(y => {
-        for (let m = 1; m <= 12; m++) {
-          keys.add(`${y}/${String(m).padStart(2, '0')}`);
-        }
-      });
-    }
+    if (filter.months.length > 0) filter.months.forEach(fm => keys.add(`${Math.floor(fm / 100)}/${String(fm % 100).padStart(2, '0')}`));
+    else if (filter.years.length > 0) filter.years.forEach(y => { for (let m = 1; m <= 12; m++) keys.add(`${y}/${String(m).padStart(2, '0')}`); });
     return keys;
   }, [filter]);
 
@@ -135,16 +117,14 @@ data.objetivosResp.forEach(o => {
     const target = totalObjetivoResp || targetBMW;
     const pct = target ? Math.round((totalNeg / target) * 100) : 0;
     return { actual: totalNeg, targetCaetano, targetBMW: totalObjetivoResp || targetBMW, target110, pct };
-  }, [data, totalNeg, selectedMonthKeys]);
+  }, [data, totalNeg, selectedMonthKeys, filter]);
 
   const finData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(r => { if (r.fin) map[r.fin] = (map[r.fin] || 0) + 1; });
     const totalWithFin = Object.values(map).reduce((s, v) => s + v, 0);
     const diff = filtered.length - totalWithFin;
-    const entries = Object.entries(map)
-      .map(([name, value]) => ({ name, value, pct: Math.round((value / (filtered.length || 1)) * 100) }))
-      .sort((a, b) => b.value - a.value);
+    const entries = Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / (filtered.length || 1)) * 100) })).sort((a, b) => b.value - a.value);
     if (diff > 0) entries.push({ name: 'N/A', value: diff, pct: Math.round((diff / (filtered.length || 1)) * 100) });
     return entries;
   }, [filtered]);
@@ -178,15 +158,10 @@ data.objetivosResp.forEach(o => {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       rows = rows.filter(r =>
-        r.resp?.toLowerCase().includes(term) ||
-        r.type?.toLowerCase().includes(term) ||
-        r.model?.toLowerCase().includes(term) ||
-        r.cliente?.toLowerCase().includes(term) ||
-        r.fin?.toLowerCase().includes(term) ||
-        r.biz?.toLowerCase().includes(term) ||
-        r.enc?.toLowerCase().includes(term) ||
-        r.chas?.toLowerCase().includes(term) ||
-        r.mat?.toLowerCase().includes(term)
+        r.resp?.toLowerCase().includes(term) || r.type?.toLowerCase().includes(term) ||
+        r.model?.toLowerCase().includes(term) || r.cliente?.toLowerCase().includes(term) ||
+        r.fin?.toLowerCase().includes(term) || r.biz?.toLowerCase().includes(term) ||
+        r.enc?.toLowerCase().includes(term) || r.chas?.toLowerCase().includes(term) || r.mat?.toLowerCase().includes(term)
       );
     }
     rows.sort((a, b) => {
@@ -226,12 +201,8 @@ data.objetivosResp.forEach(o => {
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
 
   const exportCSV = useCallback(() => {
-    const headers = ['RESP', 'TIPO', 'MODELO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Data Negócio', 'Data Matrícula', 'Data Retail', 'Data Apping'];
-    const rows = tableData.map(r => [
-      r.resp, r.type, r.model, r.cliente, r.fin,
-      r.biz, r.enc, r.chas, r.mat,
-      formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.app),
-    ]);
+    const headers = ['RESP', 'TIPO', 'MODELO', 'VERSAO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', 'Data Negocio', 'Data Matricula', 'Data Retail', 'Data Apping'];
+    const rows = tableData.map(r => [r.resp, r.type, r.model, r.version, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.app)]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -243,20 +214,10 @@ data.objetivosResp.forEach(o => {
   }, [tableData]);
 
   const tableColumns: [SortKey, string][] = [
-    ['resp', 'RESP'],
-    ['type', 'TIPO'],
-['model', 'Modelo'],
-['version', 'Versão'],
-['cliente', 'CLIENTE'],
-    ['fin', 'FIN'],
-    ['biz', 'Bizagi'],
-    ['enc', 'Encomenda'],
-    ['chas', 'Chassis'],
-    ['mat', 'Matrícula'],
-    ['neg', 'Data Negócio'],
-    ['dmat', 'Data Matrícula'],
-    ['date298', 'Data Retail'],
-    ['app', 'Data Apping'],
+    ['resp', 'RESP'], ['type', 'TIPO'], ['model', 'Modelo'], ['version', 'Versao'],
+    ['cliente', 'CLIENTE'], ['fin', 'FIN'], ['biz', 'Bizagi'], ['enc', 'Encomenda'],
+    ['chas', 'Chassis'], ['mat', 'Matricula'], ['neg', 'Data Negocio'],
+    ['dmat', 'Data Matricula'], ['date298', 'Data Retail'], ['app', 'Data Apping'],
   ];
 
   const activeFilters = [
@@ -265,9 +226,9 @@ data.objetivosResp.forEach(o => {
     selectedOrigin && `Origem: ${selectedOrigin}`,
     selectedModel && `Modelo: ${selectedModel}`,
     selectedEntity && `Entidade: ${selectedEntity}`,
-    selectedQor !== null && `QoR: Sim`,
-    selectedBev !== null && `BEV: Sim`,
-  ].filter(Boolean);
+    selectedQor !== null && 'QoR: Sim',
+    selectedBev !== null && 'BEV: Sim',
+  ].filter(Boolean) as string[];
 
   const clearFilter = (type: string) => {
     if (type === 'resp') setSelectedResp(null);
@@ -281,16 +242,13 @@ data.objetivosResp.forEach(o => {
 
   const HorizontalBarList = ({ data: items, colorMap, selected, onClick }: {
     data: { name: string; value: number; pct: number }[];
-    colorMap?: Record<string, string>;
-    selected: string | null;
-    onClick: (name: string) => void;
+    colorMap?: Record<string, string>; selected: string | null; onClick: (name: string) => void;
   }) => {
     const maxVal = items[0]?.value || 1;
     return (
       <div className="space-y-1">
         {items.map((entry, i) => {
-          const isSelected = selected === entry.name;
-          const isDimmed = selected && !isSelected;
+          const isDimmed = selected && selected !== entry.name;
           const color = colorMap?.[entry.name] || COLORS[i % COLORS.length];
           return (
             <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => onClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
@@ -317,59 +275,64 @@ data.objetivosResp.forEach(o => {
     );
   }
 
+  const analysisData = analysisTab === 'entidade' ? entityData : analysisTab === 'origem' ? originData : modelData;
+  const analysisSelected = analysisTab === 'entidade' ? selectedEntity : analysisTab === 'origem' ? selectedOrigin : selectedModel;
+  const analysisClick = analysisTab === 'entidade' ? handleEntityClick : analysisTab === 'origem' ? handleOriginClick : handleModelClick;
+  const analysisColorMap = analysisTab === 'entidade' ? PROFILE_COLORS : undefined;
+
   return (
     <div className="space-y-3 animate-fade-in">
       <div className="flex flex-col lg:flex-row gap-3">
-        {/* Left column */}
-        <div className="w-full lg:w-44 flex-shrink-0">
-          <PeriodFilter />
-        </div>
 
-        <div className="flex-1 min-w-0 space-y-2">
+        {/* Left column */}
+        <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
+          <PeriodFilter />
           {activeFilters.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] text-muted-foreground">Filtros:</span>
-              {selectedResp && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('resp')}>{selectedResp} ✕</Badge>}
-              {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} ✕</Badge>}
-              {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('origin')}>{selectedOrigin} ✕</Badge>}
-              {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} ✕</Badge>}
-              {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('entity')}>{selectedEntity} ✕</Badge>}
-              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR ✕</Badge>}
-              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV ✕</Badge>}
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
+              {selectedResp && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('resp')}>{selectedResp} x</Badge>}
+              {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
+              {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('origin')}>{selectedOrigin} x</Badge>}
+              {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
+              {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('entity')}>{selectedEntity} x</Badge>}
+              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
+              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
             </div>
           )}
+        </div>
+
+        {/* Main content */}
+        <div className="flex-1 min-w-0 space-y-2">
 
           {/* Row 1 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-2">
-            {/* Negócios por Responsável */}
+          <div className="grid grid-cols-1 xl:grid-cols-8 gap-2">
+            {/* Negocios por Responsavel */}
             <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
               <div className="flex items-center justify-between mb-1">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Negócios por Responsável</h3>
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Negocios por Responsavel</h3>
                 <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalNeg}</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
-<BarChart data={negByResp} barSize={20}>
-  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-  <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
-  <YAxis tick={{ fontSize: 10 }} />
-  <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-  <Legend wrapperStyle={{ fontSize: 10 }} />
-<Bar dataKey="total" name="Negócios Fechados" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
-  <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
-</Bar>
-<Bar dataKey="objetivo" name="Objetivo" fill="#334155" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
-  <LabelList dataKey="objetivo" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
-</Bar>
-</BarChart>
+                <BarChart data={negByResp} barSize={20}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <Bar dataKey="total" name="Negocios Fechados" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
+                    <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
+                  </Bar>
+                  <Bar dataKey="objetivo" name="Objetivo" fill="#334155" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
+                    <LabelList dataKey="objetivo" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
 
-{isMobile && <div className="order-4 xl:order-none"><DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} /></div>}
-
-{/* Realização vs Objetivo */}
-            <div className="xl:col-span-3 order-2 xl:order-none">
+            {/* Realizacao vs Objetivo */}
+            <div className="xl:col-span-3">
               <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
-                <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
+                <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realizacao vs Objetivo</p>
                 <div className="flex-1">
                   <ResponsiveContainer width="100%" height={130}>
                     <BarChart data={[{ name: 'Total', fechados: realization.actual, objetivo: realization.targetBMW }]} barSize={40} layout="vertical">
@@ -395,10 +358,39 @@ data.objetivosResp.forEach(o => {
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Método de Pagamento */}
-            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2 order-3 xl:order-none">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
+          {isMobile && (
+            <div className="order-4 xl:order-none">
+              <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />
+            </div>
+          )}
+
+          {/* Row 2 */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
+
+            {/* Analise — dropdown */}
+            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Analise</h3>
+                <select
+                  value={analysisTab}
+                  onChange={e => setAnalysisTab(e.target.value as AnalysisTab)}
+                  className="text-[10px] bg-muted border border-border rounded px-2 py-0.5 cursor-pointer focus:outline-none"
+                >
+                  <option value="entidade">Entidade</option>
+                  <option value="origem">Origem</option>
+                  <option value="modelos">Mix Modelos</option>
+                </select>
+              </div>
+              <div className="max-h-44 overflow-y-auto pr-1">
+                <HorizontalBarList data={analysisData} colorMap={analysisColorMap} selected={analysisSelected} onClick={analysisClick} />
+              </div>
+            </div>
+
+            {/* Metodo de Pagamento */}
+            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Metodo de Pagamento</h3>
               <div className="flex items-center gap-2">
                 <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
                   <PieChart>
@@ -406,8 +398,7 @@ data.objetivosResp.forEach(o => {
                     <Pie data={finData} dataKey="value" nameKey="name" outerRadius={45} stroke="hsl(var(--background))" strokeWidth={1.5}
                       onClick={(entry: any) => entry?.name && handleFinClick(entry.name)} cursor="pointer">
                       {finData.map((entry, i) => {
-                        const isSelected = selectedFin === entry.name;
-                        const isDimmed = selectedFin && !isSelected;
+                        const isDimmed = selectedFin && selectedFin !== entry.name;
                         return <Cell key={entry.name} fill={entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length])} opacity={isDimmed ? 0.35 : 1} />;
                       })}
                     </Pie>
@@ -415,8 +406,7 @@ data.objetivosResp.forEach(o => {
                 </ResponsiveContainer>
                 <div className="space-y-1 flex-1">
                   {finData.map((entry, i) => {
-                    const isSelected = selectedFin === entry.name;
-                    const isDimmed = selectedFin && !isSelected;
+                    const isDimmed = selectedFin && selectedFin !== entry.name;
                     return (
                       <div key={entry.name} className="flex items-center gap-2 cursor-pointer" onClick={() => handleFinClick(entry.name)} style={{ opacity: isDimmed ? 0.3 : 1 }}>
                         <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: entry.name === 'N/A' ? '#94A3B8' : (FIN_COLORS[entry.name] || COLORS[i % COLORS.length]) }} />
@@ -426,50 +416,29 @@ data.objetivosResp.forEach(o => {
                       </div>
                     );
                   })}
-                  <div className="border-t border-border pt-1 mt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-semibold">Total</span>
-                      <span className="text-[10px] font-bold">{filtered.length}</span>
-                    </div>
+                  <div className="border-t border-border pt-1 mt-1 flex items-center justify-between">
+                    <span className="text-[10px] font-semibold">Total</span>
+                    <span className="text-[10px] font-bold">{filtered.length}</span>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Row 2 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Entidade</h3>
-              <HorizontalBarList data={entityData} colorMap={PROFILE_COLORS} selected={selectedEntity} onClick={handleEntityClick} />
-            </div>
-
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Origem dos Negócios</h3>
-              <HorizontalBarList data={originData} selected={selectedOrigin} onClick={handleOriginClick} />
-            </div>
-
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mix Modelos</h3>
-              <div className="max-h-40 overflow-y-auto pr-1">
-                <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
-              </div>
-            </div>
-
-            <div className="xl:col-span-1 grid grid-cols-2 xl:grid-cols-1 gap-2">
+            {/* QoR + BEV */}
+            <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
               <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
               <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
             </div>
 
-            <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Sales Radar</h3>
-              <SalesRadar records={filtered} height="200px" />
-            </div>
+            {/* Espaco vazio para alinhar */}
+            <div className="xl:col-span-2" />
           </div>
+
+          {!isMobile && (
+            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />
+          )}
         </div>
       </div>
-
-      {!isMobile && <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />}
     </div>
   );
 }
@@ -488,8 +457,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
             <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
           </div>
           <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
-            <Download className="h-3 w-3" />
-            CSV
+            <Download className="h-3 w-3" />CSV
           </Button>
         </div>
       </div>
@@ -498,13 +466,8 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
           <thead className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
             <tr className="text-[10px]">
               {tableColumns.map(([key, label]) => (
-                <th key={key}
-                  className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card"
-                  onClick={() => toggleSort(key)}>
-                  <span className="inline-flex items-center">
-                    {label}
-                    <SortIcon col={key} />
-                  </span>
+                <th key={key} className="h-9 px-3 text-left align-middle font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap bg-card" onClick={() => toggleSort(key)}>
+                  <span className="inline-flex items-center">{label}<SortIcon col={key} /></span>
                 </th>
               ))}
             </tr>
@@ -514,9 +477,9 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
               <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
                 <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
                 <td className="px-3 py-1">{r.type}</td>
-<td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
-<td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
-<td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
+                <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
+                <td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
+                <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
                 <td className="px-3 py-1">{r.fin}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
@@ -548,28 +511,6 @@ function normalizeMonthKey(mes: string): string | null {
   return null;
 }
 
-function GaugeSimple({ value }: { value: number }) {
-  const maxVal = Math.max(100, value);
-  const clamped = Math.min(Math.max(value, 0), maxVal);
-  const color = value >= 100 ? '#16A34A' : value >= 80 ? '#F59E0B' : '#DC2626';
-  const cx = 60, cy = 60, r = 50;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const arcPoint = (pct: number) => { const ang = -180 + (pct / maxVal) * 180; return { x: cx + r * Math.cos(toRad(ang)), y: cy + r * Math.sin(toRad(ang)) }; };
-  const describeArc = (s: number, e: number) => { const sp = arcPoint(s); const ep = arcPoint(e); const sweep = ((e - s) / maxVal) * 180; return `M ${sp.x} ${sp.y} A ${r} ${r} 0 ${sweep > 180 ? 1 : 0} 1 ${ep.x} ${ep.y}`; };
-  const needleAng = -180 + (clamped / maxVal) * 180;
-  return (
-    <svg viewBox="0 0 120 70" className="w-28 h-auto">
-      <path d={describeArc(0, maxVal)} fill="none" stroke="hsl(var(--border))" strokeWidth="8" strokeLinecap="round" />
-      <path d={describeArc(0, Math.min(80, maxVal))} fill="none" stroke="#DC262640" strokeWidth="8" strokeLinecap="round" />
-      <path d={describeArc(Math.min(80, maxVal), Math.min(100, maxVal))} fill="none" stroke="#F59E0B40" strokeWidth="8" strokeLinecap="round" />
-      {maxVal > 100 && <path d={describeArc(100, maxVal)} fill="none" stroke="#16A34A40" strokeWidth="8" strokeLinecap="round" />}
-      <line x1={cx} y1={cy} x2={cx + 40 * Math.cos(toRad(needleAng))} y2={cy + 40 * Math.sin(toRad(needleAng))} stroke={color} strokeWidth="2.5" strokeLinecap="round" />
-      <circle cx={cx} cy={cy} r="3" fill={color} />
-      <text x={cx} y="52" textAnchor="middle" className="text-[11px] font-bold" fill={color}>{value}%</text>
-    </svg>
-  );
-}
-
 function ClickableDonutCard({ title, count, total, color, isActive, onClick }: {
   title: string; count: number; total: number; color: string; isActive: boolean; onClick: () => void;
 }) {
@@ -582,8 +523,7 @@ function ClickableDonutCard({ title, count, total, color, isActive, onClick }: {
         <ResponsiveContainer width={50} height={50}>
           <PieChart>
             <Pie data={pieData} innerRadius={15} outerRadius={22} dataKey="value" strokeWidth={0}>
-              <Cell fill={color} />
-              <Cell fill="hsl(var(--border))" />
+              <Cell fill={color} /><Cell fill="hsl(var(--border))" />
             </Pie>
           </PieChart>
         </ResponsiveContainer>
