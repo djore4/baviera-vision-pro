@@ -16,7 +16,9 @@ import EscalaPage from "./pages/EscalaPage";
 import NotFound from "./pages/NotFound";
 import FunilPage from "./pages/FunilPage";
 import LoginPage from "./pages/LoginPage";
-import AdminPage from "./pages/admin/AdminPage";
+import DatabasePage from "./pages/DatabasePage";
+import DemosPage from "./pages/DemosPage";
+import ObjetivosPage from "./pages/ObjetivosPage";
 import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
@@ -79,10 +81,9 @@ const App = () => (
               <Route path="/dados" element={<AppLayout><DadosPage /></AppLayout>} />
               <Route path="/funil" element={<AppLayout><FunilPage /></AppLayout>} />
               {/* Admin routes */}
-              <Route path="/admin" element={<AdminGate><Navigate to="/admin/database" replace /></AdminGate>} />
-              <Route path="/admin/database" element={<AdminGate><AdminPage /></AdminGate>} />
-              <Route path="/admin/demos" element={<AdminGate><AdminPage /></AdminGate>} />
-              <Route path="/admin/objetivos" element={<AdminGate><AdminPage /></AdminGate>} />
+              <Route path="/database" element={<AdminGate><AppLayout><DatabasePage /></AppLayout></AdminGate>} />
+              <Route path="/demos" element={<AdminGate><AppLayout><DemosPage /></AppLayout></AdminGate>} />
+              <Route path="/objetivos" element={<AdminGate><AppLayout><ObjetivosPage /></AppLayout></AdminGate>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </HashRouter>
