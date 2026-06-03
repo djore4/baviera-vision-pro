@@ -1,31 +1,20 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Coins, ShieldCheck } from 'lucide-react';
+import { Database, Car, Target, LogOut, Menu, X, ChevronLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { getCurrentWeek } from '@/lib/excel-parser';
-import { useData } from '@/contexts/DataContext';
-import { useAuth } from '@/App';
 import { useState, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import bmwLogo from '@/assets/bmw-logo.png';
 
-const NAV_ITEMS = [
-  { path: '/retails', label: 'RETAILS', icon: BarChart3 },
-  { path: '/funil', label: 'FUNIL', icon: Filter },
-  { path: '/producao', label: 'PRODUÇÃO', icon: TrendingUp },
-  { path: '/carteira', label: 'CARTEIRA', icon: Briefcase },
-  { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
-  { path: '/multas', label: 'MULTAS', icon: Coins },
-  { path: '/escala', label: 'ESCALA', icon: CalendarDays },
-  { path: '/dados', label: 'DADOS', icon: Database },
+const ADMIN_NAV = [
+  { path: '/admin/database', label: 'DATABASE', icon: Database },
+  { path: '/admin/demos', label: 'DEMOS', icon: Car },
+  { path: '/admin/objetivos', label: 'OBJETIVOS', icon: Target },
 ];
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+export function AdminLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { error } = useData();
-  const { isAdmin } = useAuth();
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
-  const week = getCurrentWeek();
 
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
@@ -34,6 +23,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setSidebarOpen(!isMobile);
   }, [isMobile]);
+
+  const currentLabel = ADMIN_NAV.find(n => n.path === location.pathname)?.label || 'ADMIN';
 
   return (
     <div className="min-h-screen flex w-full bg-background">
@@ -45,21 +36,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         className={`
           ${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative'}
           ${sidebarOpen ? 'w-52' : 'w-0 overflow-hidden'}
-          bg-bmw-navy flex-shrink-0 flex flex-col transition-all duration-200
+          bg-zinc-900 flex-shrink-0 flex flex-col transition-all duration-200
         `}
       >
         <div className="px-4 py-5 border-b border-white/10 flex items-center justify-between">
-          <h1 className="text-lg font-bold tracking-tight text-white whitespace-nowrap">
-            Caetano<span className="text-bmw-blue ml-1">BMW</span>
-          </h1>
+          <div>
+            <h1 className="text-sm font-bold tracking-tight text-white whitespace-nowrap">
+              Caetano<span className="text-amber-400 ml-1">ADMIN</span>
+            </h1>
+            <p className="text-[10px] text-white/40 mt-0.5">Área restrita</p>
+          </div>
           {isMobile && (
             <button onClick={() => setSidebarOpen(false)} className="text-white/60 hover:text-white">
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
+
         <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {NAV_ITEMS.map(item => {
+          {ADMIN_NAV.map(item => {
             const active = location.pathname === item.path;
             return (
               <Link
@@ -67,7 +62,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 to={item.path}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
                   active
-                    ? 'bg-bmw-blue text-white'
+                    ? 'bg-amber-500 text-black'
                     : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -77,17 +72,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
+
         <div className="px-2 py-3 border-t border-white/10 space-y-0.5">
-          {isAdmin && (
-            <Link
-              to="/admin"
-              className="flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium text-amber-400/70 hover:text-amber-400 hover:bg-white/5 transition-colors"
-            >
-              <ShieldCheck className="h-4 w-4" />
-              ADMIN
-            </Link>
-          )}
-          <span className="block text-[10px] text-white/40 uppercase tracking-wider px-3">BMW Dealer Dashboard</span>
+          <Link
+            to="/retails"
+            className="flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium text-white/40 hover:text-white hover:bg-white/5 transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Voltar ao dashboard
+          </Link>
         </div>
       </aside>
 
@@ -99,24 +92,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </button>
             <img src={bmwLogo} alt="BMW" className="h-8 w-8" />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {NAV_ITEMS.find(n => n.path === location.pathname)?.label || 'Dashboard'}
+              {currentLabel}
+            </span>
+            <span className="text-[10px] bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded font-semibold">
+              ADMIN
             </span>
           </div>
-<div className="flex items-center gap-2">
-            <div className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
-              Semana {week}
-            </div>
-            <button onClick={() => supabase.auth.signOut()} className="text-muted-foreground hover:text-foreground">
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
+          <button onClick={() => supabase.auth.signOut()} className="text-muted-foreground hover:text-foreground">
+            <LogOut className="h-4 w-4" />
+          </button>
         </header>
-
-        {error && (
-          <div className="mx-3 sm:mx-4 mt-2 px-3 py-2 bg-destructive/10 text-destructive text-xs rounded border border-destructive/20">
-            {error}
-          </div>
-        )}
 
         <main className="flex-1 overflow-auto p-2 sm:p-4">
           {children}
