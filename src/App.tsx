@@ -21,7 +21,7 @@ import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 
-const ADMIN_EMAIL = "joao4duarte@gmail.com";
+const ADMIN_EMAIL = "joaocarlos.duarte@caetano.pt";
 
 const queryClient = new QueryClient();
 
