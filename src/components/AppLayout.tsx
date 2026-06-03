@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Coins, ShieldCheck } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Coins, Car, Target } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
@@ -17,6 +17,12 @@ const NAV_ITEMS = [
   { path: '/multas', label: 'MULTAS', icon: Coins },
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
   { path: '/dados', label: 'DADOS', icon: Database },
+];
+
+const ADMIN_NAV_ITEMS = [
+  { path: '/database', label: 'DATABASE', icon: Database },
+  { path: '/demos', label: 'DEMOS', icon: Car },
+  { path: '/objetivos', label: 'OBJETIVOS', icon: Target },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -77,17 +83,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="px-2 py-3 border-t border-white/10 space-y-0.5">
-          {isAdmin && (
-            <Link
-              to="/admin"
-              className="flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium text-amber-400/70 hover:text-amber-400 hover:bg-white/5 transition-colors"
-            >
-              <ShieldCheck className="h-4 w-4" />
-              ADMIN
-            </Link>
-          )}
-          <span className="block text-[10px] text-white/40 uppercase tracking-wider px-3">BMW Dealer Dashboard</span>
+        {isAdmin && (
+          <div className="border-t border-white/10 px-2 py-3 space-y-0.5">
+            <span className="block text-[10px] text-amber-400/60 uppercase tracking-wider px-3 pb-1">Admin</span>
+            {ADMIN_NAV_ITEMS.map(item => {
+              const active = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                    active
+                      ? 'bg-amber-500 text-black'
+                      : 'text-amber-400/60 hover:text-amber-400 hover:bg-white/5'
+                  }`}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+        <div className="px-4 py-3 border-t border-white/10">
+          <span className="text-[10px] text-white/40 uppercase tracking-wider">BMW Dealer Dashboard</span>
         </div>
       </aside>
 
@@ -99,7 +118,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </button>
             <img src={bmwLogo} alt="BMW" className="h-8 w-8" />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {NAV_ITEMS.find(n => n.path === location.pathname)?.label || 'Dashboard'}
+              {[...NAV_ITEMS, ...ADMIN_NAV_ITEMS].find(n => n.path === location.pathname)?.label || 'Dashboard'}
             </span>
           </div>
 <div className="flex items-center gap-2">
