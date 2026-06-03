@@ -98,17 +98,17 @@ export default function ObjetivosPage() {
           {(['GSC', 'BMW'] as const).map(tipo => (
             <div key={tipo} className="space-y-1.5">
               <label className="text-sm font-medium">{tipo}</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
+              <div className="flex items-center gap-2">
                 <input
                   type="number"
                   min={0}
+                  step={1}
                   value={orcamentos[tipo] ?? 0}
-                  onChange={e => setOrcamentos(o => ({ ...o, [tipo]: Number(e.target.value) }))}
-                  className="w-full pl-7 pr-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-right font-medium"
+                  onChange={e => setOrcamentos(o => ({ ...o, [tipo]: Math.round(Number(e.target.value)) }))}
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-center font-medium"
                 />
+                <span className="text-xs text-muted-foreground whitespace-nowrap">faturas</span>
               </div>
-              <p className="text-[10px] text-muted-foreground text-right">{Number(orcamentos[tipo] || 0).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' })}</p>
             </div>
           ))}
         </div>
