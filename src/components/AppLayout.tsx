@@ -82,29 +82,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+          {isAdmin && ADMIN_NAV_ITEMS.map(item => {
+            const active = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                  active
+                    ? 'bg-amber-500 text-black'
+                    : 'text-amber-400/70 hover:text-amber-400 hover:bg-white/5'
+                }`}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
-        {isAdmin && (
-          <div className="border-t border-white/10 px-2 py-3 space-y-0.5">
-            <span className="block text-[10px] text-amber-400/60 uppercase tracking-wider px-3 pb-1">Admin</span>
-            {ADMIN_NAV_ITEMS.map(item => {
-              const active = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                    active
-                      ? 'bg-amber-500 text-black'
-                      : 'text-amber-400/60 hover:text-amber-400 hover:bg-white/5'
-                  }`}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        )}
         <div className="px-4 py-3 border-t border-white/10">
           <span className="text-[10px] text-white/40 uppercase tracking-wider">BMW Dealer Dashboard</span>
         </div>
