@@ -8,7 +8,7 @@ interface ControlRecord {
   neg: string | null;
   mes1: string;
   resp: string;
-  cliente: string;
+  id_cliente: string;
   local: string;
   type: string;
   origin: string;
@@ -23,7 +23,7 @@ interface ControlRecord {
   qor: number;
   xev: number;
   bev: number;
-  m_perf: number;
+  m: number;
   csc: number;
   cme: number | null;
   fin: string;
@@ -35,71 +35,78 @@ interface ControlRecord {
 }
 
 const EMPTY: Omit<ControlRecord, 'id'> = {
-  status: '', neg: '', mes1: '', resp: '', cliente: '', local: '',
+  status: '', neg: '', mes1: '', resp: '', id_cliente: '', local: '',
   type: '', origin: '', profile: '', biz: '', enc: '', chas: '', mat: '',
-  model: '', version: '', gar: '', qor: 0, xev: 0, bev: 0, m_perf: 0,
+  model: '', version: '', gar: '', qor: 0, xev: 0, bev: 0, m: 0,
   csc: 0, cme: null, fin: '', week198: '', dmat: '', date298: '', app: '', obs: '',
 };
 
 const COLS: { key: keyof ControlRecord; label: string }[] = [
-  { key: 'status', label: 'Estado' },
-  { key: 'neg', label: 'Neg.' },
-  { key: 'mes1', label: 'Mês' },
-  { key: 'resp', label: 'Resp.' },
-  { key: 'cliente', label: 'Cliente' },
-  { key: 'local', label: 'Local' },
-  { key: 'type', label: 'Tipo' },
-  { key: 'origin', label: 'Origem' },
-  { key: 'profile', label: 'Perfil' },
-  { key: 'model', label: 'Modelo' },
-  { key: 'version', label: 'Versão' },
-  { key: 'fin', label: 'Fin.' },
-  { key: 'chas', label: 'Chassis' },
-  { key: 'mat', label: 'Mat.' },
-  { key: 'dmat', label: 'D.Mat' },
-  { key: 'date298', label: '298' },
-  { key: 'app', label: 'App.' },
-  { key: 'qor', label: 'QOR' },
-  { key: 'xev', label: 'XEV' },
+  { key: 'status', label: 'STATUS' },
+  { key: 'neg', label: 'NEG' },
+  { key: 'mes1', label: 'MÊS1' },
+  { key: 'resp', label: 'RESP' },
+  { key: 'id_cliente', label: 'ID' },
+  { key: 'local', label: 'LOCAL' },
+  { key: 'type', label: 'TYPE' },
+  { key: 'origin', label: 'ORIGIN' },
+  { key: 'profile', label: 'PROFILE' },
+  { key: 'biz', label: 'BIZ' },
+  { key: 'enc', label: 'ENC' },
+  { key: 'chas', label: 'CHAS' },
+  { key: 'mat', label: 'MAT' },
+  { key: 'model', label: 'MODEL' },
+  { key: 'version', label: 'VERSION' },
+  { key: 'gar', label: 'GAR' },
+  { key: 'qor', label: 'QoR' },
+  { key: 'xev', label: 'xEV' },
   { key: 'bev', label: 'BEV' },
-  { key: 'obs', label: 'Obs.' },
+  { key: 'm', label: 'M' },
+  { key: 'csc', label: 'CSC' },
+  { key: 'cme', label: 'CME' },
+  { key: 'fin', label: 'FIN' },
+  { key: 'week198', label: '198' },
+  { key: 'dmat', label: 'DMAT' },
+  { key: 'date298', label: '298' },
+  { key: 'app', label: 'APP' },
+  { key: 'obs', label: 'OBS' },
 ];
 
 const FORM_GROUPS = [
   {
     title: 'Geral',
     fields: [
-      { key: 'status', label: 'Estado' },
-      { key: 'neg', label: 'Data Neg.', type: 'date' },
-      { key: 'mes1', label: 'Mês' },
-      { key: 'resp', label: 'Responsável' },
-      { key: 'cliente', label: 'Cliente' },
-      { key: 'local', label: 'Local' },
+      { key: 'status', label: 'STATUS' },
+      { key: 'neg', label: 'NEG', type: 'date' },
+      { key: 'mes1', label: 'MÊS1' },
+      { key: 'resp', label: 'RESP' },
+      { key: 'id_cliente', label: 'ID' },
+      { key: 'local', label: 'LOCAL' },
     ],
   },
   {
     title: 'Veículo',
     fields: [
-      { key: 'type', label: 'Tipo' },
-      { key: 'origin', label: 'Origem' },
-      { key: 'profile', label: 'Perfil' },
-      { key: 'biz', label: 'Biz' },
-      { key: 'model', label: 'Modelo' },
-      { key: 'version', label: 'Versão' },
-      { key: 'gar', label: 'Gar.' },
-      { key: 'chas', label: 'Chassis' },
-      { key: 'mat', label: 'Matrícula' },
-      { key: 'enc', label: 'Enc.' },
+      { key: 'type', label: 'TYPE' },
+      { key: 'origin', label: 'ORIGIN' },
+      { key: 'profile', label: 'PROFILE' },
+      { key: 'biz', label: 'BIZ' },
+      { key: 'model', label: 'MODEL' },
+      { key: 'version', label: 'VERSION' },
+      { key: 'gar', label: 'GAR' },
+      { key: 'chas', label: 'CHAS' },
+      { key: 'mat', label: 'MAT' },
+      { key: 'enc', label: 'ENC' },
     ],
   },
   {
     title: 'Financeiro',
     fields: [
-      { key: 'fin', label: 'Financiamento' },
-      { key: 'qor', label: 'QOR', type: 'number' },
-      { key: 'xev', label: 'XEV', type: 'number' },
+      { key: 'fin', label: 'FIN' },
+      { key: 'qor', label: 'QoR', type: 'number' },
+      { key: 'xev', label: 'xEV', type: 'number' },
       { key: 'bev', label: 'BEV', type: 'number' },
-      { key: 'm_perf', label: 'M.Perf', type: 'number' },
+      { key: 'm', label: 'M', type: 'number' },
       { key: 'csc', label: 'CSC', type: 'number' },
       { key: 'cme', label: 'CME', type: 'number' },
     ],
@@ -107,15 +114,15 @@ const FORM_GROUPS = [
   {
     title: 'Datas',
     fields: [
-      { key: 'dmat', label: 'D.Mat', type: 'date' },
+      { key: 'dmat', label: 'DMAT', type: 'date' },
       { key: 'date298', label: '298', type: 'date' },
-      { key: 'app', label: 'App.', type: 'date' },
-      { key: 'week198', label: 'Semana 198' },
+      { key: 'app', label: 'APP', type: 'date' },
+      { key: 'week198', label: '198' },
     ],
   },
   {
     title: 'Observações',
-    fields: [{ key: 'obs', label: 'Obs.', textarea: true }],
+    fields: [{ key: 'obs', label: 'OBS', textarea: true }],
   },
 ] as const;
 
@@ -152,7 +159,7 @@ export default function DatabasePage() {
     if (search) {
       const q = search.toLowerCase();
       return (
-        r.cliente?.toLowerCase().includes(q) ||
+        r.id_cliente?.toLowerCase().includes(q) ||
         r.resp?.toLowerCase().includes(q) ||
         r.model?.toLowerCase().includes(q) ||
         r.chas?.toLowerCase().includes(q) ||
@@ -184,7 +191,7 @@ export default function DatabasePage() {
       qor: Number(form.qor) || 0,
       xev: Number(form.xev) || 0,
       bev: Number(form.bev) || 0,
-      m_perf: Number(form.m_perf) || 0,
+      m: Number(form.m) || 0,
       csc: Number(form.csc) || 0,
       cme: form.cme !== null && form.cme !== undefined && String(form.cme) !== '' ? Number(form.cme) : null,
       neg: form.neg || null,
