@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getISOWeek } from 'date-fns';
-import { Loader2, Save, Users, Plus, Trash2, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { Loader2, Save, Users, Plus, Trash2, ChevronLeft, ChevronRight, RotateCcw, Flag } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -62,6 +62,7 @@ interface EscalaState {
   month: number; // 0-11
   team: Member[];
   assignments: Assignments;
+  holidays: string[]; // date keys "YYYY-MM-DD" em que não se trabalha
 }
 
 const DEFAULT_TEAM: Member[] = [
@@ -80,6 +81,7 @@ function defaultState(): EscalaState {
     month: 7, // Agosto (0-based)
     team: DEFAULT_TEAM.map(m => ({ ...m })),
     assignments: {},
+    holidays: [],
   };
 }
 
@@ -127,6 +129,7 @@ export default function EscalaTestePage() {
               month: parsed.month ?? 7,
               team: parsed.team.length ? parsed.team : defaultState().team,
               assignments: parsed.assignments ?? {},
+              holidays: parsed.holidays ?? [],
             });
           }
         }
@@ -140,6 +143,7 @@ export default function EscalaTestePage() {
   }, []);
 
   const { year, month, team, assignments } = state;
+  const holidaySet = useMemo(() => new Set(state.holidays), [state.holidays]);
 
   const days = useMemo(() => {
     const total = daysInMonth(year, month);
@@ -162,6 +166,7 @@ export default function EscalaTestePage() {
     return team.map(m => {
       let pg = 0, std = 0, outros = 0, fds = 0;
       for (const d of days) {
+        if (holidaySet.has(d.key)) continue; // feriado: ninguém trabalha
         const role = assignments[d.key]?.[m.id] ?? '';
         if (role === 'PG') pg++;
         else if (role === 'STAND') std++;
@@ -170,7 +175,7 @@ export default function EscalaTestePage() {
       }
       return { id: m.id, initials: m.initials, pg, std, outros, total: pg + std + outros, fds };
     });
-  }, [team, days, assignments]);
+  }, [team, days, assignments, holidaySet]);
 
   // ---- Mutations ----
   const setRole = (dayKey: string, memberId: string, role: Role) => {
@@ -179,6 +184,17 @@ export default function EscalaTestePage() {
       if (role === '') delete dayMap[memberId];
       else dayMap[memberId] = role;
       return { ...prev, assignments: { ...prev.assignments, [dayKey]: dayMap } };
+    });
+    setDirty(true);
+  };
+
+  const toggleHoliday = (dayKey: string) => {
+    setState(prev => {
+      const has = prev.holidays.includes(dayKey);
+      return {
+        ...prev,
+        holidays: has ? prev.holidays.filter(k => k !== dayKey) : [...prev.holidays, dayKey],
+      };
     });
     setDirty(true);
   };
@@ -335,33 +351,56 @@ export default function EscalaTestePage() {
             </tr>
           </thead>
           <tbody>
-            {days.map(d => (
-              <tr key={d.key} className={d.weekend ? 'bg-muted/50' : 'odd:bg-background even:bg-muted/20'}>
-                <td className="sticky left-0 z-10 bg-inherit px-2 py-1 text-muted-foreground tabular-nums">{d.week}</td>
-                <td className="px-2 py-1 tabular-nums whitespace-nowrap">
-                  {String(d.day).padStart(2, '0')} {MONTHS_PT[month]}
-                </td>
-                <td className={`px-2 py-1 font-medium ${d.weekend ? 'text-primary' : ''}`}>{d.weekday}</td>
-                {team.map(m => {
-                  const role = (assignments[d.key]?.[m.id] ?? '') as Role;
-                  return (
-                    <td key={m.id} className="px-0.5 py-0.5">
-                      <select
-                        value={role}
-                        onChange={e => setRole(d.key, m.id, e.target.value as Role)}
-                        className={`w-full cursor-pointer rounded border-0 px-1 py-1 text-center text-[11px] font-semibold outline-none focus:ring-1 focus:ring-primary ${ROLE_STYLES[role]}`}
+            {days.map(d => {
+              const isHoliday = holidaySet.has(d.key);
+              const rowBg = isHoliday
+                ? 'bg-rose-100 dark:bg-rose-950/40'
+                : d.weekend ? 'bg-muted/50' : 'odd:bg-background even:bg-muted/20';
+              return (
+                <tr key={d.key} className={rowBg}>
+                  <td className="sticky left-0 z-10 bg-inherit px-2 py-1 text-muted-foreground tabular-nums">{d.week}</td>
+                  <td className="px-2 py-1 tabular-nums whitespace-nowrap">
+                    {String(d.day).padStart(2, '0')} {MONTHS_PT[month]}
+                  </td>
+                  <td className="px-2 py-1">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => toggleHoliday(d.key)}
+                        title={isHoliday ? 'Desmarcar feriado' : 'Marcar como feriado'}
+                        className={isHoliday ? 'text-rose-600' : 'text-muted-foreground/40 hover:text-rose-500'}
                       >
-                        {ROLES.map(r => (
-                          <option key={r || 'none'} value={r} className="bg-background text-foreground">
-                            {r === '' ? '—' : r}
-                          </option>
-                        ))}
-                      </select>
+                        <Flag className="h-3.5 w-3.5" fill={isHoliday ? 'currentColor' : 'none'} />
+                      </button>
+                      <span className={`font-medium ${isHoliday ? 'text-rose-700 dark:text-rose-300' : d.weekend ? 'text-primary' : ''}`}>{d.weekday}</span>
+                    </div>
+                  </td>
+                  {isHoliday ? (
+                    <td colSpan={team.length} className="px-2 py-1 text-center text-[11px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300">
+                      Feriado — não se trabalha
                     </td>
-                  );
-                })}
-              </tr>
-            ))}
+                  ) : (
+                    team.map(m => {
+                      const role = (assignments[d.key]?.[m.id] ?? '') as Role;
+                      return (
+                        <td key={m.id} className="px-0.5 py-0.5">
+                          <select
+                            value={role}
+                            onChange={e => setRole(d.key, m.id, e.target.value as Role)}
+                            className={`w-full cursor-pointer rounded border-0 px-1 py-1 text-center text-[11px] font-semibold outline-none focus:ring-1 focus:ring-primary ${ROLE_STYLES[role]}`}
+                          >
+                            {ROLES.map(r => (
+                              <option key={r || 'none'} value={r} className="bg-background text-foreground">
+                                {r === '' ? '—' : r}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      );
+                    })
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -405,6 +444,9 @@ export default function EscalaTestePage() {
                 <span key={r} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${ROLE_STYLES[r]}`}>{r}</span>
               ))}
             </div>
+            <p className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Flag className="h-3 w-3 text-rose-600" fill="currentColor" /> marca o dia como feriado (ninguém trabalha).
+            </p>
           </div>
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Horário</div>
