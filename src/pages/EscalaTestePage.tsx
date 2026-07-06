@@ -181,7 +181,7 @@ function AssignCell({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="flex min-h-[1.75rem] w-full flex-wrap items-center justify-center gap-0.5 rounded px-1 py-1 outline-none transition-colors hover:ring-1 hover:ring-primary">
+        <button className="flex min-h-[2rem] w-full flex-wrap items-center justify-center gap-0.5 rounded border border-border/50 px-1 py-1 outline-none transition-colors hover:ring-1 hover:ring-primary">
           {selectedMembers.length ? (
             selectedMembers.map(m => (
               <span key={m.id} className={`rounded px-1 py-0.5 text-[11px] font-semibold ${colorOf(m.id)}`}>
@@ -503,15 +503,15 @@ export default function EscalaTestePage() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setTeamOpen(o => !o)}>
-            <Users className="h-4 w-4 mr-1.5" /> Equipa
+            <Users className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Equipa</span>
           </Button>
           <Button variant="outline" size="sm" onClick={clearMonth}>
-            <RotateCcw className="h-4 w-4 mr-1.5" /> Limpar mês
+            <RotateCcw className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Limpar mês</span>
           </Button>
           <Button variant="outline" size="sm" onClick={exportPdf}>
-            <FileDown className="h-4 w-4 mr-1.5" /> Exportar PDF
+            <FileDown className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Exportar PDF</span>
           </Button>
           <Button size="sm" onClick={save} disabled={saving || !dirty}>
             {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />}
@@ -566,8 +566,62 @@ export default function EscalaTestePage() {
         </div>
       )}
 
-      {/* Schedule grid: linhas = dias, colunas = tipologias */}
-      <div className="overflow-x-auto rounded-lg border border-border">
+      {/* Mobile: um cartão por dia */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {days.map(d => {
+          const isHoliday = holidaySet.has(d.key);
+          const cardBg = isHoliday
+            ? 'border-rose-300 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30'
+            : d.weekend
+              ? 'border-sky-300 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/30'
+              : 'border-border bg-card';
+          const dayMap = assignments[d.key] ?? {};
+          return (
+            <div key={d.key} className={`rounded-lg border p-3 ${cardBg}`}>
+              <div className="mb-1.5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => toggleHoliday(d.key)}
+                    title={isHoliday ? 'Desmarcar feriado' : 'Marcar como feriado'}
+                    className={isHoliday ? 'text-rose-600' : 'text-muted-foreground/40 hover:text-rose-500'}
+                  >
+                    <Flag className="h-4 w-4" fill={isHoliday ? 'currentColor' : 'none'} />
+                  </button>
+                  <span className={`text-sm font-semibold ${isHoliday ? 'text-rose-700 dark:text-rose-300' : d.weekend ? 'text-primary' : ''}`}>
+                    {String(d.day).padStart(2, '0')} {MONTHS_PT[month]} · {d.weekday}
+                  </span>
+                </div>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Sem {d.week}</span>
+              </div>
+              {isHoliday ? (
+                <div className="py-1 text-center text-[11px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300">
+                  Feriado
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {TYPOLOGIES.map(t => (
+                    <div key={t} className="flex items-center gap-2">
+                      <span className="w-20 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t}</span>
+                      <div className="flex-1">
+                        <AssignCell
+                          typ={t}
+                          eligible={eligibleByTyp(t)}
+                          selectedIds={dayMap[t] ?? []}
+                          colorOf={colorOf}
+                          onToggle={mid => toggleAssign(d.key, t, mid)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop/tablet: grelha — linhas = dias, colunas = tipologias */}
+      <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-[#002060] text-white">
