@@ -13,6 +13,7 @@ import PendentesPage from "./pages/PendentesPage";
 import MultasPage from "./pages/MultasPage";
 import DadosPage from "./pages/DadosPage";
 import EscalaPage from "./pages/EscalaPage";
+import EscalaTestePage from "./pages/EscalaTestePage";
 import NotFound from "./pages/NotFound";
 import FunilPage from "./pages/FunilPage";
 import LoginPage from "./pages/LoginPage";
@@ -78,6 +79,7 @@ const App = () => (
               <Route path="/pendentes" element={<AppLayout><PendentesPage /></AppLayout>} />
               <Route path="/multas" element={<AppLayout><MultasPage /></AppLayout>} />
               <Route path="/escala" element={<AppLayout><EscalaPage /></AppLayout>} />
+              <Route path="/escala-teste" element={<AppLayout><EscalaTestePage /></AppLayout>} />
               <Route path="/dados" element={<AppLayout><DadosPage /></AppLayout>} />
               <Route path="/funil" element={<AppLayout><FunilPage /></AppLayout>} />
               {/* Admin routes */}

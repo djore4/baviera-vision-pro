@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
   { path: '/multas', label: 'MULTAS', icon: Coins },
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
+  { path: '/escala-teste', label: 'ESCALA (TESTE)', icon: CalendarDays },
   { path: '/dados', label: 'DADOS', icon: Database },
 ];
 
