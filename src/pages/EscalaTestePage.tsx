@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getISOWeek } from 'date-fns';
-import { Loader2, Save, Users, Plus, Trash2, ChevronLeft, ChevronRight, RotateCcw, Flag } from 'lucide-react';
+import {
+  Loader2, Save, Users, Plus, Trash2, ChevronLeft, ChevronRight, RotateCcw, Flag, Check,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 const ESCALA_BUCKET = 'excel-files';
 const ESCALA_TESTE_PATH = 'escala-teste.json';
@@ -18,22 +21,19 @@ const MONTHS_PT_FULL = [
 ];
 const WEEKDAYS_PT = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
 
-type Role = '' | 'PG' | 'STAND' | 'APOIO' | 'LIVRE' | 'FOLGA' | 'FÉRIAS' | 'FORMAÇÃO';
+// Colunas = tipologias de presença (como no ficheiro Escala_Aveiro)
+type Typology = 'PG' | 'STAND' | 'APOIO' | 'LIVRE' | 'FOLGAS' | 'FÉRIAS' | 'FORMAÇÃO';
+const TYPOLOGIES: Typology[] = ['PG', 'STAND', 'APOIO', 'LIVRE', 'FOLGAS', 'FÉRIAS', 'FORMAÇÃO'];
 
-const ROLES: Role[] = ['', 'PG', 'STAND', 'APOIO', 'LIVRE', 'FOLGA', 'FÉRIAS', 'FORMAÇÃO'];
+// Tipologias que contam como dia de trabalho (Σ) e para fins-de-semana (FDS)
+const WORK_TYPOLOGIES: Typology[] = ['PG', 'STAND', 'APOIO', 'LIVRE'];
 
-// Roles that count as a worked day (Σ) and towards weekend duty (FDS)
-const WORK_ROLES: Role[] = ['PG', 'STAND', 'APOIO', 'LIVRE'];
-// "Outros" bucket in the summary (matches COUNTIF over APOIO + LIVRE columns)
-const OUTROS_ROLES: Role[] = ['APOIO', 'LIVRE'];
-
-const ROLE_STYLES: Record<Role, string> = {
-  '': 'bg-muted/40 text-muted-foreground',
+const TYP_STYLES: Record<Typology, string> = {
   PG: 'bg-[#002060] text-white',
   STAND: 'bg-blue-500 text-white',
   APOIO: 'bg-teal-500 text-white',
-  LIVRE: 'bg-emerald-200 text-emerald-900',
-  FOLGA: 'bg-amber-400 text-amber-950',
+  LIVRE: 'bg-emerald-500 text-white',
+  FOLGAS: 'bg-amber-400 text-amber-950',
   'FÉRIAS': 'bg-purple-500 text-white',
   'FORMAÇÃO': 'bg-orange-500 text-white',
 };
@@ -48,16 +48,20 @@ const HORARIO_LINES = [
 
 // ---- Types ------------------------------------------------------------------
 
+type MemberKind = 'PG' | 'VEND';
+
 interface Member {
   id: string;
   initials: string;
+  kind: MemberKind; // PG = gerente (só coluna PG); VEND = vendedor (restantes colunas)
 }
 
-// assignments: { "YYYY-MM-DD": { [memberId]: Role } }
-type Assignments = Record<string, Record<string, Role>>;
+// assignments: { "YYYY-MM-DD": { [Typology]: memberId[] } }
+type DayAssign = Partial<Record<Typology, string[]>>;
+type Assignments = Record<string, DayAssign>;
 
 interface EscalaState {
-  version: 1;
+  version: 2;
   year: number;
   month: number; // 0-11
   team: Member[];
@@ -66,17 +70,17 @@ interface EscalaState {
 }
 
 const DEFAULT_TEAM: Member[] = [
-  { id: 'JD', initials: 'JD' },
-  { id: 'BR', initials: 'BR' },
-  { id: 'FS', initials: 'FS' },
-  { id: 'NC', initials: 'NC' },
-  { id: 'PM', initials: 'PM' },
-  { id: 'TS', initials: 'TS' },
+  { id: 'JD', initials: 'JD', kind: 'PG' },
+  { id: 'BR', initials: 'BR', kind: 'VEND' },
+  { id: 'FS', initials: 'FS', kind: 'VEND' },
+  { id: 'NC', initials: 'NC', kind: 'VEND' },
+  { id: 'PM', initials: 'PM', kind: 'VEND' },
+  { id: 'TS', initials: 'TS', kind: 'VEND' },
 ];
 
 function defaultState(): EscalaState {
   return {
-    version: 1,
+    version: 2,
     year: 2026,
     month: 7, // Agosto (0-based)
     team: DEFAULT_TEAM.map(m => ({ ...m })),
@@ -101,6 +105,99 @@ function newMemberId(): string {
   return `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
+// Migra formato antigo (v1: por pessoa -> função) para v2 (por tipologia -> pessoas)
+function migrate(parsed: Record<string, unknown>): EscalaState {
+  const base = defaultState();
+  const team: Member[] = Array.isArray(parsed.team) && parsed.team.length
+    ? (parsed.team as Array<Record<string, unknown>>).map(m => ({
+        id: String(m.id ?? newMemberId()),
+        initials: String(m.initials ?? 'XX'),
+        kind: (m.kind === 'PG' || String(m.initials) === 'JD') ? 'PG' : 'VEND',
+      }))
+    : base.team;
+
+  const rawAssign = (parsed.assignments ?? {}) as Record<string, Record<string, unknown>>;
+  const assignments: Assignments = {};
+  for (const [day, dayVal] of Object.entries(rawAssign)) {
+    if (!dayVal || typeof dayVal !== 'object') continue;
+    const dayMap: DayAssign = {};
+    for (const [k, v] of Object.entries(dayVal)) {
+      if (Array.isArray(v)) {
+        // já é v2: k = tipologia, v = ids
+        dayMap[k as Typology] = v as string[];
+      } else if (typeof v === 'string' && v) {
+        // v1: k = memberId, v = função
+        const typ = (v === 'FOLGA' ? 'FOLGAS' : v) as Typology;
+        if (TYPOLOGIES.includes(typ)) {
+          (dayMap[typ] ??= []).push(k);
+        }
+      }
+    }
+    assignments[day] = dayMap;
+  }
+
+  return {
+    version: 2,
+    year: typeof parsed.year === 'number' ? parsed.year : base.year,
+    month: typeof parsed.month === 'number' ? parsed.month : base.month,
+    team,
+    assignments,
+    holidays: Array.isArray(parsed.holidays) ? (parsed.holidays as string[]) : [],
+  };
+}
+
+// ---- Cell (multi-select de pessoas por tipologia) ---------------------------
+
+function AssignCell({
+  eligible, selectedIds, typ, disabled, onToggle,
+}: {
+  eligible: Member[];
+  selectedIds: string[];
+  typ: Typology;
+  disabled: boolean;
+  onToggle: (memberId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedMembers = eligible.filter(m => selectedIds.includes(m.id));
+
+  if (disabled) {
+    return <div className="min-h-[1.75rem]" />;
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className={`flex min-h-[1.75rem] w-full items-center justify-center gap-1 rounded px-1 py-1 text-[11px] font-semibold outline-none transition-colors hover:ring-1 hover:ring-primary ${
+            selectedMembers.length ? TYP_STYLES[typ] : 'bg-muted/40 text-muted-foreground/50'
+          }`}
+        >
+          {selectedMembers.length ? selectedMembers.map(m => m.initials).join(' ') : '—'}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="center" className="w-44 p-1">
+        <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{typ}</div>
+        {eligible.length === 0 && (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">Sem pessoas elegíveis</div>
+        )}
+        {eligible.map(m => {
+          const checked = selectedIds.includes(m.id);
+          return (
+            <button
+              key={m.id}
+              onClick={() => onToggle(m.id)}
+              className="flex w-full items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-accent"
+            >
+              <span className="font-medium">{m.initials}</span>
+              {checked && <Check className="h-4 w-4 text-primary" />}
+            </button>
+          );
+        })}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ---- Component --------------------------------------------------------------
 
 export default function EscalaTestePage() {
@@ -121,16 +218,9 @@ export default function EscalaTestePage() {
           .download(ESCALA_TESTE_PATH);
         if (!error && data) {
           const text = await data.text();
-          const parsed = JSON.parse(text) as Partial<EscalaState>;
+          const parsed = JSON.parse(text) as Record<string, unknown>;
           if (!cancelled && parsed && Array.isArray(parsed.team)) {
-            setState({
-              version: 1,
-              year: parsed.year ?? 2026,
-              month: parsed.month ?? 7,
-              team: parsed.team.length ? parsed.team : defaultState().team,
-              assignments: parsed.assignments ?? {},
-              holidays: parsed.holidays ?? [],
-            });
+            setState(migrate(parsed));
           }
         }
       } catch {
@@ -144,6 +234,9 @@ export default function EscalaTestePage() {
 
   const { year, month, team, assignments } = state;
   const holidaySet = useMemo(() => new Set(state.holidays), [state.holidays]);
+
+  const eligibleByTyp = (typ: Typology) =>
+    team.filter(m => (typ === 'PG' ? m.kind === 'PG' : m.kind === 'VEND'));
 
   const days = useMemo(() => {
     const total = daysInMonth(year, month);
@@ -167,23 +260,36 @@ export default function EscalaTestePage() {
       let pg = 0, std = 0, outros = 0, fds = 0;
       for (const d of days) {
         if (holidaySet.has(d.key)) continue; // feriado: ninguém trabalha
-        const role = assignments[d.key]?.[m.id] ?? '';
-        if (role === 'PG') pg++;
-        else if (role === 'STAND') std++;
-        else if (role === 'APOIO' || role === 'LIVRE') outros++;
-        if (d.weekend && WORK_ROLES.includes(role)) fds++;
+        const dayMap = assignments[d.key];
+        if (!dayMap) continue;
+        let typ: Typology | null = null;
+        for (const t of TYPOLOGIES) {
+          if (dayMap[t]?.includes(m.id)) { typ = t; break; }
+        }
+        if (!typ) continue;
+        if (typ === 'PG') pg++;
+        else if (typ === 'STAND') std++;
+        else if (typ === 'APOIO' || typ === 'LIVRE') outros++;
+        if (d.weekend && WORK_TYPOLOGIES.includes(typ)) fds++;
       }
       return { id: m.id, initials: m.initials, pg, std, outros, total: pg + std + outros, fds };
     });
   }, [team, days, assignments, holidaySet]);
 
   // ---- Mutations ----
-  const setRole = (dayKey: string, memberId: string, role: Role) => {
+  const toggleAssign = (dayKey: string, typ: Typology, memberId: string) => {
     setState(prev => {
-      const dayMap = { ...(prev.assignments[dayKey] ?? {}) };
-      if (role === '') delete dayMap[memberId];
-      else dayMap[memberId] = role;
-      return { ...prev, assignments: { ...prev.assignments, [dayKey]: dayMap } };
+      const day: DayAssign = {};
+      const prevDay = prev.assignments[dayKey] ?? {};
+      for (const t of TYPOLOGIES) day[t] = [...(prevDay[t] ?? [])];
+      const already = day[typ]!.includes(memberId);
+      // uma pessoa está numa só tipologia por dia
+      for (const t of TYPOLOGIES) day[t] = day[t]!.filter(id => id !== memberId);
+      if (!already) day[typ]!.push(memberId);
+      // limpa arrays vazios
+      const clean: DayAssign = {};
+      for (const t of TYPOLOGIES) if (day[t]!.length) clean[t] = day[t]!;
+      return { ...prev, assignments: { ...prev.assignments, [dayKey]: clean } };
     });
     setDirty(true);
   };
@@ -209,18 +315,18 @@ export default function EscalaTestePage() {
     });
   };
 
-  const updateMember = (id: string, initials: string) => {
+  const updateMember = (id: string, patch: Partial<Member>) => {
     setState(prev => ({
       ...prev,
-      team: prev.team.map(m => (m.id === id ? { ...m, initials } : m)),
+      team: prev.team.map(m => (m.id === id ? { ...m, ...patch } : m)),
     }));
     setDirty(true);
   };
 
-  const addMember = () => {
+  const addMember = (kind: MemberKind) => {
     setState(prev => ({
       ...prev,
-      team: [...prev.team, { id: newMemberId(), initials: 'XX' }],
+      team: [...prev.team, { id: newMemberId(), initials: 'XX', kind }],
     }));
     setDirty(true);
   };
@@ -228,9 +334,13 @@ export default function EscalaTestePage() {
   const removeMember = (id: string) => {
     setState(prev => {
       const assignments: Assignments = {};
-      for (const [k, v] of Object.entries(prev.assignments)) {
-        const { [id]: _removed, ...rest } = v;
-        assignments[k] = rest;
+      for (const [k, day] of Object.entries(prev.assignments)) {
+        const clean: DayAssign = {};
+        for (const t of TYPOLOGIES) {
+          const arr = (day[t] ?? []).filter(mid => mid !== id);
+          if (arr.length) clean[t] = arr;
+        }
+        assignments[k] = clean;
       }
       return { ...prev, team: prev.team.filter(m => m.id !== id), assignments };
     });
@@ -257,7 +367,7 @@ export default function EscalaTestePage() {
       if (error) throw error;
       setDirty(false);
       toast.success('Escala guardada.');
-    } catch (e) {
+    } catch {
       toast.error('Falha ao guardar a escala.');
     } finally {
       setSaving(false);
@@ -309,18 +419,31 @@ export default function EscalaTestePage() {
         <div className="rounded-lg border border-border bg-card p-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Equipa</span>
-            <Button variant="ghost" size="sm" onClick={addMember}>
-              <Plus className="h-4 w-4 mr-1" /> Adicionar
-            </Button>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" onClick={() => addMember('PG')}>
+                <Plus className="h-4 w-4 mr-1" /> PG
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => addMember('VEND')}>
+                <Plus className="h-4 w-4 mr-1" /> Vendedor
+              </Button>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {team.map(m => (
               <div key={m.id} className="flex items-center gap-1 rounded border border-border bg-background px-1.5 py-1">
                 <Input
                   value={m.initials}
-                  onChange={e => updateMember(m.id, e.target.value.toUpperCase().slice(0, 4))}
-                  className="h-7 w-16 text-center text-xs font-semibold uppercase"
+                  onChange={e => updateMember(m.id, { initials: e.target.value.toUpperCase().slice(0, 4) })}
+                  className="h-7 w-14 text-center text-xs font-semibold uppercase"
                 />
+                <select
+                  value={m.kind}
+                  onChange={e => updateMember(m.id, { kind: e.target.value as MemberKind })}
+                  className="h-7 rounded border border-border bg-background text-[11px] px-1"
+                >
+                  <option value="PG">PG</option>
+                  <option value="VEND">Vendedor</option>
+                </select>
                 <button
                   onClick={() => removeMember(m.id)}
                   className="text-muted-foreground hover:text-destructive"
@@ -332,12 +455,12 @@ export default function EscalaTestePage() {
             ))}
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            As iniciais aparecem como colunas na grelha. Remover uma pessoa apaga as suas atribuições.
+            <strong>PG</strong> aparece apenas na coluna PG; <strong>Vendedor</strong> nas restantes colunas.
           </p>
         </div>
       )}
 
-      {/* Schedule grid */}
+      {/* Schedule grid: linhas = dias, colunas = tipologias */}
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full border-collapse text-xs">
           <thead>
@@ -345,8 +468,8 @@ export default function EscalaTestePage() {
               <th className="sticky left-0 z-10 bg-[#002060] px-2 py-1.5 text-left font-semibold">SEM</th>
               <th className="px-2 py-1.5 text-left font-semibold">DATA</th>
               <th className="px-2 py-1.5 text-left font-semibold">DIA</th>
-              {team.map(m => (
-                <th key={m.id} className="px-1 py-1.5 text-center font-semibold min-w-[5.5rem]">{m.initials}</th>
+              {TYPOLOGIES.map(t => (
+                <th key={t} className="px-1 py-1.5 text-center font-semibold min-w-[5.5rem]">{t}</th>
               ))}
             </tr>
           </thead>
@@ -356,6 +479,7 @@ export default function EscalaTestePage() {
               const rowBg = isHoliday
                 ? 'bg-rose-100 dark:bg-rose-950/40'
                 : d.weekend ? 'bg-muted/50' : 'odd:bg-background even:bg-muted/20';
+              const dayMap = assignments[d.key] ?? {};
               return (
                 <tr key={d.key} className={rowBg}>
                   <td className="sticky left-0 z-10 bg-inherit px-2 py-1 text-muted-foreground tabular-nums">{d.week}</td>
@@ -375,28 +499,21 @@ export default function EscalaTestePage() {
                     </div>
                   </td>
                   {isHoliday ? (
-                    <td colSpan={team.length} className="px-2 py-1 text-center text-[11px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300">
+                    <td colSpan={TYPOLOGIES.length} className="px-2 py-1 text-center text-[11px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300">
                       Feriado — não se trabalha
                     </td>
                   ) : (
-                    team.map(m => {
-                      const role = (assignments[d.key]?.[m.id] ?? '') as Role;
-                      return (
-                        <td key={m.id} className="px-0.5 py-0.5">
-                          <select
-                            value={role}
-                            onChange={e => setRole(d.key, m.id, e.target.value as Role)}
-                            className={`w-full cursor-pointer rounded border-0 px-1 py-1 text-center text-[11px] font-semibold outline-none focus:ring-1 focus:ring-primary ${ROLE_STYLES[role]}`}
-                          >
-                            {ROLES.map(r => (
-                              <option key={r || 'none'} value={r} className="bg-background text-foreground">
-                                {r === '' ? '—' : r}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                      );
-                    })
+                    TYPOLOGIES.map(t => (
+                      <td key={t} className="px-0.5 py-0.5">
+                        <AssignCell
+                          typ={t}
+                          eligible={eligibleByTyp(t)}
+                          selectedIds={dayMap[t] ?? []}
+                          disabled={false}
+                          onToggle={mid => toggleAssign(d.key, t, mid)}
+                        />
+                      </td>
+                    ))
                   )}
                 </tr>
               );
@@ -438,10 +555,10 @@ export default function EscalaTestePage() {
         {/* Legend / Horário */}
         <div className="rounded-lg border border-border bg-card p-3 space-y-3">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Funções</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Tipologias</div>
             <div className="flex flex-wrap gap-1.5">
-              {ROLES.filter(r => r !== '').map(r => (
-                <span key={r} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${ROLE_STYLES[r]}`}>{r}</span>
+              {TYPOLOGIES.map(t => (
+                <span key={t} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${TYP_STYLES[t]}`}>{t}</span>
               ))}
             </div>
             <p className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
