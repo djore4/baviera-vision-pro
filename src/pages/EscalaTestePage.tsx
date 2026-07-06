@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getISOWeek } from 'date-fns';
 import {
-  Loader2, Save, Users, Plus, Trash2, ChevronLeft, ChevronRight, RotateCcw, Flag, Check,
+  Loader2, Save, Users, Plus, Trash2, ChevronLeft, ChevronRight, RotateCcw, Flag, Check, FileDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,6 +40,20 @@ const PERSON_PALETTE = [
   'bg-cyan-600 text-white',
   'bg-lime-500 text-black',
   'bg-fuchsia-600 text-white',
+];
+
+// Equivalente em hex para a exportação PDF (mesma ordem da paleta acima)
+const PERSON_HEX: Array<{ bg: string; text: string }> = [
+  { bg: '#2563eb', text: '#ffffff' },
+  { bg: '#059669', text: '#ffffff' },
+  { bg: '#f59e0b', text: '#000000' },
+  { bg: '#9333ea', text: '#ffffff' },
+  { bg: '#e11d48', text: '#ffffff' },
+  { bg: '#0d9488', text: '#ffffff' },
+  { bg: '#ea580c', text: '#ffffff' },
+  { bg: '#0891b2', text: '#ffffff' },
+  { bg: '#84cc16', text: '#000000' },
+  { bg: '#c026d3', text: '#ffffff' },
 ];
 
 const HORARIO_LINES = [
@@ -371,6 +385,81 @@ export default function EscalaTestePage() {
     toast.info('Escala do mês limpa (guarda para confirmar).');
   };
 
+  const exportPdf = () => {
+    const esc = (s: string) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string));
+    const idxOf = (id: string) => team.findIndex(m => m.id === id);
+    const chip = (id: string) => {
+      const c = PERSON_HEX[idxOf(id) % PERSON_HEX.length] ?? { bg: '#e5e7eb', text: '#111827' };
+      const mem = team.find(m => m.id === id);
+      return `<span style="display:inline-block;background:${c.bg};color:${c.text};border-radius:3px;padding:1px 4px;margin:1px;font-weight:700;font-size:9px">${esc(mem?.initials ?? '')}</span>`;
+    };
+
+    const head = ['SEM', 'DATA', 'DIA', ...TYPOLOGIES].map(h => `<th>${esc(h)}</th>`).join('');
+    const bodyRows = days.map(d => {
+      const isHol = holidaySet.has(d.key);
+      const bg = isHol ? '#ffe4e6' : d.weekend ? '#e0f2fe' : '#ffffff';
+      const dateCell = `${String(d.day).padStart(2, '0')} ${MONTHS_PT[month]}`;
+      const wdStyle = isHol ? 'font-weight:700;color:#be123c' : d.weekend ? 'font-weight:700;color:#0369a1' : 'font-weight:600';
+      if (isHol) {
+        return `<tr style="background:${bg}"><td>${d.week}</td><td style="white-space:nowrap">${dateCell}</td><td style="${wdStyle}">${d.weekday}</td><td colspan="${TYPOLOGIES.length}" style="text-align:center;color:#be123c;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Feriado</td></tr>`;
+      }
+      const dayMap = assignments[d.key] ?? {};
+      const cells = TYPOLOGIES.map(t => {
+        const ids = dayMap[t] ?? [];
+        return `<td>${ids.length ? ids.map(chip).join('') : '<span style="color:#cbd5e1">—</span>'}</td>`;
+      }).join('');
+      return `<tr style="background:${bg}"><td>${d.week}</td><td style="white-space:nowrap">${dateCell}</td><td style="${wdStyle}">${d.weekday}</td>${cells}</tr>`;
+    }).join('');
+
+    const sumHead = ['RESUMO', 'PG', 'STD', 'OU', 'Σ', 'FDS'].map(h => `<th>${esc(h)}</th>`).join('');
+    const sumRows = summary.map(s =>
+      `<tr><td style="text-align:left">${chip(s.id)}</td><td>${s.pg}</td><td>${s.std}</td><td>${s.outros}</td><td style="font-weight:700">${s.total}</td><td>${s.fds}</td></tr>`
+    ).join('');
+
+    const legend = team.map(m => chip(m.id)).join(' ');
+    const horario = HORARIO_LINES.map(l => `<div${l.startsWith('*') ? ' style="font-style:italic"' : ''}>${esc(l)}</div>`).join('');
+
+    const title = `Escala ${MONTHS_PT_FULL[month]} ${year}`;
+    const fileTitle = `Escala_${MONTHS_PT[month]}_${year}`;
+
+    const html = `<!doctype html><html lang="pt"><head><meta charset="utf-8" />
+<title>${esc(fileTitle)}</title>
+<style>
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:16px}
+  h1{font-size:16px;margin:0 0 2px}
+  .sub{font-size:11px;color:#6b7280;margin:0 0 12px}
+  table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:14px}
+  th{background:#002060;color:#fff;padding:3px 4px;text-align:center;font-weight:700}
+  td{border:1px solid #e5e7eb;padding:2px 4px;text-align:center}
+  td:nth-child(1),td:nth-child(2){color:#6b7280}
+  td:nth-child(3){text-align:left}
+  .grid{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+  .grid table{width:auto;min-width:260px}
+  .box{font-size:10px}
+  .box h2{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;margin:0 0 4px}
+  @page{size:A4 portrait;margin:10mm}
+</style></head><body>
+  <h1>ESCALA | CAETANO BMW Aveiro</h1>
+  <p class="sub">${esc(title)}</p>
+  <table><thead><tr>${head}</tr></thead><tbody>${bodyRows}</tbody></table>
+  <div class="grid">
+    <table><thead><tr>${sumHead}</tr></thead><tbody>${sumRows}</tbody></table>
+    <div class="box"><h2>Equipa</h2><div>${legend}</div></div>
+    <div class="box"><h2>Horário</h2>${horario}</div>
+  </div>
+  <script>window.onload=function(){window.focus();window.print();};</script>
+</body></html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) {
+      toast.error('Permite pop-ups para exportar o PDF.');
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+  };
+
   const save = async () => {
     setSaving(true);
     try {
@@ -420,6 +509,9 @@ export default function EscalaTestePage() {
           </Button>
           <Button variant="outline" size="sm" onClick={clearMonth}>
             <RotateCcw className="h-4 w-4 mr-1.5" /> Limpar mês
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportPdf}>
+            <FileDown className="h-4 w-4 mr-1.5" /> Exportar PDF
           </Button>
           <Button size="sm" onClick={save} disabled={saving || !dirty}>
             {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />}
