@@ -28,15 +28,19 @@ const TYPOLOGIES: Typology[] = ['PG', 'STAND', 'APOIO', 'LIVRE', 'FOLGAS', 'FÉR
 // Tipologias que contam como dia de trabalho (Σ) e para fins-de-semana (FDS)
 const WORK_TYPOLOGIES: Typology[] = ['PG', 'STAND', 'APOIO', 'LIVRE'];
 
-const TYP_STYLES: Record<Typology, string> = {
-  PG: 'bg-[#002060] text-white',
-  STAND: 'bg-blue-500 text-white',
-  APOIO: 'bg-teal-500 text-white',
-  LIVRE: 'bg-emerald-500 text-white',
-  FOLGAS: 'bg-amber-400 text-amber-950',
-  'FÉRIAS': 'bg-purple-500 text-white',
-  'FORMAÇÃO': 'bg-orange-500 text-white',
-};
+// Cor própria por pessoa (atribuída por ordem na equipa)
+const PERSON_PALETTE = [
+  'bg-blue-600 text-white',
+  'bg-emerald-600 text-white',
+  'bg-amber-500 text-black',
+  'bg-purple-600 text-white',
+  'bg-rose-600 text-white',
+  'bg-teal-600 text-white',
+  'bg-orange-600 text-white',
+  'bg-cyan-600 text-white',
+  'bg-lime-500 text-black',
+  'bg-fuchsia-600 text-white',
+];
 
 const HORARIO_LINES = [
   'Semana: 9h - 19h',
@@ -149,30 +153,30 @@ function migrate(parsed: Record<string, unknown>): EscalaState {
 // ---- Cell (multi-select de pessoas por tipologia) ---------------------------
 
 function AssignCell({
-  eligible, selectedIds, typ, disabled, onToggle,
+  eligible, selectedIds, typ, colorOf, onToggle,
 }: {
   eligible: Member[];
   selectedIds: string[];
   typ: Typology;
-  disabled: boolean;
+  colorOf: (memberId: string) => string;
   onToggle: (memberId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const selectedMembers = eligible.filter(m => selectedIds.includes(m.id));
 
-  if (disabled) {
-    return <div className="min-h-[1.75rem]" />;
-  }
-
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          className={`flex min-h-[1.75rem] w-full items-center justify-center gap-1 rounded px-1 py-1 text-[11px] font-semibold outline-none transition-colors hover:ring-1 hover:ring-primary ${
-            selectedMembers.length ? TYP_STYLES[typ] : 'bg-muted/40 text-muted-foreground/50'
-          }`}
-        >
-          {selectedMembers.length ? selectedMembers.map(m => m.initials).join(' ') : '—'}
+        <button className="flex min-h-[1.75rem] w-full flex-wrap items-center justify-center gap-0.5 rounded px-1 py-1 outline-none transition-colors hover:ring-1 hover:ring-primary">
+          {selectedMembers.length ? (
+            selectedMembers.map(m => (
+              <span key={m.id} className={`rounded px-1 py-0.5 text-[11px] font-semibold ${colorOf(m.id)}`}>
+                {m.initials}
+              </span>
+            ))
+          ) : (
+            <span className="text-[11px] font-semibold text-muted-foreground/50">—</span>
+          )}
         </button>
       </PopoverTrigger>
       <PopoverContent align="center" className="w-44 p-1">
@@ -188,7 +192,10 @@ function AssignCell({
               onClick={() => onToggle(m.id)}
               className="flex w-full items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-accent"
             >
-              <span className="font-medium">{m.initials}</span>
+              <span className="flex items-center gap-1.5 font-medium">
+                <span className={`h-3 w-3 rounded-sm ${colorOf(m.id)}`} />
+                {m.initials}
+              </span>
               {checked && <Check className="h-4 w-4 text-primary" />}
             </button>
           );
@@ -234,6 +241,13 @@ export default function EscalaTestePage() {
 
   const { year, month, team, assignments } = state;
   const holidaySet = useMemo(() => new Set(state.holidays), [state.holidays]);
+
+  const colorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    team.forEach((m, i) => { map[m.id] = PERSON_PALETTE[i % PERSON_PALETTE.length]; });
+    return map;
+  }, [team]);
+  const colorOf = (id: string) => colorMap[id] ?? 'bg-muted text-foreground';
 
   const eligibleByTyp = (typ: Typology) =>
     team.filter(m => (typ === 'PG' ? m.kind === 'PG' : m.kind === 'VEND'));
@@ -478,7 +492,7 @@ export default function EscalaTestePage() {
               const isHoliday = holidaySet.has(d.key);
               const rowBg = isHoliday
                 ? 'bg-rose-100 dark:bg-rose-950/40'
-                : d.weekend ? 'bg-muted/50' : 'odd:bg-background even:bg-muted/20';
+                : d.weekend ? 'bg-sky-100 dark:bg-sky-950/40' : 'odd:bg-background even:bg-muted/20';
               const dayMap = assignments[d.key] ?? {};
               return (
                 <tr key={d.key} className={rowBg}>
@@ -500,7 +514,7 @@ export default function EscalaTestePage() {
                   </td>
                   {isHoliday ? (
                     <td colSpan={TYPOLOGIES.length} className="px-2 py-1 text-center text-[11px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300">
-                      Feriado — não se trabalha
+                      Feriado
                     </td>
                   ) : (
                     TYPOLOGIES.map(t => (
@@ -509,7 +523,7 @@ export default function EscalaTestePage() {
                           typ={t}
                           eligible={eligibleByTyp(t)}
                           selectedIds={dayMap[t] ?? []}
-                          disabled={false}
+                          colorOf={colorOf}
                           onToggle={mid => toggleAssign(d.key, t, mid)}
                         />
                       </td>
@@ -540,7 +554,12 @@ export default function EscalaTestePage() {
             <tbody>
               {summary.map(s => (
                 <tr key={s.id} className="odd:bg-background even:bg-muted/20">
-                  <td className="px-2 py-1 font-semibold">{s.initials}</td>
+                  <td className="px-2 py-1 font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <span className={`h-3 w-3 rounded-sm ${colorOf(s.id)}`} />
+                      {s.initials}
+                    </span>
+                  </td>
                   <td className="px-2 py-1 text-center tabular-nums">{s.pg}</td>
                   <td className="px-2 py-1 text-center tabular-nums">{s.std}</td>
                   <td className="px-2 py-1 text-center tabular-nums">{s.outros}</td>
@@ -555,10 +574,10 @@ export default function EscalaTestePage() {
         {/* Legend / Horário */}
         <div className="rounded-lg border border-border bg-card p-3 space-y-3">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Tipologias</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Equipa</div>
             <div className="flex flex-wrap gap-1.5">
-              {TYPOLOGIES.map(t => (
-                <span key={t} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${TYP_STYLES[t]}`}>{t}</span>
+              {team.map(m => (
+                <span key={m.id} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${colorOf(m.id)}`}>{m.initials}</span>
               ))}
             </div>
             <p className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
