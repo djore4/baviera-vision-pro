@@ -22,38 +22,38 @@ const MONTHS_PT_FULL = [
 const WEEKDAYS_PT = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
 
 // Colunas = tipologias de presença (como no ficheiro Escala_Aveiro)
-type Typology = 'PG' | 'STAND' | 'APOIO' | 'LIVRE' | 'FOLGAS' | 'FÉRIAS' | 'FORMAÇÃO';
-const TYPOLOGIES: Typology[] = ['PG', 'STAND', 'APOIO', 'LIVRE', 'FOLGAS', 'FÉRIAS', 'FORMAÇÃO'];
+type Typology = 'Genius' | 'STAND' | 'APOIO' | 'LIVRE' | 'FOLGAS' | 'FÉRIAS' | 'FORMAÇÃO';
+const TYPOLOGIES: Typology[] = ['Genius', 'STAND', 'APOIO', 'LIVRE', 'FOLGAS', 'FÉRIAS', 'FORMAÇÃO'];
 
 // Tipologias que contam como dia de trabalho (Σ) e para fins-de-semana (FDS)
-const WORK_TYPOLOGIES: Typology[] = ['PG', 'STAND', 'APOIO', 'LIVRE'];
+const WORK_TYPOLOGIES: Typology[] = ['Genius', 'STAND', 'APOIO', 'LIVRE'];
 
-// Cor própria por pessoa (atribuída por ordem na equipa)
+// Cor própria por pessoa (atribuída por ordem na equipa) — hues bem separadas
 const PERSON_PALETTE = [
   'bg-blue-600 text-white',
-  'bg-emerald-600 text-white',
+  'bg-red-600 text-white',
   'bg-amber-500 text-black',
-  'bg-purple-600 text-white',
-  'bg-rose-600 text-white',
-  'bg-teal-600 text-white',
+  'bg-violet-600 text-white',
+  'bg-emerald-600 text-white',
   'bg-orange-600 text-white',
   'bg-cyan-600 text-white',
-  'bg-lime-500 text-black',
   'bg-fuchsia-600 text-white',
+  'bg-lime-600 text-white',
+  'bg-pink-600 text-white',
 ];
 
 // Equivalente em hex para a exportação PDF (mesma ordem da paleta acima)
 const PERSON_HEX: Array<{ bg: string; text: string }> = [
   { bg: '#2563eb', text: '#ffffff' },
-  { bg: '#059669', text: '#ffffff' },
+  { bg: '#dc2626', text: '#ffffff' },
   { bg: '#f59e0b', text: '#000000' },
-  { bg: '#9333ea', text: '#ffffff' },
-  { bg: '#e11d48', text: '#ffffff' },
-  { bg: '#0d9488', text: '#ffffff' },
+  { bg: '#7c3aed', text: '#ffffff' },
+  { bg: '#059669', text: '#ffffff' },
   { bg: '#ea580c', text: '#ffffff' },
   { bg: '#0891b2', text: '#ffffff' },
-  { bg: '#84cc16', text: '#000000' },
   { bg: '#c026d3', text: '#ffffff' },
+  { bg: '#65a30d', text: '#ffffff' },
+  { bg: '#db2777', text: '#ffffff' },
 ];
 
 const HORARIO_LINES = [
@@ -141,11 +141,12 @@ function migrate(parsed: Record<string, unknown>): EscalaState {
     const dayMap: DayAssign = {};
     for (const [k, v] of Object.entries(dayVal)) {
       if (Array.isArray(v)) {
-        // já é v2: k = tipologia, v = ids
-        dayMap[k as Typology] = v as string[];
+        // já é v2: k = tipologia, v = ids ("PG" antigo -> "Genius")
+        const typ = (k === 'PG' ? 'Genius' : k) as Typology;
+        if (TYPOLOGIES.includes(typ)) dayMap[typ] = v as string[];
       } else if (typeof v === 'string' && v) {
         // v1: k = memberId, v = função
-        const typ = (v === 'FOLGA' ? 'FOLGAS' : v) as Typology;
+        const typ = (v === 'FOLGA' ? 'FOLGAS' : v === 'PG' ? 'Genius' : v) as Typology;
         if (TYPOLOGIES.includes(typ)) {
           (dayMap[typ] ??= []).push(k);
         }
@@ -264,7 +265,7 @@ export default function EscalaTestePage() {
   const colorOf = (id: string) => colorMap[id] ?? 'bg-muted text-foreground';
 
   const eligibleByTyp = (typ: Typology) =>
-    team.filter(m => (typ === 'PG' ? m.kind === 'PG' : m.kind === 'VEND'));
+    team.filter(m => (typ === 'Genius' ? m.kind === 'PG' : m.kind === 'VEND'));
 
   const days = useMemo(() => {
     const total = daysInMonth(year, month);
@@ -296,7 +297,7 @@ export default function EscalaTestePage() {
           if (dayMap[t]?.includes(m.id)) { typ = t; break; }
         }
         if (!typ) continue;
-        if (typ === 'PG') pg++;
+        if (typ === 'Genius') pg++;
         else if (typ === 'STAND') std++;
         else if (typ === 'APOIO' || typ === 'LIVRE') outros++;
         if (d.weekend && WORK_TYPOLOGIES.includes(typ)) fds++;
@@ -414,7 +415,7 @@ export default function EscalaTestePage() {
       return `<tr style="background:${bg}"><td>${d.week}</td><td style="white-space:nowrap">${dateCell}</td><td style="${wdStyle}">${d.weekday}</td>${cells}</tr>`;
     }).join('');
 
-    const sumHead = ['RESUMO', 'PG', 'STD', 'OU', 'Σ', 'FDS'].map(h => `<th>${esc(h)}</th>`).join('');
+    const sumHead = ['RESUMO', 'GEN', 'STD', 'OU', 'Σ', 'FDS'].map(h => `<th>${esc(h)}</th>`).join('');
     const sumRows = summary.map(s =>
       `<tr><td style="text-align:left">${chip(s.id)}</td><td>${s.pg}</td><td>${s.std}</td><td>${s.outros}</td><td style="font-weight:700">${s.total}</td><td>${s.fds}</td></tr>`
     ).join('');
@@ -530,7 +531,7 @@ export default function EscalaTestePage() {
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Equipa</span>
             <div className="flex gap-1">
               <Button variant="ghost" size="sm" onClick={() => addMember('PG')}>
-                <Plus className="h-4 w-4 mr-1" /> PG
+                <Plus className="h-4 w-4 mr-1" /> Genius
               </Button>
               <Button variant="ghost" size="sm" onClick={() => addMember('VEND')}>
                 <Plus className="h-4 w-4 mr-1" /> Vendedor
@@ -550,7 +551,7 @@ export default function EscalaTestePage() {
                   onChange={e => updateMember(m.id, { kind: e.target.value as MemberKind })}
                   className="h-7 rounded border border-border bg-background text-[11px] px-1"
                 >
-                  <option value="PG">PG</option>
+                  <option value="PG">Genius</option>
                   <option value="VEND">Vendedor</option>
                 </select>
                 <button
@@ -564,7 +565,7 @@ export default function EscalaTestePage() {
             ))}
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            <strong>PG</strong> aparece apenas na coluna PG; <strong>Vendedor</strong> nas restantes colunas.
+            <strong>Genius</strong> aparece apenas na coluna Genius; <strong>Vendedor</strong> nas restantes colunas.
           </p>
         </div>
       )}
@@ -578,7 +579,7 @@ export default function EscalaTestePage() {
               <th className="px-2 py-1.5 text-left font-semibold">DATA</th>
               <th className="px-2 py-1.5 text-left font-semibold">DIA</th>
               {TYPOLOGIES.map(t => (
-                <th key={t} className="px-1 py-1.5 text-center font-semibold min-w-[5.5rem]">{t}</th>
+                <th key={t} className="px-1 py-1.5 text-center font-semibold min-w-[4.25rem]">{t}</th>
               ))}
             </tr>
           </thead>
@@ -600,7 +601,9 @@ export default function EscalaTestePage() {
                   </td>
                   <td className="px-2 py-1">
                     <div className="flex items-center gap-1.5">
-                      {!d.sunday && (
+                      {d.sunday ? (
+                        <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      ) : (
                         <button
                           onClick={() => toggleHoliday(d.key)}
                           title={isHoliday ? 'Desmarcar feriado' : 'Marcar como feriado'}
@@ -644,7 +647,7 @@ export default function EscalaTestePage() {
             <thead>
               <tr className="bg-muted text-muted-foreground">
                 <th className="px-2 py-1.5 text-left font-semibold">RESUMO</th>
-                <th className="px-2 py-1.5 text-center font-semibold" title="Dias como PG">PG</th>
+                <th className="px-2 py-1.5 text-center font-semibold" title="Dias como Genius">GEN</th>
                 <th className="px-2 py-1.5 text-center font-semibold" title="Dias no Stand">STD</th>
                 <th className="px-2 py-1.5 text-center font-semibold" title="Apoio + Livre">OU</th>
                 <th className="px-2 py-1.5 text-center font-semibold" title="Total de dias de trabalho">Σ</th>
