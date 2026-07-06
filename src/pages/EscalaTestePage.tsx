@@ -278,6 +278,7 @@ export default function EscalaTestePage() {
         weekday: WEEKDAYS_PT[dow],
         week: getISOWeek(d),
         weekend: dow === 0 || dow === 6,
+        sunday: dow === 0, // domingo: encerrado, nunca se trabalha
       };
     });
   }, [year, month]);
@@ -287,7 +288,7 @@ export default function EscalaTestePage() {
     return team.map(m => {
       let pg = 0, std = 0, outros = 0, fds = 0;
       for (const d of days) {
-        if (holidaySet.has(d.key)) continue; // feriado: ninguém trabalha
+        if (d.sunday || holidaySet.has(d.key)) continue; // domingo/feriado: ninguém trabalha
         const dayMap = assignments[d.key];
         if (!dayMap) continue;
         let typ: Typology | null = null;
@@ -397,11 +398,13 @@ export default function EscalaTestePage() {
     const head = ['SEM', 'DATA', 'DIA', ...TYPOLOGIES].map(h => `<th>${esc(h)}</th>`).join('');
     const bodyRows = days.map(d => {
       const isHol = holidaySet.has(d.key);
-      const bg = isHol ? '#ffe4e6' : d.weekend ? '#e0f2fe' : '#ffffff';
+      const bg = isHol ? '#ffe4e6' : d.sunday ? '#bae6fd' : d.weekend ? '#e0f2fe' : '#ffffff';
       const dateCell = `${String(d.day).padStart(2, '0')} ${MONTHS_PT[month]}`;
       const wdStyle = isHol ? 'font-weight:700;color:#be123c' : d.weekend ? 'font-weight:700;color:#0369a1' : 'font-weight:600';
-      if (isHol) {
-        return `<tr style="background:${bg}"><td>${d.week}</td><td style="white-space:nowrap">${dateCell}</td><td style="${wdStyle}">${d.weekday}</td><td colspan="${TYPOLOGIES.length}" style="text-align:center;color:#be123c;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Feriado</td></tr>`;
+      if (isHol || d.sunday) {
+        const label = isHol ? 'Feriado' : 'Encerrado';
+        const color = isHol ? '#be123c' : '#075985';
+        return `<tr style="background:${bg}"><td>${d.week}</td><td style="white-space:nowrap">${dateCell}</td><td style="${wdStyle}">${d.weekday}</td><td colspan="${TYPOLOGIES.length}" style="text-align:center;color:${color};font-weight:700;text-transform:uppercase;letter-spacing:.5px">${label}</td></tr>`;
       }
       const dayMap = assignments[d.key] ?? {};
       const cells = TYPOLOGIES.map(t => {
@@ -582,9 +585,12 @@ export default function EscalaTestePage() {
           <tbody>
             {days.map(d => {
               const isHoliday = holidaySet.has(d.key);
+              const closed = d.sunday || isHoliday;
               const rowBg = isHoliday
                 ? 'bg-rose-100 dark:bg-rose-950/40'
-                : d.weekend ? 'bg-sky-100 dark:bg-sky-950/40' : 'odd:bg-background even:bg-muted/20';
+                : d.sunday ? 'bg-sky-200 dark:bg-sky-900/50'
+                : d.weekend ? 'bg-sky-100 dark:bg-sky-950/40'
+                : 'odd:bg-background even:bg-muted/20';
               const dayMap = assignments[d.key] ?? {};
               return (
                 <tr key={d.key} className={rowBg}>
@@ -594,19 +600,21 @@ export default function EscalaTestePage() {
                   </td>
                   <td className="px-2 py-1">
                     <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => toggleHoliday(d.key)}
-                        title={isHoliday ? 'Desmarcar feriado' : 'Marcar como feriado'}
-                        className={isHoliday ? 'text-rose-600' : 'text-muted-foreground/40 hover:text-rose-500'}
-                      >
-                        <Flag className="h-3.5 w-3.5" fill={isHoliday ? 'currentColor' : 'none'} />
-                      </button>
-                      <span className={`font-medium ${isHoliday ? 'text-rose-700 dark:text-rose-300' : d.weekend ? 'text-primary' : ''}`}>{d.weekday}</span>
+                      {!d.sunday && (
+                        <button
+                          onClick={() => toggleHoliday(d.key)}
+                          title={isHoliday ? 'Desmarcar feriado' : 'Marcar como feriado'}
+                          className={isHoliday ? 'text-rose-600' : 'text-muted-foreground/40 hover:text-rose-500'}
+                        >
+                          <Flag className="h-3.5 w-3.5" fill={isHoliday ? 'currentColor' : 'none'} />
+                        </button>
+                      )}
+                      <span className={`font-medium ${isHoliday ? 'text-rose-700 dark:text-rose-300' : d.sunday ? 'text-sky-800 dark:text-sky-300' : d.weekend ? 'text-primary' : ''}`}>{d.weekday}</span>
                     </div>
                   </td>
-                  {isHoliday ? (
-                    <td colSpan={TYPOLOGIES.length} className="px-2 py-1 text-center text-[11px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300">
-                      Feriado
+                  {closed ? (
+                    <td colSpan={TYPOLOGIES.length} className={`px-2 py-1 text-center text-[11px] font-semibold uppercase tracking-wider ${isHoliday ? 'text-rose-700 dark:text-rose-300' : 'text-sky-800 dark:text-sky-300'}`}>
+                      {isHoliday ? 'Feriado' : 'Encerrado'}
                     </td>
                   ) : (
                     TYPOLOGIES.map(t => (
