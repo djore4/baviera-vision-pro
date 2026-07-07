@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Trash2, X, Check, SlidersHorizontal, ChevronDown, Filter, Database } from 'lucide-react';
+import { Plus, Trash2, X, Check, SlidersHorizontal, ChevronDown, ChevronUp, Filter, Database, Search } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { replaceControlRecords } from '@/lib/control-records';
 
@@ -124,7 +124,7 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
       <select
         value={curMonth}
         onChange={e => emit(e.target.value, curYear)}
-        className="flex-1 px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+        className="flex-1 min-w-0 px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
       >
         <option value="">— sem mês —</option>
         {MONTHS_PT.map((m, i) => <option key={i + 1} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
@@ -142,11 +142,11 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
 }
 
 /* ── Filtro compacto (chip com popover de checkboxes) ── */
-function FilterChip({ label, values, active, fmt, onChange }: {
+function FilterChip({ label, values, active, fmt, onChange, initialOpen }: {
   label: string; values: string[]; active: Set<string>;
-  fmt?: (v: string) => string; onChange: (v: Set<string>) => void;
+  fmt?: (v: string) => string; onChange: (v: Set<string>) => void; initialOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!initialOpen);
   const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -228,6 +228,53 @@ function FilterChip({ label, values, active, fmt, onChange }: {
   );
 }
 
+/* ── Botão "+ Filtro" (adiciona um campo à barra) ── */
+function AddFilter({ options, onAdd }: { options: SlicerDef[]; onAdd: (key: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+  if (options.length === 0) return null;
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 pl-2 pr-2.5 py-1 text-xs rounded-full border border-dashed border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+      >
+        <Plus className="h-3 w-3" /> Filtro
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 z-50 mt-1 bg-popover border border-border rounded-lg shadow-xl p-1 w-40 max-h-[300px] overflow-y-auto">
+          {options.map(o => (
+            <button
+              key={o.key}
+              onClick={() => { onAdd(o.key); setOpen(false); }}
+              className="w-full text-left px-2 py-1 text-xs rounded hover:bg-muted text-foreground/80"
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Persistência da vista (filtros, ordenação, colunas) ── */
+const VIEW_KEY = 'db_view_state_v1';
+interface ViewState {
+  colFilters?: Record<string, string[]>;
+  addedFilters?: string[];
+  hiddenCols?: string[];
+  sort?: { key: string; dir: 'asc' | 'desc' } | null;
+}
+function loadViewState(): ViewState | null {
+  try { const raw = localStorage.getItem(VIEW_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+
 /* ── Main page ── */
 export default function DatabasePage() {
   const [records, setRecords] = useState<ControlRecord[]>([]);
@@ -237,10 +284,34 @@ export default function DatabasePage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [colFilters, setColFilters] = useState<Record<string, Set<string>>>({});
-  const [hiddenCols, setHiddenCols] = useState<Set<string>>(DEFAULT_HIDDEN);
+
+  const persisted = useMemo(loadViewState, []);
+  const [search, setSearch] = useState('');
+  const [colFilters, setColFilters] = useState<Record<string, Set<string>>>(() => {
+    const cf = persisted?.colFilters;
+    if (!cf) return {};
+    const out: Record<string, Set<string>> = {};
+    Object.entries(cf).forEach(([k, arr]) => { if (arr?.length) out[k] = new Set(arr); });
+    return out;
+  });
+  const [addedFilters, setAddedFilters] = useState<Set<string>>(() => new Set(persisted?.addedFilters ?? []));
+  const [justAdded, setJustAdded] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(persisted?.sort ?? null);
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(() =>
+    persisted?.hiddenCols ? new Set(persisted.hiddenCols) : DEFAULT_HIDDEN);
   const [showColPanel, setShowColPanel] = useState(false);
   const colPanelRef = useRef<HTMLDivElement>(null);
+
+  // Persiste a configuração da vista (não inclui a pesquisa por texto).
+  useEffect(() => {
+    const state: ViewState = {
+      colFilters: Object.fromEntries(Object.entries(colFilters).map(([k, s]) => [k, [...s]])),
+      addedFilters: [...addedFilters],
+      hiddenCols: [...hiddenCols],
+      sort,
+    };
+    try { localStorage.setItem(VIEW_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+  }, [colFilters, addedFilters, hiddenCols, sort]);
 
   useEffect(() => {
     function h(e: MouseEvent) { if (colPanelRef.current && !colPanelRef.current.contains(e.target as Node)) setShowColPanel(false); }
@@ -291,13 +362,42 @@ export default function DatabasePage() {
     return map;
   }, [records]);
 
-  const filtered = useMemo(() => records.filter(r =>
-    Object.entries(colFilters).every(([key, vals]) => {
-      if (vals.size === 0) return true;
-      const v = r[key as keyof ControlRecord];
-      return vals.has((v === null || v === undefined || v === '') ? '' : String(v));
-    })
-  ), [records, colFilters]);
+  const filtered = useMemo(() => {
+    let out = records.filter(r =>
+      Object.entries(colFilters).every(([key, vals]) => {
+        if (vals.size === 0) return true;
+        const v = r[key as keyof ControlRecord];
+        return vals.has((v === null || v === undefined || v === '') ? '' : String(v));
+      })
+    );
+
+    const q = search.trim().toLowerCase();
+    if (q) {
+      out = out.filter(r =>
+        [r.id_cliente, r.chas, r.mat, r.model, r.enc, r.resp, r.version]
+          .some(f => f && String(f).toLowerCase().includes(q))
+      );
+    }
+
+    if (sort) {
+      const col = ALL_COLS.find(c => c.key === sort.key);
+      const dir = sort.dir === 'asc' ? 1 : -1;
+      out = [...out].sort((a, b) => {
+        const av = a[sort.key as keyof ControlRecord];
+        const bv = b[sort.key as keyof ControlRecord];
+        let cmp: number;
+        if (col?.type === 'date') {
+          cmp = (av ? new Date(av as string).getTime() : 0) - (bv ? new Date(bv as string).getTime() : 0);
+        } else if (col?.type === 'number') {
+          cmp = (Number(av) || 0) - (Number(bv) || 0);
+        } else {
+          cmp = String(av ?? '').localeCompare(String(bv ?? ''), 'pt');
+        }
+        return cmp * dir;
+      });
+    }
+    return out;
+  }, [records, colFilters, search, sort]);
 
   const activeFilterCount = Object.values(colFilters).filter(s => s.size > 0).length;
 
@@ -306,6 +406,26 @@ export default function DatabasePage() {
       if (vals.size === 0) { const n = { ...f }; delete n[key]; return n; }
       return { ...f, [key]: vals };
     });
+
+  // Filtros visíveis como chips: os que estão ativos + os adicionados manualmente.
+  const visibleFilters = SLICERS.filter(s => (colFilters[s.key]?.size ?? 0) > 0 || addedFilters.has(s.key));
+  const addableFilters = SLICERS.filter(s => !visibleFilters.includes(s));
+
+  function handleFilterChange(key: string, vals: Set<string>) {
+    setColFilter(key, vals);
+    if (vals.size === 0) setAddedFilters(prev => { const n = new Set(prev); n.delete(key); return n; });
+  }
+  function addFilter(key: string) {
+    setAddedFilters(prev => new Set(prev).add(key));
+    setJustAdded(key);
+  }
+  function clearAllFilters() {
+    setColFilters({});
+    setAddedFilters(new Set());
+  }
+  function toggleSort(key: string) {
+    setSort(s => (!s || s.key !== key) ? { key, dir: 'asc' } : s.dir === 'asc' ? { key, dir: 'desc' } : null);
+  }
 
   function openNew() { setForm(EMPTY); setEditId(null); setShowForm(true); }
   function openEdit(r: ControlRecord) { const { id, ...rest } = r; setForm(rest); setEditId(id); setShowForm(true); }
@@ -387,25 +507,45 @@ export default function DatabasePage() {
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        {/* Barra de filtros compacta */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          {SLICERS.map(s => (
-            <FilterChip
-              key={s.key}
-              label={s.label}
-              values={colUniqueValues[s.key] ?? []}
-              active={colFilters[s.key] ?? new Set()}
-              fmt={s.fmt}
-              onChange={vals => setColFilter(s.key, vals)}
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex-1 space-y-2 min-w-0">
+          {/* Pesquisa */}
+          <div className="relative max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Pesquisar cliente, chassis, matrícula, modelo..."
+              className="w-full pl-8 pr-8 py-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
             />
-          ))}
-          {activeFilterCount > 0 && (
-            <button onClick={() => setColFilters({})} className="text-[11px] text-muted-foreground hover:text-destructive ml-0.5">
-              limpar tudo
-            </button>
-          )}
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Barra de filtros compacta (só filtros ativos + botão "+ Filtro") */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            {visibleFilters.map(s => (
+              <FilterChip
+                key={s.key}
+                label={s.label}
+                values={colUniqueValues[s.key] ?? []}
+                active={colFilters[s.key] ?? new Set()}
+                fmt={s.fmt}
+                initialOpen={justAdded === s.key}
+                onChange={vals => handleFilterChange(s.key, vals)}
+              />
+            ))}
+            <AddFilter options={addableFilters} onAdd={addFilter} />
+            {activeFilterCount > 0 && (
+              <button onClick={clearAllFilters} className="text-[11px] text-muted-foreground hover:text-destructive ml-0.5">
+                limpar tudo
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Ações */}
@@ -462,13 +602,13 @@ export default function DatabasePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <SelectField k="status" label="STATUS" opts={STATUS_OPTS} />
                   <TextField k="neg" label="NEG — Data de negócio" type="date" />
-                  <div>
+                  <TextField k="resp" label="RESP — Vendedor" />
+                  <TextField k="id_cliente" label="ID — Cliente" />
+                  <div className="col-span-2">
                     <label className="block text-[10px] font-medium text-muted-foreground mb-1">MÊS — Entrega (opcional)</label>
                     <MonthPicker value={form.mes1} onChange={v => setField('mes1', v)} />
                     <p className="text-[10px] text-muted-foreground mt-1">Podes deixar mês e/ou ano por preencher se ainda não há previsão de entrega.</p>
                   </div>
-                  <TextField k="resp" label="RESP — Vendedor" />
-                  <TextField k="id_cliente" label="ID — Cliente" />
                 </div>
               </div>
 
@@ -522,6 +662,7 @@ export default function DatabasePage() {
               <div>
                 <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Datas</h3>
                 <div className="grid grid-cols-2 gap-3">
+                  <TextField k="week198" label="198 — Semana prevista" />
                   <TextField k="dmat" label="DMAT — Data da matrícula" type="date" />
                   <TextField k="date298" label="298 — Retail / Entrega cliente" type="date" />
                   <TextField k="app" label="APP — Data do Apping" type="date" />
@@ -572,11 +713,24 @@ export default function DatabasePage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-muted/50">
-                {visibleCols.map(col => (
-                  <th key={col.key} className="px-2 py-2 text-left border-b border-border whitespace-nowrap">
-                    <span className="font-semibold text-muted-foreground">{col.label}</span>
-                  </th>
-                ))}
+                {visibleCols.map(col => {
+                  const sorted = sort?.key === col.key;
+                  return (
+                    <th
+                      key={col.key}
+                      onClick={() => toggleSort(col.key)}
+                      title="Ordenar"
+                      className="px-2 py-2 text-left border-b border-border whitespace-nowrap cursor-pointer select-none group"
+                    >
+                      <span className={`inline-flex items-center gap-1 font-semibold ${sorted ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                        {col.label}
+                        {sorted
+                          ? (sort!.dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
+                          : <ChevronDown className="h-3 w-3 opacity-0 group-hover:opacity-40" />}
+                      </span>
+                    </th>
+                  );
+                })}
                 <th className="px-2 py-2 border-b border-border w-12" />
               </tr>
             </thead>
