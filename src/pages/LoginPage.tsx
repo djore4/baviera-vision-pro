@@ -25,7 +25,7 @@ export default function LoginPage() {
           <img src={bmwLogo} alt="BMW" className="h-12 w-12" />
           <div className="text-center">
             <h1 className="text-lg font-bold text-foreground">Caetano <span className="text-primary">BMW</span></h1>
-            <p className="text-xs text-muted-foreground mt-1">Acesso restrito à equipa de Vila Nova de Gaia</p>
+            <p className="text-xs text-muted-foreground mt-1">Acesso restrito à equipa de Aveiro</p>
           </div>
         </div>
 
