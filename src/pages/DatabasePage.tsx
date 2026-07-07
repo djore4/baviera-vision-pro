@@ -148,89 +148,35 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
   );
 }
 
-/* ── Filtro compacto (chip com popover de checkboxes) ── */
-function FilterChip({ label, values, active, fmt, onChange, initialOpen }: {
-  label: string; values: string[]; active: Set<string>;
-  fmt?: (v: string) => string; onChange: (v: Set<string>) => void; initialOpen?: boolean;
+/* ── Linha de filtro: label + todas as opções sempre visíveis (pills toggle) ── */
+function FilterRow({ label, options, active, fmt, onToggle }: {
+  label: string; options: string[]; active: Set<string>;
+  fmt?: (v: string) => string; onToggle: (v: string) => void;
 }) {
-  const [open, setOpen] = useState(!!initialOpen);
-  const [query, setQuery] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setQuery(''); } }
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
-  const toggle = (v: string) => { const n = new Set(active); n.has(v) ? n.delete(v) : n.add(v); onChange(n); };
   const disp = (v: string) => (fmt ? fmt(v) : (v || '(vazio)'));
-  const isActive = active.size > 0;
-  const summary = active.size === 1 ? disp([...active][0]) : `${active.size}`;
-  const shown = query ? values.filter(v => disp(v).toLowerCase().includes(query.toLowerCase())) : values;
-
   return (
-    <div ref={ref} className="relative">
-      <div
-        className={`flex items-center rounded-full border transition-colors ${
-          isActive
-            ? 'bg-amber-500/15 border-amber-500/50 text-amber-600 dark:text-amber-400 font-medium'
-            : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-        }`}
-      >
-        <button
-          onClick={() => setOpen(o => !o)}
-          className={`flex items-center gap-1 py-1 text-xs ${isActive ? 'pl-2.5 pr-1' : 'pl-2.5 pr-2'}`}
-        >
-          <span>{label}</span>
-          {isActive && <span className="max-w-[110px] truncate opacity-90">· {summary}</span>}
-          {!isActive && <ChevronDown className="h-3 w-3 opacity-60" />}
-        </button>
-        {isActive && (
-          <button
-            onClick={() => onChange(new Set())}
-            title="Limpar"
-            className="pr-2 pl-0.5 py-1 rounded-r-full hover:text-amber-500"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        )}
+    <div className="flex items-start gap-3 px-3 py-2">
+      <span className="w-16 shrink-0 pt-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
+      <div className="flex flex-wrap gap-1.5">
+        {options.length === 0 && <span className="text-[11px] text-muted-foreground pt-1">—</span>}
+        {options.map(v => {
+          const on = active.has(v);
+          return (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onToggle(v)}
+              className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                on
+                  ? 'bg-amber-500 text-black border-amber-500 font-medium'
+                  : 'bg-background text-muted-foreground border-border hover:border-amber-400 hover:text-amber-400'
+              }`}
+            >
+              {disp(v)}
+            </button>
+          );
+        })}
       </div>
-
-      {open && (
-        <div className="absolute top-full left-0 z-50 mt-1 bg-popover border border-border rounded-lg shadow-xl p-2 w-56 max-h-[320px] flex flex-col">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
-            {isActive && <button onClick={() => onChange(new Set())} className="text-[10px] text-amber-500 hover:underline">limpar</button>}
-          </div>
-          {values.length > 8 && (
-            <input
-              autoFocus
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Procurar..."
-              className="mb-1.5 px-2 py-1 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          )}
-          <div className="overflow-y-auto -mr-1 pr-1">
-            {shown.length === 0 && <p className="text-[11px] text-muted-foreground px-1 py-1">sem valores</p>}
-            {shown.map(v => {
-              const on = active.has(v);
-              return (
-                <button
-                  key={v}
-                  onClick={() => toggle(v)}
-                  className={`w-full flex items-center gap-2 text-left px-1.5 py-1 text-xs rounded transition-colors ${on ? 'text-amber-600 dark:text-amber-400 font-medium' : 'hover:bg-muted text-foreground/80'}`}
-                >
-                  <span className={`h-3.5 w-3.5 rounded-[4px] border flex items-center justify-center shrink-0 ${on ? 'bg-amber-500 border-amber-500' : 'border-border'}`}>
-                    {on && <Check className="h-2.5 w-2.5 text-black" />}
-                  </span>
-                  <span className="truncate">{disp(v)}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -378,11 +324,17 @@ export default function DatabasePage() {
 
   const activeFilterCount = Object.values(colFilters).filter(s => s.size > 0).length + (segmentFilter.size > 0 ? 1 : 0);
 
-  const setColFilter = (key: string, vals: Set<string>) =>
+  const toggleValue = (key: string, v: string) =>
     setColFilters(f => {
-      if (vals.size === 0) { const n = { ...f }; delete n[key]; return n; }
-      return { ...f, [key]: vals };
+      const cur = new Set(f[key] ?? []);
+      cur.has(v) ? cur.delete(v) : cur.add(v);
+      const n = { ...f };
+      if (cur.size === 0) delete n[key]; else n[key] = cur;
+      return n;
     });
+
+  const toggleSegment = (v: string) =>
+    setSegmentFilter(s => { const n = new Set(s); n.has(v) ? n.delete(v) : n.add(v); return n; });
 
   function clearAllFilters() {
     setColFilters({});
@@ -471,54 +423,23 @@ export default function DatabasePage() {
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex-1 space-y-2 min-w-0">
-          {/* Pesquisa */}
-          <div className="relative max-w-xs">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Pesquisar cliente, chassis, matrícula, modelo..."
-              className="w-full pl-8 pr-8 py-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Barra de filtros: todos visíveis, cada um multi-seleção */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            {VALUE_FILTERS.map(s => (
-              <FilterChip
-                key={s.key}
-                label={s.label}
-                values={colUniqueValues[s.key] ?? []}
-                active={colFilters[s.key] ?? new Set()}
-                fmt={s.fmt}
-                onChange={vals => setColFilter(s.key, vals)}
-              />
-            ))}
-            <FilterChip
-              label="SEGMENT"
-              values={SEGMENT_OPTIONS.map(o => o.key)}
-              active={segmentFilter}
-              fmt={k => SEGMENT_LABELS[k] ?? k}
-              onChange={setSegmentFilter}
-            />
-            {activeFilterCount > 0 && (
-              <button onClick={clearAllFilters} className="text-[11px] text-muted-foreground hover:text-destructive ml-0.5">
-                limpar tudo
-              </button>
-            )}
-          </div>
+      {/* Toolbar: pesquisa + ações */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Pesquisar cliente, chassis, matrícula, modelo..."
+            className="w-full pl-8 pr-8 py-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
-        {/* Ações */}
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-muted-foreground">{filtered.length} registos</span>
 
@@ -553,6 +474,39 @@ export default function DatabasePage() {
           <button onClick={openNew} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">
             <Plus className="h-3.5 w-3.5" /> Novo registo
           </button>
+        </div>
+      </div>
+
+      {/* Painel de filtros: cada campo numa linha, todas as opções sempre visíveis */}
+      <div className="rounded-lg border border-border overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-muted/40 border-b border-border">
+          <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wide flex items-center gap-1.5">
+            <Filter className="h-3 w-3" /> Filtros
+          </span>
+          {activeFilterCount > 0 && (
+            <button onClick={clearAllFilters} className="text-[11px] text-amber-500 hover:underline">
+              limpar tudo ({activeFilterCount})
+            </button>
+          )}
+        </div>
+        <div className="divide-y divide-border/40 max-h-[45vh] overflow-y-auto">
+          {VALUE_FILTERS.map(s => (
+            <FilterRow
+              key={s.key}
+              label={s.label}
+              options={colUniqueValues[s.key] ?? []}
+              active={colFilters[s.key] ?? new Set()}
+              fmt={s.fmt}
+              onToggle={v => toggleValue(s.key, v)}
+            />
+          ))}
+          <FilterRow
+            label="SEGMENT"
+            options={SEGMENT_OPTIONS.map(o => o.key)}
+            active={segmentFilter}
+            fmt={k => SEGMENT_LABELS[k] ?? k}
+            onToggle={toggleSegment}
+          />
         </div>
       </div>
 
