@@ -3,8 +3,6 @@ import { Upload, Loader2, FileSpreadsheet, CheckCircle2, FileText, Database, Ale
 import { Button } from '@/components/ui/button';
 import { useData } from '@/contexts/DataContext';
 import { supabase } from '@/integrations/supabase/client';
-import { parseExcel } from '@/lib/excel-parser';
-import { replaceControlRecords } from '@/lib/control-records';
 
 const ESCALA_BUCKET = 'excel-files';
 const ESCALA_PATH = 'escala.pdf';
@@ -41,12 +39,8 @@ export default function DadosPage() {
     setImportError(null);
     setImportCount(null);
     try {
-      const buffer = await file.arrayBuffer();
-      const parsed = parseExcel(buffer);
-      // Grava os registos diretamente na tabela do tab "database".
-      const n = await replaceControlRecords(parsed.control);
-      // Mantém os restantes dashboards a funcionar (parse em memória + storage).
-      await uploadFile(file);
+      // Importa control + objetivos do Excel para o Supabase ("gravar por cima").
+      const n = await uploadFile(file);
       setImportCount(n);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Erro ao importar dados');
@@ -92,8 +86,9 @@ export default function DadosPage() {
       <div className="bg-card border border-border rounded-lg p-6 space-y-4">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Dados de Negócio</h2>
         <p className="text-xs text-muted-foreground">
-          Importa a sheet <strong>CONTROL</strong> do Excel diretamente para o tab <strong>database</strong>.
-          A partir daí podes gerir os dados aí, sem depender do Excel.
+          Os dados vivem no Supabase: o tab <strong>database</strong> (registos) e o tab <strong>Objetivos</strong> (metas).
+          O upload de Excel é apenas um <strong>recurso</strong> — importa a sheet <strong>CONTROL</strong> e os <strong>objetivos</strong>,
+          gravando por cima dos dados atuais.
         </p>
         <Button size="lg" className="w-full gap-2" onClick={() => inputRef.current?.click()} disabled={loading || importing}>
           {importing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
@@ -159,8 +154,9 @@ export default function DadosPage() {
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-foreground">Importar para o tab database?</p>
                 <p className="text-xs text-muted-foreground">
-                  Vais importar a sheet <strong>CONTROL</strong> de <span className="font-medium">{pendingFile.name}</span>.
-                  Isto <strong>substitui todos os registos atuais</strong> do tab database pelos do Excel. Esta ação não pode ser anulada.
+                  Vais importar de <span className="font-medium">{pendingFile.name}</span> a sheet <strong>CONTROL</strong> (registos)
+                  e os <strong>objetivos</strong>. Isto <strong>grava por cima</strong> dos dados atuais no tab database e no tab Objetivos.
+                  Esta ação não pode ser anulada.
                 </p>
               </div>
             </div>
