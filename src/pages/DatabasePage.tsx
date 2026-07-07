@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Pencil, Trash2, X, Check, SlidersHorizontal, ChevronDown, Filter } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Check, SlidersHorizontal, ChevronDown, Filter, FilterX } from 'lucide-react';
 
 interface ControlRecord {
   id: string;
@@ -68,6 +68,22 @@ const ALL_COLS: ColDef[] = [
 
 const DEFAULT_HIDDEN = new Set(['local','origin','biz','enc','chas','csc','cme','week198','version']);
 
+/* ── Slicers (as no ficheiro Excel, sheet CONTROL) ── */
+interface SlicerDef { key: keyof ControlRecord; label: string; fmt?: (v: string) => string }
+const flagFmt = (v: string) => (v === '1' ? 'Sim' : v === '0' ? 'Não' : (v || '(vazio)'));
+const SLICERS: SlicerDef[] = [
+  { key: 'status',   label: 'STATUS' },
+  { key: 'mes1',     label: 'MÊS',   fmt: v => v || '(sem data)' },
+  { key: 'resp',     label: 'RESP' },
+  { key: 'type',     label: 'TYPE' },
+  { key: 'model',    label: 'MODEL' },
+  { key: 'gar',      label: 'GAR' },
+  { key: 'qor',      label: 'QoR', fmt: flagFmt },
+  { key: 'xev',      label: 'xEV', fmt: flagFmt },
+  { key: 'bev',      label: 'BEV', fmt: flagFmt },
+  { key: 'week198',  label: '198',  fmt: v => v || '(vazio)' },
+];
+
 function fmtDate(v: unknown) {
   if (!v) return '—';
   try { return new Date(v as string).toLocaleDateString('pt-PT'); } catch { return String(v); }
@@ -79,41 +95,79 @@ function fmtVal(col: ColDef, v: unknown) {
   return String(v);
 }
 
-/* ── Month picker component ── */
+/* ── Month picker component ──
+   Mês e ano são independentemente opcionais. Formatos guardados em mes1:
+   "" (vazio) · "AAAA" (só ano) · "MM" (só mês) · "AAAA/MM" (ambos). */
 function MonthPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const now = new Date();
-  const [year, setYear] = useState(() => {
-    if (value) return parseInt(value.split('/')[0]) || now.getFullYear();
-    return now.getFullYear();
-  });
-  const [month, setMonth] = useState(() => {
-    if (value) return parseInt(value.split('/')[1]) || (now.getMonth() + 1);
-    return now.getMonth() + 1;
-  });
+  const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 1 + i);
 
-  function emit(y: number, m: number) {
-    setYear(y); setMonth(m);
-    onChange(`${y}/${String(m).padStart(2, '0')}`);
+  // Descodifica o valor guardado em mês/ano.
+  let curYear = '', curMonth = '';
+  if (value) {
+    if (value.includes('/')) { const [y, m] = value.split('/'); curYear = y; curMonth = m; }
+    else if (value.length === 4) { curYear = value; }
+    else { curMonth = value.padStart(2, '0'); }
+  }
+
+  function emit(m: string, y: string) {
+    if (y && m) onChange(`${y}/${m}`);
+    else if (y) onChange(y);
+    else if (m) onChange(m);
+    else onChange('');
   }
 
   return (
     <div className="flex gap-2">
       <select
-        value={month}
-        onChange={e => emit(year, Number(e.target.value))}
+        value={curMonth}
+        onChange={e => emit(e.target.value, curYear)}
         className="flex-1 px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
       >
-        {MONTHS_PT.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+        <option value="">— sem mês —</option>
+        {MONTHS_PT.map((m, i) => <option key={i + 1} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
       </select>
       <select
-        value={year}
-        onChange={e => emit(Number(e.target.value), month)}
-        className="w-24 px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+        value={curYear}
+        onChange={e => emit(curMonth, e.target.value)}
+        className="w-28 px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
       >
-        {Array.from({ length: 6 }, (_, i) => now.getFullYear() - 1 + i).map(y => (
-          <option key={y} value={y}>{y}</option>
-        ))}
+        <option value="">— sem ano —</option>
+        {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
       </select>
+    </div>
+  );
+}
+
+/* ── Slicer (painel de filtro estilo Excel) ── */
+function Slicer({ label, values, active, fmt, onChange }: {
+  label: string; values: string[]; active: Set<string>;
+  fmt?: (v: string) => string; onChange: (v: Set<string>) => void;
+}) {
+  const toggle = (v: string) => { const n = new Set(active); n.has(v) ? n.delete(v) : n.add(v); onChange(n); };
+  return (
+    <div className="w-40 shrink-0 border border-border rounded-lg bg-card overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between gap-1 px-2 py-1.5 bg-muted/50 border-b border-border">
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide truncate">{label}</span>
+        {active.size > 0 && (
+          <button onClick={() => onChange(new Set())} title="Limpar" className="text-amber-500 hover:text-amber-400 shrink-0">
+            <FilterX className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+      <div className="max-h-36 overflow-y-auto p-1 space-y-0.5">
+        {values.length === 0
+          ? <p className="text-[10px] text-muted-foreground px-1 py-1">sem valores</p>
+          : values.map(v => {
+              const on = active.has(v);
+              return (
+                <button key={v} onClick={() => toggle(v)}
+                  className={`w-full text-left px-2 py-1 text-[11px] rounded transition-colors truncate ${on ? 'bg-amber-500 text-black font-medium' : 'hover:bg-muted text-foreground/80'}`}>
+                  {fmt ? fmt(v) : (v || '(vazio)')}
+                </button>
+              );
+            })}
+      </div>
     </div>
   );
 }
@@ -167,6 +221,7 @@ export default function DatabasePage() {
   const [colFilters, setColFilters] = useState<Record<string, Set<string>>>({});
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(DEFAULT_HIDDEN);
   const [showColPanel, setShowColPanel] = useState(false);
+  const [showSlicers, setShowSlicers] = useState(true);
   const colPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -206,6 +261,12 @@ export default function DatabasePage() {
   ), [records, colFilters]);
 
   const activeFilterCount = Object.values(colFilters).filter(s => s.size > 0).length;
+
+  const setColFilter = (key: string, vals: Set<string>) =>
+    setColFilters(f => {
+      if (vals.size === 0) { const n = { ...f }; delete n[key]; return n; }
+      return { ...f, [key]: vals };
+    });
 
   function openNew() { setForm(EMPTY); setEditId(null); setShowForm(true); }
   function openEdit(r: ControlRecord) { const { id, ...rest } = r; setForm(rest); setEditId(id); setShowForm(true); }
@@ -283,6 +344,13 @@ export default function DatabasePage() {
         )}
         <span className="text-xs text-muted-foreground ml-auto">{filtered.length} registos</span>
 
+        {/* Slicers toggle */}
+        <button onClick={() => setShowSlicers(o => !o)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded transition-colors ${showSlicers ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400' : 'border-border hover:bg-muted'}`}>
+          <Filter className="h-3.5 w-3.5" />Slicers
+          {activeFilterCount > 0 && <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-black text-[9px] font-bold leading-none">{activeFilterCount}</span>}
+        </button>
+
         {/* Column visibility */}
         <div ref={colPanelRef} className="relative">
           <button onClick={() => setShowColPanel(o => !o)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
@@ -316,6 +384,22 @@ export default function DatabasePage() {
         </button>
       </div>
 
+      {/* ── Slicer bar (filtros do Excel / sheet CONTROL) ── */}
+      {showSlicers && (
+        <div className="flex gap-2 overflow-x-auto p-2 rounded-lg border border-border bg-muted/20">
+          {SLICERS.map(s => (
+            <Slicer
+              key={s.key}
+              label={s.label}
+              values={colUniqueValues[s.key] ?? []}
+              active={colFilters[s.key] ?? new Set()}
+              fmt={s.fmt}
+              onChange={vals => setColFilter(s.key, vals)}
+            />
+          ))}
+        </div>
+      )}
+
       {/* ── Form modal ── */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -333,8 +417,9 @@ export default function DatabasePage() {
                   <SelectField k="status" label="STATUS" opts={STATUS_OPTS} />
                   <TextField k="neg" label="NEG — Data de negócio" type="date" />
                   <div>
-                    <label className="block text-[10px] font-medium text-muted-foreground mb-1">MÊS — Entrega</label>
+                    <label className="block text-[10px] font-medium text-muted-foreground mb-1">MÊS — Entrega (opcional)</label>
                     <MonthPicker value={form.mes1} onChange={v => setField('mes1', v)} />
+                    <p className="text-[10px] text-muted-foreground mt-1">Podes deixar mês e/ou ano por preencher se ainda não há previsão de entrega.</p>
                   </div>
                   <TextField k="resp" label="RESP — Vendedor" />
                   <TextField k="id_cliente" label="ID — Cliente" />
@@ -449,10 +534,7 @@ export default function DatabasePage() {
                         col={col}
                         values={colUniqueValues[col.key] ?? []}
                         active={colFilters[col.key] ?? new Set()}
-                        onChange={vals => setColFilters(f => vals.size === 0
-                          ? (() => { const n = {...f}; delete n[col.key]; return n; })()
-                          : { ...f, [col.key]: vals }
-                        )}
+                        onChange={vals => setColFilter(col.key, vals)}
                       />
                     </div>
                   </th>
