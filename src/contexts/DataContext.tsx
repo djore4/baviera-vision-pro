@@ -77,6 +77,18 @@ async function loadControlFromDb(): Promise<ControlRecord[]> {
   return (rows as unknown as DbControlRow[]).map(mapDbRow);
 }
 
+/** Fallback: lê o último Excel carregado no storage (usado enquanto o Supabase
+ *  ainda não tem dados, para não deixar a app vazia durante a transição). */
+async function loadExcelBackup(): Promise<AppData | null> {
+  try {
+    const { data: fileData, error } = await supabase.storage.from(BUCKET).download(FILE_PATH);
+    if (error || !fileData) return null;
+    return parseExcel(await fileData.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -88,22 +100,38 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return { years: [year], quarters: [], months: [year * 100 + month] };
   });
 
-  // Ao montar: tudo a partir do Supabase — control de control_records e
-  // objetivos das tabelas do tab "Objetivos". O Excel já não é lido.
+  // Ao montar: prefere o Supabase (control_records + tabelas de objetivos).
+  // Enquanto essas tabelas estiverem vazias, recorre ao último Excel carregado,
+  // para a app nunca ficar sem dados durante a transição.
   useEffect(() => {
     async function loadInitial() {
       setLoading(true);
       try {
-        const [control, objetivos] = await Promise.all([
+        const [dbControl, dbObjetivos] = await Promise.all([
           loadControlFromDb(),
           loadObjetivos(),
         ]);
 
-        if (control.length > 0 || objetivos.objetivosTotal.length > 0 || objetivos.objetivosResp.length > 0) {
+        let control = dbControl;
+        let objetivosTotal = dbObjetivos.objetivosTotal;
+        let objetivosResp = dbObjetivos.objetivosResp;
+
+        // Fallback para o Excel se o Supabase ainda não tiver dados.
+        const needControl = control.length === 0;
+        const needObjetivos = objetivosTotal.length === 0 && objetivosResp.length === 0;
+        if (needControl || needObjetivos) {
+          const excel = await loadExcelBackup();
+          if (excel) {
+            if (needControl) control = excel.control;
+            if (needObjetivos) { objetivosTotal = excel.objetivosTotal; objetivosResp = excel.objetivosResp; }
+          }
+        }
+
+        if (control.length > 0 || objetivosTotal.length > 0 || objetivosResp.length > 0) {
           setData({
             control,
-            objetivosTotal: objetivos.objetivosTotal,
-            objetivosResp: objetivos.objetivosResp,
+            objetivosTotal,
+            objetivosResp,
             lastUpdated: new Date().toLocaleString('pt-PT'),
           });
         }
