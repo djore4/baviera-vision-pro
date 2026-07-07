@@ -269,7 +269,13 @@ export default function DatabasePage() {
       const vals = [...new Set(records.map(r => {
         const v = r[col.key];
         return (v === null || v === undefined || v === '') ? '' : String(v);
-      }))].sort();
+      }))].sort((a, b) => {
+        // Vazios/sem data sempre no fim.
+        if (a === b) return 0;
+        if (a === '') return 1;
+        if (b === '') return -1;
+        return a < b ? -1 : 1;
+      });
       map[col.key] = vals;
     });
     return map;
