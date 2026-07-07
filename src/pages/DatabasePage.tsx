@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Trash2, X, Check, SlidersHorizontal, ChevronDown, ChevronUp, Filter, Database, Search } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { replaceControlRecords } from '@/lib/control-records';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface ControlRecord {
   id: string;
@@ -219,7 +220,6 @@ export default function DatabasePage() {
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(() =>
     persisted?.hiddenCols ? new Set(persisted.hiddenCols) : DEFAULT_HIDDEN);
   const [showColPanel, setShowColPanel] = useState(false);
-  const colPanelRef = useRef<HTMLDivElement>(null);
 
   // Persiste a configuração da vista (não inclui a pesquisa por texto).
   useEffect(() => {
@@ -231,12 +231,6 @@ export default function DatabasePage() {
     };
     try { localStorage.setItem(VIEW_KEY, JSON.stringify(state)); } catch { /* ignore */ }
   }, [colFilters, segmentFilter, hiddenCols, sort]);
-
-  useEffect(() => {
-    function h(e: MouseEvent) { if (colPanelRef.current && !colPanelRef.current.contains(e.target as Node)) setShowColPanel(false); }
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
 
   async function load() {
     setLoading(true);
@@ -445,32 +439,32 @@ export default function DatabasePage() {
           <span className="text-xs text-muted-foreground">{filtered.length} registos</span>
 
           {/* Visibilidade de colunas */}
-          <div ref={colPanelRef} className="relative">
-            <button onClick={() => setShowColPanel(o => !o)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
-              <SlidersHorizontal className="h-3.5 w-3.5" />Colunas<ChevronDown className="h-3 w-3 text-muted-foreground" />
-            </button>
-            {showColPanel && (
-              <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-xl p-3 w-72 max-h-[420px] overflow-y-auto">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Mostrar / ocultar colunas</p>
-                {['Geral','Veículo','Financeiro','Classificação','Datas','Obs.'].map(grp => (
-                  <div key={grp} className="mb-3">
-                    <p className="text-[10px] text-muted-foreground uppercase mb-1">{grp}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {ALL_COLS.filter(c => c.group === grp).map(col => {
-                        const hidden = hiddenCols.has(col.key);
-                        return (
-                          <button key={col.key} onClick={() => setHiddenCols(s => { const n = new Set(s); n.has(col.key) ? n.delete(col.key) : n.add(col.key); return n; })}
-                            className={`px-2 py-0.5 text-[10px] rounded font-medium transition-colors ${hidden ? 'bg-muted text-muted-foreground' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'}`}>
-                            {col.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+          <Popover open={showColPanel} onOpenChange={setShowColPanel}>
+            <PopoverTrigger asChild>
+              <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
+                <SlidersHorizontal className="h-3.5 w-3.5" />Colunas<ChevronDown className="h-3 w-3 text-muted-foreground" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" collisionPadding={8} className="w-72 max-w-[calc(100vw-1rem)] max-h-[70vh] overflow-y-auto p-3">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Mostrar / ocultar colunas</p>
+              {['Geral','Veículo','Financeiro','Classificação','Datas','Obs.'].map(grp => (
+                <div key={grp} className="mb-3">
+                  <p className="text-[10px] text-muted-foreground uppercase mb-1">{grp}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {ALL_COLS.filter(c => c.group === grp).map(col => {
+                      const hidden = hiddenCols.has(col.key);
+                      return (
+                        <button key={col.key} onClick={() => setHiddenCols(s => { const n = new Set(s); n.has(col.key) ? n.delete(col.key) : n.add(col.key); return n; })}
+                          className={`px-2 py-0.5 text-[10px] rounded font-medium transition-colors ${hidden ? 'bg-muted text-muted-foreground' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'}`}>
+                          {col.label}
+                        </button>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                </div>
+              ))}
+            </PopoverContent>
+          </Popover>
 
           <button onClick={openNew} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">
             <Plus className="h-3.5 w-3.5" /> Novo registo
@@ -480,12 +474,12 @@ export default function DatabasePage() {
 
       {/* Painel de filtros: cada campo numa linha, todas as opções sempre visíveis */}
       <div className="rounded-lg border border-border overflow-hidden">
-        <div className="flex items-center justify-between px-3 py-1.5 bg-muted/40 border-b border-border">
-          <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wide flex items-center gap-1.5">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-[#002060] text-white">
+          <span className="text-[10px] font-semibold uppercase tracking-wide flex items-center gap-1.5">
             <Filter className="h-3 w-3" /> Filtros
           </span>
           {activeFilterCount > 0 && (
-            <button onClick={clearAllFilters} className="text-[11px] text-amber-500 hover:underline">
+            <button onClick={clearAllFilters} className="text-[11px] text-amber-300 hover:underline">
               limpar tudo ({activeFilterCount})
             </button>
           )}
@@ -637,7 +631,7 @@ export default function DatabasePage() {
         <div className="overflow-auto rounded-lg border border-border">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-muted/50">
+              <tr className="bg-[#002060] text-white">
                 {visibleCols.map(col => {
                   const sorted = sort?.key === col.key;
                   return (
@@ -645,9 +639,9 @@ export default function DatabasePage() {
                       key={col.key}
                       onClick={() => toggleSort(col.key)}
                       title="Ordenar"
-                      className="px-2 py-2 text-left border-b border-border whitespace-nowrap cursor-pointer select-none group"
+                      className="px-2 py-2 text-left whitespace-nowrap cursor-pointer select-none group"
                     >
-                      <span className={`inline-flex items-center gap-1 font-semibold ${sorted ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                      <span className={`inline-flex items-center gap-1 font-semibold ${sorted ? 'text-amber-300' : 'text-white/90 group-hover:text-white'}`}>
                         {col.label}
                         {sorted
                           ? (sort!.dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
@@ -656,7 +650,7 @@ export default function DatabasePage() {
                     </th>
                   );
                 })}
-                <th className="px-2 py-2 border-b border-border w-12" />
+                <th className="w-12" />
               </tr>
             </thead>
             <tbody>
