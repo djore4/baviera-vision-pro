@@ -70,21 +70,28 @@ const ALL_COLS: ColDef[] = [
 
 const DEFAULT_HIDDEN = new Set(['local','origin','biz','enc','chas','csc','cme','week198','version']);
 
-/* ── Slicers (as no ficheiro Excel, sheet CONTROL) ── */
+/* ── Filtros (valores distintos por campo, seleção de 1 ou vários) ── */
 interface SlicerDef { key: keyof ControlRecord; label: string; fmt?: (v: string) => string }
-const flagFmt = (v: string) => (v === '1' ? 'Sim' : v === '0' ? 'Não' : (v || '(vazio)'));
-const SLICERS: SlicerDef[] = [
+const VALUE_FILTERS: SlicerDef[] = [
   { key: 'status',   label: 'STATUS' },
   { key: 'mes1',     label: 'MÊS',   fmt: v => v || '(sem data)' },
   { key: 'resp',     label: 'RESP' },
   { key: 'type',     label: 'TYPE' },
   { key: 'model',    label: 'MODEL' },
   { key: 'gar',      label: 'GAR' },
-  { key: 'qor',      label: 'QoR', fmt: flagFmt },
-  { key: 'xev',      label: 'xEV', fmt: flagFmt },
-  { key: 'bev',      label: 'BEV', fmt: flagFmt },
   { key: 'week198',  label: '198',  fmt: v => v || '(vazio)' },
 ];
+
+/* ── Filtro agregado "Segment": flags de classificação (0/1) num só filtro ── */
+const SEGMENT_OPTIONS: { key: 'bev' | 'xev' | 'm' | 'qor' | 'mpa' | 'gkl'; label: string }[] = [
+  { key: 'bev', label: 'BEV' },
+  { key: 'xev', label: 'PHEV' },
+  { key: 'm',   label: 'M' },
+  { key: 'qor', label: 'QoR' },
+  { key: 'mpa', label: 'MPA' },
+  { key: 'gkl', label: 'GKL' },
+];
+const SEGMENT_LABELS: Record<string, string> = Object.fromEntries(SEGMENT_OPTIONS.map(o => [o.key, o.label]));
 
 function fmtDate(v: unknown) {
   if (!v) return '—';
@@ -228,46 +235,11 @@ function FilterChip({ label, values, active, fmt, onChange, initialOpen }: {
   );
 }
 
-/* ── Botão "+ Filtro" (adiciona um campo à barra) ── */
-function AddFilter({ options, onAdd }: { options: SlicerDef[]; onAdd: (key: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-  if (options.length === 0) return null;
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1 pl-2 pr-2.5 py-1 text-xs rounded-full border border-dashed border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-      >
-        <Plus className="h-3 w-3" /> Filtro
-      </button>
-      {open && (
-        <div className="absolute top-full left-0 z-50 mt-1 bg-popover border border-border rounded-lg shadow-xl p-1 w-40 max-h-[300px] overflow-y-auto">
-          {options.map(o => (
-            <button
-              key={o.key}
-              onClick={() => { onAdd(o.key); setOpen(false); }}
-              className="w-full text-left px-2 py-1 text-xs rounded hover:bg-muted text-foreground/80"
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ── Persistência da vista (filtros, ordenação, colunas) ── */
 const VIEW_KEY = 'db_view_state_v1';
 interface ViewState {
   colFilters?: Record<string, string[]>;
-  addedFilters?: string[];
+  segment?: string[];
   hiddenCols?: string[];
   sort?: { key: string; dir: 'asc' | 'desc' } | null;
 }
@@ -290,12 +262,12 @@ export default function DatabasePage() {
   const [colFilters, setColFilters] = useState<Record<string, Set<string>>>(() => {
     const cf = persisted?.colFilters;
     if (!cf) return {};
+    const valid = new Set(VALUE_FILTERS.map(f => f.key as string));
     const out: Record<string, Set<string>> = {};
-    Object.entries(cf).forEach(([k, arr]) => { if (arr?.length) out[k] = new Set(arr); });
+    Object.entries(cf).forEach(([k, arr]) => { if (arr?.length && valid.has(k)) out[k] = new Set(arr); });
     return out;
   });
-  const [addedFilters, setAddedFilters] = useState<Set<string>>(() => new Set(persisted?.addedFilters ?? []));
-  const [justAdded, setJustAdded] = useState<string | null>(null);
+  const [segmentFilter, setSegmentFilter] = useState<Set<string>>(() => new Set(persisted?.segment ?? []));
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(persisted?.sort ?? null);
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(() =>
     persisted?.hiddenCols ? new Set(persisted.hiddenCols) : DEFAULT_HIDDEN);
@@ -306,12 +278,12 @@ export default function DatabasePage() {
   useEffect(() => {
     const state: ViewState = {
       colFilters: Object.fromEntries(Object.entries(colFilters).map(([k, s]) => [k, [...s]])),
-      addedFilters: [...addedFilters],
+      segment: [...segmentFilter],
       hiddenCols: [...hiddenCols],
       sort,
     };
     try { localStorage.setItem(VIEW_KEY, JSON.stringify(state)); } catch { /* ignore */ }
-  }, [colFilters, addedFilters, hiddenCols, sort]);
+  }, [colFilters, segmentFilter, hiddenCols, sort]);
 
   useEffect(() => {
     function h(e: MouseEvent) { if (colPanelRef.current && !colPanelRef.current.contains(e.target as Node)) setShowColPanel(false); }
@@ -371,6 +343,11 @@ export default function DatabasePage() {
       })
     );
 
+    // Segment: registo passa se tiver QUALQUER um dos segmentos selecionados (flag = 1).
+    if (segmentFilter.size > 0) {
+      out = out.filter(r => [...segmentFilter].some(k => Number(r[k as keyof ControlRecord]) === 1));
+    }
+
     const q = search.trim().toLowerCase();
     if (q) {
       out = out.filter(r =>
@@ -397,9 +374,9 @@ export default function DatabasePage() {
       });
     }
     return out;
-  }, [records, colFilters, search, sort]);
+  }, [records, colFilters, segmentFilter, search, sort]);
 
-  const activeFilterCount = Object.values(colFilters).filter(s => s.size > 0).length;
+  const activeFilterCount = Object.values(colFilters).filter(s => s.size > 0).length + (segmentFilter.size > 0 ? 1 : 0);
 
   const setColFilter = (key: string, vals: Set<string>) =>
     setColFilters(f => {
@@ -407,21 +384,9 @@ export default function DatabasePage() {
       return { ...f, [key]: vals };
     });
 
-  // Filtros visíveis como chips: os que estão ativos + os adicionados manualmente.
-  const visibleFilters = SLICERS.filter(s => (colFilters[s.key]?.size ?? 0) > 0 || addedFilters.has(s.key));
-  const addableFilters = SLICERS.filter(s => !visibleFilters.includes(s));
-
-  function handleFilterChange(key: string, vals: Set<string>) {
-    setColFilter(key, vals);
-    if (vals.size === 0) setAddedFilters(prev => { const n = new Set(prev); n.delete(key); return n; });
-  }
-  function addFilter(key: string) {
-    setAddedFilters(prev => new Set(prev).add(key));
-    setJustAdded(key);
-  }
   function clearAllFilters() {
     setColFilters({});
-    setAddedFilters(new Set());
+    setSegmentFilter(new Set());
   }
   function toggleSort(key: string) {
     setSort(s => (!s || s.key !== key) ? { key, dir: 'asc' } : s.dir === 'asc' ? { key, dir: 'desc' } : null);
@@ -525,21 +490,26 @@ export default function DatabasePage() {
             )}
           </div>
 
-          {/* Barra de filtros compacta (só filtros ativos + botão "+ Filtro") */}
+          {/* Barra de filtros: todos visíveis, cada um multi-seleção */}
           <div className="flex flex-wrap items-center gap-1.5">
             <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            {visibleFilters.map(s => (
+            {VALUE_FILTERS.map(s => (
               <FilterChip
                 key={s.key}
                 label={s.label}
                 values={colUniqueValues[s.key] ?? []}
                 active={colFilters[s.key] ?? new Set()}
                 fmt={s.fmt}
-                initialOpen={justAdded === s.key}
-                onChange={vals => handleFilterChange(s.key, vals)}
+                onChange={vals => setColFilter(s.key, vals)}
               />
             ))}
-            <AddFilter options={addableFilters} onAdd={addFilter} />
+            <FilterChip
+              label="SEGMENT"
+              values={SEGMENT_OPTIONS.map(o => o.key)}
+              active={segmentFilter}
+              fmt={k => SEGMENT_LABELS[k] ?? k}
+              onChange={setSegmentFilter}
+            />
             {activeFilterCount > 0 && (
               <button onClick={clearAllFilters} className="text-[11px] text-muted-foreground hover:text-destructive ml-0.5">
                 limpar tudo
