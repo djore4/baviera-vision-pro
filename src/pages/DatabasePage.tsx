@@ -155,10 +155,11 @@ function FilterRow({ label, options, active, fmt, onToggle }: {
 }) {
   const disp = (v: string) => (fmt ? fmt(v) : (v || '(vazio)'));
   return (
-    <div className="flex items-start gap-3 px-3 py-2">
-      <span className="w-16 shrink-0 pt-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
-      <div className="flex flex-wrap gap-1.5">
-        {options.length === 0 && <span className="text-[11px] text-muted-foreground pt-1">—</span>}
+    <div className="flex items-center gap-3 px-3 py-1.5">
+      <span className="w-16 shrink-0 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
+      {/* 1 filtro = 1 linha: sem wrap, com scroll horizontal quando não cabe */}
+      <div className="flex-1 min-w-0 flex flex-nowrap gap-1.5 overflow-x-auto">
+        {options.length === 0 && <span className="text-[11px] text-muted-foreground">—</span>}
         {options.map(v => {
           const on = active.has(v);
           return (
@@ -166,7 +167,7 @@ function FilterRow({ label, options, active, fmt, onToggle }: {
               key={v}
               type="button"
               onClick={() => onToggle(v)}
-              className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-2.5 py-1 text-xs rounded-full border transition-colors ${
                 on
                   ? 'bg-amber-500 text-black border-amber-500 font-medium'
                   : 'bg-background text-muted-foreground border-border hover:border-amber-400 hover:text-amber-400'
