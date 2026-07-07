@@ -124,7 +124,7 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
       <select
         value={curMonth}
         onChange={e => emit(e.target.value, curYear)}
-        className="flex-1 px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+        className="flex-1 min-w-0 px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
       >
         <option value="">— sem mês —</option>
         {MONTHS_PT.map((m, i) => <option key={i + 1} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
@@ -462,13 +462,13 @@ export default function DatabasePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <SelectField k="status" label="STATUS" opts={STATUS_OPTS} />
                   <TextField k="neg" label="NEG — Data de negócio" type="date" />
-                  <div>
+                  <TextField k="resp" label="RESP — Vendedor" />
+                  <TextField k="id_cliente" label="ID — Cliente" />
+                  <div className="col-span-2">
                     <label className="block text-[10px] font-medium text-muted-foreground mb-1">MÊS — Entrega (opcional)</label>
                     <MonthPicker value={form.mes1} onChange={v => setField('mes1', v)} />
                     <p className="text-[10px] text-muted-foreground mt-1">Podes deixar mês e/ou ano por preencher se ainda não há previsão de entrega.</p>
                   </div>
-                  <TextField k="resp" label="RESP — Vendedor" />
-                  <TextField k="id_cliente" label="ID — Cliente" />
                 </div>
               </div>
 
@@ -522,6 +522,7 @@ export default function DatabasePage() {
               <div>
                 <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Datas</h3>
                 <div className="grid grid-cols-2 gap-3">
+                  <TextField k="week198" label="198 — Semana prevista" />
                   <TextField k="dmat" label="DMAT — Data da matrícula" type="date" />
                   <TextField k="date298" label="298 — Retail / Entrega cliente" type="date" />
                   <TextField k="app" label="APP — Data do Apping" type="date" />
