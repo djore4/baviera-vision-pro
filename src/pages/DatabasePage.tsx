@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Pencil, Trash2, X, Check, SlidersHorizontal, ChevronDown, Filter, FilterX, Database } from 'lucide-react';
+import { Plus, Trash2, X, Check, SlidersHorizontal, ChevronDown, Filter, FilterX, Database } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { replaceControlRecords } from '@/lib/control-records';
 
@@ -588,7 +588,12 @@ export default function DatabasePage() {
             </thead>
             <tbody>
               {filtered.map(r => (
-                <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                <tr
+                  key={r.id}
+                  onClick={() => openEdit(r)}
+                  title="Clicar para editar"
+                  className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
+                >
                   {visibleCols.map(col => (
                     <td key={col.key} className="px-2 py-1.5 whitespace-nowrap text-foreground/80">
                       {col.key === 'status' ? (
@@ -603,10 +608,13 @@ export default function DatabasePage() {
                     </td>
                   ))}
                   <td className="px-2 py-1.5">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(r)} className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
-                      <button onClick={() => setDeleteId(r.id)} className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
-                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); setDeleteId(r.id); }}
+                      title="Eliminar"
+                      className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </td>
                 </tr>
               ))}
