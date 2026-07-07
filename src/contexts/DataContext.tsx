@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { AppData, PeriodFilter, ControlRecord } from '@/types/data';
+import type { AppData, PeriodFilter, ControlRecord, ObjetivoTotal, ObjetivoResp } from '@/types/data';
 import { parseExcel, getDeliveryMonth } from '@/lib/excel-parser';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -19,14 +19,72 @@ const DataContext = createContext<DataContextValue | null>(null);
 const BUCKET = 'excel-files';
 const FILE_PATH = 'bmw-business-control.xlsx';
 
-function rehydrateDates(records: ControlRecord[]): ControlRecord[] {
-  return records.map(r => ({
-    ...r,
-    neg: r.neg ? new Date(r.neg) : null,
-    dmat: r.dmat ? new Date(r.dmat) : null,
-    date298: r.date298 ? new Date(r.date298) : null,
-    app: r.app ? new Date(r.app) : null,
-  }));
+/** Linha da tabela control_records (tab "database"). */
+interface DbControlRow {
+  status: string | null; neg: string | null; mes1: string | null; resp: string | null;
+  id_cliente: string | null; cliente: string | null; local: string | null; type: string | null;
+  origin: string | null; profile: string | null; biz: string | null; enc: string | null;
+  chas: string | null; mat: string | null; model: string | null; version: string | null;
+  gar: string | null; qor: number | null; xev: number | null; bev: number | null; m: number | null;
+  csc: number | null; cme: number | null; fin: string | null; week198: string | null;
+  dmat: string | null; date298: string | null; app: string | null; obs: string | null;
+}
+
+const s = (v: string | null | undefined) => v ?? '';
+const nz = (v: number | null | undefined) => (v == null ? 0 : Number(v));
+const dt = (v: string | null | undefined) => (v ? new Date(v) : null);
+
+/** Mapeia uma linha de control_records para o formato ControlRecord usado nos dashboards. */
+function mapDbRow(r: DbControlRow): ControlRecord {
+  return {
+    status: s(r.status),
+    neg: dt(r.neg),
+    mes1: s(r.mes1),
+    resp: s(r.resp),
+    cliente: s(r.id_cliente ?? r.cliente),
+    local: s(r.local),
+    type: s(r.type),
+    origin: s(r.origin),
+    profile: s(r.profile),
+    biz: s(r.biz),
+    enc: s(r.enc),
+    chas: s(r.chas),
+    mat: s(r.mat),
+    model: s(r.model),
+    version: s(r.version),
+    gar: s(r.gar),
+    qor: nz(r.qor),
+    xev: nz(r.xev),
+    bev: nz(r.bev),
+    mPerf: nz(r.m),
+    csc: nz(r.csc),
+    cme: r.cme == null ? null : Number(r.cme),
+    fin: s(r.fin),
+    week198: s(r.week198),
+    dmat: dt(r.dmat),
+    date298: dt(r.date298),
+    app: dt(r.app),
+    obs: s(r.obs),
+  };
+}
+
+/** Carrega os objetivos a partir do último Excel carregado (o control já vem da BD). */
+async function loadObjetivosFromExcel(): Promise<{ objetivosTotal: ObjetivoTotal[]; objetivosResp: ObjetivoResp[] }> {
+  try {
+    const { data: fileData, error } = await supabase.storage.from(BUCKET).download(FILE_PATH);
+    if (error || !fileData) return { objetivosTotal: [], objetivosResp: [] };
+    const parsed = parseExcel(await fileData.arrayBuffer());
+    return { objetivosTotal: parsed.objetivosTotal, objetivosResp: parsed.objetivosResp };
+  } catch {
+    return { objetivosTotal: [], objetivosResp: [] };
+  }
+}
+
+/** Carrega todos os registos de control a partir da tabela control_records. */
+async function loadControlFromDb(): Promise<ControlRecord[]> {
+  const { data: rows, error } = await supabase.from('control_records').select('*');
+  if (error || !rows) return [];
+  return (rows as unknown as DbControlRow[]).map(mapDbRow);
 }
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
@@ -40,32 +98,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return { years: [year], quarters: [], months: [year * 100 + month] };
   });
 
-  // Load from cloud storage on mount
+  // Ao montar: control a partir da tabela control_records; objetivos do último Excel.
   useEffect(() => {
-    async function loadFromStorage() {
+    async function loadInitial() {
       setLoading(true);
       try {
-        const { data: fileData, error: dlError } = await supabase.storage
-          .from(BUCKET)
-          .download(FILE_PATH);
+        const [control, objetivos] = await Promise.all([
+          loadControlFromDb(),
+          loadObjetivosFromExcel(),
+        ]);
 
-        if (dlError || !fileData) {
-          // No file stored yet — that's fine, user needs to upload first
-          setLoading(false);
-          return;
+        if (control.length > 0 || objetivos.objetivosTotal.length > 0 || objetivos.objetivosResp.length > 0) {
+          setData({
+            control,
+            objetivosTotal: objetivos.objetivosTotal,
+            objetivosResp: objetivos.objetivosResp,
+            lastUpdated: new Date().toLocaleString('pt-PT'),
+          });
         }
-
-        const buffer = await fileData.arrayBuffer();
-        const parsed = parseExcel(buffer);
-        setData(parsed);
       } catch {
-        // No file yet, ignore
+        // Sem dados ainda — o utilizador tem de importar/inserir primeiro.
       } finally {
         setLoading(false);
       }
     }
 
-    loadFromStorage();
+    loadInitial();
   }, []);
 
   const uploadFile = useCallback(async (file: File) => {
@@ -75,18 +133,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const buffer = await file.arrayBuffer();
       const parsed = parseExcel(buffer);
 
-      // Upload to cloud storage (upsert replaces if exists)
+      // Guarda o Excel no storage (apenas para os objetivos; o control vive na BD).
       const { error: uploadError } = await supabase.storage
         .from(BUCKET)
         .upload(FILE_PATH, file, { upsert: true });
 
-if (uploadError) {
+      if (uploadError) {
         console.error('Supabase upload error:', uploadError);
         throw new Error(`Erro ao guardar ficheiro: ${uploadError.message}`);
       }
-      console.log('Upload bem sucedido');
 
-      setData(parsed);
+      // O control já foi importado para control_records (ver DadosPage); usamos o
+      // parse fresco em memória — é equivalente ao que está agora na BD.
+      setData({
+        control: parsed.control,
+        objetivosTotal: parsed.objetivosTotal,
+        objetivosResp: parsed.objetivosResp,
+        lastUpdated: new Date().toLocaleString('pt-PT'),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao processar ficheiro');
     } finally {
