@@ -158,7 +158,7 @@ function FilterRow({ label, options, active, fmt, onToggle }: {
     <div className="flex items-center gap-3 px-3 py-1.5">
       <span className="w-16 shrink-0 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
       {/* 1 filtro = 1 linha: sem wrap, com scroll horizontal quando não cabe */}
-      <div className="flex-1 min-w-0 flex flex-nowrap gap-1.5 overflow-x-auto">
+      <div className="flex-1 min-w-0 flex flex-nowrap gap-1.5 overflow-x-auto no-scrollbar">
         {options.length === 0 && <span className="text-[11px] text-muted-foreground">—</span>}
         {options.map(v => {
           const on = active.has(v);
