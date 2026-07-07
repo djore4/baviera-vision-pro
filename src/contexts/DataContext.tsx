@@ -1,13 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { AppData, PeriodFilter, ControlRecord, ObjetivoTotal, ObjetivoResp } from '@/types/data';
+import type { AppData, PeriodFilter, ControlRecord } from '@/types/data';
 import { parseExcel, getDeliveryMonth } from '@/lib/excel-parser';
 import { supabase } from '@/integrations/supabase/client';
+import { replaceControlRecords } from '@/lib/control-records';
+import { loadObjetivos, replaceObjetivosFromExcel } from '@/lib/objetivos';
 
 interface DataContextValue {
   data: AppData | null;
   loading: boolean;
   error: string | null;
-  uploadFile: (file: File) => Promise<void>;
+  uploadFile: (file: File) => Promise<number>;
   filter: PeriodFilter;
   setFilter: React.Dispatch<React.SetStateAction<PeriodFilter>>;
   filteredControl: ControlRecord[];
@@ -68,18 +70,6 @@ function mapDbRow(r: DbControlRow): ControlRecord {
   };
 }
 
-/** Carrega os objetivos a partir do último Excel carregado (o control já vem da BD). */
-async function loadObjetivosFromExcel(): Promise<{ objetivosTotal: ObjetivoTotal[]; objetivosResp: ObjetivoResp[] }> {
-  try {
-    const { data: fileData, error } = await supabase.storage.from(BUCKET).download(FILE_PATH);
-    if (error || !fileData) return { objetivosTotal: [], objetivosResp: [] };
-    const parsed = parseExcel(await fileData.arrayBuffer());
-    return { objetivosTotal: parsed.objetivosTotal, objetivosResp: parsed.objetivosResp };
-  } catch {
-    return { objetivosTotal: [], objetivosResp: [] };
-  }
-}
-
 /** Carrega todos os registos de control a partir da tabela control_records. */
 async function loadControlFromDb(): Promise<ControlRecord[]> {
   const { data: rows, error } = await supabase.from('control_records').select('*');
@@ -98,14 +88,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return { years: [year], quarters: [], months: [year * 100 + month] };
   });
 
-  // Ao montar: control a partir da tabela control_records; objetivos do último Excel.
+  // Ao montar: tudo a partir do Supabase — control de control_records e
+  // objetivos das tabelas do tab "Objetivos". O Excel já não é lido.
   useEffect(() => {
     async function loadInitial() {
       setLoading(true);
       try {
         const [control, objetivos] = await Promise.all([
           loadControlFromDb(),
-          loadObjetivosFromExcel(),
+          loadObjetivos(),
         ]);
 
         if (control.length > 0 || objetivos.objetivosTotal.length > 0 || objetivos.objetivosResp.length > 0) {
@@ -126,33 +117,39 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     loadInitial();
   }, []);
 
-  const uploadFile = useCallback(async (file: File) => {
+  // Upload de Excel (apenas recurso): importa control + objetivos para o
+  // Supabase ("gravar por cima") e recarrega os dados a partir da BD.
+  // Devolve o número de registos de control importados.
+  const uploadFile = useCallback(async (file: File): Promise<number> => {
     setLoading(true);
     setError(null);
     try {
       const buffer = await file.arrayBuffer();
       const parsed = parseExcel(buffer);
 
-      // Guarda o Excel no storage (apenas para os objetivos; o control vive na BD).
+      // Importa para o Supabase (fonte de verdade única).
+      const count = await replaceControlRecords(parsed.control);
+      await replaceObjetivosFromExcel(parsed);
+
+      // Guarda o Excel como cópia de segurança (já não é lido pela app).
       const { error: uploadError } = await supabase.storage
         .from(BUCKET)
         .upload(FILE_PATH, file, { upsert: true });
+      if (uploadError) console.warn('Backup do Excel falhou:', uploadError.message);
 
-      if (uploadError) {
-        console.error('Supabase upload error:', uploadError);
-        throw new Error(`Erro ao guardar ficheiro: ${uploadError.message}`);
-      }
-
-      // O control já foi importado para control_records (ver DadosPage); usamos o
-      // parse fresco em memória — é equivalente ao que está agora na BD.
+      // Recarrega a partir do Supabase.
+      const [control, objetivos] = await Promise.all([loadControlFromDb(), loadObjetivos()]);
       setData({
-        control: parsed.control,
-        objetivosTotal: parsed.objetivosTotal,
-        objetivosResp: parsed.objetivosResp,
+        control,
+        objetivosTotal: objetivos.objetivosTotal,
+        objetivosResp: objetivos.objetivosResp,
         lastUpdated: new Date().toLocaleString('pt-PT'),
       });
+      return count;
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao processar ficheiro');
+      const msg = e instanceof Error ? e.message : 'Erro ao processar ficheiro';
+      setError(msg);
+      throw e;
     } finally {
       setLoading(false);
     }
