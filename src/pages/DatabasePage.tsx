@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Trash2, X, Check, SlidersHorizontal, ChevronDown, Filter, FilterX, Database } from 'lucide-react';
+import { Plus, Trash2, X, Check, SlidersHorizontal, ChevronDown, Filter, Database } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { replaceControlRecords } from '@/lib/control-records';
 
@@ -141,70 +141,87 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
   );
 }
 
-/* ── Slicer (painel de filtro estilo Excel) ── */
-function Slicer({ label, values, active, fmt, onChange }: {
+/* ── Filtro compacto (chip com popover de checkboxes) ── */
+function FilterChip({ label, values, active, fmt, onChange }: {
   label: string; values: string[]; active: Set<string>;
   fmt?: (v: string) => string; onChange: (v: Set<string>) => void;
 }) {
-  const toggle = (v: string) => { const n = new Set(active); n.has(v) ? n.delete(v) : n.add(v); onChange(n); };
-  return (
-    <div className="w-40 shrink-0 border border-border rounded-lg bg-card overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between gap-1 px-2 py-1.5 bg-muted/50 border-b border-border">
-        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide truncate">{label}</span>
-        {active.size > 0 && (
-          <button onClick={() => onChange(new Set())} title="Limpar" className="text-amber-500 hover:text-amber-400 shrink-0">
-            <FilterX className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-      <div className="max-h-36 overflow-y-auto p-1 space-y-0.5">
-        {values.length === 0
-          ? <p className="text-[10px] text-muted-foreground px-1 py-1">sem valores</p>
-          : values.map(v => {
-              const on = active.has(v);
-              return (
-                <button key={v} onClick={() => toggle(v)}
-                  className={`w-full text-left px-2 py-1 text-[11px] rounded transition-colors truncate ${on ? 'bg-amber-500 text-black font-medium' : 'hover:bg-muted text-foreground/80'}`}>
-                  {fmt ? fmt(v) : (v || '(vazio)')}
-                </button>
-              );
-            })}
-      </div>
-    </div>
-  );
-}
-
-/* ── Column filter popover ── */
-function ColFilter({ col, values, active, onChange }: {
-  col: ColDef; values: string[]; active: Set<string>; onChange: (v: Set<string>) => void
-}) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    function h(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setQuery(''); } }
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
+
   const toggle = (v: string) => { const n = new Set(active); n.has(v) ? n.delete(v) : n.add(v); onChange(n); };
+  const disp = (v: string) => (fmt ? fmt(v) : (v || '(vazio)'));
+  const isActive = active.size > 0;
+  const summary = active.size === 1 ? disp([...active][0]) : `${active.size}`;
+  const shown = query ? values.filter(v => disp(v).toLowerCase().includes(query.toLowerCase())) : values;
+
   return (
-    <div ref={ref} className="relative inline-block">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className={`p-0.5 rounded transition-colors ${active.size > 0 ? 'text-amber-500' : 'text-white/30 hover:text-white/60'}`}
+    <div ref={ref} className="relative">
+      <div
+        className={`flex items-center rounded-full border transition-colors ${
+          isActive
+            ? 'bg-amber-500/15 border-amber-500/50 text-amber-600 dark:text-amber-400 font-medium'
+            : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+        }`}
       >
-        <Filter className="h-3 w-3" />
-      </button>
+        <button
+          onClick={() => setOpen(o => !o)}
+          className={`flex items-center gap-1 py-1 text-xs ${isActive ? 'pl-2.5 pr-1' : 'pl-2.5 pr-2'}`}
+        >
+          <span>{label}</span>
+          {isActive && <span className="max-w-[110px] truncate opacity-90">· {summary}</span>}
+          {!isActive && <ChevronDown className="h-3 w-3 opacity-60" />}
+        </button>
+        {isActive && (
+          <button
+            onClick={() => onChange(new Set())}
+            title="Limpar"
+            className="pr-2 pl-0.5 py-1 rounded-r-full hover:text-amber-500"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
       {open && (
-        <div className="absolute top-full left-0 z-50 mt-1 bg-popover border border-border rounded-lg shadow-xl p-2 min-w-[140px] max-h-[280px] overflow-y-auto">
+        <div className="absolute top-full left-0 z-50 mt-1 bg-popover border border-border rounded-lg shadow-xl p-2 w-56 max-h-[320px] flex flex-col">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase">{col.label}</span>
-            {active.size > 0 && <button onClick={() => onChange(new Set())} className="text-[10px] text-amber-500 hover:underline">limpar</button>}
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
+            {isActive && <button onClick={() => onChange(new Set())} className="text-[10px] text-amber-500 hover:underline">limpar</button>}
           </div>
-          {values.map(v => (
-            <button key={v} onClick={() => toggle(v)} className={`w-full text-left px-2 py-1 text-xs rounded transition-colors ${active.has(v) ? 'bg-amber-500 text-black font-medium' : 'hover:bg-muted text-foreground'}`}>
-              {v || '(vazio)'}
-            </button>
-          ))}
+          {values.length > 8 && (
+            <input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Procurar..."
+              className="mb-1.5 px-2 py-1 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          )}
+          <div className="overflow-y-auto -mr-1 pr-1">
+            {shown.length === 0 && <p className="text-[11px] text-muted-foreground px-1 py-1">sem valores</p>}
+            {shown.map(v => {
+              const on = active.has(v);
+              return (
+                <button
+                  key={v}
+                  onClick={() => toggle(v)}
+                  className={`w-full flex items-center gap-2 text-left px-1.5 py-1 text-xs rounded transition-colors ${on ? 'text-amber-600 dark:text-amber-400 font-medium' : 'hover:bg-muted text-foreground/80'}`}
+                >
+                  <span className={`h-3.5 w-3.5 rounded-[4px] border flex items-center justify-center shrink-0 ${on ? 'bg-amber-500 border-amber-500' : 'border-border'}`}>
+                    {on && <Check className="h-2.5 w-2.5 text-black" />}
+                  </span>
+                  <span className="truncate">{disp(v)}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -223,7 +240,6 @@ export default function DatabasePage() {
   const [colFilters, setColFilters] = useState<Record<string, Set<string>>>({});
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(DEFAULT_HIDDEN);
   const [showColPanel, setShowColPanel] = useState(false);
-  const [showSlicers, setShowSlicers] = useState(true);
   const colPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -371,68 +387,12 @@ export default function DatabasePage() {
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-2 items-center">
-        {activeFilterCount > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {Object.entries(colFilters).filter(([, s]) => s.size > 0).map(([key, vals]) => {
-              const col = ALL_COLS.find(c => c.key === key);
-              return (
-                <span key={key} className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] rounded-full font-medium">
-                  {col?.label}: {[...vals].join(', ')}
-                  <button onClick={() => setColFilters(f => { const n = {...f}; delete n[key]; return n; })}><X className="h-3 w-3" /></button>
-                </span>
-              );
-            })}
-            <button onClick={() => setColFilters({})} className="text-[10px] text-muted-foreground hover:text-destructive">limpar tudo</button>
-          </div>
-        )}
-        <span className="text-xs text-muted-foreground ml-auto">{filtered.length} registos</span>
-
-        {/* Slicers toggle */}
-        <button onClick={() => setShowSlicers(o => !o)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded transition-colors ${showSlicers ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400' : 'border-border hover:bg-muted'}`}>
-          <Filter className="h-3.5 w-3.5" />Slicers
-          {activeFilterCount > 0 && <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-black text-[9px] font-bold leading-none">{activeFilterCount}</span>}
-        </button>
-
-        {/* Column visibility */}
-        <div ref={colPanelRef} className="relative">
-          <button onClick={() => setShowColPanel(o => !o)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
-            <SlidersHorizontal className="h-3.5 w-3.5" />Colunas<ChevronDown className="h-3 w-3 text-muted-foreground" />
-          </button>
-          {showColPanel && (
-            <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-xl p-3 w-72 max-h-[420px] overflow-y-auto">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Mostrar / ocultar colunas</p>
-              {['Geral','Veículo','Financeiro','Classificação','Datas','Obs.'].map(grp => (
-                <div key={grp} className="mb-3">
-                  <p className="text-[10px] text-muted-foreground uppercase mb-1">{grp}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {ALL_COLS.filter(c => c.group === grp).map(col => {
-                      const hidden = hiddenCols.has(col.key);
-                      return (
-                        <button key={col.key} onClick={() => setHiddenCols(s => { const n = new Set(s); n.has(col.key) ? n.delete(col.key) : n.add(col.key); return n; })}
-                          className={`px-2 py-0.5 text-[10px] rounded font-medium transition-colors ${hidden ? 'bg-muted text-muted-foreground' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'}`}>
-                          {col.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <button onClick={openNew} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">
-          <Plus className="h-3.5 w-3.5" /> Novo registo
-        </button>
-      </div>
-
-      {/* ── Slicer bar (filtros do Excel / sheet CONTROL) ── */}
-      {showSlicers && (
-        <div className="flex gap-2 overflow-x-auto p-2 rounded-lg border border-border bg-muted/20">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        {/* Barra de filtros compacta */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           {SLICERS.map(s => (
-            <Slicer
+            <FilterChip
               key={s.key}
               label={s.label}
               values={colUniqueValues[s.key] ?? []}
@@ -441,8 +401,50 @@ export default function DatabasePage() {
               onChange={vals => setColFilter(s.key, vals)}
             />
           ))}
+          {activeFilterCount > 0 && (
+            <button onClick={() => setColFilters({})} className="text-[11px] text-muted-foreground hover:text-destructive ml-0.5">
+              limpar tudo
+            </button>
+          )}
         </div>
-      )}
+
+        {/* Ações */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-muted-foreground">{filtered.length} registos</span>
+
+          {/* Visibilidade de colunas */}
+          <div ref={colPanelRef} className="relative">
+            <button onClick={() => setShowColPanel(o => !o)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
+              <SlidersHorizontal className="h-3.5 w-3.5" />Colunas<ChevronDown className="h-3 w-3 text-muted-foreground" />
+            </button>
+            {showColPanel && (
+              <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-xl p-3 w-72 max-h-[420px] overflow-y-auto">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Mostrar / ocultar colunas</p>
+                {['Geral','Veículo','Financeiro','Classificação','Datas','Obs.'].map(grp => (
+                  <div key={grp} className="mb-3">
+                    <p className="text-[10px] text-muted-foreground uppercase mb-1">{grp}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {ALL_COLS.filter(c => c.group === grp).map(col => {
+                        const hidden = hiddenCols.has(col.key);
+                        return (
+                          <button key={col.key} onClick={() => setHiddenCols(s => { const n = new Set(s); n.has(col.key) ? n.delete(col.key) : n.add(col.key); return n; })}
+                            className={`px-2 py-0.5 text-[10px] rounded font-medium transition-colors ${hidden ? 'bg-muted text-muted-foreground' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'}`}>
+                            {col.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button onClick={openNew} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">
+            <Plus className="h-3.5 w-3.5" /> Novo registo
+          </button>
+        </div>
+      </div>
 
       {/* ── Form modal ── */}
       {showForm && (
@@ -572,15 +574,7 @@ export default function DatabasePage() {
               <tr className="bg-muted/50">
                 {visibleCols.map(col => (
                   <th key={col.key} className="px-2 py-2 text-left border-b border-border whitespace-nowrap">
-                    <div className="flex items-center gap-1">
-                      <span className="font-semibold text-muted-foreground">{col.label}</span>
-                      <ColFilter
-                        col={col}
-                        values={colUniqueValues[col.key] ?? []}
-                        active={colFilters[col.key] ?? new Set()}
-                        onChange={vals => setColFilter(col.key, vals)}
-                      />
-                    </div>
+                    <span className="font-semibold text-muted-foreground">{col.label}</span>
                   </th>
                 ))}
                 <th className="px-2 py-2 border-b border-border w-12" />
