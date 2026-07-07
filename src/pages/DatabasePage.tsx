@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Pencil, Trash2, X, Check, SlidersHorizontal, ChevronDown, Filter, FilterX } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Check, SlidersHorizontal, ChevronDown, Filter, FilterX, Database } from 'lucide-react';
+import { useData } from '@/contexts/DataContext';
+import { replaceControlRecords } from '@/lib/control-records';
 
 interface ControlRecord {
   id: string;
@@ -238,6 +240,27 @@ export default function DatabasePage() {
   }
   useEffect(() => { load(); }, []);
 
+  // Dados do Excel já carregados pelo DataContext (fallback enquanto a tabela
+  // está vazia) — permitem importar para a base de dados com um clique.
+  const { data: excelData } = useData();
+  const backupRecords = excelData?.control ?? [];
+  const [importingBackup, setImportingBackup] = useState(false);
+  const [importBackupError, setImportBackupError] = useState<string | null>(null);
+
+  async function importFromBackup() {
+    if (backupRecords.length === 0) return;
+    setImportingBackup(true);
+    setImportBackupError(null);
+    try {
+      await replaceControlRecords(backupRecords);
+      await load();
+    } catch (e) {
+      setImportBackupError(e instanceof Error ? e.message : 'Erro ao importar dados do Excel');
+    } finally {
+      setImportingBackup(false);
+    }
+  }
+
   const visibleCols = ALL_COLS.filter(c => !hiddenCols.has(c.key));
 
   const colUniqueValues = useMemo(() => {
@@ -326,6 +349,27 @@ export default function DatabasePage() {
 
   return (
     <div className="space-y-3">
+      {/* Importar dados do Excel para a base de dados (quando a tabela está vazia) */}
+      {!loading && records.length === 0 && backupRecords.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-lg border border-amber-500/40 bg-amber-500/10">
+          <Database className="h-5 w-5 text-amber-500 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-foreground">Há {backupRecords.length} registos do Excel por importar</p>
+            <p className="text-xs text-muted-foreground">
+              A base de dados está vazia. Importa os dados do Excel para os consultar e editar aqui.
+            </p>
+            {importBackupError && <p className="text-xs text-destructive mt-1">{importBackupError}</p>}
+          </div>
+          <button
+            onClick={importFromBackup}
+            disabled={importingBackup}
+            className="px-3 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 disabled:opacity-50 transition-colors whitespace-nowrap"
+          >
+            {importingBackup ? 'A importar...' : `Importar ${backupRecords.length} registos`}
+          </button>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-wrap gap-2 items-center">
         {activeFilterCount > 0 && (
