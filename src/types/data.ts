@@ -1,4 +1,5 @@
 export interface ControlRecord {
+  id?: string;
   status: string;
   neg: Date | null;
   mes1: string;

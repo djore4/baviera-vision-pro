@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DataProvider } from "@/contexts/DataContext";
+import { RecordEditorProvider } from "@/components/RecordEditor";
 import { AppLayout } from "@/components/AppLayout";
 import Index from "./pages/Index";
 import RetailsPage from "./pages/RetailsPage";
@@ -69,6 +70,7 @@ const App = () => (
       <Sonner />
       <AuthGate>
         <DataProvider>
+          <RecordEditorProvider>
           <HashRouter>
             <Routes>
               <Route path="/" element={<Index />} />
@@ -87,6 +89,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </HashRouter>
+          </RecordEditorProvider>
         </DataProvider>
       </AuthGate>
     </TooltipProvider>
