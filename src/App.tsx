@@ -18,6 +18,7 @@ import NotFound from "./pages/NotFound";
 import FunilPage from "./pages/FunilPage";
 import LoginPage from "./pages/LoginPage";
 import DatabasePage from "./pages/DatabasePage";
+import FichaMargemPage from "./pages/FichaMargemPage";
 import DemosPage from "./pages/DemosPage";
 import ObjetivosPage from "./pages/ObjetivosPage";
 import { useEffect, useState, createContext, useContext } from "react";
@@ -82,6 +83,7 @@ const App = () => (
               <Route path="/escala" element={<AppLayout><EscalaPage /></AppLayout>} />
               <Route path="/dados" element={<AppLayout><DadosPage /></AppLayout>} />
               <Route path="/funil" element={<AppLayout><FunilPage /></AppLayout>} />
+              <Route path="/ficha-margem" element={<AppLayout><FichaMargemPage /></AppLayout>} />
               {/* Admin routes */}
               <Route path="/database" element={<AdminGate><AppLayout><DatabasePage /></AppLayout></AdminGate>} />
               <Route path="/demos" element={<AdminGate><AppLayout><DemosPage /></AppLayout></AdminGate>} />
