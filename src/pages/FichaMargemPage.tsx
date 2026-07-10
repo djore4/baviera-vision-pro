@@ -61,11 +61,11 @@ export default function FichaMargemPage() {
 
   // Percentagens (%)
   const [ivaPct, setIvaPct] = useState('23');
-  const [mgFixaPct, setMgFixaPct] = useState('7');
+  const [mgFixaPct, setMgFixaPct] = useState('');
   const [mgVarPct, setMgVarPct] = useState('5');
   const [pacPct, setPacPct] = useState('');
   const [apoioFrotaPct, setApoioFrotaPct] = useState('');
-  const [apoioDemoPct, setApoioDemoPct] = useState('9');
+  const [apoioDemoPct, setApoioDemoPct] = useState('');
   const [deprec, setDeprec] = useState(''); // valor absoluto em €
   const [bonusMPct, setBonusMPct] = useState('');
 
@@ -122,7 +122,7 @@ export default function FichaMargemPage() {
     setTipo('VN');
     setModelo(''); setProposta(''); setEncChass(''); setMatricula(''); setDataMatricula('');
     setPvb(''); setOpc(''); setBsi(''); setEco(''); setLegTr(''); setIsv(''); setRecond(''); setOfertas(''); setPrecoVenda('');
-    setIvaPct('23'); setMgFixaPct('7'); setMgVarPct('5'); setPacPct(''); setApoioFrotaPct(''); setApoioDemoPct('9'); setDeprec(''); setBonusMPct('');
+    setIvaPct('23'); setMgFixaPct(''); setMgVarPct('5'); setPacPct(''); setApoioFrotaPct(''); setApoioDemoPct(''); setDeprec(''); setBonusMPct('');
     setMediaMovel('4 ou +');
     toast.success('Ficha limpa.');
   }
