@@ -36,7 +36,7 @@ export default function RetailsPage() {
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [selectedPark, setSelectedPark] = useState<boolean>(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('entidade');
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('modelos');
   const [sortKey, setSortKey] = useState<SortKey>('date298');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');

@@ -29,7 +29,7 @@ export default function CarteiraPage() {
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
-  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('entidade');
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('modelos');
   const [sortKey, setSortKey] = useState<SortKey>('mes1');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [searchTerm, setSearchTerm] = useState('');
