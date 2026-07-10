@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { FileDown } from 'lucide-react';
+import { FileDown, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 /* ── Tradução exata da sheet "Ficha" (Ficha de Margem 3.0) ── */
@@ -118,6 +118,15 @@ export default function FichaMargemPage() {
     return `${new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 1 }).format(m)} meses`;
   }, [dataMatricula]);
 
+  function limpar() {
+    setTipo('VN');
+    setModelo(''); setProposta(''); setEncChass(''); setMatricula(''); setDataMatricula('');
+    setPvb(''); setOpc(''); setBsi(''); setEco(''); setLegTr(''); setIsv(''); setRecond(''); setOfertas(''); setPrecoVenda('');
+    setIvaPct('23'); setMgFixaPct('7'); setMgVarPct('5'); setPacPct(''); setApoioFrotaPct(''); setApoioDemoPct('9'); setDeprec(''); setBonusMPct('');
+    setMediaMovel('4 ou +');
+    toast.success('Ficha limpa.');
+  }
+
   function exportPdf() {
     const esc = (s: string) => String(s ?? '').replace(/[&<>]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch] as string));
     const rows: [string, string, string][] = [
@@ -179,9 +188,14 @@ td{border:1px solid #e5e7eb;padding:3px 6px;text-align:center}@page{size:A4 port
     <div className="max-w-3xl mx-auto space-y-4 animate-fade-in">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-lg font-bold tracking-tight">Ficha de Margem</h1>
-        <button onClick={exportPdf} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
-          <FileDown className="h-3.5 w-3.5" /> Exportar PDF
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={limpar} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
+            <RotateCcw className="h-3.5 w-3.5" /> Limpar
+          </button>
+          <button onClick={exportPdf} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
+            <FileDown className="h-3.5 w-3.5" /> Exportar PDF
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">
