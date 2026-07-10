@@ -85,11 +85,13 @@ export default function FichaMargemPage() {
   const { isAdmin } = useAuth();
 
   // Cabeçalho
+  const [tipo, setTipo] = useState('VN'); // VN (novo, sem matrícula) | VD (usado)
   const [modelo, setModelo] = useState('');
   const [proposta, setProposta] = useState('');
   const [encChass, setEncChass] = useState('');
   const [matricula, setMatricula] = useState('');
   const [dataMatricula, setDataMatricula] = useState('');
+  const isVD = tipo === 'VD';
 
   // Rúbricas (€)
   const [pvb, setPvb] = useState('');
@@ -109,7 +111,7 @@ export default function FichaMargemPage() {
   const [pacPct, setPacPct] = useState('');
   const [apoioFrotaPct, setApoioFrotaPct] = useState('');
   const [apoioDemoPct, setApoioDemoPct] = useState('9');
-  const [deprecPct, setDeprecPct] = useState('');
+  const [deprec, setDeprec] = useState(''); // valor absoluto em €
   const [bonusMPct, setBonusMPct] = useState('');
 
   const [mediaMovel, setMediaMovel] = useState('4 ou +');
@@ -175,7 +177,8 @@ export default function FichaMargemPage() {
     const pacEur = (num(pacPct) / 100) * base;
     const apoioFrotaEur = (num(apoioFrotaPct) / 100) * base;
     const apoioDemoEur = (num(apoioDemoPct) / 100) * base;
-    const deprecEur = (num(deprecPct) / 100) * base;
+    const deprecEur = num(deprec); // valor absoluto em €
+    const deprecPctAuto = base ? deprecEur / base : null;
     const bonusMEur = (num(bonusMPct) / 100) * base;
     const descTotalEur = mgFixaEur + mgVarEur + pacEur + apoioFrotaEur + apoioDemoEur + deprecEur + bonusMEur;
     const descTotalPct = base ? descTotalEur / base : null;
@@ -190,11 +193,11 @@ export default function FichaMargemPage() {
     const comissaoEur = comissaoRate === null ? null : comissaoRate * margemEur;
 
     return {
-      opcPctAuto, ivaEur, pvp, mgFixaEur, mgVarEur, pacEur, apoioFrotaEur, apoioDemoEur, deprecEur, bonusMEur,
+      opcPctAuto, ivaEur, pvp, mgFixaEur, mgVarEur, pacEur, apoioFrotaEur, apoioDemoEur, deprecEur, deprecPctAuto, bonusMEur,
       descTotalEur, descTotalPct, precoCusto, precoVendaSemIva, margemEur, margemPct, comissaoRate, comissaoEur,
     };
   }, [pvb, opc, bsi, eco, legTr, isv, recond, ofertas, precoVenda,
-      ivaPct, mgFixaPct, mgVarPct, pacPct, apoioFrotaPct, apoioDemoPct, deprecPct, bonusMPct, mediaMovel]);
+      ivaPct, mgFixaPct, mgVarPct, pacPct, apoioFrotaPct, apoioDemoPct, deprec, bonusMPct, mediaMovel]);
 
   const meses = useMemo(() => {
     if (!dataMatricula) return '';
@@ -220,7 +223,7 @@ export default function FichaMargemPage() {
       ['PAC', (pacPct || '0') + ' %', eur(c.pacEur)],
       ['APOIO FROTA', (apoioFrotaPct || '0') + ' %', eur(c.apoioFrotaEur)],
       ['APOIO DEMO', apoioDemoPct + ' %', eur(c.apoioDemoEur)],
-      ['DEPRECIAÇÕES', (deprecPct || '0') + ' %', eur(c.deprecEur)],
+      ['DEPRECIAÇÕES', pct(c.deprecPctAuto), eur(c.deprecEur)],
       ['BÓNUS M', (bonusMPct || '0') + ' %', eur(c.bonusMEur)],
       ['DESC. TOTAL', pct(c.descTotalPct), eur(c.descTotalEur)],
       ['RECONDICIONAMENTO', '-', eur(num(recond))],
@@ -229,15 +232,19 @@ export default function FichaMargemPage() {
       ['PREÇO VENDA', '-', precoVenda === '' ? '—' : eur(num(precoVenda))],
       ['PREÇO VENDA (S/ IVA)', '-', eur(c.precoVendaSemIva)],
       ['MARGEM', pct(c.margemPct), eur(c.margemEur)],
-      ['MÉDIA MÓVEL', pct(c.comissaoRate), mediaMovel],
-      ['COMISSÃO', '-', eur(c.comissaoEur)],
     ];
+    if (!isVD) {
+      rows.push(['MÉDIA MÓVEL', pct(c.comissaoRate), mediaMovel]);
+      rows.push(['COMISSÃO', '-', eur(c.comissaoEur)]);
+    }
     const strongRows = new Set(['PVP', 'DESC. TOTAL', 'PREÇO CUSTO', 'MARGEM', 'COMISSÃO']);
     const body = rows.map(([l, p, e]) =>
       `<tr${strongRows.has(l) ? ' style="font-weight:700;background:#eef2ff"' : ''}><td style="text-align:left">${esc(l)}</td><td>${esc(p)}</td><td style="text-align:right">${esc(e)}</td></tr>`
     ).join('');
-    const info = [['MODELO', modelo], ['PROPOSTA', proposta], ['ENC / CHASS', encChass], ['MATRÍCULA', matricula], ['DATA MATRÍCULA', dataMatricula], ['IDADE', meses]]
-      .map(([k, v]) => `<div><span style="color:#6b7280">${esc(k)}:</span> <strong>${esc(v || '—')}</strong></div>`).join('');
+    const infoPairs: [string, string][] = [['TIPO', tipo], ['MODELO', modelo], ['PROPOSTA', proposta], ['ENC / CHASS', encChass]];
+    if (isVD) { infoPairs.push(['MATRÍCULA', matricula], ['DATA MATRÍCULA', dataMatricula], ['IDADE', meses]); }
+    const info = infoPairs.map(([k, v]) => `<div><span style="color:#6b7280">${esc(k)}:</span> <strong>${esc(v || '—')}</strong></div>`).join('');
+    const vdMsg = isVD ? '<p style="margin-top:12px;font-weight:700;color:#b45309">Ver com João Duarte, o melhor chefe do mundo! :)</p>' : '';
 
     const html = `<!doctype html><html lang="pt"><head><meta charset="utf-8"/><title>Ficha_Margem_${esc(proposta || modelo || '')}</title>
 <style>*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:18px}
@@ -245,7 +252,7 @@ h1{font-size:16px;margin:0 0 8px}.info{display:grid;grid-template-columns:1fr 1f
 table{width:100%;border-collapse:collapse;font-size:11px}th{background:#002060;color:#fff;padding:4px 6px;text-align:right}th:first-child{text-align:left}
 td{border:1px solid #e5e7eb;padding:3px 6px;text-align:center}@page{size:A4 portrait;margin:12mm}</style></head><body>
 <h1>Ficha de Margem</h1><div class="info">${info}</div>
-<table><thead><tr><th>RÚBRICA</th><th>%</th><th>€</th></tr></thead><tbody>${body}</tbody></table>
+<table><thead><tr><th>RÚBRICA</th><th>%</th><th>€</th></tr></thead><tbody>${body}</tbody></table>${vdMsg}
 <script>window.onload=function(){window.focus();window.print();};</script></body></html>`;
     const w = window.open('', '_blank');
     if (!w) { toast.error('Permite pop-ups para exportar o PDF.'); return; }
@@ -269,23 +276,35 @@ td{border:1px solid #e5e7eb;padding:3px 6px;text-align:center}@page{size:A4 port
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,520px)_1fr] gap-4 items-start">
         {/* ── Ficha ── */}
         <div className="space-y-4">
-          {/* Cabeçalho */}
+          {/* Cabeçalho (condensado) */}
           <div className="rounded-lg border border-border overflow-hidden">
-            <div className="px-3 py-1.5 bg-[#002060] text-white text-[10px] font-semibold uppercase tracking-wide">Identificação</div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3">
+            <div className="px-3 py-1 bg-[#002060] text-white text-[10px] font-semibold uppercase tracking-wide">Identificação</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2.5">
+              <div>
+                <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">TIPO</label>
+                <select value={tipo} onChange={e => setTipo(e.target.value)}
+                  className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
+                  <option value="VN">VN (novo)</option>
+                  <option value="VD">VD (usado)</option>
+                </select>
+              </div>
               <Field label="MODELO" value={modelo} onChange={setModelo} />
               <Field label="PROPOSTA" value={proposta} onChange={setProposta} />
               <Field label="ENC / CHASS" value={encChass} onChange={setEncChass} />
-              <Field label="MATRÍCULA" value={matricula} onChange={setMatricula} />
-              <div>
-                <label className="block text-[10px] font-medium text-muted-foreground mb-1">DATA MATRÍCULA</label>
-                <input type="date" value={dataMatricula} onChange={e => setDataMatricula(e.target.value)}
-                  className="w-full px-2 py-1 text-xs rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-muted-foreground mb-1">IDADE</label>
-                <div className="px-2 py-1 text-xs rounded bg-muted border border-border text-foreground/80">{meses || '—'}</div>
-              </div>
+              {isVD && <Field label="MATRÍCULA" value={matricula} onChange={setMatricula} />}
+              {isVD && (
+                <div>
+                  <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">DATA MATRÍCULA</label>
+                  <input type="date" value={dataMatricula} onChange={e => setDataMatricula(e.target.value)}
+                    className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                </div>
+              )}
+              {isVD && (
+                <div>
+                  <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">IDADE</label>
+                  <div className="px-2 py-0.5 text-[11px] rounded bg-muted border border-border text-foreground/80">{meses || '—'}</div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -314,7 +333,7 @@ td{border:1px solid #e5e7eb;padding:3px 6px;text-align:center}@page{size:A4 port
                 <Row label="PAC"><td className="px-2 py-1"><PctInput value={pacPct} onChange={setPacPct} /></td><Auto>{eur(c.pacEur)}</Auto></Row>
                 <Row label="APOIO FROTA"><td className="px-2 py-1"><PctInput value={apoioFrotaPct} onChange={setApoioFrotaPct} /></td><Auto>{eur(c.apoioFrotaEur)}</Auto></Row>
                 <Row label="APOIO DEMO"><td className="px-2 py-1"><PctInput value={apoioDemoPct} onChange={setApoioDemoPct} /></td><Auto>{eur(c.apoioDemoEur)}</Auto></Row>
-                <Row label="DEPRECIAÇÕES"><td className="px-2 py-1"><PctInput value={deprecPct} onChange={setDeprecPct} /></td><Auto>{eur(c.deprecEur)}</Auto></Row>
+                <Row label="DEPRECIAÇÕES"><Auto>{pct(c.deprecPctAuto)}</Auto><td className="px-2 py-1"><EurInput value={deprec} onChange={setDeprec} /></td></Row>
                 <Row label="BÓNUS M"><td className="px-2 py-1"><PctInput value={bonusMPct} onChange={setBonusMPct} /></td><Auto>{eur(c.bonusMEur)}</Auto></Row>
                 <Row label="DESC. TOTAL" highlight><Auto strong>{pct(c.descTotalPct)}</Auto><Auto strong>{eur(c.descTotalEur)}</Auto></Row>
 
@@ -329,23 +348,29 @@ td{border:1px solid #e5e7eb;padding:3px 6px;text-align:center}@page{size:A4 port
             </table>
           </div>
 
-          {/* Comissão */}
-          <div className="rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-xs">
-              <tbody className="divide-y divide-border/50">
-                <Row label="MÉDIA MÓVEL">
-                  <td className="px-2 py-1">
-                    <select value={mediaMovel} onChange={e => setMediaMovel(e.target.value)}
-                      className="w-full px-2 py-1 text-xs rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
-                      {Object.keys(MEDIA_MOVEL).map(k => <option key={k} value={k}>{k}</option>)}
-                    </select>
-                  </td>
-                  <Auto>{pct(c.comissaoRate)}</Auto>
-                </Row>
-                <Row label="COMISSÃO" accent><Dash /><Auto strong>{eur(c.comissaoEur)}</Auto></Row>
-              </tbody>
-            </table>
-          </div>
+          {/* Comissão — apenas para VN */}
+          {isVD ? (
+            <div className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-4 py-3 text-center">
+              <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">Ver com João Duarte, o melhor chefe do mundo! :)</p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <table className="w-full text-xs">
+                <tbody className="divide-y divide-border/50">
+                  <Row label="MÉDIA MÓVEL">
+                    <td className="px-2 py-1">
+                      <select value={mediaMovel} onChange={e => setMediaMovel(e.target.value)}
+                        className="w-full px-2 py-1 text-xs rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
+                        {Object.keys(MEDIA_MOVEL).map(k => <option key={k} value={k}>{k}</option>)}
+                      </select>
+                    </td>
+                    <Auto>{pct(c.comissaoRate)}</Auto>
+                  </Row>
+                  <Row label="COMISSÃO" accent><Dash /><Auto strong>{eur(c.comissaoEur)}</Auto></Row>
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* ── Margens fixas (referência) ── */}
@@ -416,9 +441,9 @@ function Row({ label, children, highlight, accent }: { label: string; children: 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <label className="block text-[10px] font-medium text-muted-foreground mb-1">{label}</label>
+      <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">{label}</label>
       <input value={value} onChange={e => onChange(e.target.value)}
-        className="w-full px-2 py-1 text-xs rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+        className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
     </div>
   );
 }
