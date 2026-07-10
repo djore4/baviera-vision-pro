@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { useRecordEditor } from '@/components/RecordEditor';
 
 const STATUS_CONFIG = {
   Frio: { color: '#1C69D4', bg: 'bg-blue-700', light: 'bg-blue-50', border: 'border-blue-700', text: 'text-blue-700', header: 'bg-blue-700' },
@@ -11,6 +12,7 @@ type FunilStatus = keyof typeof STATUS_CONFIG;
 
 export default function FunilPage() {
   const { data } = useData();
+  const { openEditor } = useRecordEditor();
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
 
  const records = useMemo(() =>
@@ -106,7 +108,7 @@ export default function FunilPage() {
                       </tr>
                     ) : (
                       rows.map((r, i) => (
-                        <tr key={i} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                        <tr key={i} onClick={() => r.id && openEditor(r.id)} title="Clicar para editar" className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer">
                           <td className="px-2 py-1.5 font-semibold">{r.resp}</td>
                           <td className="px-2 py-1.5 whitespace-nowrap">{r.version}</td>
                           <td className="px-2 py-1.5 max-w-[120px] truncate">{r.cliente}</td>

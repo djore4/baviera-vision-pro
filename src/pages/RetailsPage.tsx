@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useData } from '@/contexts/DataContext';
+import { useRecordEditor } from '@/components/RecordEditor';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { formatDate } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle, Download } from 'lucide-react';
@@ -23,6 +24,7 @@ type AnalysisTab = 'entidade' | 'origem' | 'modelos';
 
 export default function RetailsPage() {
   const { filteredControl, data, filter } = useData();
+  const { openEditor } = useRecordEditor();
   const isMobile = useIsMobile();
   const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
   const [selectedGar, setSelectedGar] = useState<string | null>(null);
@@ -508,7 +510,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
           </thead>
           <tbody>
             {tableData.map((r, i) => (
-              <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
+              <tr key={i} onClick={() => r.id && openEditor(r.id)} title="Clicar para editar" className="text-[11px] border-b border-border transition-colors hover:bg-muted/50 cursor-pointer">
                 <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
                 <td className="px-3 py-1">
                   <Badge variant="outline" className={r.gar === 'GAR' ? 'border-green-600 text-green-600 text-[10px]' : 'text-muted-foreground text-[10px]'}>

@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { useRecordEditor } from '@/components/RecordEditor';
 import { formatDate } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
 import {
@@ -20,6 +21,7 @@ type AnalysisTab = 'entidade' | 'origem' | 'modelos';
 
 export default function CarteiraPage() {
   const { data } = useData();
+  const { openEditor } = useRecordEditor();
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
   const [selectedOrigin, setSelectedOrigin] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -444,7 +446,7 @@ export default function CarteiraPage() {
             </thead>
             <tbody>
               {tableData.map((r, i) => (
-                <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
+                <tr key={i} onClick={() => r.id && openEditor(r.id)} title="Clicar para editar" className="text-[11px] border-b border-border transition-colors hover:bg-muted/50 cursor-pointer">
                   <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
                   <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>
                   <td className="px-3 py-1 whitespace-nowrap">{r.mes1}</td>

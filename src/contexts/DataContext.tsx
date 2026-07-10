@@ -10,6 +10,7 @@ interface DataContextValue {
   loading: boolean;
   error: string | null;
   uploadFile: (file: File) => Promise<number>;
+  refresh: () => Promise<void>;
   filter: PeriodFilter;
   setFilter: React.Dispatch<React.SetStateAction<PeriodFilter>>;
   filteredControl: ControlRecord[];
@@ -23,6 +24,7 @@ const FILE_PATH = 'bmw-business-control.xlsx';
 
 /** Linha da tabela control_records (tab "database"). */
 interface DbControlRow {
+  id: string;
   status: string | null; neg: string | null; mes1: string | null; resp: string | null;
   id_cliente: string | null; cliente: string | null; local: string | null; type: string | null;
   origin: string | null; profile: string | null; biz: string | null; enc: string | null;
@@ -39,6 +41,7 @@ const dt = (v: string | null | undefined) => (v ? new Date(v) : null);
 /** Mapeia uma linha de control_records para o formato ControlRecord usado nos dashboards. */
 function mapDbRow(r: DbControlRow): ControlRecord {
   return {
+    id: r.id,
     status: s(r.status),
     neg: dt(r.neg),
     mes1: s(r.mes1),
@@ -100,50 +103,48 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return { years: [year], quarters: [], months: [year * 100 + month] };
   });
 
-  // Ao montar: prefere o Supabase (control_records + tabelas de objetivos).
+  // Recarrega tudo do Supabase (control_records + tabelas de objetivos).
   // Enquanto essas tabelas estiverem vazias, recorre ao último Excel carregado,
   // para a app nunca ficar sem dados durante a transição.
-  useEffect(() => {
-    async function loadInitial() {
-      setLoading(true);
-      try {
-        const [dbControl, dbObjetivos] = await Promise.all([
-          loadControlFromDb(),
-          loadObjetivos(),
-        ]);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [dbControl, dbObjetivos] = await Promise.all([
+        loadControlFromDb(),
+        loadObjetivos(),
+      ]);
 
-        let control = dbControl;
-        let objetivosTotal = dbObjetivos.objetivosTotal;
-        let objetivosResp = dbObjetivos.objetivosResp;
+      let control = dbControl;
+      let objetivosTotal = dbObjetivos.objetivosTotal;
+      let objetivosResp = dbObjetivos.objetivosResp;
 
-        // Fallback para o Excel se o Supabase ainda não tiver dados.
-        const needControl = control.length === 0;
-        const needObjetivos = objetivosTotal.length === 0 && objetivosResp.length === 0;
-        if (needControl || needObjetivos) {
-          const excel = await loadExcelBackup();
-          if (excel) {
-            if (needControl) control = excel.control;
-            if (needObjetivos) { objetivosTotal = excel.objetivosTotal; objetivosResp = excel.objetivosResp; }
-          }
+      // Fallback para o Excel se o Supabase ainda não tiver dados.
+      const needControl = control.length === 0;
+      const needObjetivos = objetivosTotal.length === 0 && objetivosResp.length === 0;
+      if (needControl || needObjetivos) {
+        const excel = await loadExcelBackup();
+        if (excel) {
+          if (needControl) control = excel.control;
+          if (needObjetivos) { objetivosTotal = excel.objetivosTotal; objetivosResp = excel.objetivosResp; }
         }
-
-        if (control.length > 0 || objetivosTotal.length > 0 || objetivosResp.length > 0) {
-          setData({
-            control,
-            objetivosTotal,
-            objetivosResp,
-            lastUpdated: new Date().toLocaleString('pt-PT'),
-          });
-        }
-      } catch {
-        // Sem dados ainda — o utilizador tem de importar/inserir primeiro.
-      } finally {
-        setLoading(false);
       }
-    }
 
-    loadInitial();
+      if (control.length > 0 || objetivosTotal.length > 0 || objetivosResp.length > 0) {
+        setData({
+          control,
+          objetivosTotal,
+          objetivosResp,
+          lastUpdated: new Date().toLocaleString('pt-PT'),
+        });
+      }
+    } catch {
+      // Sem dados ainda — o utilizador tem de importar/inserir primeiro.
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
 
   // Upload de Excel (apenas recurso): importa control + objetivos para o
   // Supabase ("gravar por cima") e recarrega os dados a partir da BD.
@@ -234,7 +235,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [data, filter]);
 
   return (
-    <DataContext.Provider value={{ data, loading, error, uploadFile, filter, setFilter, filteredControl, availablePeriods }}>
+    <DataContext.Provider value={{ data, loading, error, uploadFile, refresh, filter, setFilter, filteredControl, availablePeriods }}>
       {children}
     </DataContext.Provider>
   );

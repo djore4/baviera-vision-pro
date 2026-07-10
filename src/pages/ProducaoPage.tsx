@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useData } from '@/contexts/DataContext';
+import { useRecordEditor } from '@/components/RecordEditor';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { formatDate } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
@@ -22,6 +23,7 @@ type AnalysisTab = 'entidade' | 'origem' | 'modelos';
 
 export default function ProducaoPage() {
   const { data, filter } = useData();
+  const { openEditor } = useRecordEditor();
   const isMobile = useIsMobile();
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
@@ -474,7 +476,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
           </thead>
           <tbody>
             {tableData.map((r, i) => (
-              <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
+              <tr key={i} onClick={() => r.id && openEditor(r.id)} title="Clicar para editar" className="text-[11px] border-b border-border transition-colors hover:bg-muted/50 cursor-pointer">
                 <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
                 <td className="px-3 py-1">{r.type}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
