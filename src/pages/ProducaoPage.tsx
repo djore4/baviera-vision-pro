@@ -32,7 +32,7 @@ export default function ProducaoPage() {
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
-  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('entidade');
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('modelos');
   const [sortKey, setSortKey] = useState<SortKey>('neg');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
