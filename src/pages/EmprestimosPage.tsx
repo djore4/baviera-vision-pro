@@ -19,13 +19,6 @@ interface DemoVehicle {
   modelo: string | null;
   versao: string | null;
   mat: string | null;
-  local: string | null;
-}
-
-interface Utilizador {
-  id: number;
-  nome: string | null;
-  perfil: string | null;
 }
 
 type LoanTipo = 'interno' | 'cliente';
@@ -34,8 +27,9 @@ interface Emprestimo {
   id: string;
   demo_id: string;
   tipo: LoanTipo;
-  utilizador_id: number | null;
   alocado_nome: string;
+  cliente_telefone: string | null;
+  cliente_nif: string | null;
   notas: string | null;
   inicio: string; // ISO
   fim: string; // ISO
@@ -45,8 +39,10 @@ interface LoanForm {
   id: string | null;
   demo_id: string;
   tipo: LoanTipo;
-  utilizador_id: number | null;
+  membro: string; // iniciais do membro da escala (interno)
   cliente_nome: string;
+  cliente_telefone: string;
+  cliente_nif: string;
   notas: string;
   inicio: string; // datetime-local "yyyy-MM-dd'T'HH:mm"
   fim: string;
@@ -57,6 +53,11 @@ interface LoanForm {
 const WEEKDAYS_PT = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 const LANE_H = 26; // px por "faixa" de empréstimo dentro da linha da viatura
 const ROW_PAD = 8; // px de padding vertical na track
+
+const ESCALA_BUCKET = 'excel-files';
+const ESCALA_PATH = 'escala-teste.json';
+// Equipa por omissão, caso a escala ainda não tenha sido guardada
+const DEFAULT_MEMBERS = ['JD', 'BR', 'FS', 'NC', 'PM', 'TS'];
 
 // Cor distinta por tipo de alocação
 const TIPO_STYLE: Record<LoanTipo, { bar: string; dot: string; label: string; icon: typeof User }> = {
@@ -70,8 +71,8 @@ function toLocalInput(d: Date): string {
   return format(d, "yyyy-MM-dd'T'HH:mm");
 }
 
-function vehicleLabel(v: DemoVehicle): string {
-  return v.modelo?.trim() || v.versao?.trim() || 'Sem modelo';
+function vehicleModel(v: DemoVehicle): string {
+  return v.modelo?.trim() || 'Sem modelo';
 }
 
 // Distribui empréstimos por "faixas" para que os que se sobrepõem no tempo não colidam.
@@ -94,31 +95,45 @@ function assignLanes(loans: Emprestimo[]): Map<string, number> {
 
 export default function EmprestimosPage() {
   const [demos, setDemos] = useState<DemoVehicle[]>([]);
-  const [users, setUsers] = useState<Utilizador[]>([]);
+  const [members, setMembers] = useState<string[]>(DEFAULT_MEMBERS);
   const [loans, setLoans] = useState<Emprestimo[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [anchor, setAnchor] = useState<Date>(() => new Date());
+  const [now, setNow] = useState<Date>(() => new Date());
   const [form, setForm] = useState<LoanForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteLoan, setDeleteLoan] = useState<Emprestimo | null>(null);
 
-  // Adicionar / remover viatura da gama
-  const [showAddVehicle, setShowAddVehicle] = useState(false);
-  const [vehForm, setVehForm] = useState({ modelo: '', versao: '', mat: '', local: '' });
-  const [savingVeh, setSavingVeh] = useState(false);
-  const [deleteVehicle, setDeleteVehicle] = useState<DemoVehicle | null>(null);
+  // Relógio: atualiza a linha do "agora" a cada minuto
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [demosRes, usersRes, loansRes] = await Promise.all([
-      supabase.from('demos').select('id, modelo, versao, mat, local').order('modelo', { ascending: true }),
-      supabase.from('utilizadores').select('id, nome, perfil').order('nome', { ascending: true }),
+    const [demosRes, loansRes] = await Promise.all([
+      supabase.from('demos').select('id, modelo, versao, mat').order('modelo', { ascending: true }),
       supabase.from('demo_emprestimos').select('*'),
     ]);
     setDemos((demosRes.data as DemoVehicle[]) ?? []);
-    setUsers((usersRes.data as Utilizador[]) ?? []);
     setLoans((loansRes.data as Emprestimo[]) ?? []);
+
+    // Membros internos = equipa da escala de serviço
+    try {
+      const { data } = await supabase.storage.from(ESCALA_BUCKET).download(ESCALA_PATH);
+      if (data) {
+        const parsed = JSON.parse(await data.text()) as { team?: Array<{ initials?: string }> };
+        const team = (parsed.team ?? [])
+          .map(m => (m.initials ?? '').trim())
+          .filter(Boolean);
+        if (team.length) setMembers(Array.from(new Set(team)));
+      }
+    } catch {
+      // mantém a equipa por omissão
+    }
+
     setLoading(false);
   }, []);
 
@@ -128,12 +143,19 @@ export default function EmprestimosPage() {
   const weekStart = useMemo(() => startOfWeek(anchor, { weekStartsOn: 1 }), [anchor]);
   const weekEnd = useMemo(() => addDays(weekStart, 7), [weekStart]);
   const weekStartMs = weekStart.getTime();
-  const totalMs = weekEnd.getTime() - weekStartMs; // robusto a mudanças de hora (DST)
+  const weekEndMs = weekEnd.getTime();
+  const totalMs = weekEndMs - weekStartMs; // robusto a mudanças de hora (DST)
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart],
   );
+
+  // Posição da linha vermelha "agora" (só quando a semana atual está visível)
+  const nowMs = now.getTime();
+  const nowLeft = nowMs >= weekStartMs && nowMs < weekEndMs
+    ? ((nowMs - weekStartMs) / totalMs) * 100
+    : null;
 
   // Empréstimos que intersectam a semana visível, agrupados por viatura
   const loansByDemo = useMemo(() => {
@@ -141,12 +163,12 @@ export default function EmprestimosPage() {
     for (const l of loans) {
       const s = Date.parse(l.inicio);
       const e = Date.parse(l.fim);
-      if (e <= weekStartMs || s >= weekEnd.getTime()) continue; // fora da semana
+      if (e <= weekStartMs || s >= weekEndMs) continue; // fora da semana
       if (!map.has(l.demo_id)) map.set(l.demo_id, []);
       map.get(l.demo_id)!.push(l);
     }
     return map;
-  }, [loans, weekStartMs, weekEnd]);
+  }, [loans, weekStartMs, weekEndMs]);
 
   // Estatísticas rápidas da semana
   const stats = useMemo(() => {
@@ -156,19 +178,24 @@ export default function EmprestimosPage() {
 
   // ---- Abrir formulários ----
   function openNewLoan(demoId: string, day?: Date) {
-    const base = day ?? weekStart;
+    if (!demoId) { toast.error('Sem viaturas na gama. Adiciona-as no separador DEMOS.'); return; }
+    const base = day ?? (nowLeft !== null ? now : weekStart);
     const start = new Date(base); start.setHours(9, 0, 0, 0);
     const end = new Date(base); end.setHours(19, 0, 0, 0);
     setForm({
-      id: null, demo_id: demoId, tipo: 'interno', utilizador_id: users[0]?.id ?? null,
-      cliente_nome: '', notas: '', inicio: toLocalInput(start), fim: toLocalInput(end),
+      id: null, demo_id: demoId, tipo: 'interno', membro: members[0] ?? '',
+      cliente_nome: '', cliente_telefone: '', cliente_nif: '', notas: '',
+      inicio: toLocalInput(start), fim: toLocalInput(end),
     });
   }
 
   function openEditLoan(l: Emprestimo) {
     setForm({
       id: l.id, demo_id: l.demo_id, tipo: l.tipo,
-      utilizador_id: l.utilizador_id, cliente_nome: l.tipo === 'cliente' ? l.alocado_nome : '',
+      membro: l.tipo === 'interno' ? l.alocado_nome : (members[0] ?? ''),
+      cliente_nome: l.tipo === 'cliente' ? l.alocado_nome : '',
+      cliente_telefone: l.cliente_telefone ?? '',
+      cliente_nif: l.cliente_nif ?? '',
       notas: l.notas ?? '', inicio: toLocalInput(new Date(l.inicio)), fim: toLocalInput(new Date(l.fim)),
     });
   }
@@ -184,9 +211,8 @@ export default function EmprestimosPage() {
 
     let alocado_nome: string;
     if (form.tipo === 'interno') {
-      const u = users.find(x => x.id === form.utilizador_id);
-      if (!u) { toast.error('Escolhe o utilizador interno.'); return; }
-      alocado_nome = u.nome ?? 'Utilizador';
+      if (!form.membro) { toast.error('Escolhe o utilizador da escala.'); return; }
+      alocado_nome = form.membro;
     } else {
       if (!form.cliente_nome.trim()) { toast.error('Indica o nome do cliente.'); return; }
       alocado_nome = form.cliente_nome.trim();
@@ -195,8 +221,9 @@ export default function EmprestimosPage() {
     const payload = {
       demo_id: form.demo_id,
       tipo: form.tipo,
-      utilizador_id: form.tipo === 'interno' ? form.utilizador_id : null,
       alocado_nome,
+      cliente_telefone: form.tipo === 'cliente' ? (form.cliente_telefone.trim() || null) : null,
+      cliente_nif: form.tipo === 'cliente' ? (form.cliente_nif.trim() || null) : null,
       notas: form.notas.trim() || null,
       inicio: inicio.toISOString(),
       fim: fim.toISOString(),
@@ -208,8 +235,8 @@ export default function EmprestimosPage() {
       : await supabase.from('demo_emprestimos').insert(payload);
     setSaving(false);
 
-    if (res.error) { toast.error('Falha ao guardar o empréstimo.'); return; }
-    toast.success(form.id ? 'Empréstimo atualizado.' : 'Empréstimo registado.');
+    if (res.error) { toast.error('Falha ao guardar o agendamento.'); return; }
+    toast.success(form.id ? 'Agendamento atualizado.' : 'Agendamento registado.');
     setForm(null);
     loadAll();
   }
@@ -219,40 +246,18 @@ export default function EmprestimosPage() {
     if (error) { toast.error('Falha ao eliminar.'); return; }
     setDeleteLoan(null);
     setForm(null);
-    toast.success('Empréstimo eliminado.');
-    loadAll();
-  }
-
-  // ---- Adicionar / remover viatura ----
-  async function addVehicle() {
-    if (!vehForm.modelo.trim() && !vehForm.mat.trim()) {
-      toast.error('Indica pelo menos o modelo ou a matrícula.');
-      return;
-    }
-    setSavingVeh(true);
-    const { error } = await supabase.from('demos').insert({
-      modelo: vehForm.modelo.trim() || null,
-      versao: vehForm.versao.trim() || null,
-      mat: vehForm.mat.trim() || null,
-      local: vehForm.local.trim() || null,
-    });
-    setSavingVeh(false);
-    if (error) { toast.error('Falha ao adicionar a viatura.'); return; }
-    toast.success('Viatura adicionada à gama.');
-    setShowAddVehicle(false);
-    setVehForm({ modelo: '', versao: '', mat: '', local: '' });
-    loadAll();
-  }
-
-  async function removeVehicle(id: string) {
-    const { error } = await supabase.from('demos').delete().eq('id', id);
-    if (error) { toast.error('Falha ao remover a viatura.'); return; }
-    setDeleteVehicle(null);
-    toast.success('Viatura removida da gama.');
+    toast.success('Agendamento eliminado.');
     loadAll();
   }
 
   const weekLabel = `${format(weekStart, 'd MMM', { locale: pt })} – ${format(addDays(weekStart, 6), 'd MMM yyyy', { locale: pt })}`;
+
+  // Classe de fundo por dia (cabeçalho): hoje > domingo (encerrado) > sábado
+  const headerDayBg = (d: Date, i: number) =>
+    isSameDay(d, now) ? 'bg-bmw-blue' : i === 6 ? 'bg-rose-500/25' : i === 5 ? 'bg-white/10' : '';
+  // Classe de fundo por coluna (track)
+  const trackDayBg = (d: Date, i: number) =>
+    isSameDay(d, now) ? 'bg-primary/5' : i === 6 ? 'bg-rose-500/10' : i === 5 ? 'bg-muted/40' : '';
 
   if (loading) {
     return (
@@ -289,8 +294,8 @@ export default function EmprestimosPage() {
             <span className="text-emerald-600 dark:text-emerald-400"><strong>{stats.ocupadas}</strong> ocupadas</span>
             <span><strong className="text-foreground">{stats.livres}</strong> livres</span>
           </div>
-          <Button size="sm" onClick={() => setShowAddVehicle(true)}>
-            <Plus className="h-4 w-4 mr-1.5" /> Nova viatura
+          <Button size="sm" onClick={() => openNewLoan(demos[0]?.id ?? '')}>
+            <Plus className="h-4 w-4 mr-1.5" /> Adicionar agendamento
           </Button>
         </div>
       </div>
@@ -303,7 +308,12 @@ export default function EmprestimosPage() {
             {TIPO_STYLE[t].label}
           </span>
         ))}
-        <span className="hidden md:inline text-muted-foreground/70">Clica numa célula livre para registar um empréstimo · clica numa barra para editar.</span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-sm bg-rose-500/40" /> Domingo (encerrado)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-3 w-0.5 bg-red-500" /> Agora
+        </span>
       </div>
 
       {/* Board */}
@@ -314,27 +324,33 @@ export default function EmprestimosPage() {
             <div className="w-[200px] shrink-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider sticky left-0 z-10 bg-bmw-navy border-r border-white/10">
               Viatura
             </div>
-            <div className="flex flex-1">
-              {weekDays.map((d, i) => {
-                const today = isSameDay(d, new Date());
-                const weekend = i >= 5;
-                return (
-                  <div
-                    key={i}
-                    className={`flex-1 px-1 py-1.5 text-center border-l border-white/10 ${weekend ? 'bg-white/5' : ''} ${today ? 'bg-bmw-blue' : ''}`}
-                  >
-                    <div className="text-[10px] font-semibold uppercase tracking-wider opacity-80">{WEEKDAYS_PT[i]}</div>
-                    <div className="text-sm font-bold tabular-nums">{format(d, 'd')}</div>
+            <div className="relative flex flex-1">
+              {weekDays.map((d, i) => (
+                <div
+                  key={i}
+                  title={i === 6 ? 'Domingo — encerrado' : undefined}
+                  className={`flex-1 px-1 py-1.5 text-center border-l border-white/10 ${headerDayBg(d, i)}`}
+                >
+                  <div className="text-[10px] font-semibold uppercase tracking-wider opacity-80">{WEEKDAYS_PT[i]}</div>
+                  <div className="text-sm font-bold tabular-nums">{format(d, 'd')}</div>
+                </div>
+              ))}
+              {/* Marcador "agora" no cabeçalho */}
+              {nowLeft !== null && (
+                <div className="absolute top-0 bottom-0 z-30 pointer-events-none" style={{ left: `${nowLeft}%` }}>
+                  <div className="absolute inset-y-0 w-px bg-red-500 -translate-x-1/2" />
+                  <div className="absolute top-0 -translate-x-1/2 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-b whitespace-nowrap tabular-nums">
+                    {format(now, 'HH:mm')}
                   </div>
-                );
-              })}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Linhas de viaturas */}
           {demos.length === 0 && (
             <div className="py-12 text-center text-sm text-muted-foreground">
-              Sem viaturas na gama. Clica em <strong>Nova viatura</strong> para começar.
+              Sem viaturas na gama. Adiciona-as no separador <strong>DEMOS</strong>.
             </div>
           )}
 
@@ -347,61 +363,52 @@ export default function EmprestimosPage() {
             return (
               <div key={v.id} className={`flex border-t border-border ${rowIdx % 2 ? 'bg-muted/20' : ''}`}>
                 {/* Coluna da viatura */}
-                <div className="w-[200px] shrink-0 px-3 py-2 sticky left-0 z-10 bg-inherit border-r border-border flex items-start justify-between gap-2 group">
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-foreground truncate flex items-center gap-1.5">
-                      <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      {vehicleLabel(v)}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1.5">
-                      {v.mat && <span className="text-[10px] font-mono font-semibold bg-muted px-1.5 py-0.5 rounded text-foreground/80">{v.mat}</span>}
-                      {v.local && <span className="text-[10px] text-muted-foreground truncate">{v.local}</span>}
-                    </div>
+                <div className="w-[200px] shrink-0 px-3 py-2 sticky left-0 z-10 bg-inherit border-r border-border">
+                  <div className="text-xs font-semibold text-foreground truncate flex items-center gap-1.5">
+                    <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    {vehicleModel(v)}
                   </div>
-                  <button
-                    onClick={() => setDeleteVehicle(v)}
-                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity shrink-0"
-                    title="Remover viatura da gama"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {v.versao && <div className="mt-0.5 text-[10px] text-muted-foreground truncate pl-5">{v.versao}</div>}
+                  {v.mat && (
+                    <div className="mt-1 pl-5">
+                      <span className="text-[10px] font-mono font-semibold bg-muted px-1.5 py-0.5 rounded text-foreground/80">{v.mat}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Track cronológica */}
                 <div className="relative flex-1" style={{ height: rowHeight }}>
-                  {/* Colunas de fundo (clicáveis para novo empréstimo) */}
+                  {/* Colunas de fundo (clicáveis para novo agendamento) */}
                   <div className="absolute inset-0 flex">
-                    {weekDays.map((d, i) => {
-                      const today = isSameDay(d, new Date());
-                      const weekend = i >= 5;
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => openNewLoan(v.id, d)}
-                          title={`Novo empréstimo · ${format(d, "EEEE d 'de' MMMM", { locale: pt })}`}
-                          className={`flex-1 border-l border-border/60 first:border-l-0 transition-colors hover:bg-primary/5
-                            ${weekend ? 'bg-muted/30' : ''} ${today ? 'bg-primary/5' : ''}`}
-                        />
-                      );
-                    })}
+                    {weekDays.map((d, i) => (
+                      <button
+                        key={i}
+                        onClick={() => openNewLoan(v.id, d)}
+                        title={`Novo agendamento · ${format(d, "EEEE d 'de' MMMM", { locale: pt })}`}
+                        className={`flex-1 border-l border-border/60 first:border-l-0 transition-colors hover:bg-primary/5 ${trackDayBg(d, i)}`}
+                      />
+                    ))}
                   </div>
 
                   {/* Barras de empréstimo */}
                   {rowLoans.map(l => {
                     const s = Math.max(Date.parse(l.inicio), weekStartMs);
-                    const e = Math.min(Date.parse(l.fim), weekEnd.getTime());
+                    const e = Math.min(Date.parse(l.fim), weekEndMs);
                     const left = ((s - weekStartMs) / totalMs) * 100;
                     const width = ((e - s) / totalMs) * 100;
                     const lane = laneMap.get(l.id) ?? 0;
                     const continuesLeft = Date.parse(l.inicio) < weekStartMs;
-                    const continuesRight = Date.parse(l.fim) > weekEnd.getTime();
+                    const continuesRight = Date.parse(l.fim) > weekEndMs;
                     const style = TIPO_STYLE[l.tipo];
                     const timeRange = `${format(new Date(l.inicio), 'd MMM HH:mm', { locale: pt })} → ${format(new Date(l.fim), 'd MMM HH:mm', { locale: pt })}`;
+                    const extra = l.tipo === 'cliente'
+                      ? [l.cliente_telefone, l.cliente_nif && `NIF ${l.cliente_nif}`].filter(Boolean).join(' · ')
+                      : '';
                     return (
                       <button
                         key={l.id}
                         onClick={() => openEditLoan(l)}
-                        title={`${l.alocado_nome} · ${timeRange}${l.notas ? ` · ${l.notas}` : ''}`}
+                        title={`${l.alocado_nome} · ${timeRange}${extra ? ` · ${extra}` : ''}${l.notas ? ` · ${l.notas}` : ''}`}
                         className={`absolute flex items-center gap-1 px-1.5 text-[11px] font-semibold shadow-sm ring-1 ring-black/10 hover:ring-2 hover:ring-primary transition-all overflow-hidden
                           ${style.bar}
                           ${continuesLeft ? 'rounded-l-none' : 'rounded-l'} ${continuesRight ? 'rounded-r-none' : 'rounded-r'}`}
@@ -416,6 +423,14 @@ export default function EmprestimosPage() {
                       </button>
                     );
                   })}
+
+                  {/* Linha vermelha "agora" */}
+                  {nowLeft !== null && (
+                    <div
+                      className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none -translate-x-1/2"
+                      style={{ left: `${nowLeft}%` }}
+                    />
+                  )}
                 </div>
               </div>
             );
@@ -423,14 +438,14 @@ export default function EmprestimosPage() {
         </div>
       </div>
 
-      {/* Modal empréstimo */}
+      {/* Modal agendamento */}
       {form && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setForm(null)}>
-          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border sticky top-0 bg-card z-10">
               <h2 className="text-sm font-semibold flex items-center gap-2">
                 <CalendarClock className="h-4 w-4 text-primary" />
-                {form.id ? 'Editar empréstimo' : 'Novo empréstimo'}
+                {form.id ? 'Editar agendamento' : 'Novo agendamento'}
               </h2>
               <button onClick={() => setForm(null)}><X className="h-4 w-4 text-muted-foreground" /></button>
             </div>
@@ -446,7 +461,7 @@ export default function EmprestimosPage() {
                 >
                   {demos.map(d => (
                     <option key={d.id} value={d.id}>
-                      {vehicleLabel(d)}{d.mat ? ` · ${d.mat}` : ''}
+                      {vehicleModel(d)}{d.versao ? ` ${d.versao}` : ''}{d.mat ? ` · ${d.mat}` : ''}
                     </option>
                   ))}
                 </select>
@@ -476,27 +491,50 @@ export default function EmprestimosPage() {
               {/* Quem */}
               {form.tipo === 'interno' ? (
                 <div>
-                  <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Utilizador</label>
+                  <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Utilizador (escala de serviço)</label>
                   <select
-                    value={form.utilizador_id ?? ''}
-                    onChange={e => setForm(f => f && ({ ...f, utilizador_id: e.target.value ? Number(e.target.value) : null }))}
+                    value={form.membro}
+                    onChange={e => setForm(f => f && ({ ...f, membro: e.target.value }))}
                     className="w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     <option value="" disabled>Escolher utilizador…</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.nome}{u.perfil ? ` (${u.perfil})` : ''}</option>
-                    ))}
+                    {members.map(m => <option key={m} value={m}>{m}</option>)}
+                    {form.membro && !members.includes(form.membro) && <option value={form.membro}>{form.membro}</option>}
                   </select>
                 </div>
               ) : (
-                <div>
-                  <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Cliente</label>
-                  <Input
-                    value={form.cliente_nome}
-                    onChange={e => setForm(f => f && ({ ...f, cliente_nome: e.target.value }))}
-                    placeholder="Nome do cliente"
-                    className="h-8 text-xs"
-                  />
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Cliente</label>
+                    <Input
+                      value={form.cliente_nome}
+                      onChange={e => setForm(f => f && ({ ...f, cliente_nome: e.target.value }))}
+                      placeholder="Nome do cliente"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Telemóvel</label>
+                      <Input
+                        value={form.cliente_telefone}
+                        onChange={e => setForm(f => f && ({ ...f, cliente_telefone: e.target.value }))}
+                        placeholder="9xx xxx xxx"
+                        inputMode="tel"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">NIF</label>
+                      <Input
+                        value={form.cliente_nif}
+                        onChange={e => setForm(f => f && ({ ...f, cliente_nif: e.target.value }))}
+                        placeholder="Contribuinte"
+                        inputMode="numeric"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -540,7 +578,7 @@ export default function EmprestimosPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border">
+            <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border sticky bottom-0 bg-card">
               {form.id ? (
                 <Button
                   variant="ghost" size="sm"
@@ -562,70 +600,15 @@ export default function EmprestimosPage() {
         </div>
       )}
 
-      {/* Modal nova viatura */}
-      {showAddVehicle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowAddVehicle(false)}>
-          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-              <h2 className="text-sm font-semibold flex items-center gap-2"><Car className="h-4 w-4 text-primary" /> Nova viatura</h2>
-              <button onClick={() => setShowAddVehicle(false)}><X className="h-4 w-4 text-muted-foreground" /></button>
-            </div>
-            <div className="p-5 space-y-3">
-              {[
-                { key: 'modelo', label: 'Modelo', ph: 'Ex.: BMW X1' },
-                { key: 'versao', label: 'Versão', ph: 'Ex.: sDrive18d' },
-                { key: 'mat', label: 'Matrícula', ph: 'Ex.: AB-12-CD' },
-                { key: 'local', label: 'Local', ph: 'Ex.: Aveiro' },
-              ].map(f => (
-                <div key={f.key}>
-                  <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">{f.label}</label>
-                  <Input
-                    value={vehForm[f.key as keyof typeof vehForm]}
-                    onChange={e => setVehForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    placeholder={f.ph}
-                    className="h-8 text-xs"
-                  />
-                </div>
-              ))}
-              <p className="text-[10px] text-muted-foreground">Fica disponível também no separador DEMOS, onde podes completar preços e características.</p>
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
-              <Button variant="outline" size="sm" onClick={() => setShowAddVehicle(false)}>Cancelar</Button>
-              <Button size="sm" onClick={addVehicle} disabled={savingVeh}>
-                {savingVeh ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1.5" />}
-                Adicionar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmar eliminar empréstimo */}
+      {/* Confirmar eliminar agendamento */}
       {deleteLoan && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
           <div className="bg-card border border-border rounded-xl shadow-xl p-6 w-full max-w-sm text-center space-y-4">
-            <p className="text-sm font-medium">Eliminar este empréstimo?</p>
+            <p className="text-sm font-medium">Eliminar este agendamento?</p>
             <p className="text-xs text-muted-foreground">{deleteLoan.alocado_nome}</p>
             <div className="flex justify-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setDeleteLoan(null)}>Cancelar</Button>
               <Button size="sm" onClick={() => removeLoan(deleteLoan.id)} className="bg-destructive text-white hover:bg-destructive/90">Eliminar</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmar remover viatura */}
-      {deleteVehicle && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-card border border-border rounded-xl shadow-xl p-6 w-full max-w-sm text-center space-y-4">
-            <p className="text-sm font-medium">Remover viatura da gama?</p>
-            <p className="text-xs text-muted-foreground">
-              <strong>{vehicleLabel(deleteVehicle)}</strong>{deleteVehicle.mat ? ` · ${deleteVehicle.mat}` : ''}<br />
-              Remove a viatura (e todos os seus empréstimos) do separador DEMOS.
-            </p>
-            <div className="flex justify-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setDeleteVehicle(null)}>Cancelar</Button>
-              <Button size="sm" onClick={() => removeVehicle(deleteVehicle.id)} className="bg-destructive text-white hover:bg-destructive/90">Remover</Button>
             </div>
           </div>
         </div>
