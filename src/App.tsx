@@ -20,6 +20,7 @@ import LoginPage from "./pages/LoginPage";
 import DatabasePage from "./pages/DatabasePage";
 import FichaMargemPage from "./pages/FichaMargemPage";
 import DemosPage from "./pages/DemosPage";
+import EmprestimosPage from "./pages/EmprestimosPage";
 import ObjetivosPage from "./pages/ObjetivosPage";
 import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,6 +88,7 @@ const App = () => (
               {/* Admin routes */}
               <Route path="/database" element={<AdminGate><AppLayout><DatabasePage /></AppLayout></AdminGate>} />
               <Route path="/demos" element={<AdminGate><AppLayout><DemosPage /></AppLayout></AdminGate>} />
+              <Route path="/emprestimos" element={<AdminGate><AppLayout><EmprestimosPage /></AppLayout></AdminGate>} />
               <Route path="/objetivos" element={<AdminGate><AppLayout><ObjetivosPage /></AppLayout></AdminGate>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
