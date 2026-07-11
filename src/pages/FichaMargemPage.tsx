@@ -158,21 +158,56 @@ export default function FichaMargemPage() {
       rows.push(['COMISSÃO', '-', eur(c.comissaoEur)]);
     }
     const strongRows = new Set(['PVP', 'DESC. TOTAL', 'PREÇO CUSTO', 'MARGEM', 'COMISSÃO']);
-    const body = rows.map(([l, p, e]) =>
-      `<tr${strongRows.has(l) ? ' style="font-weight:700;background:#eef2ff"' : ''}><td style="text-align:left">${esc(l)}</td><td>${esc(p)}</td><td style="text-align:right">${esc(e)}</td></tr>`
-    ).join('');
+    // Grupos com um separador antes para dar respiração à tabela numa folha A4.
+    const groupStart = new Set(['MG. FIXA', 'RECONDICIONAMENTO', 'PREÇO VENDA', 'MÉDIA MÓVEL']);
+    const body = rows.map(([l, p, e]) => {
+      const cls = [strongRows.has(l) ? 'strong' : '', groupStart.has(l) ? 'sep' : ''].filter(Boolean).join(' ');
+      return `<tr${cls ? ` class="${cls}"` : ''}><td class="lbl">${esc(l)}</td><td class="pct">${esc(p)}</td><td class="eur">${esc(e)}</td></tr>`;
+    }).join('');
     const infoPairs: [string, string][] = [['TIPO', tipo], ['MODELO', modelo], ['PROPOSTA', proposta], ['ENC / CHASS', encChass]];
     if (isVD) { infoPairs.push(['MATRÍCULA', matricula], ['DATA MATRÍCULA', dataMatricula], ['IDADE', meses]); }
-    const info = infoPairs.map(([k, v]) => `<div><span style="color:#6b7280">${esc(k)}:</span> <strong>${esc(v || '—')}</strong></div>`).join('');
-    const vdMsg = isVD ? '<p style="margin-top:12px;font-weight:700;color:#b45309">Ver com João Duarte, o melhor chefe do mundo! :)</p>' : '';
+    const info = infoPairs.map(([k, v]) => `<div class="cell"><span class="k">${esc(k)}</span><span class="v">${esc(v || '—')}</span></div>`).join('');
+    const vdMsg = isVD ? '<p class="note">Ver com João Duarte, o melhor chefe do mundo! :)</p>' : '';
+    const dataHoje = new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
 
     const html = `<!doctype html><html lang="pt"><head><meta charset="utf-8"/><title>Ficha_Margem_${esc(proposta || modelo || '')}</title>
-<style>*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:Arial,Helvetica,sans-serif;color:#111827;margin:18px}
-h1{font-size:16px;margin:0 0 8px}.info{display:grid;grid-template-columns:1fr 1fr;gap:2px 24px;font-size:11px;margin-bottom:12px}
-table{width:100%;border-collapse:collapse;font-size:11px}th{background:#002060;color:#fff;padding:4px 6px;text-align:right}th:first-child{text-align:left}
-td{border:1px solid #e5e7eb;padding:3px 6px;text-align:center}@page{size:A4 portrait;margin:12mm}</style></head><body>
-<h1>Ficha de Margem</h1><div class="info">${info}</div>
-<table><thead><tr><th>RÚBRICA</th><th>%</th><th>€</th></tr></thead><tbody>${body}</tbody></table>${vdMsg}
+<style>
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  html,body{margin:0;padding:0}
+  body{font-family:Arial,Helvetica,sans-serif;color:#111827;font-size:11px;line-height:1.35}
+  .sheet{max-width:150mm;margin:0 auto;padding:14mm 12mm}
+  header{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:2px solid #002060;padding-bottom:6px;margin-bottom:12px}
+  h1{font-size:17px;margin:0;color:#002060;letter-spacing:.3px}
+  .date{font-size:10px;color:#6b7280}
+  .info{display:grid;grid-template-columns:repeat(2,1fr);gap:4px 18px;margin-bottom:14px}
+  .info .cell{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted #d1d5db;padding-bottom:2px}
+  .info .k{color:#6b7280;text-transform:uppercase;font-size:9px;letter-spacing:.4px}
+  .info .v{font-weight:600;text-align:right}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  col.c-lbl{width:52%}col.c-pct{width:20%}col.c-eur{width:28%}
+  th{background:#002060;color:#fff;padding:5px 8px;font-size:10px;letter-spacing:.4px;text-transform:uppercase}
+  th.lbl{text-align:left}th.pct,th.eur{text-align:right}
+  td{padding:3px 8px;border-bottom:1px solid #eef1f5}
+  td.lbl{text-align:left;color:#374151}
+  td.pct{text-align:right;color:#6b7280;font-variant-numeric:tabular-nums}
+  td.eur{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tbody tr:nth-child(even){background:#fafbfc}
+  tr.sep td{border-top:1px solid #c7ccd6}
+  tr.strong td{font-weight:700;background:#eef2ff!important;color:#111827}
+  tr.strong td.lbl{color:#002060}
+  .note{margin-top:14px;padding:8px 10px;font-weight:700;color:#b45309;background:#fffbeb;border:1px solid #fcd34d;border-radius:4px;text-align:center}
+  @page{size:A4 portrait;margin:0}
+</style></head><body>
+<div class="sheet">
+  <header><h1>Ficha de Margem</h1><span class="date">${esc(dataHoje)}</span></header>
+  <div class="info">${info}</div>
+  <table>
+    <colgroup><col class="c-lbl"/><col class="c-pct"/><col class="c-eur"/></colgroup>
+    <thead><tr><th class="lbl">Rúbrica</th><th class="pct">%</th><th class="eur">€</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>
+  ${vdMsg}
+</div>
 <script>window.onload=function(){window.focus();window.print();};</script></body></html>`;
     const w = window.open('', '_blank');
     if (!w) { toast.error('Permite pop-ups para exportar o PDF.'); return; }
