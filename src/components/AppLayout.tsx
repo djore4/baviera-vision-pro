@@ -24,7 +24,6 @@ const ADMIN_NAV_ITEMS = [
   { path: '/database', label: 'DATABASE', icon: Database },
   { path: '/demos', label: 'DEMOS', icon: Car },
   { path: '/emprestimos', label: 'EMPRÉSTIMOS', icon: CalendarClock },
-  { path: '/emprestimos-2', label: 'EMPRÉSTIMOS 2', icon: CalendarClock },
   { path: '/objetivos', label: 'OBJETIVOS', icon: Target },
 ];
 

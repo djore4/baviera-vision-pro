@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  addDays, addWeeks, startOfWeek, getISOWeek, format, isSameDay,
+  addDays, startOfDay, format, isSameDay, isWeekend,
 } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import {
-  Loader2, Plus, Trash2, ChevronLeft, ChevronRight, X, Check, Car,
-  CalendarClock, User, Users, StickyNote, CalendarDays,
+  Loader2, Plus, Trash2, ChevronLeft, ChevronRight, X, Check,
+  CalendarClock, User, Users, StickyNote, CalendarDays, UserCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,6 +28,7 @@ interface Emprestimo {
   demo_id: string;
   tipo: LoanTipo;
   alocado_nome: string;
+  responsavel_interno: string | null;
   cliente_telefone: string | null;
   cliente_nif: string | null;
   notas: string | null;
@@ -39,7 +40,8 @@ interface LoanForm {
   id: string | null;
   demo_id: string;
   tipo: LoanTipo;
-  membro: string; // iniciais do membro da escala (interno)
+  membro: string; // iniciais do membro da escala (empréstimo interno)
+  responsavel: string; // iniciais do responsável interno (empréstimo a cliente)
   cliente_nome: string;
   cliente_telefone: string;
   cliente_nif: string;
@@ -51,15 +53,16 @@ interface LoanForm {
 // ---- Constants --------------------------------------------------------------
 
 const WEEKDAYS_PT = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
-const LANE_H = 20; // px por "faixa" de empréstimo dentro da linha da viatura
-const ROW_PAD = 3; // px de padding vertical na track
+const RANGE_DAYS = 30; // janela visível por omissão (scroll vertical)
+const DAY_H = 72; // px por dia (eixo vertical do tempo)
+const COL_W = 82; // px de largura de cada coluna de viatura
+const TIME_W = 58; // px do eixo do tempo (esquerda)
+const BAR_PAD = 2; // px
 
 const ESCALA_BUCKET = 'excel-files';
 const ESCALA_PATH = 'escala-teste.json';
-// Equipa por omissão, caso a escala ainda não tenha sido guardada
 const DEFAULT_MEMBERS = ['JD', 'BR', 'FS', 'NC', 'PM', 'TS'];
 
-// Cor distinta por tipo de alocação
 const TIPO_STYLE: Record<LoanTipo, { bar: string; dot: string; label: string; icon: typeof User }> = {
   interno: { bar: 'bg-blue-600 text-white', dot: 'bg-blue-600', label: 'Utilizador interno', icon: Users },
   cliente: { bar: 'bg-emerald-600 text-white', dot: 'bg-emerald-600', label: 'Cliente', icon: User },
@@ -75,9 +78,14 @@ function vehicleModel(v: DemoVehicle): string {
   return v.modelo?.trim() || 'Sem modelo';
 }
 
-// Distribui empréstimos por "faixas" para que os que se sobrepõem no tempo não colidam.
+// Índice do dia da semana com a semana a começar à segunda (0=SEG … 6=DOM)
+function weekdayIndex(d: Date): number {
+  return (d.getDay() + 6) % 7;
+}
+
+// Distribui empréstimos por "faixas" (colunas dentro da coluna da viatura).
 function assignLanes(loans: Emprestimo[]): Map<string, number> {
-  const lanes: number[] = []; // fim (ms) do último empréstimo em cada faixa
+  const lanes: number[] = [];
   const map = new Map<string, number>();
   const sorted = [...loans].sort((a, b) => Date.parse(a.inicio) - Date.parse(b.inicio));
   for (const l of sorted) {
@@ -99,13 +107,12 @@ export default function EmprestimosPage() {
   const [loans, setLoans] = useState<Emprestimo[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [anchor, setAnchor] = useState<Date>(() => new Date());
+  const [anchor, setAnchor] = useState<Date>(() => startOfDay(new Date()));
   const [now, setNow] = useState<Date>(() => new Date());
   const [form, setForm] = useState<LoanForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteLoan, setDeleteLoan] = useState<Emprestimo | null>(null);
 
-  // Relógio: atualiza a linha do "agora" a cada minuto
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
@@ -120,14 +127,11 @@ export default function EmprestimosPage() {
     setDemos((demosRes.data as DemoVehicle[]) ?? []);
     setLoans((loansRes.data as Emprestimo[]) ?? []);
 
-    // Membros internos = equipa da escala de serviço
     try {
       const { data } = await supabase.storage.from(ESCALA_BUCKET).download(ESCALA_PATH);
       if (data) {
         const parsed = JSON.parse(await data.text()) as { team?: Array<{ initials?: string }> };
-        const team = (parsed.team ?? [])
-          .map(m => (m.initials ?? '').trim())
-          .filter(Boolean);
+        const team = (parsed.team ?? []).map(m => (m.initials ?? '').trim()).filter(Boolean);
         if (team.length) setMembers(Array.from(new Set(team)));
       }
     } catch {
@@ -139,51 +143,53 @@ export default function EmprestimosPage() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  // ---- Semana visível ----
-  const weekStart = useMemo(() => startOfWeek(anchor, { weekStartsOn: 1 }), [anchor]);
-  const weekEnd = useMemo(() => addDays(weekStart, 7), [weekStart]);
-  const weekStartMs = weekStart.getTime();
-  const weekEndMs = weekEnd.getTime();
-  const totalMs = weekEndMs - weekStartMs; // robusto a mudanças de hora (DST)
+  // ---- Janela visível (30 dias) ----
+  const rangeStart = useMemo(() => startOfDay(anchor), [anchor]);
+  const rangeEnd = useMemo(() => addDays(rangeStart, RANGE_DAYS), [rangeStart]);
+  const rangeStartMs = rangeStart.getTime();
+  const rangeEndMs = rangeEnd.getTime();
+  const totalMs = rangeEndMs - rangeStartMs;
+  const totalH = RANGE_DAYS * DAY_H;
 
-  const weekDays = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
-    [weekStart],
+  const days = useMemo(
+    () => Array.from({ length: RANGE_DAYS }, (_, i) => addDays(rangeStart, i)),
+    [rangeStart],
   );
 
-  // Posição da linha vermelha "agora" (só quando a semana atual está visível)
+  // Posição da linha vermelha "agora" (px a partir do topo)
   const nowMs = now.getTime();
-  const nowLeft = nowMs >= weekStartMs && nowMs < weekEndMs
-    ? ((nowMs - weekStartMs) / totalMs) * 100
+  const nowTop = nowMs >= rangeStartMs && nowMs < rangeEndMs
+    ? ((nowMs - rangeStartMs) / totalMs) * totalH
     : null;
 
-  // Empréstimos que intersectam a semana visível, agrupados por viatura
   const loansByDemo = useMemo(() => {
     const map = new Map<string, Emprestimo[]>();
     for (const l of loans) {
       const s = Date.parse(l.inicio);
       const e = Date.parse(l.fim);
-      if (e <= weekStartMs || s >= weekEndMs) continue; // fora da semana
+      if (e <= rangeStartMs || s >= rangeEndMs) continue;
       if (!map.has(l.demo_id)) map.set(l.demo_id, []);
       map.get(l.demo_id)!.push(l);
     }
     return map;
-  }, [loans, weekStartMs, weekEndMs]);
+  }, [loans, rangeStartMs, rangeEndMs]);
 
-  // Estatísticas rápidas da semana
   const stats = useMemo(() => {
     const ocupadas = new Set(loansByDemo.keys()).size;
     return { total: demos.length, ocupadas, livres: Math.max(0, demos.length - ocupadas) };
   }, [demos.length, loansByDemo]);
 
+  const isCurrentRange = now >= rangeStart && now < rangeEnd;
+
   // ---- Abrir formulários ----
   function openNewLoan(demoId: string, day?: Date) {
     if (!demoId) { toast.error('Sem viaturas na gama. Adiciona-as no separador DEMOS.'); return; }
-    const base = day ?? (nowLeft !== null ? now : weekStart);
+    const base = day ?? (isCurrentRange ? now : rangeStart);
     const start = new Date(base); start.setHours(9, 0, 0, 0);
     const end = new Date(base); end.setHours(19, 0, 0, 0);
     setForm({
-      id: null, demo_id: demoId, tipo: 'interno', membro: members[0] ?? '',
+      id: null, demo_id: demoId, tipo: 'interno',
+      membro: members[0] ?? '', responsavel: members[0] ?? '',
       cliente_nome: '', cliente_telefone: '', cliente_nif: '', notas: '',
       inicio: toLocalInput(start), fim: toLocalInput(end),
     });
@@ -193,6 +199,7 @@ export default function EmprestimosPage() {
     setForm({
       id: l.id, demo_id: l.demo_id, tipo: l.tipo,
       membro: l.tipo === 'interno' ? l.alocado_nome : (members[0] ?? ''),
+      responsavel: l.responsavel_interno || (members[0] ?? ''),
       cliente_nome: l.tipo === 'cliente' ? l.alocado_nome : '',
       cliente_telefone: l.cliente_telefone ?? '',
       cliente_nif: l.cliente_nif ?? '',
@@ -210,18 +217,22 @@ export default function EmprestimosPage() {
     if (fim <= inicio) { toast.error('A hora de fim tem de ser posterior à de início.'); return; }
 
     let alocado_nome: string;
+    let responsavel_interno: string | null = null;
     if (form.tipo === 'interno') {
       if (!form.membro) { toast.error('Escolhe o utilizador da escala.'); return; }
       alocado_nome = form.membro;
     } else {
       if (!form.cliente_nome.trim()) { toast.error('Indica o nome do cliente.'); return; }
+      if (!form.responsavel) { toast.error('Escolhe o responsável interno.'); return; }
       alocado_nome = form.cliente_nome.trim();
+      responsavel_interno = form.responsavel;
     }
 
     const payload = {
       demo_id: form.demo_id,
       tipo: form.tipo,
       alocado_nome,
+      responsavel_interno,
       cliente_telefone: form.tipo === 'cliente' ? (form.cliente_telefone.trim() || null) : null,
       cliente_nif: form.tipo === 'cliente' ? (form.cliente_nif.trim() || null) : null,
       notas: form.notas.trim() || null,
@@ -250,14 +261,14 @@ export default function EmprestimosPage() {
     loadAll();
   }
 
-  const weekLabel = `${format(weekStart, 'd MMM', { locale: pt })} – ${format(addDays(weekStart, 6), 'd MMM yyyy', { locale: pt })}`;
+  const rangeLabel = `${format(rangeStart, 'd MMM', { locale: pt })} – ${format(addDays(rangeStart, RANGE_DAYS - 1), 'd MMM yyyy', { locale: pt })}`;
 
-  // Classe de fundo por dia (cabeçalho): hoje > domingo (encerrado) > sábado
-  const headerDayBg = (d: Date, i: number) =>
-    isSameDay(d, now) ? 'bg-bmw-blue' : i === 6 ? 'bg-rose-500/25' : i === 5 ? 'bg-white/10' : '';
-  // Classe de fundo por coluna (track)
-  const trackDayBg = (d: Date, i: number) =>
-    isSameDay(d, now) ? 'bg-primary/5' : i === 6 ? 'bg-rose-500/10' : i === 5 ? 'bg-muted/40' : '';
+  // Fundo por dia (banda horizontal): hoje > domingo (encerrado) > sábado
+  const dayBg = (d: Date) => {
+    if (isSameDay(d, now)) return 'bg-primary/5';
+    const wi = weekdayIndex(d);
+    return wi === 6 ? 'bg-rose-500/10' : wi === 5 ? 'bg-muted/40' : '';
+  };
 
   if (loading) {
     return (
@@ -273,17 +284,17 @@ export default function EmprestimosPage() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => setAnchor(a => addWeeks(a, -1))} aria-label="Semana anterior">
+          <Button variant="outline" size="icon" onClick={() => setAnchor(a => addDays(a, -RANGE_DAYS))} aria-label="Período anterior">
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="min-w-[12rem] text-center">
-            <div className="text-sm font-semibold text-foreground">{weekLabel}</div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Semana {getISOWeek(weekStart)}</div>
+          <div className="min-w-[13rem] text-center">
+            <div className="text-sm font-semibold text-foreground">{rangeLabel}</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{RANGE_DAYS} dias · scroll vertical</div>
           </div>
-          <Button variant="outline" size="icon" onClick={() => setAnchor(a => addWeeks(a, 1))} aria-label="Semana seguinte">
+          <Button variant="outline" size="icon" onClick={() => setAnchor(a => addDays(a, RANGE_DAYS))} aria-label="Período seguinte">
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setAnchor(new Date())}>
+          <Button variant="ghost" size="sm" onClick={() => setAnchor(startOfDay(new Date()))}>
             <CalendarDays className="h-4 w-4 mr-1.5" /> Hoje
           </Button>
         </div>
@@ -291,7 +302,7 @@ export default function EmprestimosPage() {
         <div className="flex items-center gap-2">
           <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground mr-1">
             <span><strong className="text-foreground">{stats.total}</strong> viaturas</span>
-            <span className="text-emerald-600 dark:text-emerald-400"><strong>{stats.ocupadas}</strong> ocupadas</span>
+            <span className="text-emerald-600 dark:text-emerald-400"><strong>{stats.ocupadas}</strong> com agenda</span>
             <span><strong className="text-foreground">{stats.livres}</strong> livres</span>
           </div>
           <Button size="sm" onClick={() => openNewLoan(demos[0]?.id ?? '')}>
@@ -312,131 +323,163 @@ export default function EmprestimosPage() {
           <span className="h-3 w-3 rounded-sm bg-rose-500/40" /> Domingo (encerrado)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-0.5 bg-red-500" /> Agora
+          <span className="inline-block h-0.5 w-3 bg-red-500" /> Agora
         </span>
       </div>
 
-      {/* Board */}
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <div className="min-w-[460px] sm:min-w-[680px]">
-          {/* Cabeçalho de dias */}
-          <div className="flex bg-bmw-navy text-white">
-            <div className="w-24 sm:w-44 shrink-0 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider sticky left-0 z-10 bg-bmw-navy border-r border-white/10 flex items-center">
-              Viatura
-            </div>
-            <div className="relative flex flex-1">
-              {weekDays.map((d, i) => (
+      {/* Board (transposto: colunas = viaturas, linhas = tempo, 30 dias) */}
+      {demos.length === 0 ? (
+        <div className="rounded-lg border border-border py-12 text-center text-sm text-muted-foreground">
+          Sem viaturas na gama. Adiciona-as no separador <strong>DEMOS</strong>.
+        </div>
+      ) : (
+        <div className="overflow-auto rounded-lg border border-border max-h-[74vh]">
+          <div className="w-max">
+            {/* Cabeçalho: viaturas */}
+            <div className="flex sticky top-0 z-20 bg-bmw-navy text-white">
+              <div
+                className="shrink-0 sticky left-0 z-30 bg-bmw-navy border-r border-white/10 flex items-center justify-center text-[9px] font-semibold uppercase tracking-wider"
+                style={{ width: TIME_W }}
+              >
+                Dia
+              </div>
+              {demos.map(v => (
                 <div
-                  key={i}
-                  title={i === 6 ? 'Domingo — encerrado' : undefined}
-                  className={`flex-1 px-0.5 py-1 text-center border-l border-white/10 leading-tight ${headerDayBg(d, i)}`}
-                >
-                  <div className="text-[9px] font-semibold uppercase tracking-wider opacity-80">{WEEKDAYS_PT[i]}</div>
-                  <div className="text-xs font-bold tabular-nums">{format(d, 'd')}</div>
-                </div>
-              ))}
-              {/* Marcador "agora" no cabeçalho */}
-              {nowLeft !== null && (
-                <div className="absolute top-0 bottom-0 z-30 pointer-events-none" style={{ left: `${nowLeft}%` }}>
-                  <div className="absolute inset-y-0 w-px bg-red-500 -translate-x-1/2" />
-                  <div className="absolute top-0 -translate-x-1/2 bg-red-500 text-white text-[8px] font-bold px-1 rounded-b whitespace-nowrap tabular-nums leading-relaxed">
-                    {format(now, 'HH:mm')}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Linhas de viaturas */}
-          {demos.length === 0 && (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              Sem viaturas na gama. Adiciona-as no separador <strong>DEMOS</strong>.
-            </div>
-          )}
-
-          {demos.map((v, rowIdx) => {
-            const rowLoans = loansByDemo.get(v.id) ?? [];
-            const laneMap = assignLanes(rowLoans);
-            const laneCount = Math.max(1, rowLoans.length ? Math.max(...laneMap.values()) + 1 : 1);
-            const rowHeight = laneCount * LANE_H + ROW_PAD * 2;
-
-            return (
-              <div key={v.id} className={`flex border-t border-border ${rowIdx % 2 ? 'bg-muted/20' : ''}`}>
-                {/* Coluna da viatura (uma linha) */}
-                <div
-                  className="w-24 sm:w-44 shrink-0 px-2 sticky left-0 z-10 bg-inherit border-r border-border flex items-center gap-1.5 overflow-hidden"
+                  key={v.id}
+                  className="shrink-0 px-1 py-1 border-l border-white/10 text-center leading-tight overflow-hidden"
+                  style={{ width: COL_W }}
                   title={`${vehicleModel(v)}${v.versao ? ` ${v.versao}` : ''}${v.mat ? ` · ${v.mat}` : ''}`}
                 >
-                  {v.mat && (
-                    <span className="shrink-0 text-[9px] font-mono font-semibold bg-muted px-1 py-0.5 rounded text-foreground/80">{v.mat}</span>
-                  )}
-                  <span className="min-w-0 truncate text-[11px] font-medium text-foreground">
-                    {vehicleModel(v)}
-                    {v.versao && <span className="hidden sm:inline text-muted-foreground font-normal"> {v.versao}</span>}
-                  </span>
+                  {v.mat && <div className="text-[10px] font-mono font-bold tabular-nums truncate">{v.mat}</div>}
+                  <div className="text-[9px] opacity-80 truncate">{vehicleModel(v)}</div>
                 </div>
+              ))}
+            </div>
 
-                {/* Track cronológica */}
-                <div className="relative flex-1" style={{ height: rowHeight }}>
-                  {/* Colunas de fundo (clicáveis para novo agendamento) */}
-                  <div className="absolute inset-0 flex">
-                    {weekDays.map((d, i) => (
-                      <button
-                        key={i}
-                        onClick={() => openNewLoan(v.id, d)}
-                        title={`Novo agendamento · ${format(d, "EEEE d 'de' MMMM", { locale: pt })}`}
-                        className={`flex-1 border-l border-border/60 first:border-l-0 transition-colors hover:bg-primary/5 ${trackDayBg(d, i)}`}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Barras de empréstimo */}
-                  {rowLoans.map(l => {
-                    const s = Math.max(Date.parse(l.inicio), weekStartMs);
-                    const e = Math.min(Date.parse(l.fim), weekEndMs);
-                    const left = ((s - weekStartMs) / totalMs) * 100;
-                    const width = ((e - s) / totalMs) * 100;
-                    const lane = laneMap.get(l.id) ?? 0;
-                    const continuesLeft = Date.parse(l.inicio) < weekStartMs;
-                    const continuesRight = Date.parse(l.fim) > weekEndMs;
-                    const style = TIPO_STYLE[l.tipo];
-                    const timeRange = `${format(new Date(l.inicio), 'd MMM HH:mm', { locale: pt })} → ${format(new Date(l.fim), 'd MMM HH:mm', { locale: pt })}`;
-                    const extra = l.tipo === 'cliente'
-                      ? [l.cliente_telefone, l.cliente_nif && `NIF ${l.cliente_nif}`].filter(Boolean).join(' · ')
-                      : '';
+            {/* Corpo */}
+            <div className="flex">
+              {/* Eixo do tempo (esquerda) */}
+              <div className="shrink-0 sticky left-0 z-10 bg-card border-r border-border" style={{ width: TIME_W }}>
+                <div className="relative" style={{ height: totalH }}>
+                  {days.map((d, i) => {
+                    const monthStart = i === 0 || d.getDate() === 1;
+                    const wi = weekdayIndex(d);
                     return (
-                      <button
-                        key={l.id}
-                        onClick={() => openEditLoan(l)}
-                        title={`${l.alocado_nome} · ${timeRange}${extra ? ` · ${extra}` : ''}${l.notas ? ` · ${l.notas}` : ''}`}
-                        className={`absolute flex items-center px-1 text-[10px] font-semibold leading-none shadow-sm ring-1 ring-black/10 hover:ring-2 hover:ring-primary transition-all overflow-hidden
-                          ${style.bar}
-                          ${continuesLeft ? 'rounded-l-none' : 'rounded-l'} ${continuesRight ? 'rounded-r-none' : 'rounded-r'}`}
-                        style={{
-                          left: `${left}%`,
-                          width: `calc(${width}% - 2px)`,
-                          top: ROW_PAD + lane * LANE_H,
-                          height: LANE_H - 3,
-                        }}
+                      <div
+                        key={i}
+                        className={`absolute left-0 right-0 flex flex-col items-center justify-start pt-1 leading-tight
+                          ${i === 0 ? '' : monthStart ? 'border-t-2 border-border' : 'border-t border-border/60'}
+                          ${isSameDay(d, now) ? 'bg-primary/5' : isWeekend(d) ? 'bg-muted/30' : ''}`}
+                        style={{ top: i * DAY_H, height: DAY_H }}
                       >
-                        <span className="truncate">{l.alocado_nome}</span>
-                      </button>
+                        {monthStart && (
+                          <div className="text-[8px] font-bold uppercase tracking-wider text-primary">
+                            {format(d, 'MMM', { locale: pt })}
+                          </div>
+                        )}
+                        <div className={`text-[9px] font-semibold uppercase tracking-wider ${wi === 6 ? 'text-rose-600' : wi === 5 ? 'text-primary' : 'text-muted-foreground'}`}>
+                          {WEEKDAYS_PT[wi]}
+                        </div>
+                        <div className="text-sm font-bold tabular-nums">{format(d, 'd')}</div>
+                      </div>
                     );
                   })}
-
-                  {/* Linha vermelha "agora" */}
-                  {nowLeft !== null && (
-                    <div
-                      className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none -translate-x-1/2"
-                      style={{ left: `${nowLeft}%` }}
-                    />
+                  {/* Marcador "agora" no eixo */}
+                  {nowTop !== null && (
+                    <div className="absolute left-0 right-0 z-30 pointer-events-none" style={{ top: nowTop }}>
+                      <div className="h-px w-full bg-red-500" />
+                      <div className="absolute right-0 -translate-y-1/2 bg-red-500 text-white text-[8px] font-bold px-1 rounded-l whitespace-nowrap tabular-nums leading-relaxed">
+                        {format(now, 'HH:mm')}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
-            );
-          })}
+
+              {/* Colunas das viaturas */}
+              <div className="relative flex" style={{ height: totalH }}>
+                {demos.map(v => {
+                  const colLoans = loansByDemo.get(v.id) ?? [];
+                  const laneMap = assignLanes(colLoans);
+                  const laneCount = Math.max(1, colLoans.length ? Math.max(...laneMap.values()) + 1 : 1);
+                  return (
+                    <div
+                      key={v.id}
+                      className="relative shrink-0 border-l border-border/60 first:border-l-0"
+                      style={{ width: COL_W, height: totalH }}
+                    >
+                      {/* Slots por dia (clicáveis para novo agendamento) */}
+                      {days.map((d, i) => {
+                        const monthStart = i === 0 || d.getDate() === 1;
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => openNewLoan(v.id, d)}
+                            title={`Novo agendamento · ${format(d, "EEEE d 'de' MMMM", { locale: pt })}`}
+                            className={`absolute left-0 right-0 transition-colors hover:bg-primary/10
+                              ${i === 0 ? '' : monthStart ? 'border-t-2 border-border' : 'border-t border-border/60'}
+                              ${dayBg(d)}`}
+                            style={{ top: i * DAY_H, height: DAY_H }}
+                          />
+                        );
+                      })}
+
+                      {/* Barras de empréstimo (verticais) */}
+                      {colLoans.map(l => {
+                        const s = Math.max(Date.parse(l.inicio), rangeStartMs);
+                        const e = Math.min(Date.parse(l.fim), rangeEndMs);
+                        const top = ((s - rangeStartMs) / totalMs) * totalH;
+                        const height = ((e - s) / totalMs) * totalH;
+                        const lane = laneMap.get(l.id) ?? 0;
+                        const continuesTop = Date.parse(l.inicio) < rangeStartMs;
+                        const continuesBottom = Date.parse(l.fim) > rangeEndMs;
+                        const style = TIPO_STYLE[l.tipo];
+                        const timeRange = `${format(new Date(l.inicio), 'd MMM HH:mm', { locale: pt })} → ${format(new Date(l.fim), 'd MMM HH:mm', { locale: pt })}`;
+                        const extra = l.tipo === 'cliente'
+                          ? [
+                              l.responsavel_interno && `Resp. ${l.responsavel_interno}`,
+                              l.cliente_telefone,
+                              l.cliente_nif && `NIF ${l.cliente_nif}`,
+                            ].filter(Boolean).join(' · ')
+                          : '';
+                        const showResp = l.tipo === 'cliente' && l.responsavel_interno && height >= 30;
+                        return (
+                          <button
+                            key={l.id}
+                            onClick={() => openEditLoan(l)}
+                            title={`${l.alocado_nome} · ${timeRange}${extra ? ` · ${extra}` : ''}${l.notas ? ` · ${l.notas}` : ''}`}
+                            className={`absolute flex flex-col items-center justify-start px-0.5 pt-0.5 text-[10px] font-semibold leading-none shadow-sm ring-1 ring-black/10 hover:ring-2 hover:ring-primary transition-all overflow-hidden
+                              ${style.bar}
+                              ${continuesTop ? 'rounded-t-none' : 'rounded-t'} ${continuesBottom ? 'rounded-b-none' : 'rounded-b'}`}
+                            style={{
+                              top,
+                              height: `calc(${height}px - 2px)`,
+                              left: `${(lane / laneCount) * 100}%`,
+                              width: `calc(${100 / laneCount}% - ${BAR_PAD}px)`,
+                            }}
+                          >
+                            <span className="truncate w-full text-center">{l.alocado_nome}</span>
+                            {showResp && (
+                              <span className="truncate w-full text-center text-[8px] font-medium opacity-80">
+                                {l.responsavel_interno}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+
+                {/* Linha vermelha "agora" (horizontal, sobre todas as colunas) */}
+                {nowTop !== null && (
+                  <div className="absolute left-0 right-0 h-px bg-red-500 z-20 pointer-events-none" style={{ top: nowTop }} />
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal agendamento */}
       {form && (
@@ -512,6 +555,21 @@ export default function EmprestimosPage() {
                       placeholder="Nome do cliente"
                       className="h-8 text-xs"
                     />
+                  </div>
+                  {/* Responsável interno — obrigatório para empréstimos a cliente */}
+                  <div>
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                      <UserCheck className="h-3 w-3" /> Responsável interno
+                    </label>
+                    <select
+                      value={form.responsavel}
+                      onChange={e => setForm(f => f && ({ ...f, responsavel: e.target.value }))}
+                      className="w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="" disabled>Escolher responsável…</option>
+                      {members.map(m => <option key={m} value={m}>{m}</option>)}
+                      {form.responsavel && !members.includes(form.responsavel) && <option value={form.responsavel}>{form.responsavel}</option>}
+                    </select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
