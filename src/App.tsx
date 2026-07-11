@@ -21,6 +21,7 @@ import DatabasePage from "./pages/DatabasePage";
 import FichaMargemPage from "./pages/FichaMargemPage";
 import DemosPage from "./pages/DemosPage";
 import EmprestimosPage from "./pages/EmprestimosPage";
+import Emprestimos2Page from "./pages/Emprestimos2Page";
 import ObjetivosPage from "./pages/ObjetivosPage";
 import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -80,15 +81,16 @@ const App = () => (
               <Route path="/producao" element={<AppLayout><ProducaoPage /></AppLayout>} />
               <Route path="/carteira" element={<AppLayout><CarteiraPage /></AppLayout>} />
               <Route path="/pendentes" element={<AppLayout><PendentesPage /></AppLayout>} />
-              <Route path="/multas" element={<AppLayout><MultasPage /></AppLayout>} />
               <Route path="/escala" element={<AppLayout><EscalaPage /></AppLayout>} />
-              <Route path="/dados" element={<AppLayout><DadosPage /></AppLayout>} />
               <Route path="/funil" element={<AppLayout><FunilPage /></AppLayout>} />
               <Route path="/ficha-margem" element={<AppLayout><FichaMargemPage /></AppLayout>} />
               {/* Admin routes */}
+              <Route path="/multas" element={<AdminGate><AppLayout><MultasPage /></AppLayout></AdminGate>} />
+              <Route path="/dados" element={<AdminGate><AppLayout><DadosPage /></AppLayout></AdminGate>} />
               <Route path="/database" element={<AdminGate><AppLayout><DatabasePage /></AppLayout></AdminGate>} />
               <Route path="/demos" element={<AdminGate><AppLayout><DemosPage /></AppLayout></AdminGate>} />
               <Route path="/emprestimos" element={<AdminGate><AppLayout><EmprestimosPage /></AppLayout></AdminGate>} />
+              <Route path="/emprestimos-2" element={<AdminGate><AppLayout><Emprestimos2Page /></AppLayout></AdminGate>} />
               <Route path="/objetivos" element={<AdminGate><AppLayout><ObjetivosPage /></AppLayout></AdminGate>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

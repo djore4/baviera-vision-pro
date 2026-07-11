@@ -4,7 +4,7 @@ import {
 } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import {
-  Loader2, Plus, Trash2, ChevronLeft, ChevronRight, X, Check, Car,
+  Loader2, Plus, Trash2, ChevronLeft, ChevronRight, X, Check,
   CalendarClock, User, Users, StickyNote, CalendarDays,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -51,15 +51,15 @@ interface LoanForm {
 // ---- Constants --------------------------------------------------------------
 
 const WEEKDAYS_PT = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
-const LANE_H = 20; // px por "faixa" de empréstimo dentro da linha da viatura
-const ROW_PAD = 3; // px de padding vertical na track
+const DAY_H = 96; // px por dia (eixo vertical do tempo)
+const COL_W = 78; // px de largura de cada coluna de viatura
+const TIME_W = 52; // px do eixo do tempo (esquerda)
+const BAR_PAD = 2; // px
 
 const ESCALA_BUCKET = 'excel-files';
 const ESCALA_PATH = 'escala-teste.json';
-// Equipa por omissão, caso a escala ainda não tenha sido guardada
 const DEFAULT_MEMBERS = ['JD', 'BR', 'FS', 'NC', 'PM', 'TS'];
 
-// Cor distinta por tipo de alocação
 const TIPO_STYLE: Record<LoanTipo, { bar: string; dot: string; label: string; icon: typeof User }> = {
   interno: { bar: 'bg-blue-600 text-white', dot: 'bg-blue-600', label: 'Utilizador interno', icon: Users },
   cliente: { bar: 'bg-emerald-600 text-white', dot: 'bg-emerald-600', label: 'Cliente', icon: User },
@@ -75,9 +75,9 @@ function vehicleModel(v: DemoVehicle): string {
   return v.modelo?.trim() || 'Sem modelo';
 }
 
-// Distribui empréstimos por "faixas" para que os que se sobrepõem no tempo não colidam.
+// Distribui empréstimos por "faixas" (colunas dentro da coluna da viatura).
 function assignLanes(loans: Emprestimo[]): Map<string, number> {
-  const lanes: number[] = []; // fim (ms) do último empréstimo em cada faixa
+  const lanes: number[] = [];
   const map = new Map<string, number>();
   const sorted = [...loans].sort((a, b) => Date.parse(a.inicio) - Date.parse(b.inicio));
   for (const l of sorted) {
@@ -93,7 +93,7 @@ function assignLanes(loans: Emprestimo[]): Map<string, number> {
 
 // ---- Component --------------------------------------------------------------
 
-export default function EmprestimosPage() {
+export default function Emprestimos2Page() {
   const [demos, setDemos] = useState<DemoVehicle[]>([]);
   const [members, setMembers] = useState<string[]>(DEFAULT_MEMBERS);
   const [loans, setLoans] = useState<Emprestimo[]>([]);
@@ -105,7 +105,6 @@ export default function EmprestimosPage() {
   const [saving, setSaving] = useState(false);
   const [deleteLoan, setDeleteLoan] = useState<Emprestimo | null>(null);
 
-  // Relógio: atualiza a linha do "agora" a cada minuto
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
@@ -120,14 +119,11 @@ export default function EmprestimosPage() {
     setDemos((demosRes.data as DemoVehicle[]) ?? []);
     setLoans((loansRes.data as Emprestimo[]) ?? []);
 
-    // Membros internos = equipa da escala de serviço
     try {
       const { data } = await supabase.storage.from(ESCALA_BUCKET).download(ESCALA_PATH);
       if (data) {
         const parsed = JSON.parse(await data.text()) as { team?: Array<{ initials?: string }> };
-        const team = (parsed.team ?? [])
-          .map(m => (m.initials ?? '').trim())
-          .filter(Boolean);
+        const team = (parsed.team ?? []).map(m => (m.initials ?? '').trim()).filter(Boolean);
         if (team.length) setMembers(Array.from(new Set(team)));
       }
     } catch {
@@ -144,33 +140,32 @@ export default function EmprestimosPage() {
   const weekEnd = useMemo(() => addDays(weekStart, 7), [weekStart]);
   const weekStartMs = weekStart.getTime();
   const weekEndMs = weekEnd.getTime();
-  const totalMs = weekEndMs - weekStartMs; // robusto a mudanças de hora (DST)
+  const totalMs = weekEndMs - weekStartMs;
+  const totalH = 7 * DAY_H;
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart],
   );
 
-  // Posição da linha vermelha "agora" (só quando a semana atual está visível)
+  // Posição da linha vermelha "agora" (px a partir do topo)
   const nowMs = now.getTime();
-  const nowLeft = nowMs >= weekStartMs && nowMs < weekEndMs
-    ? ((nowMs - weekStartMs) / totalMs) * 100
+  const nowTop = nowMs >= weekStartMs && nowMs < weekEndMs
+    ? ((nowMs - weekStartMs) / totalMs) * totalH
     : null;
 
-  // Empréstimos que intersectam a semana visível, agrupados por viatura
   const loansByDemo = useMemo(() => {
     const map = new Map<string, Emprestimo[]>();
     for (const l of loans) {
       const s = Date.parse(l.inicio);
       const e = Date.parse(l.fim);
-      if (e <= weekStartMs || s >= weekEndMs) continue; // fora da semana
+      if (e <= weekStartMs || s >= weekEndMs) continue;
       if (!map.has(l.demo_id)) map.set(l.demo_id, []);
       map.get(l.demo_id)!.push(l);
     }
     return map;
   }, [loans, weekStartMs, weekEndMs]);
 
-  // Estatísticas rápidas da semana
   const stats = useMemo(() => {
     const ocupadas = new Set(loansByDemo.keys()).size;
     return { total: demos.length, ocupadas, livres: Math.max(0, demos.length - ocupadas) };
@@ -179,7 +174,7 @@ export default function EmprestimosPage() {
   // ---- Abrir formulários ----
   function openNewLoan(demoId: string, day?: Date) {
     if (!demoId) { toast.error('Sem viaturas na gama. Adiciona-as no separador DEMOS.'); return; }
-    const base = day ?? (nowLeft !== null ? now : weekStart);
+    const base = day ?? (nowTop !== null ? now : weekStart);
     const start = new Date(base); start.setHours(9, 0, 0, 0);
     const end = new Date(base); end.setHours(19, 0, 0, 0);
     setForm({
@@ -252,11 +247,8 @@ export default function EmprestimosPage() {
 
   const weekLabel = `${format(weekStart, 'd MMM', { locale: pt })} – ${format(addDays(weekStart, 6), 'd MMM yyyy', { locale: pt })}`;
 
-  // Classe de fundo por dia (cabeçalho): hoje > domingo (encerrado) > sábado
-  const headerDayBg = (d: Date, i: number) =>
-    isSameDay(d, now) ? 'bg-bmw-blue' : i === 6 ? 'bg-rose-500/25' : i === 5 ? 'bg-white/10' : '';
-  // Classe de fundo por coluna (track)
-  const trackDayBg = (d: Date, i: number) =>
+  // Fundo por dia (banda horizontal): hoje > domingo (encerrado) > sábado
+  const dayBg = (d: Date, i: number) =>
     isSameDay(d, now) ? 'bg-primary/5' : i === 6 ? 'bg-rose-500/10' : i === 5 ? 'bg-muted/40' : '';
 
   if (loading) {
@@ -278,7 +270,7 @@ export default function EmprestimosPage() {
           </Button>
           <div className="min-w-[12rem] text-center">
             <div className="text-sm font-semibold text-foreground">{weekLabel}</div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Semana {getISOWeek(weekStart)}</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Semana {getISOWeek(weekStart)} · vista transposta</div>
           </div>
           <Button variant="outline" size="icon" onClick={() => setAnchor(a => addWeeks(a, 1))} aria-label="Semana seguinte">
             <ChevronRight className="h-4 w-4" />
@@ -312,131 +304,137 @@ export default function EmprestimosPage() {
           <span className="h-3 w-3 rounded-sm bg-rose-500/40" /> Domingo (encerrado)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-0.5 bg-red-500" /> Agora
+          <span className="inline-block h-0.5 w-3 bg-red-500" /> Agora
         </span>
       </div>
 
-      {/* Board */}
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <div className="min-w-[460px] sm:min-w-[680px]">
-          {/* Cabeçalho de dias */}
-          <div className="flex bg-bmw-navy text-white">
-            <div className="w-24 sm:w-44 shrink-0 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider sticky left-0 z-10 bg-bmw-navy border-r border-white/10 flex items-center">
-              Viatura
-            </div>
-            <div className="relative flex flex-1">
-              {weekDays.map((d, i) => (
+      {/* Board (transposto: colunas = viaturas, linhas = tempo) */}
+      {demos.length === 0 ? (
+        <div className="rounded-lg border border-border py-12 text-center text-sm text-muted-foreground">
+          Sem viaturas na gama. Adiciona-as no separador <strong>DEMOS</strong>.
+        </div>
+      ) : (
+        <div className="overflow-auto rounded-lg border border-border max-h-[72vh]">
+          <div className="w-max">
+            {/* Cabeçalho: viaturas */}
+            <div className="flex sticky top-0 z-20 bg-bmw-navy text-white">
+              <div
+                className="shrink-0 sticky left-0 z-30 bg-bmw-navy border-r border-white/10 flex items-center justify-center text-[9px] font-semibold uppercase tracking-wider"
+                style={{ width: TIME_W }}
+              >
+                Dia
+              </div>
+              {demos.map(v => (
                 <div
-                  key={i}
-                  title={i === 6 ? 'Domingo — encerrado' : undefined}
-                  className={`flex-1 px-0.5 py-1 text-center border-l border-white/10 leading-tight ${headerDayBg(d, i)}`}
-                >
-                  <div className="text-[9px] font-semibold uppercase tracking-wider opacity-80">{WEEKDAYS_PT[i]}</div>
-                  <div className="text-xs font-bold tabular-nums">{format(d, 'd')}</div>
-                </div>
-              ))}
-              {/* Marcador "agora" no cabeçalho */}
-              {nowLeft !== null && (
-                <div className="absolute top-0 bottom-0 z-30 pointer-events-none" style={{ left: `${nowLeft}%` }}>
-                  <div className="absolute inset-y-0 w-px bg-red-500 -translate-x-1/2" />
-                  <div className="absolute top-0 -translate-x-1/2 bg-red-500 text-white text-[8px] font-bold px-1 rounded-b whitespace-nowrap tabular-nums leading-relaxed">
-                    {format(now, 'HH:mm')}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Linhas de viaturas */}
-          {demos.length === 0 && (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              Sem viaturas na gama. Adiciona-as no separador <strong>DEMOS</strong>.
-            </div>
-          )}
-
-          {demos.map((v, rowIdx) => {
-            const rowLoans = loansByDemo.get(v.id) ?? [];
-            const laneMap = assignLanes(rowLoans);
-            const laneCount = Math.max(1, rowLoans.length ? Math.max(...laneMap.values()) + 1 : 1);
-            const rowHeight = laneCount * LANE_H + ROW_PAD * 2;
-
-            return (
-              <div key={v.id} className={`flex border-t border-border ${rowIdx % 2 ? 'bg-muted/20' : ''}`}>
-                {/* Coluna da viatura (uma linha) */}
-                <div
-                  className="w-24 sm:w-44 shrink-0 px-2 sticky left-0 z-10 bg-inherit border-r border-border flex items-center gap-1.5 overflow-hidden"
+                  key={v.id}
+                  className="shrink-0 px-1 py-1 border-l border-white/10 text-center leading-tight overflow-hidden"
+                  style={{ width: COL_W }}
                   title={`${vehicleModel(v)}${v.versao ? ` ${v.versao}` : ''}${v.mat ? ` · ${v.mat}` : ''}`}
                 >
-                  {v.mat && (
-                    <span className="shrink-0 text-[9px] font-mono font-semibold bg-muted px-1 py-0.5 rounded text-foreground/80">{v.mat}</span>
-                  )}
-                  <span className="min-w-0 truncate text-[11px] font-medium text-foreground">
-                    {vehicleModel(v)}
-                    {v.versao && <span className="hidden sm:inline text-muted-foreground font-normal"> {v.versao}</span>}
-                  </span>
+                  {v.mat && <div className="text-[10px] font-mono font-bold tabular-nums truncate">{v.mat}</div>}
+                  <div className="text-[9px] opacity-80 truncate">{vehicleModel(v)}</div>
                 </div>
+              ))}
+            </div>
 
-                {/* Track cronológica */}
-                <div className="relative flex-1" style={{ height: rowHeight }}>
-                  {/* Colunas de fundo (clicáveis para novo agendamento) */}
-                  <div className="absolute inset-0 flex">
-                    {weekDays.map((d, i) => (
-                      <button
-                        key={i}
-                        onClick={() => openNewLoan(v.id, d)}
-                        title={`Novo agendamento · ${format(d, "EEEE d 'de' MMMM", { locale: pt })}`}
-                        className={`flex-1 border-l border-border/60 first:border-l-0 transition-colors hover:bg-primary/5 ${trackDayBg(d, i)}`}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Barras de empréstimo */}
-                  {rowLoans.map(l => {
-                    const s = Math.max(Date.parse(l.inicio), weekStartMs);
-                    const e = Math.min(Date.parse(l.fim), weekEndMs);
-                    const left = ((s - weekStartMs) / totalMs) * 100;
-                    const width = ((e - s) / totalMs) * 100;
-                    const lane = laneMap.get(l.id) ?? 0;
-                    const continuesLeft = Date.parse(l.inicio) < weekStartMs;
-                    const continuesRight = Date.parse(l.fim) > weekEndMs;
-                    const style = TIPO_STYLE[l.tipo];
-                    const timeRange = `${format(new Date(l.inicio), 'd MMM HH:mm', { locale: pt })} → ${format(new Date(l.fim), 'd MMM HH:mm', { locale: pt })}`;
-                    const extra = l.tipo === 'cliente'
-                      ? [l.cliente_telefone, l.cliente_nif && `NIF ${l.cliente_nif}`].filter(Boolean).join(' · ')
-                      : '';
-                    return (
-                      <button
-                        key={l.id}
-                        onClick={() => openEditLoan(l)}
-                        title={`${l.alocado_nome} · ${timeRange}${extra ? ` · ${extra}` : ''}${l.notas ? ` · ${l.notas}` : ''}`}
-                        className={`absolute flex items-center px-1 text-[10px] font-semibold leading-none shadow-sm ring-1 ring-black/10 hover:ring-2 hover:ring-primary transition-all overflow-hidden
-                          ${style.bar}
-                          ${continuesLeft ? 'rounded-l-none' : 'rounded-l'} ${continuesRight ? 'rounded-r-none' : 'rounded-r'}`}
-                        style={{
-                          left: `${left}%`,
-                          width: `calc(${width}% - 2px)`,
-                          top: ROW_PAD + lane * LANE_H,
-                          height: LANE_H - 3,
-                        }}
-                      >
-                        <span className="truncate">{l.alocado_nome}</span>
-                      </button>
-                    );
-                  })}
-
-                  {/* Linha vermelha "agora" */}
-                  {nowLeft !== null && (
+            {/* Corpo */}
+            <div className="flex">
+              {/* Eixo do tempo (esquerda) */}
+              <div className="shrink-0 sticky left-0 z-10 bg-card border-r border-border" style={{ width: TIME_W }}>
+                <div className="relative" style={{ height: totalH }}>
+                  {weekDays.map((d, i) => (
                     <div
-                      className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none -translate-x-1/2"
-                      style={{ left: `${nowLeft}%` }}
-                    />
+                      key={i}
+                      className={`absolute left-0 right-0 border-t border-border/60 ${i === 0 ? 'border-t-0' : ''} flex flex-col items-center justify-start pt-1 leading-tight`}
+                      style={{ top: i * DAY_H, height: DAY_H }}
+                    >
+                      <div className={`text-[9px] font-semibold uppercase tracking-wider ${i === 6 ? 'text-rose-600' : i === 5 ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {WEEKDAYS_PT[i]}
+                      </div>
+                      <div className="text-xs font-bold tabular-nums">{format(d, 'd')}</div>
+                    </div>
+                  ))}
+                  {/* Marcador "agora" no eixo */}
+                  {nowTop !== null && (
+                    <div className="absolute left-0 right-0 z-30 pointer-events-none" style={{ top: nowTop }}>
+                      <div className="h-px w-full bg-red-500" />
+                      <div className="absolute right-0 -translate-y-1/2 bg-red-500 text-white text-[8px] font-bold px-1 rounded-l whitespace-nowrap tabular-nums leading-relaxed">
+                        {format(now, 'HH:mm')}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
-            );
-          })}
+
+              {/* Colunas das viaturas */}
+              <div className="relative flex" style={{ height: totalH }}>
+                {demos.map(v => {
+                  const colLoans = loansByDemo.get(v.id) ?? [];
+                  const laneMap = assignLanes(colLoans);
+                  const laneCount = Math.max(1, colLoans.length ? Math.max(...laneMap.values()) + 1 : 1);
+                  return (
+                    <div
+                      key={v.id}
+                      className="relative shrink-0 border-l border-border/60 first:border-l-0"
+                      style={{ width: COL_W, height: totalH }}
+                    >
+                      {/* Slots por dia (clicáveis para novo agendamento) */}
+                      {weekDays.map((d, i) => (
+                        <button
+                          key={i}
+                          onClick={() => openNewLoan(v.id, d)}
+                          title={`Novo agendamento · ${format(d, "EEEE d 'de' MMMM", { locale: pt })}`}
+                          className={`absolute left-0 right-0 border-t border-border/60 ${i === 0 ? 'border-t-0' : ''} transition-colors hover:bg-primary/10 ${dayBg(d, i)}`}
+                          style={{ top: i * DAY_H, height: DAY_H }}
+                        />
+                      ))}
+
+                      {/* Barras de empréstimo (verticais) */}
+                      {colLoans.map(l => {
+                        const s = Math.max(Date.parse(l.inicio), weekStartMs);
+                        const e = Math.min(Date.parse(l.fim), weekEndMs);
+                        const top = ((s - weekStartMs) / totalMs) * totalH;
+                        const height = ((e - s) / totalMs) * totalH;
+                        const lane = laneMap.get(l.id) ?? 0;
+                        const continuesTop = Date.parse(l.inicio) < weekStartMs;
+                        const continuesBottom = Date.parse(l.fim) > weekEndMs;
+                        const style = TIPO_STYLE[l.tipo];
+                        const timeRange = `${format(new Date(l.inicio), 'd MMM HH:mm', { locale: pt })} → ${format(new Date(l.fim), 'd MMM HH:mm', { locale: pt })}`;
+                        const extra = l.tipo === 'cliente'
+                          ? [l.cliente_telefone, l.cliente_nif && `NIF ${l.cliente_nif}`].filter(Boolean).join(' · ')
+                          : '';
+                        return (
+                          <button
+                            key={l.id}
+                            onClick={() => openEditLoan(l)}
+                            title={`${l.alocado_nome} · ${timeRange}${extra ? ` · ${extra}` : ''}${l.notas ? ` · ${l.notas}` : ''}`}
+                            className={`absolute flex items-start justify-center px-0.5 pt-0.5 text-[10px] font-semibold leading-none shadow-sm ring-1 ring-black/10 hover:ring-2 hover:ring-primary transition-all overflow-hidden
+                              ${style.bar}
+                              ${continuesTop ? 'rounded-t-none' : 'rounded-t'} ${continuesBottom ? 'rounded-b-none' : 'rounded-b'}`}
+                            style={{
+                              top,
+                              height: `calc(${height}px - 2px)`,
+                              left: `${(lane / laneCount) * 100}%`,
+                              width: `calc(${100 / laneCount}% - ${BAR_PAD}px)`,
+                            }}
+                          >
+                            <span className="truncate w-full text-center">{l.alocado_nome}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+
+                {/* Linha vermelha "agora" (horizontal, sobre todas as colunas) */}
+                {nowTop !== null && (
+                  <div className="absolute left-0 right-0 h-px bg-red-500 z-20 pointer-events-none" style={{ top: nowTop }} />
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal agendamento */}
       {form && (
