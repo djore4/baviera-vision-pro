@@ -51,8 +51,8 @@ interface LoanForm {
 // ---- Constants --------------------------------------------------------------
 
 const WEEKDAYS_PT = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
-const LANE_H = 26; // px por "faixa" de empréstimo dentro da linha da viatura
-const ROW_PAD = 8; // px de padding vertical na track
+const LANE_H = 20; // px por "faixa" de empréstimo dentro da linha da viatura
+const ROW_PAD = 3; // px de padding vertical na track
 
 const ESCALA_BUCKET = 'excel-files';
 const ESCALA_PATH = 'escala-teste.json';
@@ -269,7 +269,7 @@ export default function EmprestimosPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -318,10 +318,10 @@ export default function EmprestimosPage() {
 
       {/* Board */}
       <div className="overflow-x-auto rounded-lg border border-border">
-        <div className="min-w-[760px]">
+        <div className="min-w-[460px] sm:min-w-[680px]">
           {/* Cabeçalho de dias */}
           <div className="flex bg-bmw-navy text-white">
-            <div className="w-[200px] shrink-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider sticky left-0 z-10 bg-bmw-navy border-r border-white/10">
+            <div className="w-24 sm:w-44 shrink-0 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider sticky left-0 z-10 bg-bmw-navy border-r border-white/10 flex items-center">
               Viatura
             </div>
             <div className="relative flex flex-1">
@@ -329,17 +329,17 @@ export default function EmprestimosPage() {
                 <div
                   key={i}
                   title={i === 6 ? 'Domingo — encerrado' : undefined}
-                  className={`flex-1 px-1 py-1.5 text-center border-l border-white/10 ${headerDayBg(d, i)}`}
+                  className={`flex-1 px-0.5 py-1 text-center border-l border-white/10 leading-tight ${headerDayBg(d, i)}`}
                 >
-                  <div className="text-[10px] font-semibold uppercase tracking-wider opacity-80">{WEEKDAYS_PT[i]}</div>
-                  <div className="text-sm font-bold tabular-nums">{format(d, 'd')}</div>
+                  <div className="text-[9px] font-semibold uppercase tracking-wider opacity-80">{WEEKDAYS_PT[i]}</div>
+                  <div className="text-xs font-bold tabular-nums">{format(d, 'd')}</div>
                 </div>
               ))}
               {/* Marcador "agora" no cabeçalho */}
               {nowLeft !== null && (
                 <div className="absolute top-0 bottom-0 z-30 pointer-events-none" style={{ left: `${nowLeft}%` }}>
                   <div className="absolute inset-y-0 w-px bg-red-500 -translate-x-1/2" />
-                  <div className="absolute top-0 -translate-x-1/2 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-b whitespace-nowrap tabular-nums">
+                  <div className="absolute top-0 -translate-x-1/2 bg-red-500 text-white text-[8px] font-bold px-1 rounded-b whitespace-nowrap tabular-nums leading-relaxed">
                     {format(now, 'HH:mm')}
                   </div>
                 </div>
@@ -362,18 +362,18 @@ export default function EmprestimosPage() {
 
             return (
               <div key={v.id} className={`flex border-t border-border ${rowIdx % 2 ? 'bg-muted/20' : ''}`}>
-                {/* Coluna da viatura */}
-                <div className="w-[200px] shrink-0 px-3 py-2 sticky left-0 z-10 bg-inherit border-r border-border">
-                  <div className="text-xs font-semibold text-foreground truncate flex items-center gap-1.5">
-                    <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    {vehicleModel(v)}
-                  </div>
-                  {v.versao && <div className="mt-0.5 text-[10px] text-muted-foreground truncate pl-5">{v.versao}</div>}
+                {/* Coluna da viatura (uma linha) */}
+                <div
+                  className="w-24 sm:w-44 shrink-0 px-2 sticky left-0 z-10 bg-inherit border-r border-border flex items-center gap-1.5 overflow-hidden"
+                  title={`${vehicleModel(v)}${v.versao ? ` ${v.versao}` : ''}${v.mat ? ` · ${v.mat}` : ''}`}
+                >
                   {v.mat && (
-                    <div className="mt-1 pl-5">
-                      <span className="text-[10px] font-mono font-semibold bg-muted px-1.5 py-0.5 rounded text-foreground/80">{v.mat}</span>
-                    </div>
+                    <span className="shrink-0 text-[9px] font-mono font-semibold bg-muted px-1 py-0.5 rounded text-foreground/80">{v.mat}</span>
                   )}
+                  <span className="min-w-0 truncate text-[11px] font-medium text-foreground">
+                    {vehicleModel(v)}
+                    {v.versao && <span className="hidden sm:inline text-muted-foreground font-normal"> {v.versao}</span>}
+                  </span>
                 </div>
 
                 {/* Track cronológica */}
@@ -409,14 +409,14 @@ export default function EmprestimosPage() {
                         key={l.id}
                         onClick={() => openEditLoan(l)}
                         title={`${l.alocado_nome} · ${timeRange}${extra ? ` · ${extra}` : ''}${l.notas ? ` · ${l.notas}` : ''}`}
-                        className={`absolute flex items-center gap-1 px-1.5 text-[11px] font-semibold shadow-sm ring-1 ring-black/10 hover:ring-2 hover:ring-primary transition-all overflow-hidden
+                        className={`absolute flex items-center px-1 text-[10px] font-semibold leading-none shadow-sm ring-1 ring-black/10 hover:ring-2 hover:ring-primary transition-all overflow-hidden
                           ${style.bar}
                           ${continuesLeft ? 'rounded-l-none' : 'rounded-l'} ${continuesRight ? 'rounded-r-none' : 'rounded-r'}`}
                         style={{
                           left: `${left}%`,
                           width: `calc(${width}% - 2px)`,
                           top: ROW_PAD + lane * LANE_H,
-                          height: LANE_H - 4,
+                          height: LANE_H - 3,
                         }}
                       >
                         <span className="truncate">{l.alocado_nome}</span>
