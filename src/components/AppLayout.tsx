@@ -14,13 +14,13 @@ const NAV_ITEMS = [
   { path: '/producao', label: 'PRODUÇÃO', icon: TrendingUp },
   { path: '/carteira', label: 'CARTEIRA', icon: Briefcase },
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
-  { path: '/multas', label: 'MULTAS', icon: Coins },
   { path: '/ficha-margem', label: 'FICHA MARGEM', icon: Calculator },
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
-  { path: '/dados', label: 'DADOS', icon: Database },
 ];
 
 const ADMIN_NAV_ITEMS = [
+  { path: '/multas', label: 'MULTAS', icon: Coins },
+  { path: '/dados', label: 'DADOS', icon: Database },
   { path: '/database', label: 'DATABASE', icon: Database },
   { path: '/demos', label: 'DEMOS', icon: Car },
   { path: '/emprestimos', label: 'EMPRÉSTIMOS', icon: CalendarClock },
