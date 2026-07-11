@@ -21,6 +21,7 @@ import DatabasePage from "./pages/DatabasePage";
 import FichaMargemPage from "./pages/FichaMargemPage";
 import DemosPage from "./pages/DemosPage";
 import EmprestimosPage from "./pages/EmprestimosPage";
+import Emprestimos2Page from "./pages/Emprestimos2Page";
 import ObjetivosPage from "./pages/ObjetivosPage";
 import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -89,6 +90,7 @@ const App = () => (
               <Route path="/database" element={<AdminGate><AppLayout><DatabasePage /></AppLayout></AdminGate>} />
               <Route path="/demos" element={<AdminGate><AppLayout><DemosPage /></AppLayout></AdminGate>} />
               <Route path="/emprestimos" element={<AdminGate><AppLayout><EmprestimosPage /></AppLayout></AdminGate>} />
+              <Route path="/emprestimos-2" element={<AdminGate><AppLayout><Emprestimos2Page /></AppLayout></AdminGate>} />
               <Route path="/objetivos" element={<AdminGate><AppLayout><ObjetivosPage /></AppLayout></AdminGate>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
