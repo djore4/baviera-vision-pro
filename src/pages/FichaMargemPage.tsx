@@ -251,7 +251,7 @@ export default function FichaMargemPage() {
             <div className="px-3 py-1 bg-[#002060] text-white text-[10px] font-semibold uppercase tracking-wide">Identificação</div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2 p-2.5 items-end">
               <div>
-                <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">NATUREZA</label>
+                <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">NATUREZA</label>
                 <select value={natureza} onChange={e => setNatureza(e.target.value)}
                   className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
                   <option value="VN">VN</option>
@@ -260,7 +260,7 @@ export default function FichaMargemPage() {
               </div>
               <Field label="MODELO" value={modelo} onChange={setModelo} />
               <div>
-                <div className="mb-0.5 flex h-[15px] rounded-sm overflow-hidden border border-border">
+                <div className="mb-0.5 flex h-4 rounded-sm overflow-hidden border border-border">
                   {['Proposta', 'Contrato'].map(t => (
                     <button key={t} type="button" onClick={() => setDocTipo(t)}
                       className={`flex-1 flex items-center justify-center text-[8px] font-semibold uppercase tracking-wide leading-none transition-colors ${
@@ -276,7 +276,7 @@ export default function FichaMargemPage() {
               </div>
               <Field label="ENC / CHASS" value={encChass} onChange={setEncChass} />
               <div>
-                <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">PAGAMENTO</label>
+                <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">PAGAMENTO</label>
                 <select value={pagamento} onChange={e => setPagamento(e.target.value)}
                   className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
                   <option value="">—</option>
@@ -287,7 +287,7 @@ export default function FichaMargemPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">TIPO</label>
+                <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">TIPO</label>
                 <select value={tipoCliente} onChange={e => setTipoCliente(e.target.value)}
                   className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
                   <option value="Particular">Particular</option>
@@ -297,14 +297,14 @@ export default function FichaMargemPage() {
               {isVD && <Field label="MATRÍCULA" value={matricula} onChange={setMatricula} />}
               {isVD && (
                 <div>
-                  <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">DATA MATRÍCULA</label>
+                  <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">DATA MATRÍCULA</label>
                   <input type="date" value={dataMatricula} onChange={e => setDataMatricula(e.target.value)}
                     className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
                 </div>
               )}
               {isVD && (
                 <div>
-                  <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">IDADE</label>
+                  <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">IDADE</label>
                   <div className="px-2 py-0.5 text-[11px] rounded bg-muted border border-border text-foreground/80">{meses || '—'}</div>
                 </div>
               )}
@@ -402,7 +402,7 @@ function Row({ label, children, highlight, accent }: { label: string; children: 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">{label}</label>
+      <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">{label}</label>
       <input value={value} onChange={e => onChange(e.target.value)}
         className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
     </div>
