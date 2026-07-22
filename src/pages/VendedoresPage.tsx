@@ -99,6 +99,23 @@ export default function VendedoresPage() {
     return { n: days.length, median: median(days), mean, buckets };
   }, [retails]);
 
+  // Pódios de retail (top 3 por comercial) — total, BEV e QoR.
+  const podiums = useMemo(() => {
+    const agg: Record<string, { total: number; bev: number; qor: number }> = {};
+    retails.forEach(r => {
+      const e = (agg[r.resp || '—'] ??= { total: 0, bev: 0, qor: 0 });
+      e.total++;
+      if (r.bev === 1) e.bev++;
+      if (r.qor === 1) e.qor++;
+    });
+    const rank = (key: 'total' | 'bev' | 'qor') =>
+      Object.entries(agg).map(([name, v]) => ({ name, value: v[key] }))
+        .filter(x => x.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 3);
+    return { total: rank('total'), bev: rank('bev'), qor: rank('qor') };
+  }, [retails]);
+
   // Agregação por comercial.
   const rows = useMemo(() => {
     const map: Record<string, {
@@ -196,6 +213,16 @@ export default function VendedoresPage() {
             <span className="text-amber-700 dark:text-amber-400"> R&lt;1 queima</span> carteira.
           </p>
 
+          {/* Pódios de retail */}
+          <div className="bg-card border border-border rounded-lg p-2">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Pódios — Retail</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Podium title="Retail Total" color="#1C69D4" entries={podiums.total} />
+              <Podium title="Retail BEV" color="#16A34A" entries={podiums.bev} />
+              <Podium title="Retail QoR" color="#F59E0B" entries={podiums.qor} />
+            </div>
+          </div>
+
           {/* Lead time — distribuição */}
           <div className="bg-card border border-border rounded-lg p-2">
             <div className="flex items-center justify-between mb-1">
@@ -259,6 +286,34 @@ export default function VendedoresPage() {
             </p>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function Podium({ title, color, entries }: { title: string; color: string; entries: { name: string; value: number }[] }) {
+  // Ordem visual: 2º (esq.) · 1º (centro, mais alto) · 3º (dir.).
+  const slots = [
+    { e: entries[1], h: 'h-12', bg: 'bg-slate-300 dark:bg-slate-500/70', rank: '2' },
+    { e: entries[0], h: 'h-16', bg: 'bg-amber-300 dark:bg-amber-500/80', rank: '1' },
+    { e: entries[2], h: 'h-9', bg: 'bg-orange-300 dark:bg-orange-700/70', rank: '3' },
+  ];
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
+      </div>
+      <div className="flex items-end justify-center gap-1">
+        {slots.map((s, i) => (
+          <div key={i} className="flex flex-col items-center w-1/3 min-w-0">
+            <span className="text-[10px] font-medium truncate max-w-full" title={s.e?.name}>{s.e?.name ?? '—'}</span>
+            <span className="text-[10px] text-muted-foreground tabular-nums">{s.e ? s.e.value : ''}</span>
+            <div className={`w-full rounded-t flex items-start justify-center pt-1 ${s.h} ${s.e ? s.bg : 'bg-muted'}`}>
+              <span className="text-xs font-bold text-foreground/80">{s.e ? s.rank : ''}</span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
