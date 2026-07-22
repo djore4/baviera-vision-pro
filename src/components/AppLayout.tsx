@@ -20,7 +20,7 @@ const NAV_ITEMS = [
 ];
 
 const ADMIN_NAV_ITEMS = [
-  { path: '/vendedores', label: 'VENDEDORES', icon: Users },
+  { path: '/vendedores', label: 'PERFORMANCE', icon: Users },
   { path: '/multas', label: 'MULTAS', icon: Coins },
   { path: '/dados', label: 'DADOS', icon: Database },
   { path: '/database', label: 'DATABASE', icon: Database },
