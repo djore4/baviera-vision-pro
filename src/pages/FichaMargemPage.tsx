@@ -287,7 +287,7 @@ export default function FichaMargemPage() {
           </div>
 
           {/* Rúbricas */}
-          <div className="rounded-lg border border-border overflow-hidden">
+          <div className="rounded-lg border border-border overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-[#002060] text-white">
@@ -343,7 +343,7 @@ export default function FichaMargemPage() {
               <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">Ver com João Duarte, o melhor chefe do mundo! :)</p>
             </div>
           ) : (
-            <div className="rounded-lg border border-border overflow-hidden">
+            <div className="rounded-lg border border-border overflow-x-auto">
               <table className="w-full text-xs">
                 <tbody className="divide-y divide-border/50">
                   <Row label="MÉDIA MÓVEL">
