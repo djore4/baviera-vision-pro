@@ -3,7 +3,7 @@ import { Users } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList, Legend,
 } from 'recharts';
 
 /* ── Tab Vendedores (admin) ──────────────────────────────────────────────────
@@ -225,19 +225,21 @@ export default function VendedoresPage() {
               <span className="text-[10px] text-muted-foreground">n = {lead.n}</span>
             </div>
             <ResponsiveContainer width="100%" height={180}>
-              {/* barGap = -barSize → as três séries sobrepõem-se (centradas), em vez de lado a lado.
-                  Retails é sempre a maior (envelope sólido); QoR e BEV sobrepõem-se como contornos. */}
-              <BarChart data={lead.buckets} barGap={-40} barCategoryGap="28%">
+              {/* Cada série no seu próprio eixo-x (1 e 2 ocultos) → todas centradas na
+                  mesma categoria, sobrepondo-se. Larguras decrescentes (Retails > QoR > BEV)
+                  mantêm as três sempre visíveis; preenchimento opaco. */}
+              <BarChart data={lead.buckets} barCategoryGap="28%">
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                <XAxis dataKey="label" xAxisId={0} tick={{ fontSize: 10 }} />
+                <XAxis dataKey="label" xAxisId={1} hide />
+                <XAxis dataKey="label" xAxisId={2} hide />
                 <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="Todos" name="Retails" barSize={40} fill="#1C69D4" radius={[3, 3, 0, 0]}>
+                <Bar dataKey="Todos" name="Retails" xAxisId={0} barSize={44} fill="#1C69D4" radius={[3, 3, 0, 0]}>
                   <LabelList dataKey="Todos" position="top" fontSize={9} fill="hsl(var(--foreground))" formatter={(v: number) => v > 0 ? v : ''} />
                 </Bar>
-                <Bar dataKey="QoR" name="QoR" barSize={40} fill="#F59E0B" fillOpacity={0.18} stroke="#F59E0B" strokeWidth={1.5} radius={[3, 3, 0, 0]} />
-                <Bar dataKey="BEV" name="BEV" barSize={40} fill="#16A34A" fillOpacity={0.18} stroke="#16A34A" strokeWidth={1.5} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="QoR" name="QoR" xAxisId={1} barSize={26} fill="#F59E0B" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="BEV" name="BEV" xAxisId={2} barSize={12} fill="#16A34A" radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
