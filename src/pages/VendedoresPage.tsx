@@ -225,17 +225,19 @@ export default function VendedoresPage() {
               <span className="text-[10px] text-muted-foreground">n = {lead.n}</span>
             </div>
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={lead.buckets} barCategoryGap="18%">
+              {/* barGap = -barSize → as três séries sobrepõem-se (centradas), em vez de lado a lado.
+                  Retails é sempre a maior (envelope sólido); QoR e BEV sobrepõem-se como contornos. */}
+              <BarChart data={lead.buckets} barGap={-40} barCategoryGap="28%">
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                 <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="Todos" fill="#1C69D4" radius={[3, 3, 0, 0]}>
+                <Bar dataKey="Todos" name="Retails" barSize={40} fill="#1C69D4" radius={[3, 3, 0, 0]}>
                   <LabelList dataKey="Todos" position="top" fontSize={9} fill="hsl(var(--foreground))" formatter={(v: number) => v > 0 ? v : ''} />
                 </Bar>
-                <Bar dataKey="QoR" fill="#F59E0B" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="BEV" fill="#16A34A" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="QoR" name="QoR" barSize={40} fill="#F59E0B" fillOpacity={0.18} stroke="#F59E0B" strokeWidth={1.5} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="BEV" name="BEV" barSize={40} fill="#16A34A" fillOpacity={0.18} stroke="#16A34A" strokeWidth={1.5} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
