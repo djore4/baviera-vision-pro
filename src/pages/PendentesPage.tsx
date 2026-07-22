@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { useData } from '@/contexts/DataContext';
-import { useRecordEditor } from '@/components/RecordEditor';
 import { formatDate } from '@/lib/excel-parser';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
@@ -13,7 +12,6 @@ type SortDir = 'asc' | 'desc';
 
 export default function PendentesPage() {
   const { data } = useData();
-  const { openEditor } = useRecordEditor();
   const control = useMemo(() => (data?.control || []).filter(r => r.resp !== 'JD'), [data]);
   const cutoff2026 = new Date(2026, 0, 1);
 
@@ -156,7 +154,7 @@ export default function PendentesPage() {
               </thead>
               <tbody>
                 {appingTable.map((r, i) => (
-                  <tr key={i} onClick={() => r.id && openEditor(r.id)} title="Clicar para editar" className="text-[11px] border-b border-border hover:bg-muted/50 cursor-pointer">
+                  <tr key={i} className="text-[11px] border-b border-border hover:bg-muted/50">
                     <td className="px-3 py-1 font-medium">{r.resp}</td>
                     <td className="px-3 py-1">{r.model}</td>
                     <td className="px-3 py-1 max-w-[100px] truncate">{r.cliente}</td>
@@ -217,7 +215,7 @@ export default function PendentesPage() {
               </thead>
               <tbody>
                 {bizagiTable.map((r, i) => (
-                  <tr key={i} onClick={() => r.id && openEditor(r.id)} title="Clicar para editar" className="text-[11px] border-b border-border hover:bg-muted/50 cursor-pointer">
+                  <tr key={i} className="text-[11px] border-b border-border hover:bg-muted/50">
                     <td className="px-3 py-1 font-medium">{r.resp}</td>
                     <td className="px-3 py-1">{r.model}</td>
                     <td className="px-3 py-1 max-w-[100px] truncate">{r.cliente}</td>
@@ -274,7 +272,7 @@ export default function PendentesPage() {
               </thead>
               <tbody>
                 {cmeTable.map((r, i) => (
-                  <tr key={i} onClick={() => r.id && openEditor(r.id)} title="Clicar para editar" className="text-[11px] border-b border-border hover:bg-muted/50 cursor-pointer">
+                  <tr key={i} className="text-[11px] border-b border-border hover:bg-muted/50">
                     <td className="px-3 py-1 font-medium">{r.resp}</td>
                     <td className="px-3 py-1">{r.model}</td>
                     <td className="px-3 py-1 max-w-[100px] truncate">{r.cliente}</td>
