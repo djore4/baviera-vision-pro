@@ -83,12 +83,12 @@ const App = () => (
               <Route path="/escala" element={<AppLayout><EscalaPage /></AppLayout>} />
               <Route path="/funil" element={<AppLayout><FunilPage /></AppLayout>} />
               <Route path="/ficha-margem" element={<AppLayout><FichaMargemPage /></AppLayout>} />
+              <Route path="/emprestimos" element={<AppLayout><EmprestimosPage /></AppLayout>} />
               {/* Admin routes */}
               <Route path="/multas" element={<AdminGate><AppLayout><MultasPage /></AppLayout></AdminGate>} />
               <Route path="/dados" element={<AdminGate><AppLayout><DadosPage /></AppLayout></AdminGate>} />
               <Route path="/database" element={<AdminGate><AppLayout><DatabasePage /></AppLayout></AdminGate>} />
               <Route path="/demos" element={<AdminGate><AppLayout><DemosPage /></AppLayout></AdminGate>} />
-              <Route path="/emprestimos" element={<AdminGate><AppLayout><EmprestimosPage /></AppLayout></AdminGate>} />
               <Route path="/objetivos" element={<AdminGate><AppLayout><ObjetivosPage /></AppLayout></AdminGate>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
   { path: '/ficha-margem', label: 'FICHA MARGEM', icon: Calculator },
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
+  { path: '/emprestimos', label: 'EMPRÉSTIMOS', icon: CalendarClock },
 ];
 
 const ADMIN_NAV_ITEMS = [
@@ -23,7 +24,6 @@ const ADMIN_NAV_ITEMS = [
   { path: '/dados', label: 'DADOS', icon: Database },
   { path: '/database', label: 'DATABASE', icon: Database },
   { path: '/demos', label: 'DEMOS', icon: Car },
-  { path: '/emprestimos', label: 'EMPRÉSTIMOS', icon: CalendarClock },
   { path: '/objetivos', label: 'OBJETIVOS', icon: Target },
 ];
 
