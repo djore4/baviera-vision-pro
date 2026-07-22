@@ -249,7 +249,7 @@ export default function RetailsPage() {
   };
 
   const tableColumns: [SortKey, string][] = [
-    ['resp', 'Resp'], ['gar', 'Gar'], ['status', 'Status'], ['type', 'Tipo'],
+    ['resp', 'Resp'], ['status', 'Status'], ['type', 'Tipo'],
     ['model', 'Modelo'], ['version', 'Versao'], ['week198', '198'], ['cliente', 'Cliente'],
     ['fin', 'Pag'], ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matricula'],
     ['neg', 'Data Fecho'], ['dmat', 'Data Matricula'], ['date298', 'Data Retail'], ['app', 'Data Apping'],
@@ -512,11 +512,6 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
             {tableData.map((r, i) => (
               <tr key={i} onClick={() => r.id && openEditor(r.id)} title="Clicar para editar" className="text-[11px] border-b border-border transition-colors hover:bg-muted/50 cursor-pointer">
                 <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
-                <td className="px-3 py-1">
-                  <Badge variant="outline" className={r.gar === 'GAR' ? 'border-green-600 text-green-600 text-[10px]' : 'text-muted-foreground text-[10px]'}>
-                    {r.gar === 'GAR' ? 'Certo' : 'Incerto'}
-                  </Badge>
-                </td>
                 <td className="px-3 py-1 whitespace-nowrap">
                   <span className="inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[r.status] || '#888' }} />
@@ -527,7 +522,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.week198}</td>
-                <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
+                <td className="px-3 py-1 max-w-[120px] truncate" title={r.cliente}>{r.cliente}</td>
                 <td className="px-3 py-1">{r.fin}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
