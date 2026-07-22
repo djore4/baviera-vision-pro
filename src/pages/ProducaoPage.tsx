@@ -481,7 +481,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 <td className="px-3 py-1">{r.type}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.version}</td>
-                <td className="px-3 py-1 max-w-[120px] truncate">{r.cliente}</td>
+                <td className="px-3 py-1 max-w-[120px] truncate" title={r.cliente}>{r.cliente}</td>
                 <td className="px-3 py-1">{r.fin}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
