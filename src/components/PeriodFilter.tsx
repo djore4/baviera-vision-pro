@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react';
 import { Filter } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 
 const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-export function PeriodFilter() {
+export function PeriodFilter({ children }: { children?: ReactNode }) {
   const { availablePeriods, filter, setFilter } = useData();
 
   if (availablePeriods.years.length === 0) return null;
@@ -146,6 +147,8 @@ export function PeriodFilter() {
           })}
         </div>
       )}
+
+      {children}
     </div>
   );
 }
