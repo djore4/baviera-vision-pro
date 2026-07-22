@@ -203,8 +203,8 @@ export default function VendedoresPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             <StatTile label='"R" — Equipa' value={fmtR(teamR)}
               hint={teamR === null ? 'Sem retails no período'
-                : teamR > 1.02 ? 'Carteira a crescer' : teamR < 0.98 ? 'Carteira a queimar' : 'Em equilíbrio'}
-              accent={teamR === null ? 'muted' : teamR > 1.02 ? 'blue' : teamR < 0.98 ? 'amber' : 'muted'} />
+                : teamR < 1 ? 'Carteira a queimar' : teamR < 1.1 ? 'Em equilíbrio' : 'Carteira a crescer'}
+              accent={teamR === null ? 'muted' : teamR < 1 ? 'red' : teamR < 1.1 ? 'yellow' : 'green'} />
             <StatTile label="Negócios (período)" value={String(negocios.length)} hint="Fecho no período" />
             <StatTile label="Retails (período)" value={String(retails.length)} hint="Entregues no período" />
             <StatTile label="Lead time (mediana)" value={lead.median === null ? '—' : `${lead.median} d`}
@@ -325,10 +325,22 @@ function Podium({ title, color, entries }: { title: string; color: string; entri
 }
 
 function StatTile({ label, value, hint, accent = 'default' }: {
-  label: string; value: string; hint?: string; accent?: 'default' | 'blue' | 'amber' | 'muted';
+  label: string; value: string; hint?: string;
+  accent?: 'default' | 'blue' | 'amber' | 'muted' | 'red' | 'yellow' | 'green';
 }) {
-  const ring = accent === 'blue' ? 'border-[#1C69D4]/40' : accent === 'amber' ? 'border-amber-500/40' : 'border-border';
-  const val = accent === 'blue' ? 'text-[#1C69D4] dark:text-sky-300' : accent === 'amber' ? 'text-amber-700 dark:text-amber-400' : 'text-foreground';
+  const ring =
+    accent === 'blue' ? 'border-[#1C69D4]/40'
+      : accent === 'amber' || accent === 'yellow' ? 'border-amber-500/40'
+        : accent === 'red' ? 'border-red-500/40'
+          : accent === 'green' ? 'border-green-500/40'
+            : 'border-border';
+  const val =
+    accent === 'blue' ? 'text-[#1C69D4] dark:text-sky-300'
+      : accent === 'amber' ? 'text-amber-700 dark:text-amber-400'
+        : accent === 'yellow' ? 'text-amber-500 dark:text-amber-400'
+          : accent === 'red' ? 'text-red-600 dark:text-red-400'
+            : accent === 'green' ? 'text-green-600 dark:text-green-400'
+              : 'text-foreground';
   return (
     <div className={`bg-card border rounded-lg p-2.5 ${ring}`}>
       <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</div>
