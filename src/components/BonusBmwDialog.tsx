@@ -49,7 +49,7 @@ export default function BonusBmwDialog({ onApply }: { onApply: (rate: number) =>
         </button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-[min(96vw,60rem)] max-h-[90vh] overflow-hidden flex flex-col gap-3">
+      <DialogContent className="max-w-[min(98vw,72rem)] max-h-[95vh] overflow-hidden flex flex-col gap-2">
         <DialogHeader>
           <DialogTitle className="text-base">Margens Fixas por Modelo</DialogTitle>
           <DialogDescription>
@@ -104,11 +104,11 @@ export default function BonusBmwDialog({ onApply }: { onApply: (rate: number) =>
           <table className="border-collapse text-[11px] tabular-nums">
             <thead>
               <tr className="bg-[#002060] text-white">
-                <th className="sticky left-0 z-20 bg-[#002060] px-2 py-1 text-left font-semibold">Modelo</th>
+                <th className="sticky left-0 z-20 bg-[#002060] px-1.5 py-0.5 text-left font-semibold">Modelo</th>
                 {BONUS_COLS.map((col, i) => (
                   <th
                     key={col.key}
-                    className={`px-2 py-1 text-center font-semibold ${groupStart.has(i) ? 'border-l border-white/40' : ''}`}
+                    className={`px-1.5 py-0.5 text-center font-semibold ${groupStart.has(i) ? 'border-l border-white/40' : ''}`}
                   >
                     {col.key}
                   </th>
@@ -118,7 +118,7 @@ export default function BonusBmwDialog({ onApply }: { onApply: (rate: number) =>
             <tbody>
               {BONUS_MODELS.map(m => (
                 <tr key={m} className="border-t border-border even:bg-muted/30">
-                  <th className="sticky left-0 z-10 bg-background px-2 py-1 text-left font-semibold text-[#002060] dark:text-foreground border-r border-border">
+                  <th className="sticky left-0 z-10 bg-background px-1.5 py-0.5 text-left font-semibold text-[#002060] dark:text-foreground border-r border-border">
                     {m}
                   </th>
                   {BONUS_COLS.map((col, i) => {
@@ -127,13 +127,13 @@ export default function BonusBmwDialog({ onApply }: { onApply: (rate: number) =>
                     return (
                       <td
                         key={col.key}
-                        className={`px-2 py-1 text-center ${groupStart.has(i) ? 'border-l border-border' : ''}`}
+                        className={`px-1.5 py-0.5 text-center ${groupStart.has(i) ? 'border-l border-border' : ''}`}
                       >
                         {has ? (
                           <button
                             type="button"
                             onClick={() => pick(m, col.key, (v as number) / 100)}
-                            className="w-full rounded px-1 py-0.5 text-[#002060] dark:text-sky-300 font-medium hover:bg-amber-200 dark:hover:bg-amber-500/30 transition-colors"
+                            className="w-full rounded px-0.5 py-0 text-[#002060] dark:text-sky-300 font-medium hover:bg-amber-200 dark:hover:bg-amber-500/30 transition-colors"
                             title={`Aplicar ${v}% à MG. FIXA (${m} ${col.key})`}
                           >
                             {v}%
