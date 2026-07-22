@@ -1,14 +1,14 @@
 /**
- * Tabela de Bónus BMW (MG. FIXA) — Modelo × Versão.
+ * Tabela de Margens Fixas por Modelo (BMW) — Modelo × Versão.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * ⚠️  DADOS TRANSCRITOS DA IMAGEM DA TABELA. VALIDAR CONTRA A FONTE OFICIAL.
  *     Para corrigir um valor, edita apenas o BONUS_TABLE abaixo (percentagem
- *     inteira, ex.: 7 = 7%). Uma célula ausente = sem bónus definido.
+ *     inteira, ex.: 7 = 7%). Uma célula ausente = sem valor definido.
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * O modal "Tabela de Bónus" renderiza esta mesma estrutura, por isso qualquer
- * divergência face à folha original é imediatamente visível na app.
+ * O modal "Margens Fixas por Modelo" renderiza esta mesma estrutura, por isso
+ * qualquer divergência face à folha original é imediatamente visível na app.
  */
 
 /** Colunas (versões) por ordem, agrupadas como na folha original. */
@@ -34,7 +34,7 @@ export const BONUS_COLS: BonusCol[] = [
 export const BONUS_MODELS: string[] = [
   'S1', 'S2', 'S3', 'S4', 'i4', 'S5', 'S6', 'Z4',
   'X1', 'X2', 'X3', 'X4', 'X5', 'X6', 'X7',
-  'S7', 'S8', 'iX1', 'iX2', 'iX', 'XM',
+  'S7', 'S8', 'iX', 'XM',
 ];
 
 /**
@@ -43,36 +43,29 @@ export const BONUS_MODELS: string[] = [
  */
 export const BONUS_TABLE: Record<string, Record<string, number>> = {
   S1: { '16': 6, '18d': 7, '18': 7, '20d': 7, '20': 7, '35i': 9 },
-  S2: { '16': 6, '18d': 7, '18': 7, '20d': 7, '20': 7, '23d': 7, '25e': 7, '30e': 7, '30': 8, '35i': 9, '40': 9, 'M': 10 },
+  S2: { '16': 6, '18d': 7, '18': 7, '20d': 7, '20': 7, '23d': 7, '25e': 7, '30e': 7, '30': 8, '40': 9, 'M': 10 },
   S3: { '20e': 6, '18d': 7, '20d': 7, '20': 7, '30e': 7, '30d': 8, '30': 8, '40': 9, '40d': 9, 'M': 10 },
   S4: { '20d': 7, '20': 7, '30d': 8, '30': 8, '40': 9, '40d': 9, 'M': 10 },
   i4: { '35e': 7, '40e': 7, '50e': 7 },
   S5: { '20': 7, '30e': 7, '30d': 8, '40': 9, 'M': 10 },
   S6: { '20': 7, '30d': 8, '30': 8, '40': 9 },
-  Z4: { '20': 7, '30': 8, '40': 9 },
-  X1: { '18d': 7, '18': 7, '25e': 7, '35i': 9 },
-  X2: { '18d': 7, '18': 7, '20d': 7, '25e': 7, '35i': 9 },
-  X3: { '18d': 7, '20d': 7, '30d': 8, '40': 9, 'M': 10 },
+  Z4: { '20': 7, '30d': 8, '40': 9 },
+  X1: { '20e': 6, '18d': 7, '18': 7, '20': 7, '23d': 7, '25e': 7, '30e': 7, '35i': 9 },
+  X2: { '20e': 6, '18d': 7, '18': 7, '20d': 7, '25e': 7, '30e': 7, '35i': 9 },
+  X3: { '18d': 7, '20d': 7, '30e': 7, '30d': 8, '40e': 7, '40': 9, '40d': 9, 'M': 10 },
   X4: { '20d': 7, '30d': 8, '40': 9, 'M': 10 },
   X5: { '30d': 8, '35i': 9, '40': 9, '50': 10, 'M': 10 },
-  X6: { '30d': 8, '35i': 9, '40': 9, '50': 10, 'M': 10 },
-  X7: { '35i': 9, '40': 9, '60e': 10, 'M': 10 },
-  S7: { '35i': 10, '40': 10, '40d': 10, '50e': 10, '60e': 10, 'M': 10 },
+  X6: { '30d': 8, '35i': 9, '40': 9, '60e': 10, '50': 10, 'M': 10 },
+  X7: { '35i': 9, '40': 9, '60': 10 },
+  S7: { '40': 10, '40d': 10, '50e': 10, '60e': 10, '50': 10, '60': 10, 'M': 10 },
   S8: { '35i': 10, '40': 10, '50': 10, 'M': 10 },
-  iX1: { '20e': 6, '30e': 7 },
-  iX2: { '20e': 6, '30e': 7 },
-  iX: { '40e': 8, '45e': 8, '50e': 8, '60e': 8 },
+  iX: { '35e': 8, '40e': 8, '50e': 8, '60e': 8 },
   XM: { 'M': 10 },
 };
-
-/** i7: bónus fixo em qualquer versão. */
-export const I7_MODEL = 'i7';
-export const I7_RATE = 9;
 
 /** Devolve a percentagem (fração, ex.: 0.07) ou null se não houver valor. */
 export function lookupBonus(model: string, version: string): number | null {
   if (!model || !version) return null;
-  if (model === I7_MODEL) return I7_RATE / 100;
   const row = BONUS_TABLE[model];
   const v = row?.[version];
   return typeof v === 'number' ? v / 100 : null;
@@ -80,11 +73,7 @@ export function lookupBonus(model: string, version: string): number | null {
 
 /** Versões disponíveis (com valor) para um dado modelo, pela ordem de BONUS_COLS. */
 export function versionsForModel(model: string): string[] {
-  if (model === I7_MODEL) return BONUS_COLS.map(c => c.key);
   const row = BONUS_TABLE[model];
   if (!row) return [];
   return BONUS_COLS.map(c => c.key).filter(k => k in row);
 }
-
-/** Todos os modelos, incluindo o i7 (linha especial). */
-export const ALL_BONUS_MODELS: string[] = [...BONUS_MODELS, I7_MODEL];
