@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Users } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import {
@@ -167,34 +166,32 @@ export default function VendedoresPage() {
       <div className="flex flex-col lg:flex-row gap-3">
         {/* Filtro de período */}
         <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
-          <PeriodFilter />
-          <div className="bg-card border border-border rounded-lg p-3 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Users className="h-3.5 w-3.5 text-primary" />
-                <span className="text-xs font-semibold text-foreground">VENDEDOR</span>
+          <PeriodFilter>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Vendedor</p>
+                {selectedResps.size > 0 && (
+                  <button onClick={() => setSelectedResps(new Set())}
+                    className="text-[10px] font-medium text-primary hover:underline">Limpar</button>
+                )}
               </div>
-              {selectedResps.size > 0 && (
-                <button onClick={() => setSelectedResps(new Set())}
-                  className="text-[10px] font-medium text-primary hover:underline">Limpar</button>
-              )}
+              <div className="flex flex-wrap gap-1.5">
+                {allResps.map(resp => {
+                  const active = selectedResps.has(resp);
+                  return (
+                    <button key={resp} onClick={() => toggleResp(resp)}
+                      className={active
+                        ? 'rounded-md border border-primary bg-primary px-2.5 py-1.5 text-[11px] font-semibold text-primary-foreground'
+                        : 'rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent'
+                      }>
+                      {resp}
+                    </button>
+                  );
+                })}
+                {allResps.length === 0 && <span className="text-[10px] text-muted-foreground">—</span>}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {allResps.map(resp => {
-                const active = selectedResps.has(resp);
-                return (
-                  <button key={resp} onClick={() => toggleResp(resp)}
-                    className={active
-                      ? 'rounded-md border border-primary bg-primary px-2.5 py-1.5 text-[11px] font-semibold text-primary-foreground'
-                      : 'rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent'
-                    }>
-                    {resp}
-                  </button>
-                );
-              })}
-              {allResps.length === 0 && <span className="text-[10px] text-muted-foreground">—</span>}
-            </div>
-          </div>
+          </PeriodFilter>
         </div>
 
         {/* Conteúdo */}
