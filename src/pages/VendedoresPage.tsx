@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Trophy } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import {
@@ -300,23 +301,49 @@ export default function VendedoresPage() {
 function Podium({ title, color, entries }: { title: string; color: string; entries: { name: string; value: number }[] }) {
   // Ordem visual: 2º (esq.) · 1º (centro, mais alto) · 3º (dir.).
   const slots = [
-    { e: entries[1], h: 'h-12', bg: 'bg-slate-300 dark:bg-slate-500/70', rank: '2' },
-    { e: entries[0], h: 'h-16', bg: 'bg-amber-300 dark:bg-amber-500/80', rank: '1' },
-    { e: entries[2], h: 'h-9', bg: 'bg-orange-300 dark:bg-orange-700/70', rank: '3' },
+    {
+      e: entries[1], place: 2, blockH: 'h-14', num: '2',
+      grad: 'from-slate-100 via-slate-300 to-slate-400',
+      badge: 'bg-slate-400', extra: '',
+    },
+    {
+      e: entries[0], place: 1, blockH: 'h-20', num: '1',
+      grad: 'from-yellow-200 via-amber-300 to-amber-500',
+      badge: 'bg-amber-500', extra: 'ring-2 ring-amber-300/70 shadow-lg shadow-amber-500/30',
+    },
+    {
+      e: entries[2], place: 3, blockH: 'h-10', num: '3',
+      grad: 'from-orange-200 via-orange-400 to-orange-600',
+      badge: 'bg-orange-500', extra: '',
+    },
   ];
   return (
     <div>
-      <div className="flex items-center gap-1.5 mb-1.5">
+      <div className="flex items-center gap-1.5 mb-2">
         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
       </div>
-      <div className="flex items-end justify-center gap-1">
+      <div className="flex items-end justify-center gap-1.5">
         {slots.map((s, i) => (
-          <div key={i} className="flex flex-col items-center w-1/3 min-w-0">
-            <span className="text-[10px] font-medium truncate max-w-full" title={s.e?.name}>{s.e?.name ?? '—'}</span>
-            <span className="text-[10px] text-muted-foreground tabular-nums">{s.e ? s.e.value : ''}</span>
-            <div className={`w-full rounded-t flex items-start justify-center pt-1 ${s.h} ${s.e ? s.bg : 'bg-muted'}`}>
-              <span className="text-xs font-bold text-foreground/80">{s.e ? s.rank : ''}</span>
+          <div key={i} className="flex flex-1 flex-col items-center min-w-0">
+            {/* Taça no 1º lugar */}
+            {s.place === 1 && (
+              <Trophy
+                className={`mb-0.5 h-5 w-5 drop-shadow-[0_1px_2px_rgba(245,158,11,0.55)] ${s.e ? 'text-amber-500' : 'text-muted-foreground/40'}`}
+                fill={s.e ? '#fde68a' : 'none'}
+                strokeWidth={2}
+              />
+            )}
+            <span className={`text-[11px] truncate max-w-full ${s.place === 1 ? 'font-bold text-foreground' : 'font-medium text-foreground/90'}`} title={s.e?.name}>
+              {s.e?.name ?? '—'}
+            </span>
+            <span className="text-[10px] text-muted-foreground tabular-nums mb-1">{s.e ? s.e.value : ''}</span>
+            <div className={`relative w-full ${s.blockH} rounded-t-md bg-gradient-to-b flex items-start justify-center pt-1 ${s.e ? `${s.grad} ${s.extra}` : 'from-muted to-muted'}`}>
+              {/* brilho superior */}
+              {s.e && <span className="pointer-events-none absolute inset-x-0 top-0 h-1/3 rounded-t-md bg-white/25" />}
+              <span className={`relative z-10 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-extrabold text-white ${s.e ? s.badge : 'bg-muted-foreground/30'}`}>
+                {s.e ? s.num : ''}
+              </span>
             </div>
           </div>
         ))}
