@@ -249,7 +249,7 @@ export default function FichaMargemPage() {
           {/* Cabeçalho (condensado) */}
           <div className="rounded-lg border border-border overflow-hidden">
             <div className="px-3 py-1 bg-[#002060] text-white text-[10px] font-semibold uppercase tracking-wide">Identificação</div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2 p-2.5 items-end">
               <div>
                 <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">NATUREZA</label>
                 <select value={natureza} onChange={e => setNatureza(e.target.value)}
@@ -260,10 +260,10 @@ export default function FichaMargemPage() {
               </div>
               <Field label="MODELO" value={modelo} onChange={setModelo} />
               <div>
-                <div className="mb-0.5 flex rounded overflow-hidden border border-border">
+                <div className="mb-0.5 flex h-[15px] rounded-sm overflow-hidden border border-border">
                   {['Proposta', 'Contrato'].map(t => (
                     <button key={t} type="button" onClick={() => setDocTipo(t)}
-                      className={`flex-1 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide transition-colors ${
+                      className={`flex-1 flex items-center justify-center text-[8px] font-semibold uppercase tracking-wide leading-none transition-colors ${
                         docTipo === t ? 'bg-[#002060] text-white' : 'text-muted-foreground hover:bg-muted'
                       }`}>
                       {t}
