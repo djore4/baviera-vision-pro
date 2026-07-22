@@ -317,7 +317,7 @@ export default function FichaMargemPage() {
                   <td className="px-2 py-1 whitespace-nowrap text-muted-foreground">
                     <div className="flex items-center gap-1.5">
                       <span>APOIO</span>
-                      <input value={apoioLabel} onChange={e => setApoioLabel(e.target.value)} placeholder="descrição"
+                      <input value={apoioLabel} onChange={e => setApoioLabel(e.target.value)} placeholder="descrição" size={1}
                         className="flex-1 min-w-0 px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
                     </div>
                   </td>
