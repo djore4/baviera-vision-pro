@@ -232,20 +232,17 @@ export default function FichaMargemPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-4 animate-fade-in">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-lg font-bold tracking-tight">Ficha de Margem</h1>
-        <div className="flex items-center gap-2">
-          <BonusBmwDialog onApply={rate => {
-            setMgFixaPct(String(Math.round(rate * 1000) / 10));
-            toast.success(`MG. FIXA preenchida: ${pct(rate)}`);
-          }} />
-          <button onClick={limpar} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
-            <RotateCcw className="h-3.5 w-3.5" /> Limpar
-          </button>
-          <button onClick={exportPdf} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
-            <FileDown className="h-3.5 w-3.5" /> Exportar PDF
-          </button>
-        </div>
+      <div className="flex items-center justify-end gap-2">
+        <BonusBmwDialog onApply={rate => {
+          setMgFixaPct(String(Math.round(rate * 1000) / 10));
+          toast.success(`MG. FIXA preenchida: ${pct(rate)}`);
+        }} />
+        <button onClick={limpar} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
+          <RotateCcw className="h-3.5 w-3.5" /> Limpar
+        </button>
+        <button onClick={exportPdf} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
+          <FileDown className="h-3.5 w-3.5" /> Exportar PDF
+        </button>
       </div>
 
       <div className="space-y-4">
