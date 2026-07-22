@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Users } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import {
@@ -167,27 +168,31 @@ export default function VendedoresPage() {
         {/* Filtro de período */}
         <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
           <PeriodFilter />
-          <div className="bg-card border border-border rounded-lg p-2">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-[10px] font-semibold text-muted-foreground uppercase">Vendedor</h3>
+          <div className="bg-card border border-border rounded-lg p-3 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-semibold text-foreground">VENDEDOR</span>
+              </div>
               {selectedResps.size > 0 && (
-                <button type="button" onClick={() => setSelectedResps(new Set())}
-                  className="text-[10px] text-muted-foreground hover:text-foreground">Limpar</button>
+                <button onClick={() => setSelectedResps(new Set())}
+                  className="text-[10px] font-medium text-primary hover:underline">Limpar</button>
               )}
             </div>
-            <div className="flex flex-col gap-0.5 max-h-72 overflow-auto">
+            <div className="flex flex-wrap gap-1.5">
               {allResps.map(resp => {
                 const active = selectedResps.has(resp);
                 return (
-                  <button key={resp} type="button" onClick={() => toggleResp(resp)}
-                    className={`text-left px-2 py-0.5 text-[11px] rounded transition-colors ${
-                      active ? 'bg-[#002060] text-white' : 'text-foreground hover:bg-muted'
-                    }`}>
+                  <button key={resp} onClick={() => toggleResp(resp)}
+                    className={active
+                      ? 'rounded-md border border-primary bg-primary px-2.5 py-1.5 text-[11px] font-semibold text-primary-foreground'
+                      : 'rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent'
+                    }>
                     {resp}
                   </button>
                 );
               })}
-              {allResps.length === 0 && <span className="text-[10px] text-muted-foreground px-2">—</span>}
+              {allResps.length === 0 && <span className="text-[10px] text-muted-foreground">—</span>}
             </div>
           </div>
         </div>
@@ -212,16 +217,6 @@ export default function VendedoresPage() {
             <span className="text-[#1C69D4] dark:text-sky-300"> R&gt;1 angaria</span> ·
             <span className="text-amber-700 dark:text-amber-400"> R&lt;1 queima</span> carteira.
           </p>
-
-          {/* Pódios de retail */}
-          <div className="bg-card border border-border rounded-lg p-2">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Pódios — Retail</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Podium title="Retail Total" color="#1C69D4" entries={podiums.total} />
-              <Podium title="Retail BEV" color="#16A34A" entries={podiums.bev} />
-              <Podium title="Retail QoR" color="#F59E0B" entries={podiums.qor} />
-            </div>
-          </div>
 
           {/* Lead time — distribuição */}
           <div className="bg-card border border-border rounded-lg p-2">
@@ -284,6 +279,16 @@ export default function VendedoresPage() {
             <p className="text-[10px] text-muted-foreground px-2 py-1.5 border-t border-border">
               %BEV / %QoR sobre negócios do período · Cart. / Idade referem-se à carteira atual em aberto.
             </p>
+          </div>
+
+          {/* Pódios de retail */}
+          <div className="bg-card border border-border rounded-lg p-2">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Pódios — Retail</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Podium title="Retail Total" color="#1C69D4" entries={podiums.total} />
+              <Podium title="Retail BEV" color="#16A34A" entries={podiums.bev} />
+              <Podium title="Retail QoR" color="#F59E0B" entries={podiums.qor} />
+            </div>
           </div>
         </div>
       </div>
