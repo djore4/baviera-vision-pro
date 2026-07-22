@@ -43,9 +43,9 @@ export default function FichaMargemPage() {
   // Cabeçalho
   const [natureza, setNatureza] = useState('VN'); // VN (novo, sem matrícula) | VD (usado)
   const [modelo, setModelo] = useState('');
-  const [proposta, setProposta] = useState('');
+  const [docTipo, setDocTipo] = useState('Proposta'); // Proposta | Contrato (mutuamente exclusivos)
+  const [docNum, setDocNum] = useState('');
   const [encChass, setEncChass] = useState('');
-  const [contrato, setContrato] = useState('');
   const [pagamento, setPagamento] = useState('');
   const [tipoCliente, setTipoCliente] = useState('Particular'); // Particular | Empresa
   const [matricula, setMatricula] = useState('');
@@ -129,7 +129,7 @@ export default function FichaMargemPage() {
 
   function limpar() {
     setNatureza('VN');
-    setModelo(''); setProposta(''); setEncChass(''); setContrato(''); setPagamento(''); setTipoCliente('Particular'); setMatricula(''); setDataMatricula('');
+    setModelo(''); setDocTipo('Proposta'); setDocNum(''); setEncChass(''); setPagamento(''); setTipoCliente('Particular'); setMatricula(''); setDataMatricula('');
     setPvb(''); setOpc(''); setBsi(''); setEco(''); setLegTr(''); setIsv(''); setRecond(''); setOfertas(''); setPrecoVenda('');
     setIvaPct('23'); setMgFixaPct(''); setMgVarPct('5'); setPacPct(''); setApoioFrotaPct(''); setApoioDemoPct(''); setDeprec(''); setBonusMPct('');
     setApoioLabel(''); setApoioValor('');
@@ -175,13 +175,13 @@ export default function FichaMargemPage() {
       const cls = [strongRows.has(l) ? 'strong' : '', groupStart.has(l) ? 'sep' : ''].filter(Boolean).join(' ');
       return `<tr${cls ? ` class="${cls}"` : ''}><td class="lbl">${esc(l)}</td><td class="pct">${esc(p)}</td><td class="eur">${esc(e)}</td></tr>`;
     }).join('');
-    const infoPairs: [string, string][] = [['NATUREZA', natureza], ['MODELO', modelo], ['PROPOSTA', proposta], ['ENC / CHASS', encChass], ['CONTRATO', contrato], ['PAGAMENTO', pagamento], ['TIPO', tipoCliente]];
+    const infoPairs: [string, string][] = [['NATUREZA', natureza], ['MODELO', modelo], [docTipo.toUpperCase(), docNum], ['ENC / CHASS', encChass], ['PAGAMENTO', pagamento], ['TIPO', tipoCliente]];
     if (isVD) { infoPairs.push(['MATRÍCULA', matricula], ['DATA MATRÍCULA', dataMatricula], ['IDADE', meses]); }
     const info = infoPairs.map(([k, v]) => `<div class="cell"><span class="k">${esc(k)}</span><span class="v">${esc(v || '—')}</span></div>`).join('');
     const vdMsg = isVD ? '<p class="note">Ver com João Duarte, o melhor chefe do mundo! :)</p>' : '';
     const dataHoje = new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
 
-    const html = `<!doctype html><html lang="pt"><head><meta charset="utf-8"/><title>Ficha_Margem_${esc(proposta || modelo || '')}</title>
+    const html = `<!doctype html><html lang="pt"><head><meta charset="utf-8"/><title>Ficha_Margem_${esc(docNum || modelo || '')}</title>
 <style>
   *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   html,body{margin:0;padding:0}
@@ -259,9 +259,22 @@ export default function FichaMargemPage() {
                 </select>
               </div>
               <Field label="MODELO" value={modelo} onChange={setModelo} />
-              <Field label="PROPOSTA" value={proposta} onChange={setProposta} />
+              <div>
+                <div className="mb-0.5 flex rounded overflow-hidden border border-border">
+                  {['Proposta', 'Contrato'].map(t => (
+                    <button key={t} type="button" onClick={() => setDocTipo(t)}
+                      className={`flex-1 px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide transition-colors ${
+                        docTipo === t ? 'bg-[#002060] text-white' : 'text-muted-foreground hover:bg-muted'
+                      }`}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                <input value={docNum} onChange={e => setDocNum(e.target.value)}
+                  placeholder={`Nº ${docTipo.toLowerCase()}`}
+                  className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+              </div>
               <Field label="ENC / CHASS" value={encChass} onChange={setEncChass} />
-              <Field label="CONTRATO" value={contrato} onChange={setContrato} />
               <div>
                 <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">PAGAMENTO</label>
                 <select value={pagamento} onChange={e => setPagamento(e.target.value)}
