@@ -262,7 +262,17 @@ export default function FichaMargemPage() {
               <Field label="PROPOSTA" value={proposta} onChange={setProposta} />
               <Field label="ENC / CHASS" value={encChass} onChange={setEncChass} />
               <Field label="CONTRATO" value={contrato} onChange={setContrato} />
-              <Field label="PAGAMENTO" value={pagamento} onChange={setPagamento} />
+              <div>
+                <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">PAGAMENTO</label>
+                <select value={pagamento} onChange={e => setPagamento(e.target.value)}
+                  className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
+                  <option value="">—</option>
+                  <option value="BMW FS">BMW FS</option>
+                  <option value="Financiamento Interno">Financiamento Interno</option>
+                  <option value="Financiamento Externo">Financiamento Externo</option>
+                  <option value="Pronto Pagamento">Pronto Pagamento</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-[9px] font-medium text-muted-foreground mb-0.5">TIPO</label>
                 <select value={tipoCliente} onChange={e => setTipoCliente(e.target.value)}
