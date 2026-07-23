@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  HeartHandshake, Contact, BellRing, Gift,
+  HeartHandshake, Contact, BellRing,
   StickyNote, CalendarClock, Trash2, Loader2, Check, Link2, Sparkles, Plus, Car,
 } from 'lucide-react';
 import type { ControlRecord } from '@/types/data';
-import type { LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
 import { useData } from '@/contexts/DataContext';
@@ -130,9 +129,6 @@ export default function FidelizacaoPage() {
             <h1 className="text-base font-bold leading-tight">Fidelização</h1>
             <p className="text-[11px] text-white/70">CRM e acompanhamento de clientes</p>
           </div>
-          <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide bg-amber-400 text-black px-2 py-1 rounded whitespace-nowrap">
-            Em construção
-          </span>
         </div>
         <div className="p-4 text-xs text-muted-foreground leading-relaxed">
           Agenda de lembretes e notas por cliente. Escreve o nome do cliente para o ligares à carteira
@@ -145,12 +141,6 @@ export default function FidelizacaoPage() {
       <FollowUpsPanel clients={clients} onChange={bump} />
       <NotesPanel clients={clients} />
       <ClientFichaPanel control={data?.control ?? []} clients={clients} reloadSignal={reload} />
-
-      {/* Módulo por construir */}
-      <Section title="Em breve">
-        <FeatureCard icon={Gift} title="Aniversários & cortesia"
-          desc="Aniversário do cliente e do negócio para contactos de relação." />
-      </Section>
     </div>
   );
 }
@@ -170,6 +160,10 @@ function ClientAutocomplete({ value, options, onSelect, placeholder, className }
     const base = q ? options.filter(o => o.cliente.toLowerCase().includes(q)) : options;
     return base.slice(0, 30);
   }, [value, options]);
+  const showNew = useMemo(() => {
+    const q = value.trim().toLowerCase();
+    return q.length > 0 && !options.some(o => o.cliente.toLowerCase() === q);
+  }, [value, options]);
 
   return (
     <div className={`relative ${className ?? ''}`}>
@@ -181,8 +175,20 @@ function ClientAutocomplete({ value, options, onSelect, placeholder, className }
         placeholder={placeholder}
         className="w-full px-2 py-1.5 text-xs rounded bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-[#002060]"
       />
-      {open && filtered.length > 0 && (
+      {open && (filtered.length > 0 || showNew) && (
         <ul className="absolute z-20 left-0 right-0 mt-1 max-h-48 overflow-auto rounded-md border border-border bg-card shadow-lg py-1">
+          {showNew && (
+            <li>
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); onSelect(value.trim(), null); setOpen(false); }}
+                className="w-full text-left px-2 py-1 hover:bg-muted/60 flex items-center gap-2"
+              >
+                <Plus className="h-3 w-3 text-[#002060] dark:text-sky-300 flex-shrink-0" />
+                <span className="text-xs text-foreground truncate">Novo cliente: «{value.trim()}»</span>
+              </button>
+            </li>
+          )}
           {filtered.map(o => (
             <li key={`${o.cliente}-${o.control_id ?? 'x'}`}>
               <button
@@ -791,30 +797,3 @@ function NotesPanel({ clients }: { clients: ClientOption[] }) {
   );
 }
 
-/* ── Cartões «em breve» ───────────────────────────────────────────────────── */
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-0.5">{title}</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{children}</div>
-    </div>
-  );
-}
-
-function FeatureCard({ icon: Icon, title, desc }: { icon: LucideIcon; title: string; desc: string }) {
-  return (
-    <div className="relative rounded-lg border border-border bg-card p-3 flex gap-3">
-      <div className="flex-shrink-0 h-9 w-9 rounded-md bg-[#002060]/10 text-[#002060] dark:bg-sky-500/15 dark:text-sky-300 flex items-center justify-center">
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <h3 className="text-xs font-semibold text-foreground">{title}</h3>
-          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground border border-border rounded px-1 py-0.5">Em breve</span>
-        </div>
-        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{desc}</p>
-      </div>
-    </div>
-  );
-}
