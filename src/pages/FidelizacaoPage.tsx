@@ -25,10 +25,10 @@ const DAY = 86400000;
 
 /* Parâmetros dos gatilhos automáticos (facilmente afináveis). */
 const SUGGEST = {
-  warrantyMonths: 24,       // fim de garantia após a matrícula
-  financeMonths: 48,        // duração típica de financiamento
-  repurchaseMinMonths: 40,  // janela de recompra (idade de posse)
-  repurchaseMaxMonths: 66,
+  warrantyMonths: 36,       // fim de garantia após a matrícula (3 anos)
+  financeMonths: 48,        // duração típica de financiamento (4 anos)
+  repurchaseMinMonths: 30,  // janela de recompra (idade de posse)
+  repurchaseMaxMonths: 48,
   leadDaysWarranty: 90,     // antecedência para contactar
   leadDaysFinance: 120,
   graceDays: 30,            // ainda mostrar até X dias depois de passar
