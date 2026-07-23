@@ -1,16 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  HeartHandshake, Contact, CalendarClock, BellRing,
-  RefreshCw, ShieldCheck, Wallet, Gift, StickyNote, Trash2, Loader2,
+  HeartHandshake, Contact, BellRing, RefreshCw, ShieldCheck, Wallet, Gift,
+  StickyNote, CalendarClock, Trash2, Loader2, Check,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
-import { listNotes, createNote, deleteNote, type CrmNote } from '@/lib/crm';
+import {
+  listNotes, createNote, deleteNote, type CrmNote,
+  listReminders, createReminder, setReminderDone, deleteReminder,
+  REMINDER_KINDS, type CrmReminder, type ReminderKind,
+} from '@/lib/crm';
 
 /* ── Tab Fidelização (admin) ──────────────────────────────────────────────────
- * CRM / acompanhamento de clientes. Segmento 3: Notas funcionais (Supabase).
- * Restantes módulos ainda em construção.
+ * CRM / acompanhamento de clientes.
+ * Segmento 3: Notas · Segmento 4: Agenda & lembretes (Supabase).
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const fmtDateTime = (iso: string) => {
@@ -20,6 +24,15 @@ const fmtDateTime = (iso: string) => {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
   }).format(d);
 };
+
+const KIND_STYLE: Record<ReminderKind, string> = {
+  geral: 'bg-slate-200 text-slate-700 dark:bg-slate-600/40 dark:text-slate-200',
+  chamada: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
+  followup: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+  renovacao: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300',
+  servico: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300',
+};
+const kindLabel = (k: ReminderKind) => REMINDER_KINDS.find(x => x.value === k)?.label ?? k;
 
 export default function FidelizacaoPage() {
   return (
@@ -37,21 +50,18 @@ export default function FidelizacaoPage() {
           </span>
         </div>
         <div className="p-4 text-xs text-muted-foreground leading-relaxed">
-          Espaço para acompanhar o seguimento dos clientes: notas de contacto, agenda de lembretes e
-          gatilhos de fidelização adaptados ao comércio automóvel. As <strong>Notas</strong> já estão
-          ativas; os restantes módulos serão ligados por fases.
+          Espaço para acompanhar o seguimento dos clientes. <strong>Agenda de lembretes</strong> e
+          <strong> notas</strong> já estão ativas; os restantes módulos serão ligados por fases.
         </div>
       </div>
 
-      {/* Notas — funcional */}
+      <RemindersPanel />
       <NotesPanel />
 
       {/* Restantes módulos (em construção) */}
       <Section title="Em breve — CRM base">
         <FeatureCard icon={Contact} title="Ficha de cliente"
           desc="Dados, veículo(s) e histórico de interações numa timeline única, pré-preenchida a partir da carteira." />
-        <FeatureCard icon={CalendarClock} title="Agenda & lembretes"
-          desc="Tarefas com data/hora (ligar, follow-up), com vista «para hoje» e «em atraso»." />
         <FeatureCard icon={BellRing} title="Follow-ups"
           desc="Sequências de acompanhamento e alertas de tarefas por fechar." />
       </Section>
@@ -70,6 +80,217 @@ export default function FidelizacaoPage() {
   );
 }
 
+/* ── Agenda & lembretes ───────────────────────────────────────────────────── */
+
+function RemindersPanel() {
+  const { session } = useAuth();
+  const email = session?.user.email ?? null;
+
+  const [items, setItems] = useState<CrmReminder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [title, setTitle] = useState('');
+  const [cliente, setCliente] = useState('');
+  const [kind, setKind] = useState<ReminderKind>('geral');
+  const [due, setDue] = useState(''); // datetime-local
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setItems(await listReminders({ done: false }));
+    } catch {
+      toast.error('Não foi possível carregar os lembretes.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function add() {
+    const t = title.trim();
+    if (!t || saving) return;
+    setSaving(true);
+    try {
+      const r = await createReminder({
+        title: t,
+        cliente: cliente.trim() || null,
+        kind,
+        due_at: due ? new Date(due).toISOString() : null,
+        created_by: email,
+      });
+      setItems(prev => [...prev, r].sort(sortByDue));
+      setTitle(''); setCliente(''); setKind('geral'); setDue('');
+      toast.success('Lembrete criado.');
+    } catch {
+      toast.error('Não foi possível criar o lembrete.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function done(id: string) {
+    try {
+      await setReminderDone(id, true);
+      setItems(prev => prev.filter(r => r.id !== id));
+      toast.success('Lembrete concluído.');
+    } catch {
+      toast.error('Não foi possível concluir o lembrete.');
+    }
+  }
+
+  async function remove(id: string) {
+    if (!window.confirm('Apagar este lembrete?')) return;
+    try {
+      await deleteReminder(id);
+      setItems(prev => prev.filter(r => r.id !== id));
+      toast.success('Lembrete apagado.');
+    } catch {
+      toast.error('Não foi possível apagar o lembrete.');
+    }
+  }
+
+  const groups = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const todayEnd = todayStart + 24 * 3600 * 1000 - 1;
+    const g = { overdue: [] as CrmReminder[], today: [] as CrmReminder[], upcoming: [] as CrmReminder[], undated: [] as CrmReminder[] };
+    items.forEach(r => {
+      if (!r.due_at) { g.undated.push(r); return; }
+      const ts = new Date(r.due_at).getTime();
+      if (ts < todayStart) g.overdue.push(r);
+      else if (ts <= todayEnd) g.today.push(r);
+      else g.upcoming.push(r);
+    });
+    return g;
+  }, [items]);
+
+  const row = (r: CrmReminder, tone: 'overdue' | 'normal') => (
+    <div key={r.id} className="flex items-start gap-2 rounded border border-border/70 bg-muted/30 p-2">
+      <button
+        onClick={() => done(r.id)}
+        title="Marcar como concluído"
+        className="group mt-0.5 flex-shrink-0 h-4 w-4 rounded-full border-2 border-muted-foreground/40 hover:border-green-500 hover:bg-green-500/10 flex items-center justify-center transition-colors"
+      >
+        <Check className="h-2.5 w-2.5 text-green-600 opacity-0 group-hover:opacity-100" />
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className={`text-[9px] font-semibold uppercase rounded px-1 py-0.5 ${KIND_STYLE[r.kind]}`}>{kindLabel(r.kind)}</span>
+          <span className="text-xs font-medium text-foreground break-words">{r.title}</span>
+        </div>
+        {(r.cliente || r.body) && (
+          <p className="text-[11px] text-muted-foreground mt-0.5 break-words">
+            {r.cliente ? <span className="font-medium text-foreground/80">{r.cliente}</span> : null}
+            {r.cliente && r.body ? ' — ' : ''}{r.body ?? ''}
+          </p>
+        )}
+        {r.due_at && (
+          <div className={`text-[10px] mt-0.5 ${tone === 'overdue' ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+            {fmtDateTime(r.due_at)}
+          </div>
+        )}
+      </div>
+      <button onClick={() => remove(r.id)} title="Apagar" className="flex-shrink-0 text-muted-foreground hover:text-destructive transition-colors">
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+
+  const total = items.length;
+
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <CalendarClock className="h-4 w-4 text-[#002060] dark:text-sky-300" />
+        <h2 className="text-xs font-semibold text-foreground uppercase tracking-wide">Agenda &amp; lembretes</h2>
+        {groups.overdue.length > 0 && (
+          <span className="text-[10px] font-semibold text-destructive bg-destructive/10 rounded px-1.5 py-0.5">
+            {groups.overdue.length} em atraso
+          </span>
+        )}
+        <span className="ml-auto text-[10px] text-muted-foreground">{total}</span>
+      </div>
+
+      <div className="p-3 space-y-3">
+        {/* Formulário */}
+        <div className="space-y-2">
+          <input
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') add(); }}
+            placeholder="O que fazer? (ex.: Ligar ao cliente sobre proposta)"
+            className="w-full px-2 py-1.5 text-xs rounded bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-[#002060]"
+          />
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={cliente}
+              onChange={e => setCliente(e.target.value)}
+              placeholder="Cliente (opcional)"
+              className="flex-1 min-w-[8rem] px-2 py-1.5 text-xs rounded bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-[#002060]"
+            />
+            <select
+              value={kind}
+              onChange={e => setKind(e.target.value as ReminderKind)}
+              className="px-2 py-1.5 text-xs rounded bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-[#002060]"
+            >
+              {REMINDER_KINDS.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
+            </select>
+            <input
+              type="datetime-local"
+              value={due}
+              onChange={e => setDue(e.target.value)}
+              className="px-2 py-1.5 text-xs rounded bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-[#002060]"
+            />
+            <button
+              onClick={add}
+              disabled={!title.trim() || saving}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded bg-[#002060] text-white font-semibold hover:bg-[#002060]/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Adicionar
+            </button>
+          </div>
+        </div>
+
+        {/* Listas agrupadas */}
+        {loading ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> A carregar…
+          </div>
+        ) : total === 0 ? (
+          <p className="text-xs text-muted-foreground py-2 text-center">Sem lembretes por concluir. Cria o primeiro acima.</p>
+        ) : (
+          <div className="space-y-3">
+            {groups.overdue.length > 0 && <Group label="Em atraso" tone="overdue">{groups.overdue.map(r => row(r, 'overdue'))}</Group>}
+            {groups.today.length > 0 && <Group label="Hoje">{groups.today.map(r => row(r, 'normal'))}</Group>}
+            {groups.upcoming.length > 0 && <Group label="Próximos">{groups.upcoming.map(r => row(r, 'normal'))}</Group>}
+            {groups.undated.length > 0 && <Group label="Sem data">{groups.undated.map(r => row(r, 'normal'))}</Group>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const sortByDue = (a: CrmReminder, b: CrmReminder) => {
+  if (!a.due_at && !b.due_at) return 0;
+  if (!a.due_at) return 1;
+  if (!b.due_at) return -1;
+  return new Date(a.due_at).getTime() - new Date(b.due_at).getTime();
+};
+
+function Group({ label, tone, children }: { label: string; tone?: 'overdue'; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <p className={`text-[10px] font-semibold uppercase tracking-wide ${tone === 'overdue' ? 'text-destructive' : 'text-muted-foreground'}`}>{label}</p>
+      {children}
+    </div>
+  );
+}
+
+/* ── Notas ────────────────────────────────────────────────────────────────── */
+
 function NotesPanel() {
   const { session } = useAuth();
   const email = session?.user.email ?? null;
@@ -84,7 +305,7 @@ function NotesPanel() {
     setLoading(true);
     try {
       setNotes(await listNotes());
-    } catch (e) {
+    } catch {
       toast.error('Não foi possível carregar as notas.');
     } finally {
       setLoading(false);
@@ -103,7 +324,7 @@ function NotesPanel() {
       setBody('');
       setCliente('');
       toast.success('Nota adicionada.');
-    } catch (e) {
+    } catch {
       toast.error('Não foi possível adicionar a nota.');
     } finally {
       setSaving(false);
@@ -116,7 +337,7 @@ function NotesPanel() {
       await deleteNote(id);
       setNotes(prev => prev.filter(n => n.id !== id));
       toast.success('Nota apagada.');
-    } catch (e) {
+    } catch {
       toast.error('Não foi possível apagar a nota.');
     }
   }
@@ -197,6 +418,8 @@ function NotesPanel() {
     </div>
   );
 }
+
+/* ── Cartões «em breve» ───────────────────────────────────────────────────── */
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
