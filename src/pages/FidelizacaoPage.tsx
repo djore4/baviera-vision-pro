@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  HeartHandshake, Contact, BellRing, RefreshCw, ShieldCheck, Wallet, Gift,
+  HeartHandshake, Contact, BellRing, Gift,
   StickyNote, CalendarClock, Trash2, Loader2, Check, Link2, Sparkles, Plus, Car,
 } from 'lucide-react';
 import type { ControlRecord } from '@/types/data';
@@ -47,6 +47,35 @@ const SUGG_STYLE: Record<SuggType, { label: string; cls: string }> = {
 };
 
 const addMonths = (d: Date, m: number) => { const x = new Date(d); x.setMonth(x.getMonth() + m); return x; };
+const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+
+/* Cadências de follow-up pré-definidas (cada passo vira um lembrete). */
+const FOLLOWUP_TEMPLATES: { id: string; label: string; desc: string; steps: { offset: number; kind: ReminderKind; title: string }[] }[] = [
+  {
+    id: 'pos-proposta', label: 'Pós-proposta', desc: 'Fechar após envio de proposta',
+    steps: [
+      { offset: 2, kind: 'chamada', title: 'Follow-up proposta — ligar' },
+      { offset: 5, kind: 'followup', title: 'Follow-up proposta — e-mail' },
+      { offset: 10, kind: 'chamada', title: 'Follow-up proposta — decisão' },
+    ],
+  },
+  {
+    id: 'pos-entrega', label: 'Pós-entrega', desc: 'Acompanhamento após a entrega',
+    steps: [
+      { offset: 7, kind: 'chamada', title: 'Chamada de satisfação (pós-entrega)' },
+      { offset: 30, kind: 'servico', title: 'Check-in 1 mês' },
+      { offset: 90, kind: 'followup', title: 'Check-in 3 meses' },
+    ],
+  },
+  {
+    id: 'reativacao', label: 'Reativação de lead', desc: 'Recuperar um contacto frio',
+    steps: [
+      { offset: 0, kind: 'chamada', title: 'Reativação — ligar' },
+      { offset: 7, kind: 'followup', title: 'Reativação — e-mail' },
+      { offset: 21, kind: 'chamada', title: 'Reativação — última tentativa' },
+    ],
+  },
+];
 
 const fmtDateTime = (iso: string) => {
   const d = new Date(iso);
@@ -113,22 +142,12 @@ export default function FidelizacaoPage() {
 
       <RemindersPanel clients={clients} reloadSignal={reload} onChange={bump} />
       <SuggestionsPanel control={data?.control ?? []} reloadSignal={reload} onCreated={bump} />
+      <FollowUpsPanel clients={clients} onChange={bump} />
       <NotesPanel clients={clients} />
       <ClientFichaPanel control={data?.control ?? []} clients={clients} reloadSignal={reload} />
 
-      {/* Restantes módulos (em construção) */}
-      <Section title="Em breve — CRM base">
-        <FeatureCard icon={BellRing} title="Follow-ups"
-          desc="Sequências de acompanhamento e alertas de tarefas por fechar." />
-      </Section>
-
-      <Section title="Em breve — Fidelização automóvel">
-        <FeatureCard icon={RefreshCw} title="Recompra prevista"
-          desc="Estimativa de substituição pela idade de posse; oportunidade de upgrade." />
-        <FeatureCard icon={ShieldCheck} title="Fim de garantia / revisão"
-          desc="Alertas de fim de garantia, revisão e IPO para contacto proativo." />
-        <FeatureCard icon={Wallet} title="Fim de financiamento / renting"
-          desc="Gatilho de renovação quando o contrato se aproxima do fim." />
+      {/* Módulo por construir */}
+      <Section title="Em breve">
         <FeatureCard icon={Gift} title="Aniversários & cortesia"
           desc="Aniversário do cliente e do negócio para contactos de relação." />
       </Section>
@@ -490,6 +509,75 @@ function SuggestionsPanel({ control, reloadSignal, onCreated }: { control: Contr
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Follow-ups (cadências) ───────────────────────────────────────────────── */
+
+function FollowUpsPanel({ clients, onChange }: { clients: ClientOption[]; onChange: () => void }) {
+  const { session } = useAuth();
+  const email = session?.user.email ?? null;
+  const [cliente, setCliente] = useState('');
+  const [controlId, setControlId] = useState<string | null>(null);
+  const [tplId, setTplId] = useState(FOLLOWUP_TEMPLATES[0].id);
+  const [start, setStart] = useState(() => new Date().toISOString().slice(0, 10));
+  const [creating, setCreating] = useState(false);
+
+  const tpl = FOLLOWUP_TEMPLATES.find(t => t.id === tplId) ?? FOLLOWUP_TEMPLATES[0];
+
+  async function startSequence() {
+    if (!cliente.trim() || creating) return;
+    setCreating(true);
+    try {
+      const base = new Date(`${start}T09:00`);
+      for (const step of tpl.steps) {
+        await createReminder({
+          title: step.title, cliente: cliente.trim(), control_id: controlId,
+          kind: step.kind, due_at: addDays(base, step.offset).toISOString(),
+          body: `Follow-up: ${tpl.label}`, created_by: email,
+        });
+      }
+      toast.success(`Follow-up «${tpl.label}» iniciado — ${tpl.steps.length} lembretes.`);
+      setCliente(''); setControlId(null);
+      onChange();
+    } catch { toast.error('Não foi possível iniciar o follow-up.'); }
+    finally { setCreating(false); }
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <BellRing className="h-4 w-4 text-[#002060] dark:text-sky-300" />
+        <h2 className="text-xs font-semibold text-foreground uppercase tracking-wide">Follow-ups</h2>
+      </div>
+      <div className="p-3 space-y-3">
+        <p className="text-[11px] text-muted-foreground">
+          Inicia uma cadência de acompanhamento para um cliente — cada passo é criado como lembrete na agenda.
+        </p>
+        <div className="flex flex-wrap gap-2 items-start">
+          <ClientAutocomplete className="flex-1 min-w-[9rem]" value={cliente} options={clients} placeholder="Cliente" onSelect={(c, id) => { setCliente(c); setControlId(id); }} />
+          <select value={tplId} onChange={e => setTplId(e.target.value)} className="px-2 py-1.5 text-xs rounded bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-[#002060]">
+            {FOLLOWUP_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+          <input type="date" value={start} onChange={e => setStart(e.target.value)}
+            className="px-2 py-1.5 text-xs rounded bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-[#002060]" />
+          <button onClick={startSequence} disabled={!cliente.trim() || creating}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded bg-[#002060] text-white font-semibold hover:bg-[#002060]/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            {creating && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Iniciar
+          </button>
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{tpl.label} · {tpl.desc}</p>
+          {tpl.steps.map((s, i) => (
+            <div key={i} className="flex items-center gap-2 text-[11px]">
+              <span className="text-muted-foreground w-10 flex-shrink-0 tabular-nums">D+{s.offset}</span>
+              <span className={`text-[9px] font-semibold uppercase rounded px-1 py-0.5 ${KIND_STYLE[s.kind]}`}>{kindLabel(s.kind)}</span>
+              <span className="text-foreground truncate">{s.title}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
