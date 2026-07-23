@@ -23,6 +23,7 @@ import DemosPage from "./pages/DemosPage";
 import EmprestimosPage from "./pages/EmprestimosPage";
 import ObjetivosPage from "./pages/ObjetivosPage";
 import VendedoresPage from "./pages/VendedoresPage";
+import FidelizacaoPage from "./pages/FidelizacaoPage";
 import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
@@ -92,6 +93,7 @@ const App = () => (
               <Route path="/demos" element={<AdminGate><AppLayout><DemosPage /></AppLayout></AdminGate>} />
               <Route path="/objetivos" element={<AdminGate><AppLayout><ObjetivosPage /></AppLayout></AdminGate>} />
               <Route path="/vendedores" element={<AdminGate><AppLayout><VendedoresPage /></AppLayout></AdminGate>} />
+              <Route path="/fidelizacao" element={<AdminGate><AppLayout><FidelizacaoPage /></AppLayout></AdminGate>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </HashRouter>
