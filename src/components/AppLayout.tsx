@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Coins, Car, Target, Calculator, CalendarClock, Users } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Coins, Car, Target, Calculator, CalendarClock, Users, HeartHandshake } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
 
 const ADMIN_NAV_ITEMS = [
   { path: '/vendedores', label: 'PERFORMANCE', icon: Users },
+  { path: '/fidelizacao', label: 'FIDELIZAÇÃO', icon: HeartHandshake },
   { path: '/multas', label: 'MULTAS', icon: Coins },
   { path: '/dados', label: 'DADOS', icon: Database },
   { path: '/database', label: 'DATABASE', icon: Database },
