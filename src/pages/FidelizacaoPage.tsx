@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   HeartHandshake, Contact, BellRing, RefreshCw, ShieldCheck, Wallet, Gift,
-  StickyNote, CalendarClock, Trash2, Loader2, Check, Link2,
+  StickyNote, CalendarClock, Trash2, Loader2, Check, Link2, Sparkles, Plus,
 } from 'lucide-react';
+import type { ControlRecord } from '@/types/data';
 import type { LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
@@ -20,6 +21,33 @@ import {
 
 type ClientOption = { cliente: string; control_id: string | null; hint: string };
 
+const DAY = 86400000;
+
+/* Parâmetros dos gatilhos automáticos (facilmente afináveis). */
+const SUGGEST = {
+  warrantyMonths: 24,       // fim de garantia após a matrícula
+  financeMonths: 48,        // duração típica de financiamento
+  repurchaseMinMonths: 40,  // janela de recompra (idade de posse)
+  repurchaseMaxMonths: 66,
+  leadDaysWarranty: 90,     // antecedência para contactar
+  leadDaysFinance: 120,
+  graceDays: 30,            // ainda mostrar até X dias depois de passar
+};
+
+type SuggType = 'garantia' | 'financiamento' | 'recompra';
+type Suggestion = {
+  key: string; type: SuggType; kind: ReminderKind; title: string; extra?: string;
+  cliente: string; model: string; resp: string; control_id: string; due: Date;
+};
+
+const SUGG_STYLE: Record<SuggType, { label: string; cls: string }> = {
+  garantia: { label: 'Garantia', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' },
+  financiamento: { label: 'Financiamento', cls: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
+  recompra: { label: 'Recompra', cls: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300' },
+};
+
+const addMonths = (d: Date, m: number) => { const x = new Date(d); x.setMonth(x.getMonth() + m); return x; };
+
 const fmtDateTime = (iso: string) => {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
@@ -27,6 +55,9 @@ const fmtDateTime = (iso: string) => {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
   }).format(d);
 };
+
+const fmtDate = (d: Date) =>
+  new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
 
 const KIND_STYLE: Record<ReminderKind, string> = {
   geral: 'bg-slate-200 text-slate-700 dark:bg-slate-600/40 dark:text-slate-200',
@@ -56,6 +87,10 @@ export default function FidelizacaoPage() {
     return Array.from(map.values()).map(v => v.opt).sort((a, b) => a.cliente.localeCompare(b.cliente));
   }, [data]);
 
+  // Sinal partilhado para sincronizar agenda ↔ sugestões após criar lembretes.
+  const [reload, setReload] = useState(0);
+  const bump = useCallback(() => setReload(v => v + 1), []);
+
   return (
     <div className="max-w-5xl mx-auto space-y-4 animate-fade-in">
       {/* Cabeçalho */}
@@ -76,7 +111,8 @@ export default function FidelizacaoPage() {
         </div>
       </div>
 
-      <RemindersPanel clients={clients} />
+      <RemindersPanel clients={clients} reloadSignal={reload} onChange={bump} />
+      <SuggestionsPanel control={data?.control ?? []} reloadSignal={reload} onCreated={bump} />
       <NotesPanel clients={clients} />
 
       {/* Restantes módulos (em construção) */}
@@ -158,7 +194,7 @@ function LinkedHint({ linked }: { linked: boolean }) {
 
 /* ── Agenda & lembretes ───────────────────────────────────────────────────── */
 
-function RemindersPanel({ clients }: { clients: ClientOption[] }) {
+function RemindersPanel({ clients, reloadSignal, onChange }: { clients: ClientOption[]; reloadSignal: number; onChange: () => void }) {
   const { session } = useAuth();
   const email = session?.user.email ?? null;
 
@@ -171,13 +207,14 @@ function RemindersPanel({ clients }: { clients: ClientOption[] }) {
   const [due, setDue] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try { setItems(await listReminders({ done: false })); }
     catch { toast.error('Não foi possível carregar os lembretes.'); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (reloadSignal > 0) load(true); }, [reloadSignal, load]);
 
   async function add() {
     const t = title.trim();
@@ -195,17 +232,18 @@ function RemindersPanel({ clients }: { clients: ClientOption[] }) {
       setItems(prev => [...prev, r].sort(sortByDue));
       setTitle(''); setCliente(''); setControlId(null); setKind('geral'); setDue('');
       toast.success('Lembrete criado.');
+      onChange();
     } catch { toast.error('Não foi possível criar o lembrete.'); }
     finally { setSaving(false); }
   }
 
   async function done(id: string) {
-    try { await setReminderDone(id, true); setItems(prev => prev.filter(r => r.id !== id)); toast.success('Lembrete concluído.'); }
+    try { await setReminderDone(id, true); setItems(prev => prev.filter(r => r.id !== id)); toast.success('Lembrete concluído.'); onChange(); }
     catch { toast.error('Não foi possível concluir o lembrete.'); }
   }
   async function remove(id: string) {
     if (!window.confirm('Apagar este lembrete?')) return;
-    try { await deleteReminder(id); setItems(prev => prev.filter(r => r.id !== id)); toast.success('Lembrete apagado.'); }
+    try { await deleteReminder(id); setItems(prev => prev.filter(r => r.id !== id)); toast.success('Lembrete apagado.'); onChange(); }
     catch { toast.error('Não foi possível apagar o lembrete.'); }
   }
 
@@ -341,6 +379,119 @@ function Group({ label, tone, children }: { label: string; tone?: 'overdue'; chi
     <div className="space-y-1.5">
       <p className={`text-[10px] font-semibold uppercase tracking-wide ${tone === 'overdue' ? 'text-destructive' : 'text-muted-foreground'}`}>{label}</p>
       {children}
+    </div>
+  );
+}
+
+/* ── Sugestões automáticas (gatilhos de fidelização) ──────────────────────── */
+
+function SuggestionsPanel({ control, reloadSignal, onCreated }: { control: ControlRecord[]; reloadSignal: number; onCreated: () => void }) {
+  const { session } = useAuth();
+  const email = session?.user.email ?? null;
+
+  const [linkedIds, setLinkedIds] = useState<Set<string>>(new Set()); // control_ids com lembrete aberto
+  const [hidden, setHidden] = useState<Set<string>>(new Set());       // criadas nesta sessão
+  const [creating, setCreating] = useState<string | null>(null);
+
+  // control_ids que já têm lembrete aberto — para não sugerir repetido.
+  useEffect(() => {
+    let active = true;
+    listReminders({ done: false })
+      .then(rs => { if (active) setLinkedIds(new Set(rs.map(r => r.control_id).filter(Boolean) as string[])); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [reloadSignal]);
+
+  const suggestions = useMemo<Suggestion[]>(() => {
+    const now = Date.now();
+    const out: Suggestion[] = [];
+    control.forEach(r => {
+      if (r.status !== 'Retail' || !(r.type === 'VN' || r.type === 'VD') || !r.id) return;
+      const cliente = (r.cliente || '').trim();
+      if (!cliente) return;
+      const base = r.date298 || r.dmat;
+      const model = r.model || 'viatura';
+      if (r.dmat) {
+        const end = addMonths(r.dmat, SUGGEST.warrantyMonths);
+        const days = (end.getTime() - now) / DAY;
+        if (days <= SUGGEST.leadDaysWarranty && days >= -SUGGEST.graceDays) {
+          out.push({ key: `garantia-${r.id}`, type: 'garantia', kind: 'servico', title: `Fim de garantia — ${model}`, cliente, model, resp: r.resp, control_id: r.id, due: end });
+        }
+      }
+      if (base && r.fin && r.fin.toUpperCase() !== 'PP') {
+        const end = addMonths(base, SUGGEST.financeMonths);
+        const days = (end.getTime() - now) / DAY;
+        if (days <= SUGGEST.leadDaysFinance && days >= -SUGGEST.graceDays) {
+          out.push({ key: `financiamento-${r.id}`, type: 'financiamento', kind: 'renovacao', title: `Fim de financiamento — ${model}`, cliente, model, resp: r.resp, control_id: r.id, due: end });
+        }
+      }
+      if (base) {
+        const months = (now - base.getTime()) / (DAY * 30.44);
+        if (months >= SUGGEST.repurchaseMinMonths && months <= SUGGEST.repurchaseMaxMonths) {
+          out.push({ key: `recompra-${r.id}`, type: 'recompra', kind: 'renovacao', title: `Recompra prevista — ${model}`, extra: `${Math.round(months)} meses de posse`, cliente, model, resp: r.resp, control_id: r.id, due: new Date(now) });
+        }
+      }
+    });
+    return out.sort((a, b) => a.due.getTime() - b.due.getTime());
+  }, [control]);
+
+  const visible = suggestions.filter(s => !hidden.has(s.key) && !linkedIds.has(s.control_id)).slice(0, 30);
+
+  async function createFrom(s: Suggestion) {
+    if (creating) return;
+    setCreating(s.key);
+    try {
+      await createReminder({
+        title: s.title, cliente: s.cliente, control_id: s.control_id,
+        kind: s.kind, due_at: s.due.toISOString(), body: s.extra ?? null, created_by: email,
+      });
+      setHidden(prev => new Set(prev).add(s.key));
+      toast.success('Lembrete criado a partir da sugestão.');
+      onCreated();
+    } catch { toast.error('Não foi possível criar o lembrete.'); }
+    finally { setCreating(null); }
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <Sparkles className="h-4 w-4 text-[#002060] dark:text-sky-300" />
+        <h2 className="text-xs font-semibold text-foreground uppercase tracking-wide">Sugestões automáticas</h2>
+        <span className="ml-auto text-[10px] text-muted-foreground">{visible.length}</span>
+      </div>
+      <div className="p-3">
+        {visible.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-1 text-center">
+            Sem sugestões de momento. Derivadas das datas da carteira (fim de garantia, financiamento e recompra prevista).
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {visible.map(s => (
+              <div key={s.key} className="flex items-start gap-2 rounded border border-border/70 bg-muted/30 p-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`text-[9px] font-semibold uppercase rounded px-1 py-0.5 ${SUGG_STYLE[s.type].cls}`}>{SUGG_STYLE[s.type].label}</span>
+                    <span className="text-xs font-medium text-foreground break-words">{s.cliente}</span>
+                    <span className="text-[11px] text-muted-foreground">· {s.model}</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    {s.type === 'recompra' ? s.extra : `Previsto: ${fmtDate(s.due)}`}{s.resp ? ` · ${s.resp}` : ''}
+                  </div>
+                </div>
+                <button
+                  onClick={() => createFrom(s)}
+                  disabled={creating === s.key}
+                  title="Criar lembrete a partir desta sugestão"
+                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] rounded border border-[#002060]/30 text-[#002060] dark:text-sky-300 dark:border-sky-400/30 hover:bg-[#002060]/10 dark:hover:bg-sky-500/10 transition-colors disabled:opacity-40"
+                >
+                  {creating === s.key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                  Lembrete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
