@@ -321,7 +321,10 @@ export default function VendedoresPage() {
                       formatter={(v: number) => (v > 0 ? v : '')} />
                   </Line>
                   <Line yAxisId="right" type="monotone" dataKey="r" name="R" stroke="#1C69D4"
-                    strokeWidth={2} connectNulls dot={{ r: 2.5, fill: '#1C69D4' }} />
+                    strokeWidth={2} connectNulls dot={{ r: 2.5, fill: '#1C69D4' }}>
+                    <LabelList dataKey="r" position="top" fontSize={9} fill="#1C69D4"
+                      formatter={(v: number | null) => (v != null ? v.toFixed(2) : '')} />
+                  </Line>
                 </ComposedChart>
               </ResponsiveContainer>
             )}
