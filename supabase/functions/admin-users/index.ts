@@ -39,9 +39,13 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const authHeader = req.headers.get("Authorization") ?? "";
 
-    // Identificar quem chama a partir do JWT.
-    const asUser = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
-    const { data: { user }, error: uErr } = await asUser.auth.getUser();
+    // Identificar quem chama a partir do JWT. Validamos o token nós próprios
+    // (getUser via GoTrue), por isso a função é publicada com verify_jwt=false —
+    // evita o erro de verificação no gateway quando o projeto usa chaves ES256.
+    const token = authHeader.replace(/^[Bb]earer\s+/, "").trim();
+    if (!token) return json({ error: "Não autenticado." }, 401);
+    const asUser = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${token}` } } });
+    const { data: { user }, error: uErr } = await asUser.auth.getUser(token);
     if (uErr || !user) return json({ error: "Não autenticado." }, 401);
 
     const admin = createClient(url, serviceKey);

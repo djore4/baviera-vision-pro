@@ -26,6 +26,7 @@ import VendedoresPage from "./pages/VendedoresPage";
 import FidelizacaoPage from "./pages/FidelizacaoPage";
 import LavagemPage from "./pages/LavagemPage";
 import UtilizadoresPage from "./pages/UtilizadoresPage";
+import ArquivoPage from "./pages/ArquivoPage";
 import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
 import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -97,6 +98,7 @@ const App = () => (
               <Route path="/vendedores" element={tab('vendedores', <VendedoresPage />)} />
               <Route path="/fidelizacao" element={tab('fidelizacao', <FidelizacaoPage />)} />
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
+              <Route path="/arquivo" element={tab('arquivo', <ArquivoPage />)} />
               <Route path="/utilizadores" element={tab('utilizadores', <UtilizadoresPage />)} />
               <Route path="*" element={<NotFound />} />
             </Routes>
