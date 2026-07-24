@@ -1,9 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Coins, Car, Target, Calculator, CalendarClock, Users, HeartHandshake, Droplets } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Coins, Car, Target, Calculator, CalendarClock, Users, HeartHandshake, Droplets, UserCog } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
-import { useAuth } from '@/App';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { useState, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import bmwLogo from '@/assets/bmw-logo.png';
@@ -28,15 +28,19 @@ const ADMIN_NAV_ITEMS = [
   { path: '/database', label: 'DATABASE', icon: Database },
   { path: '/demos', label: 'DEMOS', icon: Car },
   { path: '/objetivos', label: 'OBJETIVOS', icon: Target },
+  { path: '/utilizadores', label: 'UTILIZADORES', icon: UserCog },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { error } = useData();
-  const { isAdmin } = useAuth();
+  const { canView } = usePermissions();
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const week = getCurrentWeek();
+
+  const navItems = NAV_ITEMS.filter(item => canView(item.path.slice(1)));
+  const adminNavItems = ADMIN_NAV_ITEMS.filter(item => canView(item.path.slice(1)));
 
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
@@ -70,7 +74,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           )}
         </div>
         <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {NAV_ITEMS.map(item => {
+          {navItems.map(item => {
             const active = location.pathname === item.path;
             return (
               <Link
@@ -87,7 +91,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
-          {isAdmin && ADMIN_NAV_ITEMS.map(item => {
+          {adminNavItems.map(item => {
             const active = location.pathname === item.path;
             return (
               <Link

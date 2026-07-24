@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Route, Routes, Navigate } from "react-router-dom";
+import { HashRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,6 +25,8 @@ import ObjetivosPage from "./pages/ObjetivosPage";
 import VendedoresPage from "./pages/VendedoresPage";
 import FidelizacaoPage from "./pages/FidelizacaoPage";
 import LavagemPage from "./pages/LavagemPage";
+import UtilizadoresPage from "./pages/UtilizadoresPage";
+import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
 import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
@@ -62,11 +64,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AdminGate({ children }: { children: React.ReactNode }) {
-  const { isAdmin } = useAuth();
-  if (!isAdmin) return <Navigate to="/retails" replace />;
-  return <>{children}</>;
-}
+/* Rota protegida: exige acesso (consulta ou edição) ao tab correspondente. */
+const tab = (key: string, node: React.ReactNode) => (
+  <RequireTab tab={key}><AppLayout>{node}</AppLayout></RequireTab>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -76,29 +77,31 @@ const App = () => (
       <AuthGate>
         <DataProvider>
           <RecordEditorProvider>
+          <PermissionsProvider>
           <HashRouter>
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/retails" element={<AppLayout><RetailsPage /></AppLayout>} />
-              <Route path="/producao" element={<AppLayout><ProducaoPage /></AppLayout>} />
-              <Route path="/carteira" element={<AppLayout><CarteiraPage /></AppLayout>} />
-              <Route path="/pendentes" element={<AppLayout><PendentesPage /></AppLayout>} />
-              <Route path="/escala" element={<AppLayout><EscalaPage /></AppLayout>} />
-              <Route path="/funil" element={<AppLayout><FunilPage /></AppLayout>} />
-              <Route path="/ficha-margem" element={<AppLayout><FichaMargemPage /></AppLayout>} />
-              <Route path="/emprestimos" element={<AppLayout><EmprestimosPage /></AppLayout>} />
-              {/* Admin routes */}
-              <Route path="/multas" element={<AdminGate><AppLayout><MultasPage /></AppLayout></AdminGate>} />
-              <Route path="/dados" element={<AdminGate><AppLayout><DadosPage /></AppLayout></AdminGate>} />
-              <Route path="/database" element={<AdminGate><AppLayout><DatabasePage /></AppLayout></AdminGate>} />
-              <Route path="/demos" element={<AdminGate><AppLayout><DemosPage /></AppLayout></AdminGate>} />
-              <Route path="/objetivos" element={<AdminGate><AppLayout><ObjetivosPage /></AppLayout></AdminGate>} />
-              <Route path="/vendedores" element={<AdminGate><AppLayout><VendedoresPage /></AppLayout></AdminGate>} />
-              <Route path="/fidelizacao" element={<AdminGate><AppLayout><FidelizacaoPage /></AppLayout></AdminGate>} />
-              <Route path="/lavagem" element={<AdminGate><AppLayout><LavagemPage /></AppLayout></AdminGate>} />
+              <Route path="/retails" element={tab('retails', <RetailsPage />)} />
+              <Route path="/producao" element={tab('producao', <ProducaoPage />)} />
+              <Route path="/carteira" element={tab('carteira', <CarteiraPage />)} />
+              <Route path="/pendentes" element={tab('pendentes', <PendentesPage />)} />
+              <Route path="/escala" element={tab('escala', <EscalaPage />)} />
+              <Route path="/funil" element={tab('funil', <FunilPage />)} />
+              <Route path="/ficha-margem" element={tab('ficha-margem', <FichaMargemPage />)} />
+              <Route path="/emprestimos" element={tab('emprestimos', <EmprestimosPage />)} />
+              <Route path="/multas" element={tab('multas', <MultasPage />)} />
+              <Route path="/dados" element={tab('dados', <DadosPage />)} />
+              <Route path="/database" element={tab('database', <DatabasePage />)} />
+              <Route path="/demos" element={tab('demos', <DemosPage />)} />
+              <Route path="/objetivos" element={tab('objetivos', <ObjetivosPage />)} />
+              <Route path="/vendedores" element={tab('vendedores', <VendedoresPage />)} />
+              <Route path="/fidelizacao" element={tab('fidelizacao', <FidelizacaoPage />)} />
+              <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
+              <Route path="/utilizadores" element={tab('utilizadores', <UtilizadoresPage />)} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </HashRouter>
+          </PermissionsProvider>
           </RecordEditorProvider>
         </DataProvider>
       </AuthGate>

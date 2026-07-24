@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle,
   listCycles, listActiveCycles, createCycle, endCycle, deleteCycle, exportCyclesToExcel,
@@ -31,8 +32,20 @@ const DAY_MS = 86400000;
 const HOUR_PX = 64;                 // altura de 1 hora
 const PX_PER_MIN = HOUR_PX / 60;    // altura por minuto (proporcional à duração)
 const MIN_SLOT_PX = 22;             // altura mínima legível (lavagens muito curtas)
-const DEFAULT_START_HOUR = 8;
-const DEFAULT_END_HOUR = 20;
+
+/* Horário de funcionamento da lavagem (em minutos desde a meia-noite).
+ * Manhã 08:30–12:30 · Tarde 14:00–18:00 · Extra 18:00–19:00 (sujeito a
+ * disponibilidade dos colaboradores). O resto do dia está encerrado. */
+const H = (h: number, m = 0) => h * 60 + m;
+const BUSINESS = {
+  open: [
+    { from: H(8, 30), to: H(12, 30) },
+    { from: H(14, 0), to: H(18, 0) },
+  ],
+  extra: { from: H(18, 0), to: H(19, 0) },
+};
+const DEFAULT_START_MIN = H(8, 30);
+const DEFAULT_END_MIN = H(19, 0);
 
 /* Segunda-feira (00:00) da semana da data dada. */
 function mondayOf(d: Date): Date {
@@ -101,6 +114,8 @@ function layoutDay(items: CarWashCycle[]): { placed: PlacedCycle[]; lanes: numbe
 
 export default function LavagemPage() {
   const { session } = useAuth();
+  const { canEdit } = usePermissions();
+  const editable = canEdit('lavagem');
 
   const [plate, setPlate] = useState('');
   const [washType, setWashType] = useState<WashTypeId | ''>('');
@@ -164,6 +179,7 @@ export default function LavagemPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editable) return;
     if (!plate.trim()) { toast.error('Indica a matrícula ou chassis.'); return; }
     if (!washType) { toast.error('Escolhe o tipo de lavagem.'); return; }
     setSubmitting(true);
@@ -182,10 +198,12 @@ export default function LavagemPage() {
   };
 
   const handleEnd = async (id: string) => {
+    if (!editable) return;
     try { await endCycle(id); toast.success('Lavagem terminada.'); await refresh(); }
     catch (err) { toast.error('Não foi possível terminar a lavagem.'); console.error(err); }
   };
   const handleDelete = async (id: string) => {
+    if (!editable) return;
     try { await deleteCycle(id); await refresh(); }
     catch (err) { toast.error('Não foi possível remover o registo.'); console.error(err); }
   };
@@ -221,21 +239,29 @@ export default function LavagemPage() {
     return base;
   }, [cycles, weekStart]);
 
-  // Janela horária da agenda: 8h–20h por defeito, expandida para caber os eventos.
-  const [startHour, endHour] = useMemo(() => {
-    let min = DEFAULT_START_HOUR, max = DEFAULT_END_HOUR;
+  // Janela horária da agenda: horário de funcionamento por defeito, expandida
+  // (arredondada à meia-hora) para caber lavagens fora de horas.
+  const [windowStartMin, windowEndMin] = useMemo(() => {
+    let min = DEFAULT_START_MIN, max = DEFAULT_END_MIN;
     cycles.forEach(c => {
       const s = minutesOfDay(c.started_at);
       const e = s + Math.max(c.duration_min, 5);
-      min = Math.min(min, Math.floor(s / 60));
-      max = Math.max(max, Math.ceil(e / 60));
+      min = Math.min(min, Math.floor(s / 30) * 30);
+      max = Math.max(max, Math.ceil(e / 30) * 30);
     });
-    return [Math.max(0, min), Math.min(24, max)];
+    return [Math.max(0, min), Math.min(24 * 60, max)];
   }, [cycles]);
 
-  const windowStartMin = startHour * 60;
-  const gridHeight = (endHour - startHour) * HOUR_PX;
-  const hours = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
+  const gridHeight = (windowEndMin - windowStartMin) * PX_PER_MIN;
+  // Marcas de meia em meia hora (linha; rótulo apenas às horas certas).
+  const ticks = useMemo(() => {
+    const first = Math.ceil(windowStartMin / 30) * 30;
+    const out: number[] = [];
+    for (let m = first; m <= windowEndMin; m += 30) out.push(m);
+    if (out[0] !== windowStartMin) out.unshift(windowStartMin);
+    return out;
+  }, [windowStartMin, windowEndMin]);
+  const fmtMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
   const selectedType = washType ? WASH_TYPE_MAP[washType] : null;
   const todayIdx = Math.round((new Date().setHours(0, 0, 0, 0) - weekStart.getTime()) / DAY_MS);
@@ -249,6 +275,11 @@ export default function LavagemPage() {
         <Car className="h-5 w-5 text-primary" />
         <h1 className="text-lg font-bold tracking-tight">Lavagem</h1>
         <span className="text-xs text-muted-foreground">· Controlo do fluxo de lavagens</span>
+        {!editable && (
+          <span className="ml-auto text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
+            Modo consulta
+          </span>
+        )}
       </div>
 
       {/* ── Formulário: abrir ciclo ─────────────────────────────────────────── */}
@@ -266,13 +297,14 @@ export default function LavagemPage() {
                 onChange={e => setPlate(e.target.value)}
                 placeholder="AA-00-BB"
                 autoComplete="off"
+                disabled={!editable}
                 className="uppercase"
               />
             </div>
 
             <div className="space-y-1.5">
               <Label>Tipo de lavagem</Label>
-              <Select value={washType} onValueChange={v => setWashType(v as WashTypeId)}>
+              <Select value={washType} onValueChange={v => setWashType(v as WashTypeId)} disabled={!editable}>
                 <SelectTrigger>
                   <SelectValue placeholder="Escolher tipo…" />
                 </SelectTrigger>
@@ -290,7 +322,7 @@ export default function LavagemPage() {
               </Select>
             </div>
 
-            <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+            <Button type="submit" disabled={submitting || !editable} className="w-full sm:w-auto">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Timer className="h-4 w-4" />}
               Iniciar
             </Button>
@@ -341,6 +373,7 @@ export default function LavagemPage() {
                       size="sm"
                       variant="secondary"
                       onClick={() => handleEnd(c.id)}
+                      disabled={!editable}
                       className="flex-shrink-0"
                     >
                       <CheckCircle2 className="h-4 w-4" /> Terminar
@@ -392,9 +425,14 @@ export default function LavagemPage() {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <CalendarDays className="h-4 w-4" /> Semana {weekLabel}
-            </CardTitle>
+            <div>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <CalendarDays className="h-4 w-4" /> Semana {weekLabel}
+              </CardTitle>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Horário: 08:30–12:30 · 14:00–18:00 · <span className="text-amber-700 dark:text-amber-400">extra 18:00–19:00</span>
+              </p>
+            </div>
             <div className="flex items-center gap-1">
               <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setWeekStart(w => addDays(w, -7))} title="Semana anterior">
                 <ChevronLeft className="h-4 w-4" />
@@ -428,13 +466,13 @@ export default function LavagemPage() {
             <div className="flex min-w-[640px] relative" style={{ height: gridHeight }}>
               {/* Gutter de horas */}
               <div className="w-12 flex-shrink-0 relative">
-                {hours.map(h => (
+                {ticks.filter(m => m % 60 === 0 || m === windowStartMin).map(m => (
                   <div
-                    key={h}
+                    key={m}
                     className="absolute right-1 -translate-y-1/2 text-[10px] text-muted-foreground tabular-nums"
-                    style={{ top: (h * 60 - windowStartMin) * PX_PER_MIN }}
+                    style={{ top: (m - windowStartMin) * PX_PER_MIN }}
                   >
-                    {String(h).padStart(2, '0')}:00
+                    {fmtMin(m)}
                   </div>
                 ))}
               </div>
@@ -443,18 +481,36 @@ export default function LavagemPage() {
               {days.map((day, i) => {
                 const { placed, lanes } = layoutDay(day.items);
                 const isToday = isCurrentWeek && i === todayIdx;
+                const bandTop = (from: number, to: number) => ({
+                  top: (Math.max(from, windowStartMin) - windowStartMin) * PX_PER_MIN,
+                  height: (Math.min(to, windowEndMin) - Math.max(from, windowStartMin)) * PX_PER_MIN,
+                });
                 return (
-                  <div key={day.label} className="flex-1 relative border-l border-border">
-                    {/* Linhas de hora */}
-                    {hours.map(h => (
+                  <div key={day.label} className="flex-1 relative border-l border-border bg-muted/40 dark:bg-muted/20">
+                    {/* Faixas de horário aberto (fundo normal sobre o "encerrado") */}
+                    {BUSINESS.open.map((seg, k) => (
+                      <div key={`o${k}`} className="absolute inset-x-0 bg-background" style={bandTop(seg.from, seg.to)} />
+                    ))}
+                    {/* Faixa de horário extra (18h–19h) */}
+                    <div
+                      className="absolute inset-x-0 bg-amber-400/15 dark:bg-amber-400/10 border-t border-dashed border-amber-500/40"
+                      style={bandTop(BUSINESS.extra.from, BUSINESS.extra.to)}
+                      title="Horário extra (sujeito a disponibilidade)"
+                    >
+                      {i === 0 && (
+                        <span className="absolute left-1 top-0.5 text-[9px] font-medium text-amber-700 dark:text-amber-400">extra</span>
+                      )}
+                    </div>
+                    {/* Linhas de meia-hora */}
+                    {ticks.map(m => (
                       <div
-                        key={h}
-                        className="absolute inset-x-0 border-t border-border/60"
-                        style={{ top: (h * 60 - windowStartMin) * PX_PER_MIN }}
+                        key={m}
+                        className={`absolute inset-x-0 ${m % 60 === 0 ? 'border-t border-border/60' : 'border-t border-border/25'}`}
+                        style={{ top: (m - windowStartMin) * PX_PER_MIN }}
                       />
                     ))}
                     {/* Indicador de "agora" */}
-                    {isToday && nowMin >= windowStartMin && nowMin <= endHour * 60 && (
+                    {isToday && nowMin >= windowStartMin && nowMin <= windowEndMin && (
                       <div
                         className="absolute inset-x-0 z-10 border-t-2 border-red-500"
                         style={{ top: (nowMin - windowStartMin) * PX_PER_MIN }}
