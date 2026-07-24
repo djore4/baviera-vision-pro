@@ -24,8 +24,8 @@ export const TABS: TabDef[] = [
   { key: 'pendentes', label: 'Pendentes', path: '/pendentes', group: 'geral' },
   { key: 'ficha-margem', label: 'Ficha Margem', path: '/ficha-margem', group: 'geral' },
   { key: 'escala', label: 'Escala', path: '/escala', group: 'geral' },
-  { key: 'emprestimos', label: 'Empréstimos', path: '/emprestimos', group: 'geral' },
   { key: 'vendedores', label: 'Performance', path: '/vendedores', group: 'admin' },
+  { key: 'emprestimos', label: 'Empréstimos', path: '/emprestimos', group: 'admin' },
   { key: 'fidelizacao', label: 'Fidelização', path: '/fidelizacao', group: 'admin' },
   { key: 'lavagem', label: 'Lavagem', path: '/lavagem', group: 'admin' },
   { key: 'multas', label: 'Multas', path: '/multas', group: 'admin' },
@@ -128,4 +128,8 @@ export async function saveRole(
 ): Promise<AppRole> {
   const res = await invokeAdmin<{ role: AppRole }>({ action: 'save_role', name, permissions, is_admin });
   return res.role;
+}
+
+export async function deleteRole(name: string): Promise<void> {
+  await invokeAdmin({ action: 'delete_role', name });
 }

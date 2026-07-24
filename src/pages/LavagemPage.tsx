@@ -1,22 +1,26 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Car, Loader2, CheckCircle2, Timer, CalendarDays, Trash2, ChevronLeft, ChevronRight,
-  BarChart3, FileSpreadsheet,
+  BarChart3, FileSpreadsheet, Star, ClipboardCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle,
-  listCycles, listActiveCycles, createCycle, endCycle, deleteCycle, exportCyclesToExcel,
+  listCycles, listActiveCycles, createCycle, endCycle, deleteCycle, setQuality, exportCyclesToExcel,
 } from '@/lib/lavagem';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from '@/components/ui/dialog';
 
 /* ── Tab Lavagem (admin) ───────────────────────────────────────────────────────
  * Landing page alcançada a partir da leitura de um QR code externo. Permite abrir
@@ -208,6 +212,38 @@ export default function LavagemPage() {
     catch (err) { toast.error('Não foi possível remover o registo.'); console.error(err); }
   };
 
+  // Controlo de qualidade (nota 0–10 + comentário).
+  const [qcCycle, setQcCycle] = useState<CarWashCycle | null>(null);
+  const [qcScore, setQcScore] = useState<string>('');
+  const [qcComment, setQcComment] = useState<string>('');
+  const [qcSaving, setQcSaving] = useState(false);
+
+  const openQC = (c: CarWashCycle) => {
+    setQcCycle(c);
+    setQcScore(c.quality_score != null ? String(c.quality_score) : '');
+    setQcComment(c.quality_comment ?? '');
+  };
+
+  const handleSaveQC = async () => {
+    if (!qcCycle || !editable) return;
+    const score = qcScore === '' ? null : Number(qcScore);
+    if (score !== null && (isNaN(score) || score < 0 || score > 10)) {
+      toast.error('A nota deve estar entre 0 e 10.'); return;
+    }
+    setQcSaving(true);
+    try {
+      await setQuality(qcCycle.id, score, qcComment, session?.user.email ?? null);
+      toast.success('Controlo de qualidade guardado.');
+      setQcCycle(null);
+      await refresh();
+    } catch (err) {
+      toast.error('Não foi possível guardar o controlo de qualidade.');
+      console.error(err);
+    } finally {
+      setQcSaving(false);
+    }
+  };
+
   const activeSorted = useMemo(
     () => [...active].sort((a, b) => a.started_at.localeCompare(b.started_at)),
     [active],
@@ -363,21 +399,32 @@ export default function LavagemPage() {
                     <div className="flex items-center gap-3 min-w-0">
                       <span className={`inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 ${t?.dot ?? 'bg-slate-400'}`} />
                       <div className="min-w-0">
-                        <div className="font-semibold truncate">{c.plate}</div>
+                        <div className="font-semibold truncate flex items-center gap-1.5">
+                          {c.plate}
+                          {c.quality_score != null && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600">
+                              <Star className="h-3 w-3 fill-amber-500 text-amber-500" />{c.quality_score}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs opacity-80">
                           {t?.label ?? c.wash_type} · {c.duration_min} min · início {fmtTime(c.started_at)}
                         </div>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleEnd(c.id)}
-                      disabled={!editable}
-                      className="flex-shrink-0"
-                    >
-                      <CheckCircle2 className="h-4 w-4" /> Terminar
-                    </Button>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button size="sm" variant="ghost" onClick={() => openQC(c)} title="Controlo de qualidade">
+                        <ClipboardCheck className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleEnd(c.id)}
+                        disabled={!editable}
+                      >
+                        <CheckCircle2 className="h-4 w-4" /> Terminar
+                      </Button>
+                    </div>
                   </li>
                 );
               })}
@@ -528,23 +575,31 @@ export default function LavagemPage() {
                       return (
                         <div
                           key={p.c.id}
-                          className={`group absolute rounded border px-1.5 py-0.5 overflow-hidden text-[11px] leading-tight ${t?.block ?? ''} ${p.c.ended_at ? 'opacity-60' : ''}`}
+                          onClick={() => openQC(p.c)}
+                          className={`group absolute rounded border px-1.5 py-0.5 overflow-hidden text-[11px] leading-tight cursor-pointer ${t?.block ?? ''} ${p.c.ended_at ? 'opacity-60' : ''}`}
                           style={{
                             top, height,
                             left: `calc(${p.lane * widthPct}% + 2px)`,
                             width: `calc(${widthPct}% - 4px)`,
                           }}
-                          title={`${p.c.plate} · ${t?.label ?? p.c.wash_type} · ${p.c.duration_min} min · ${fmtTime(p.c.started_at)}`}
+                          title={`${p.c.plate} · ${t?.label ?? p.c.wash_type} · ${p.c.duration_min} min · ${fmtTime(p.c.started_at)}${p.c.quality_score != null ? ` · QC ${p.c.quality_score}/10` : ''}`}
                         >
                           <div className="flex items-center justify-between gap-1">
                             <span className="font-semibold truncate">{p.c.plate}</span>
-                            <button
-                              onClick={() => handleDelete(p.c.id)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                              title="Remover"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
+                            <span className="flex items-center gap-0.5 flex-shrink-0">
+                              {p.c.quality_score != null && (
+                                <span className="inline-flex items-center gap-0.5 font-semibold">
+                                  <Star className="h-2.5 w-2.5 fill-current" />{p.c.quality_score}
+                                </span>
+                              )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDelete(p.c.id); }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Remover"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </span>
                           </div>
                           {!compact && (
                             <div className="opacity-80 truncate">
@@ -567,6 +622,77 @@ export default function LavagemPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Dialog: controlo de qualidade ───────────────────────────────────── */}
+      <Dialog open={!!qcCycle} onOpenChange={(o) => { if (!o) setQcCycle(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4" /> Controlo de qualidade
+            </DialogTitle>
+            {qcCycle && (
+              <DialogDescription>
+                {qcCycle.plate} · {WASH_TYPE_MAP[qcCycle.wash_type]?.label ?? qcCycle.wash_type} · {fmtTime(qcCycle.started_at)}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label>Nota (0–10)</Label>
+              <div className="flex flex-wrap gap-1">
+                {Array.from({ length: 11 }, (_, n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    disabled={!editable}
+                    onClick={() => setQcScore(String(n))}
+                    className={`h-8 w-8 rounded-md border text-sm font-semibold transition-colors disabled:opacity-50 ${
+                      qcScore === String(n)
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background hover:bg-muted'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              {qcScore !== '' && editable && (
+                <button type="button" className="text-[11px] text-muted-foreground underline" onClick={() => setQcScore('')}>
+                  limpar nota
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="qc-comment">Comentários</Label>
+              <Textarea
+                id="qc-comment"
+                value={qcComment}
+                onChange={(e) => setQcComment(e.target.value)}
+                placeholder="Observações do controlo de qualidade…"
+                rows={4}
+                disabled={!editable}
+              />
+            </div>
+
+            {qcCycle?.quality_by && (
+              <p className="text-[11px] text-muted-foreground">
+                Último registo por {qcCycle.quality_by}
+                {qcCycle.quality_at ? ` em ${new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(qcCycle.quality_at))}` : ''}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQcCycle(null)}>Fechar</Button>
+            <Button onClick={handleSaveQC} disabled={!editable || qcSaving}>
+              {qcSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  UserCog, UserPlus, Loader2, Trash2, KeyRound, Save, ShieldCheck, Users as UsersIcon, X,
+  UserCog, UserPlus, Loader2, Trash2, KeyRound, Save, ShieldCheck, Users as UsersIcon, X, Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   TABS, type AccessLevel, type AppRole, type AppUser,
-  listRoles, listUsers, createUser, updateUser, deleteUser, saveRole,
+  listRoles, listUsers, createUser, updateUser, deleteUser, saveRole, deleteRole,
 } from '@/lib/permissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -276,12 +276,49 @@ function RolesMatrix({
   // Rascunho editável: { roleName: { tabKey: AccessLevel } }
   const [draft, setDraft] = useState<Record<string, Record<string, AccessLevel>>>({});
   const [saving, setSaving] = useState(false);
+  const [newRole, setNewRole] = useState('');
+  const [creatingRole, setCreatingRole] = useState(false);
+  const [busyRole, setBusyRole] = useState<string | null>(null);
 
   useEffect(() => {
     const d: Record<string, Record<string, AccessLevel>> = {};
     roles.forEach(r => { d[r.name] = { ...(r.permissions ?? {}) }; });
     setDraft(d);
   }, [roles]);
+
+  const handleCreateRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newRole.trim();
+    if (!name) return;
+    if (roles.some(r => r.name.toLowerCase() === name.toLowerCase())) {
+      toast.error('Já existe uma função com esse nome.'); return;
+    }
+    setCreatingRole(true);
+    try {
+      await saveRole(name, {}, false);
+      toast.success(`Função "${name}" criada.`);
+      setNewRole('');
+      await onSaved();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível criar a função.');
+    } finally {
+      setCreatingRole(false);
+    }
+  };
+
+  const handleDeleteRole = async (name: string) => {
+    if (!window.confirm(`Eliminar a função "${name}"?`)) return;
+    setBusyRole(name);
+    try {
+      await deleteRole(name);
+      toast.success('Função eliminada.');
+      await onSaved();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível eliminar a função.');
+    } finally {
+      setBusyRole(null);
+    }
+  };
 
   const setCell = (role: string, tab: string, value: AccessLevel) => {
     setDraft(prev => ({ ...prev, [role]: { ...prev[role], [tab]: value } }));
@@ -315,14 +352,28 @@ function RolesMatrix({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <ShieldCheck className="h-4 w-4" /> Permissões por função
           </CardTitle>
-          <Button size="sm" className="h-7 gap-1.5" onClick={handleSave} disabled={saving || !dirty}>
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            Guardar permissões
-          </Button>
+          <div className="flex items-center gap-2">
+            <form onSubmit={handleCreateRole} className="flex items-center gap-1">
+              <Input
+                value={newRole}
+                onChange={e => setNewRole(e.target.value)}
+                placeholder="Nova função (ex: Lavador)"
+                className="h-7 w-[180px] text-xs"
+              />
+              <Button type="submit" size="sm" variant="outline" className="h-7 gap-1" disabled={creatingRole || !newRole.trim()}>
+                {creatingRole ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                Criar
+              </Button>
+            </form>
+            <Button size="sm" className="h-7 gap-1.5" onClick={handleSave} disabled={saving || !dirty}>
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Guardar
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -338,8 +389,21 @@ function RolesMatrix({
                   <th className="py-2 pr-3 font-medium sticky left-0 bg-card">Tab</th>
                   {roles.map(r => (
                     <th key={r.name} className="py-2 px-2 font-medium whitespace-nowrap">
-                      {r.name}
-                      {r.is_admin && <span className="ml-1 text-[10px] text-emerald-600">(total)</span>}
+                      <span className="inline-flex items-center gap-1">
+                        {r.name}
+                        {r.is_admin
+                          ? <span className="text-[10px] text-emerald-600">(total)</span>
+                          : (
+                            <button
+                              onClick={() => handleDeleteRole(r.name)}
+                              disabled={busyRole === r.name}
+                              className="text-destructive/60 hover:text-destructive"
+                              title="Eliminar função"
+                            >
+                              {busyRole === r.name ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                            </button>
+                          )}
+                      </span>
                     </th>
                   ))}
                 </tr>
