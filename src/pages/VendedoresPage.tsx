@@ -119,6 +119,11 @@ export default function VendedoresPage() {
       });
   }, [negocios, retails, control, selectedResps]);
 
+  // Limite simétrico para o eixo (escondido) dos fluxos, para o zero ficar ao centro.
+  const flowMax = useMemo(
+    () => Math.max(4, ...balancoCarteira.map(d => Math.max(d.neg, d.ret))),
+    [balancoCarteira]);
+
   // Carteira atual em aberto (estado, não limitado ao período) — para idade.
   const openCarteira = useMemo(
     () => control.filter(r => isVehicle(r.type) && OPEN.has(r.status) && respOk(r.resp)),
@@ -285,26 +290,27 @@ export default function VendedoresPage() {
                 <ComposedChart data={balancoCarteira} stackOffset="sign" barCategoryGap="24%">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 10 }} allowDecimals={false} />
+                  {/* Eixo visível da esquerda = carteira (linha roxa), a partir do zero. */}
+                  <YAxis yAxisId="cart" tick={{ fontSize: 10, fill: '#8B5CF6' }} allowDecimals={false}
+                    domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }}
                     domain={[0, (max: number) => Math.max(2, Math.ceil(max))]}
                     tickFormatter={(v: number) => v.toFixed(1)} />
-                  {/* Eixo próprio (escondido) para a carteira — a partir do zero, para
-                      o nível ficar em cima e não distorcer as barras de fluxo. */}
-                  <YAxis yAxisId="cart" hide domain={[0, (max: number) => Math.ceil(max * 1.2)]} />
+                  {/* Eixo escondido e simétrico para as barras de fluxo (zero ao centro). */}
+                  <YAxis yAxisId="flow" hide domain={[-flowMax, flowMax]} />
                   <Tooltip
                     contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                     formatter={(value: number, name: string) =>
                       name === 'R' ? [value ?? '—', name] : [Math.abs(value), name]} />
                   <Legend wrapperStyle={{ fontSize: 10 }} />
-                  <ReferenceLine yAxisId="left" y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.4} />
+                  <ReferenceLine yAxisId="flow" y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.4} />
                   <ReferenceLine yAxisId="right" y={1} stroke="#1C69D4" strokeDasharray="4 4" strokeOpacity={0.5} />
-                  <Bar yAxisId="left" dataKey="neg" name="Negócios" stackId="fluxo" fill="#16A34A"
+                  <Bar yAxisId="flow" dataKey="neg" name="Negócios" stackId="fluxo" fill="#16A34A"
                     radius={[3, 3, 0, 0]} barSize={26} stroke="hsl(var(--card))" strokeWidth={1}>
                     <LabelList dataKey="neg" position="top" fontSize={9} fill="hsl(var(--foreground))"
                       formatter={(v: number) => (v > 0 ? v : '')} />
                   </Bar>
-                  <Bar yAxisId="left" dataKey="retNeg" name="Retails" stackId="fluxo" fill="#DC2626"
+                  <Bar yAxisId="flow" dataKey="retNeg" name="Retails" stackId="fluxo" fill="#DC2626"
                     radius={[0, 0, 3, 3]} barSize={26} stroke="hsl(var(--card))" strokeWidth={1}>
                     <LabelList dataKey="retNeg" position="bottom" fontSize={9} fill="hsl(var(--foreground))"
                       formatter={(v: number) => (v < 0 ? Math.abs(v) : '')} />
