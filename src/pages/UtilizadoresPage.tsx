@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  UserCog, UserPlus, Loader2, Trash2, KeyRound, Save, ShieldCheck, Users as UsersIcon, X, Plus,
+  UserPlus, Loader2, Trash2, KeyRound, Save, ShieldCheck, Users as UsersIcon, X, Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -26,11 +26,6 @@ const ACCESS_OPTIONS: { value: AccessLevel; label: string }[] = [
   { value: 'view', label: 'Consulta' },
   { value: 'edit', label: 'Edição' },
 ];
-
-const asArray = (v: unknown): string[] =>
-  Array.isArray(v) ? v.map(String) : (v == null || v === '' ? [] : [String(v)]);
-const joinArr = (v: unknown) => asArray(v).join(', ');
-const parseArr = (s: string) => s.split(',').map(x => x.trim()).filter(Boolean);
 
 export default function UtilizadoresPage() {
   const { reload: reloadPerms } = usePermissions();
@@ -59,12 +54,6 @@ export default function UtilizadoresPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
-      <div className="flex items-center gap-2">
-        <UserCog className="h-5 w-5 text-primary" />
-        <h1 className="text-lg font-bold tracking-tight">Utilizadores</h1>
-        <span className="text-xs text-muted-foreground">· Perfis e permissões de acesso</span>
-      </div>
-
       <UsersSection
         users={users}
         loading={loading}
@@ -93,11 +82,10 @@ function UsersSection({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [perfil, setPerfil] = useState('');
-  const [local, setLocal] = useState('');
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | number | null>(null);
 
-  const resetForm = () => { setNome(''); setEmail(''); setPassword(''); setPerfil(''); setLocal(''); };
+  const resetForm = () => { setNome(''); setEmail(''); setPassword(''); setPerfil(''); };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,7 +94,7 @@ function UsersSection({
     if (password.length < 6) { toast.error('A password deve ter pelo menos 6 caracteres.'); return; }
     setSaving(true);
     try {
-      await createUser({ nome: nome.trim(), email: email.trim().toLowerCase(), password, perfil, local: parseArr(local) });
+      await createUser({ nome: nome.trim(), email: email.trim().toLowerCase(), password, perfil });
       toast.success('Utilizador criado.');
       resetForm();
       setShowForm(false);
@@ -198,10 +186,6 @@ function UsersSection({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="u-local">Local(is)</Label>
-              <Input id="u-local" value={local} onChange={e => setLocal(e.target.value)} placeholder="Aveiro, Porto" />
-            </div>
             <div className="flex items-end">
               <Button type="submit" disabled={saving} className="w-full gap-1.5">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
@@ -225,7 +209,6 @@ function UsersSection({
                   <th className="py-2 pr-3 font-medium">Nome</th>
                   <th className="py-2 pr-3 font-medium">Email</th>
                   <th className="py-2 pr-3 font-medium">Função</th>
-                  <th className="py-2 pr-3 font-medium">Local</th>
                   <th className="py-2 pr-3 font-medium text-right">Ações</th>
                 </tr>
               </thead>
@@ -242,7 +225,6 @@ function UsersSection({
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="py-2 pr-3 text-muted-foreground text-xs">{joinArr(u.local) || '—'}</td>
                     <td className="py-2 pr-3">
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" title="Repor password"

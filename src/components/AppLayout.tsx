@@ -16,13 +16,13 @@ const NAV_ITEMS = [
   { path: '/pendentes', label: 'PENDENTES', icon: AlertTriangle },
   { path: '/ficha-margem', label: 'FICHA MARGEM', icon: Calculator },
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
+  { path: '/lavagem', label: 'LAVAGEM', icon: Droplets },
 ];
 
 const ADMIN_NAV_ITEMS = [
   { path: '/vendedores', label: 'PERFORMANCE', icon: Users },
   { path: '/emprestimos', label: 'EMPRÉSTIMOS', icon: CalendarClock },
   { path: '/fidelizacao', label: 'FIDELIZAÇÃO', icon: HeartHandshake },
-  { path: '/lavagem', label: 'LAVAGEM', icon: Droplets },
   { path: '/multas', label: 'MULTAS', icon: Coins },
   { path: '/dados', label: 'DADOS', icon: Database },
   { path: '/database', label: 'DATABASE', icon: Database },
