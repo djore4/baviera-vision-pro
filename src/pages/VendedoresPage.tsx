@@ -4,6 +4,7 @@ import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList, Legend,
+  ComposedChart, Line, Tooltip, ReferenceLine,
 } from 'recharts';
 
 /* ── Tab Vendedores (admin) ──────────────────────────────────────────────────
@@ -28,6 +29,10 @@ function median(arr: number[]): number | null {
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
+
+const PT_MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const monthKey = (d: Date) => d.getFullYear() * 100 + (d.getMonth() + 1); // AAAAMM
+const monthLabel = (k: number) => `${PT_MONTHS[(k % 100) - 1]}/${String(Math.floor(k / 100)).slice(2)}`;
 
 export default function VendedoresPage() {
   const { data, filter } = useData();
@@ -67,6 +72,49 @@ export default function VendedoresPage() {
     [control, inPeriod, selectedResps]);
 
   const teamR = retails.length ? negocios.length / retails.length : null;
+
+  // Balanço de Carteira — série mensal: negócios fechados (entram, +) vs retails
+  // entregues (saem, −). Barra verde para cima, barra vermelha para baixo, linha
+  // "R" (negócios ÷ retails) num eixo auxiliar e a linha "Carteira" com o valor
+  // (nº de veículos) em aberto no fim de cada mês — a flutuação da carteira.
+  const balancoCarteira = useMemo(() => {
+    const map: Record<number, { neg: number; ret: number }> = {};
+    const ensure = (k: number) => (map[k] ??= { neg: 0, ret: 0 });
+    negocios.forEach(r => { if (r.neg) ensure(monthKey(r.neg)).neg++; });
+    retails.forEach(r => { if (r.date298) ensure(monthKey(r.date298)).ret++; });
+
+    // Universo para reconstruir o stock histórico da carteira: veículos que
+    // entraram em carteira (abertos agora, ou já entregues/Retail com data).
+    const stockUniverse = control.filter(r =>
+      isVehicle(r.type) && respOk(r.resp) && r.neg &&
+      (OPEN.has(r.status) || r.status === 'Retail'));
+    // Aberto no fim do mês k (AAAAMM) se entrou antes do fecho do mês e ainda
+    // não saiu: abertos agora contam sempre; Retail conta até à data de retail.
+    const stockAt = (k: number) => {
+      const boundary = new Date(Math.floor(k / 100), k % 100, 1).getTime(); // 1º dia do mês seguinte
+      return stockUniverse.reduce((n, r) => {
+        if (!r.neg || r.neg.getTime() >= boundary) return n;
+        if (OPEN.has(r.status)) return n + 1;
+        if (r.status === 'Retail' && r.date298 && r.date298.getTime() >= boundary) return n + 1;
+        return n;
+      }, 0);
+    };
+
+    return Object.keys(map)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map(k => {
+        const { neg, ret } = map[k];
+        return {
+          label: monthLabel(k),
+          neg,                       // negócios fechados (barra verde, ↑)
+          ret,                       // retails entregues (valor real, para tooltip)
+          retNeg: -ret,              // retails (barra vermelha, ↓)
+          r: ret ? +(neg / ret).toFixed(2) : null, // R do mês (linha azul)
+          carteira: stockAt(k),      // veículos em carteira no fim do mês (linha roxa)
+        };
+      });
+  }, [negocios, retails, control, selectedResps]);
 
   // Carteira atual em aberto (estado, não limitado ao período) — para idade.
   const openCarteira = useMemo(
@@ -215,6 +263,62 @@ export default function VendedoresPage() {
             <span className="text-[#1C69D4] dark:text-sky-300"> R&gt;1 angaria</span> ·
             <span className="text-amber-700 dark:text-amber-400"> R&lt;1 queima</span> carteira.
           </p>
+
+          {/* Balanço de Carteira — negócios (↑) vs retails (↓) + linha R */}
+          <div className="bg-card border border-border rounded-lg p-2">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Balanço de Carteira</h3>
+              <span className="text-[10px] text-muted-foreground">Negócios ↑ · Retails ↓ · Carteira · R</span>
+            </div>
+            {balancoCarteira.length === 0 ? (
+              <div className="h-[220px] flex items-center justify-center text-[11px] text-muted-foreground">
+                Sem registos no período.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                {/* Barras acima de zero = entradas (negócios fechados); abaixo de zero =
+                    saídas (retails entregues). Saldo positivo ⇒ carteira a crescer.
+                    A linha R (eixo direito) confirma o sentido: R>1 angaria, R<1 queima. */}
+                <ComposedChart data={balancoCarteira} stackOffset="sign" barCategoryGap="24%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }}
+                    domain={[0, (max: number) => Math.max(2, Math.ceil(max))]}
+                    tickFormatter={(v: number) => v.toFixed(1)} />
+                  <Tooltip
+                    contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                    formatter={(value: number, name: string) =>
+                      name === 'R' ? [value ?? '—', name] : [Math.abs(value), name]} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <ReferenceLine yAxisId="left" y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.4} />
+                  <ReferenceLine yAxisId="right" y={1} stroke="#1C69D4" strokeDasharray="4 4" strokeOpacity={0.5} />
+                  <Bar yAxisId="left" dataKey="neg" name="Negócios" fill="#16A34A" radius={[3, 3, 0, 0]} barSize={26}>
+                    <LabelList dataKey="neg" position="top" fontSize={9} fill="hsl(var(--foreground))"
+                      formatter={(v: number) => (v > 0 ? v : '')} />
+                  </Bar>
+                  <Bar yAxisId="left" dataKey="retNeg" name="Retails" fill="#DC2626" radius={[0, 0, 3, 3]} barSize={26}>
+                    <LabelList dataKey="retNeg" position="bottom" fontSize={9} fill="hsl(var(--foreground))"
+                      formatter={(v: number) => (v < 0 ? Math.abs(v) : '')} />
+                  </Bar>
+                  <Line yAxisId="left" type="monotone" dataKey="carteira" name="Carteira" stroke="#8B5CF6"
+                    strokeWidth={2} dot={{ r: 2.5, fill: '#8B5CF6' }}>
+                    <LabelList dataKey="carteira" position="top" fontSize={9} fill="#8B5CF6"
+                      formatter={(v: number) => (v > 0 ? v : '')} />
+                  </Line>
+                  <Line yAxisId="right" type="monotone" dataKey="r" name="R" stroke="#1C69D4"
+                    strokeWidth={2} connectNulls dot={{ r: 2.5, fill: '#1C69D4' }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
+            <p className="text-[10px] text-muted-foreground mt-1 px-1">
+              Barras verdes = negócios fechados (entram) · barras vermelhas = retails entregues (saem) ·
+              <span className="text-[#8B5CF6]"> linha roxa = carteira em aberto no fim do mês</span> (flutuação do stock) ·
+              linha azul = <strong>R</strong> (eixo dir.). Saldo acima de zero e
+              <span className="text-[#1C69D4] dark:text-sky-300"> R&gt;1</span> ⇒ carteira a crescer;
+              abaixo e <span className="text-amber-700 dark:text-amber-400">R&lt;1</span> ⇒ a queimar.
+            </p>
+          </div>
 
           {/* Lead time — distribuição */}
           <div className="bg-card border border-border rounded-lg p-2">
