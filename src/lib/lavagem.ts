@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 
 /* ── Lavagem — camada de acesso a dados ───────────────────────────────────────
@@ -116,4 +117,69 @@ export async function endCycle(id: string): Promise<CarWashCycle> {
 export async function deleteCycle(id: string): Promise<void> {
   const { error } = await supabase.from('car_wash_cycles').delete().eq('id', id);
   if (error) throw error;
+}
+
+/* ── Relatório Excel ──────────────────────────────────────────────────────────
+ * Gera e descarrega um .xlsx com o detalhe das lavagens (matrícula, tipo,
+ * duração, timestamps) + uma folha de resumo por tipo.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const fmtPT = (iso: string | null): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const fmtDatePT = (iso: string): string => {
+  const d = new Date(iso);
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+};
+
+export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): void {
+  // Detalhe — mais antigos primeiro (leitura cronológica).
+  const sorted = [...rows].sort((a, b) => a.started_at.localeCompare(b.started_at));
+
+  const detail = sorted.map(c => ({
+    'Matrícula/Chassis': c.plate,
+    'Tipo': WASH_TYPE_MAP[c.wash_type]?.label ?? c.wash_type,
+    'Duração (min)': c.duration_min,
+    'Data': fmtDatePT(c.started_at),
+    'Início': fmtPT(c.started_at),
+    'Fim': fmtPT(c.ended_at),
+    'Estado': c.ended_at ? 'Terminada' : 'Em curso',
+    'Início (ISO)': c.started_at,
+    'Fim (ISO)': c.ended_at ?? '',
+  }));
+
+  // Resumo por tipo — nº de lavagens e minutos totais.
+  const summary = WASH_TYPES.map(t => {
+    const items = rows.filter(c => c.wash_type === t.id);
+    return {
+      'Tipo': t.label,
+      'Duração (min)': t.duration,
+      'Nº lavagens': items.length,
+      'Minutos totais': items.reduce((s, c) => s + c.duration_min, 0),
+    };
+  });
+  summary.push({
+    'Tipo': 'TOTAL', 'Duração (min)': '' as unknown as number,
+    'Nº lavagens': rows.length,
+    'Minutos totais': rows.reduce((s, c) => s + c.duration_min, 0),
+  });
+
+  const wb = XLSX.utils.book_new();
+  const wsDetail = XLSX.utils.json_to_sheet(detail);
+  wsDetail['!cols'] = [
+    { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+    { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 22 }, { wch: 22 },
+  ];
+  const wsSummary = XLSX.utils.json_to_sheet(summary);
+  wsSummary['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
+
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumo');
+  XLSX.utils.book_append_sheet(wb, wsDetail, 'Lavagens');
+
+  const name = filename ?? `lavagens_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, name);
 }
