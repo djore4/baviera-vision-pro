@@ -85,8 +85,9 @@ export default function VendedoresPage() {
 
     // Universo para reconstruir o stock histórico da carteira: veículos que
     // entraram em carteira (abertos agora, ou já entregues/Retail com data).
+    // A carteira é sempre o TOTAL da equipa — não filtra por vendedor.
     const stockUniverse = control.filter(r =>
-      isVehicle(r.type) && respOk(r.resp) && r.neg &&
+      isVehicle(r.type) && r.neg &&
       (OPEN.has(r.status) || r.status === 'Retail'));
     // Aberto no fim do mês k (AAAAMM) se entrou antes do fecho do mês e ainda
     // não saiu: abertos agora contam sempre; Retail conta até à data de retail.
@@ -293,11 +294,11 @@ export default function VendedoresPage() {
                   <Legend wrapperStyle={{ fontSize: 10 }} />
                   <ReferenceLine yAxisId="left" y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.4} />
                   <ReferenceLine yAxisId="right" y={1} stroke="#1C69D4" strokeDasharray="4 4" strokeOpacity={0.5} />
-                  <Bar yAxisId="left" dataKey="neg" name="Negócios" fill="#16A34A" radius={[3, 3, 0, 0]} barSize={26}>
+                  <Bar yAxisId="left" dataKey="neg" name="Negócios" stackId="fluxo" fill="#16A34A" radius={[3, 3, 0, 0]} barSize={26}>
                     <LabelList dataKey="neg" position="top" fontSize={9} fill="hsl(var(--foreground))"
                       formatter={(v: number) => (v > 0 ? v : '')} />
                   </Bar>
-                  <Bar yAxisId="left" dataKey="retNeg" name="Retails" fill="#DC2626" radius={[0, 0, 3, 3]} barSize={26}>
+                  <Bar yAxisId="left" dataKey="retNeg" name="Retails" stackId="fluxo" fill="#DC2626" radius={[0, 0, 3, 3]} barSize={26}>
                     <LabelList dataKey="retNeg" position="bottom" fontSize={9} fill="hsl(var(--foreground))"
                       formatter={(v: number) => (v < 0 ? Math.abs(v) : '')} />
                   </Bar>
@@ -313,7 +314,7 @@ export default function VendedoresPage() {
             )}
             <p className="text-[10px] text-muted-foreground mt-1 px-1">
               Barras verdes = negócios fechados (entram) · barras vermelhas = retails entregues (saem) ·
-              <span className="text-[#8B5CF6]"> linha roxa = carteira em aberto no fim do mês</span> (flutuação do stock) ·
+              <span className="text-[#8B5CF6]"> linha roxa = carteira total em aberto no fim do mês</span> (flutuação do stock, sempre a equipa toda) ·
               linha azul = <strong>R</strong> (eixo dir.). Saldo acima de zero e
               <span className="text-[#1C69D4] dark:text-sky-300"> R&gt;1</span> ⇒ carteira a crescer;
               abaixo e <span className="text-amber-700 dark:text-amber-400">R&lt;1</span> ⇒ a queimar.
