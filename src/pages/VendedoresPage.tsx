@@ -75,33 +75,32 @@ export default function VendedoresPage() {
 
   // Balanço de Carteira — série mensal: negócios fechados (entram, +) vs retails
   // entregues (saem, −). Barra verde para cima, barra vermelha para baixo, linha
-  // "R" (negócios ÷ retails) num eixo auxiliar e a linha "Carteira" com o valor
-  // (nº de veículos) em aberto no fim de cada mês — a flutuação da carteira.
+  // "R" (negócios ÷ retails) num eixo auxiliar e a linha "Carteira" com o stock
+  // total da equipa ao longo do tempo — a flutuação da carteira.
   const balancoCarteira = useMemo(() => {
     const map: Record<number, { neg: number; ret: number }> = {};
     const ensure = (k: number) => (map[k] ??= { neg: 0, ret: 0 });
     negocios.forEach(r => { if (r.neg) ensure(monthKey(r.neg)).neg++; });
     retails.forEach(r => { if (r.date298) ensure(monthKey(r.date298)).ret++; });
 
-    // Universo para reconstruir o stock histórico da carteira: veículos que
-    // entraram em carteira (abertos agora, ou já entregues/Retail com data).
-    // A carteira é sempre o TOTAL da equipa — não filtra por vendedor.
-    const stockUniverse = control.filter(r =>
-      isVehicle(r.type) && r.neg &&
-      (OPEN.has(r.status) || r.status === 'Retail'));
-    // Carteira do mês k (AAAAMM) = total por entregar contando o próprio mês e
-    // os meses seguintes: entrou até ao fecho do mês e ainda não tinha sido
-    // entregue antes desse mês. Abertos agora contam sempre; os Retail contam se
-    // a entrega é no mês k ou depois (inclui as entregas do próprio mês).
-    const stockAt = (k: number) => {
-      const monthStart = new Date(Math.floor(k / 100), (k % 100) - 1, 1).getTime(); // 1º dia do mês k
-      const nextMonth = new Date(Math.floor(k / 100), k % 100, 1).getTime();        // 1º dia do mês seguinte
-      return stockUniverse.reduce((n, r) => {
-        if (!r.neg || r.neg.getTime() >= nextMonth) return n;
-        if (OPEN.has(r.status)) return n + 1;
-        if (r.status === 'Retail' && r.date298 && r.date298.getTime() >= monthStart) return n + 1;
-        return n;
-      }, 0);
+    // Carteira TOTAL da equipa: ancorada no valor real de agora (nº de veículos
+    // em aberto — Carteira/Matrícula) e reconstruída para trás pelos fluxos
+    // globais. Muitos registos em aberto não têm data de negócio, por isso não
+    // dá para reconstruir o stock histórico direto; ancorar no total atual
+    // garante que o último ponto = carteira real e cada mês varia pelo net
+    // (entradas por negócio − saídas por retail). Independente dos filtros.
+    const vehicles = control.filter(r => isVehicle(r.type));
+    const currentCarteira = vehicles.filter(r => OPEN.has(r.status)).length; // stock atual
+    const net: Record<number, number> = {}; // mês → entradas (neg) − saídas (retail), equipa toda
+    vehicles.forEach(r => {
+      if (CLOSED.has(r.status) && r.neg) net[monthKey(r.neg)] = (net[monthKey(r.neg)] ?? 0) + 1;
+      if (r.status === 'Retail' && r.date298) net[monthKey(r.date298)] = (net[monthKey(r.date298)] ?? 0) - 1;
+    });
+    // carteira(k) = stock atual − net de todos os meses posteriores a k.
+    const carteiraAt = (k: number) => {
+      let future = 0;
+      for (const mk in net) if (Number(mk) > k) future += net[mk];
+      return Math.max(0, currentCarteira - future);
     };
 
     return Object.keys(map)
@@ -115,7 +114,7 @@ export default function VendedoresPage() {
           ret,                       // retails entregues (valor real, para tooltip)
           retNeg: -ret,              // retails (barra vermelha, ↓)
           r: ret ? +(neg / ret).toFixed(2) : null, // R do mês (linha azul)
-          carteira: stockAt(k),      // carteira total por entregar (mês + seguintes) — linha roxa
+          carteira: carteiraAt(k),   // carteira total da equipa no fim do mês — linha roxa
         };
       });
   }, [negocios, retails, control, selectedResps]);
@@ -317,7 +316,7 @@ export default function VendedoresPage() {
             )}
             <p className="text-[10px] text-muted-foreground mt-1 px-1">
               Barras verdes = negócios fechados (entram) · barras vermelhas = retails entregues (saem) ·
-              <span className="text-[#8B5CF6]"> linha roxa = carteira total por entregar (mês + meses seguintes)</span> (sempre a equipa toda) ·
+              <span className="text-[#8B5CF6]"> linha roxa = carteira total da equipa</span> (stock em aberto, ancorado no valor atual) ·
               linha azul = <strong>R</strong> (eixo dir.). Saldo acima de zero e
               <span className="text-[#1C69D4] dark:text-sky-300"> R&gt;1</span> ⇒ carteira a crescer;
               abaixo e <span className="text-amber-700 dark:text-amber-400">R&lt;1</span> ⇒ a queimar.
