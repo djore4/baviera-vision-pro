@@ -1,8 +1,8 @@
 // Edge function admin-users — operações privilegiadas sobre utilizadores/funções.
 // Só um administrador (email de admin ou perfil com is_admin) pode invocar.
 // Usa o service role para criar/eliminar utilizadores de autenticação e para
-// escrever nas tabelas utilizadores/app_roles (que só permitem leitura a
-// utilizadores autenticados).
+// escrever nas tabelas app_users/app_roles (que só permitem leitura a
+// utilizadores autenticados). A tabela app_users é exclusiva desta plataforma.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     // Validar admin: email de admin OU perfil com is_admin.
     let isAdmin = (user.email ?? "").toLowerCase() === ADMIN_EMAIL;
     if (!isAdmin && user.email) {
-      const { data: u } = await admin.from("utilizadores").select("perfil").ilike("email", user.email).maybeSingle();
+      const { data: u } = await admin.from("app_users").select("perfil").ilike("email", user.email).maybeSingle();
       if (u?.perfil) {
         const { data: r } = await admin.from("app_roles").select("is_admin").eq("name", u.perfil).maybeSingle();
         isAdmin = !!r?.is_admin;
@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
       });
       if (cErr || !created?.user) return json({ error: cErr?.message ?? "Falha a criar login." }, 400);
 
-      const { data: row, error: iErr } = await admin.from("utilizadores")
+      const { data: row, error: iErr } = await admin.from("app_users")
         .insert({ nome: nome ?? null, email, perfil: perfil ?? null, local: local ?? null, negocio: negocio ?? null, marca: marca ?? null })
         .select(USER_COLS).single();
       if (iErr) {
@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     if (action === "update") {
       const { id, patch, password } = body;
       if (!id) return json({ error: "id em falta." }, 400);
-      const { data: row, error: e1 } = await admin.from("utilizadores")
+      const { data: row, error: e1 } = await admin.from("app_users")
         .update(patch ?? {}).eq("id", id).select(USER_COLS).single();
       if (e1) return json({ error: e1.message }, 400);
       if (password && row?.email) {
@@ -95,8 +95,8 @@ Deno.serve(async (req) => {
     if (action === "delete") {
       const { id } = body;
       if (!id) return json({ error: "id em falta." }, 400);
-      const { data: row } = await admin.from("utilizadores").select("email").eq("id", id).maybeSingle();
-      const { error: dErr } = await admin.from("utilizadores").delete().eq("id", id);
+      const { data: row } = await admin.from("app_users").select("email").eq("id", id).maybeSingle();
+      const { error: dErr } = await admin.from("app_users").delete().eq("id", id);
       if (dErr) return json({ error: dErr.message }, 400);
       if (row?.email) {
         const authUser = await findAuthUserByEmail(admin, row.email);
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       const { name } = body;
       if (!name) return json({ error: "Nome da função em falta." }, 400);
       // Não permitir eliminar funções em uso.
-      const { count } = await admin.from("utilizadores")
+      const { count } = await admin.from("app_users")
         .select("id", { count: "exact", head: true }).eq("perfil", name);
       if ((count ?? 0) > 0) return json({ error: "Função em uso por utilizadores." }, 400);
       const { data: role } = await admin.from("app_roles").select("is_admin").eq("name", name).maybeSingle();

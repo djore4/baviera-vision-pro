@@ -65,10 +65,10 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     const access = (tab: string): AccessLevel => {
       if (isAdmin) return 'edit';
       if (role) return (role.permissions?.[tab] as AccessLevel) ?? 'none';
-      // Fallback (email não gerido): comportamento legado — tabs gerais editáveis,
-      // tabs de admin ocultos. Evita bloquear utilizadores durante a transição.
-      const def = TABS.find(t => t.key === tab);
-      return def && def.group === 'geral' ? 'edit' : 'none';
+      // Sem perfil nesta plataforma → sem acesso (tem de ser adicionado por um
+      // admin no tab Utilizadores). Impede o acesso de contas de outras
+      // plataformas que partilham a autenticação.
+      return 'none';
     };
 
     return {
