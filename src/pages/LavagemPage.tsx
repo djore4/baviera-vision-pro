@@ -118,8 +118,12 @@ function layoutDay(items: CarWashCycle[]): { placed: PlacedCycle[]; lanes: numbe
 
 export default function LavagemPage() {
   const { session } = useAuth();
-  const { canEdit } = usePermissions();
-  const editable = canEdit('lavagem');
+  const { isAdmin, roleName } = usePermissions();
+  // Permissões específicas dentro do tab Lavagem (ver tab: qualquer perfil com acesso).
+  const canStart = isAdmin || roleName === 'Lavador';                              // iniciar/terminar
+  const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';   // controlo de qualidade
+  const canExport = isAdmin;                                                       // exportar Excel
+  const canDelete = isAdmin;                                                       // remover registos
 
   const [plate, setPlate] = useState('');
   const [washType, setWashType] = useState<WashTypeId | ''>('');
@@ -183,7 +187,7 @@ export default function LavagemPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editable) return;
+    if (!canStart) return;
     if (!plate.trim()) { toast.error('Indica a matrícula ou chassis.'); return; }
     if (!washType) { toast.error('Escolhe o tipo de lavagem.'); return; }
     setSubmitting(true);
@@ -202,12 +206,12 @@ export default function LavagemPage() {
   };
 
   const handleEnd = async (id: string) => {
-    if (!editable) return;
+    if (!canStart) return;
     try { await endCycle(id); toast.success('Lavagem terminada.'); await refresh(); }
     catch (err) { toast.error('Não foi possível terminar a lavagem.'); console.error(err); }
   };
   const handleDelete = async (id: string) => {
-    if (!editable) return;
+    if (!canDelete) return;
     try { await deleteCycle(id); await refresh(); }
     catch (err) { toast.error('Não foi possível remover o registo.'); console.error(err); }
   };
@@ -225,7 +229,7 @@ export default function LavagemPage() {
   };
 
   const handleSaveQC = async () => {
-    if (!qcCycle || !editable) return;
+    if (!qcCycle || !canQC) return;
     const score = qcScore === '' ? null : Number(qcScore);
     if (score !== null && (isNaN(score) || score < 0 || score > 10)) {
       toast.error('A nota deve estar entre 0 e 10.'); return;
@@ -311,66 +315,62 @@ export default function LavagemPage() {
         <Car className="h-5 w-5 text-primary" />
         <h1 className="text-lg font-bold tracking-tight">Lavagem</h1>
         <span className="text-xs text-muted-foreground">· Controlo do fluxo de lavagens</span>
-        {!editable && (
-          <span className="ml-auto text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
-            Modo consulta
-          </span>
-        )}
       </div>
 
-      {/* ── Formulário: abrir ciclo ─────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Nova lavagem</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-            <div className="space-y-1.5">
-              <Label htmlFor="plate">Matrícula / Chassis</Label>
-              <Input
-                id="plate"
-                value={plate}
-                onChange={e => setPlate(e.target.value)}
-                placeholder="AA-00-BB"
-                autoComplete="off"
-                disabled={!editable}
-                className="uppercase"
-              />
-            </div>
+      {/* ── Formulário: abrir ciclo (apenas Lavador e Admin) ─────────────────── */}
+      {canStart && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Nova lavagem</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <div className="space-y-1.5">
+                <Label htmlFor="plate">Matrícula / Chassis</Label>
+                <Input
+                  id="plate"
+                  value={plate}
+                  onChange={e => setPlate(e.target.value)}
+                  placeholder="AA-00-BB"
+                  autoComplete="off"
+                  className="uppercase"
+                />
+              </div>
 
-            <div className="space-y-1.5">
-              <Label>Tipo de lavagem</Label>
-              <Select value={washType} onValueChange={v => setWashType(v as WashTypeId)} disabled={!editable}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Escolher tipo…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {WASH_TYPES.map(t => (
-                    <SelectItem key={t.id} value={t.id}>
-                      <span className="flex items-center gap-2">
-                        <span className={`inline-block h-2.5 w-2.5 rounded-full ${t.dot}`} />
-                        {t.label}
-                        <span className="text-muted-foreground text-xs">· {t.duration} min</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="space-y-1.5">
+                <Label>Tipo de lavagem</Label>
+                <Select value={washType} onValueChange={v => setWashType(v as WashTypeId)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Escolher tipo…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WASH_TYPES.map(t => (
+                      <SelectItem key={t.id} value={t.id}>
+                        <span className="flex items-center gap-2">
+                          <span className={`inline-block h-2.5 w-2.5 rounded-full ${t.dot}`} />
+                          {t.label}
+                          <span className="text-muted-foreground text-xs">· {t.duration} min</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <Button type="submit" disabled={submitting || !editable} className="w-full sm:w-auto">
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Timer className="h-4 w-4" />}
-              Iniciar
-            </Button>
-          </form>
+              <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Timer className="h-4 w-4" />}
+                Iniciar
+              </Button>
+            </form>
 
-          {selectedType && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Duração prevista: <span className="font-medium text-foreground">{selectedType.duration} min</span>
-            </p>
-          )}
-        </CardContent>
-      </Card>
+            {selectedType && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Duração prevista: <span className="font-medium text-foreground">{selectedType.duration} min</span>
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Ciclos em curso ─────────────────────────────────────────────────── */}
       <Card>
@@ -416,14 +416,15 @@ export default function LavagemPage() {
                       <Button size="sm" variant="ghost" onClick={() => openQC(c)} title="Controlo de qualidade">
                         <ClipboardCheck className="h-4 w-4" />
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleEnd(c.id)}
-                        disabled={!editable}
-                      >
-                        <CheckCircle2 className="h-4 w-4" /> Terminar
-                      </Button>
+                      {canStart && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleEnd(c.id)}
+                        >
+                          <CheckCircle2 className="h-4 w-4" /> Terminar
+                        </Button>
+                      )}
                     </div>
                   </li>
                 );
@@ -453,10 +454,12 @@ export default function LavagemPage() {
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <BarChart3 className="h-4 w-4" /> Estatísticas
             </CardTitle>
-            <Button variant="outline" size="sm" className="h-7 gap-1.5" onClick={handleExport} disabled={exporting}>
-              {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
-              Exportar Excel
-            </Button>
+            {canExport && (
+              <Button variant="outline" size="sm" className="h-7 gap-1.5" onClick={handleExport} disabled={exporting}>
+                {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
+                Exportar Excel
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -592,13 +595,15 @@ export default function LavagemPage() {
                                   <Star className="h-2.5 w-2.5 fill-current" />{p.c.quality_score}
                                 </span>
                               )}
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleDelete(p.c.id); }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                title="Remover"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
+                              {canDelete && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDelete(p.c.id); }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Remover"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              )}
                             </span>
                           </div>
                           {!compact && (
@@ -645,7 +650,7 @@ export default function LavagemPage() {
                   <button
                     key={n}
                     type="button"
-                    disabled={!editable}
+                    disabled={!canQC}
                     onClick={() => setQcScore(String(n))}
                     className={`h-8 w-8 rounded-md border text-sm font-semibold transition-colors disabled:opacity-50 ${
                       qcScore === String(n)
@@ -657,7 +662,7 @@ export default function LavagemPage() {
                   </button>
                 ))}
               </div>
-              {qcScore !== '' && editable && (
+              {qcScore !== '' && canQC && (
                 <button type="button" className="text-[11px] text-muted-foreground underline" onClick={() => setQcScore('')}>
                   limpar nota
                 </button>
@@ -672,7 +677,7 @@ export default function LavagemPage() {
                 onChange={(e) => setQcComment(e.target.value)}
                 placeholder="Observações do controlo de qualidade…"
                 rows={4}
-                disabled={!editable}
+                disabled={!canQC}
               />
             </div>
 
@@ -686,10 +691,12 @@ export default function LavagemPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setQcCycle(null)}>Fechar</Button>
-            <Button onClick={handleSaveQC} disabled={!editable || qcSaving}>
-              {qcSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              Guardar
-            </Button>
+            {canQC && (
+              <Button onClick={handleSaveQC} disabled={qcSaving}>
+                {qcSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Guardar
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
