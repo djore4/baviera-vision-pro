@@ -67,8 +67,9 @@ export async function listRoles(): Promise<AppRole[]> {
 }
 
 export async function listUsers(): Promise<AppUser[]> {
+  // Tabela dedicada a esta plataforma (separada da partilhada `utilizadores`).
   const { data, error } = await supabase
-    .from('utilizadores')
+    .from('app_users')
     .select('id, nome, email, perfil, local, negocio, marca')
     .order('nome', { ascending: true });
   if (error) throw error;

@@ -165,7 +165,7 @@ function UsersSection({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <UsersIcon className="h-4 w-4" /> Utilizadores
+            <UsersIcon className="h-4 w-4" /> Contas
             <span className="text-xs font-normal text-muted-foreground">({users.length})</span>
           </CardTitle>
           <Button variant="outline" size="sm" className="h-7 gap-1.5" onClick={() => setShowForm(v => !v)}>
