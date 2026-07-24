@@ -107,12 +107,26 @@ Deno.serve(async (req) => {
 
     if (action === "save_role") {
       const { name, permissions, is_admin } = body;
-      if (!name) return json({ error: "Nome da função em falta." }, 400);
+      if (!name || !String(name).trim()) return json({ error: "Nome da função em falta." }, 400);
       const { data: row, error: rErr } = await admin.from("app_roles")
-        .upsert({ name, permissions: permissions ?? {}, is_admin: !!is_admin }, { onConflict: "name" })
+        .upsert({ name: String(name).trim(), permissions: permissions ?? {}, is_admin: !!is_admin }, { onConflict: "name" })
         .select("name, is_admin, permissions").single();
       if (rErr) return json({ error: rErr.message }, 400);
       return json({ role: row });
+    }
+
+    if (action === "delete_role") {
+      const { name } = body;
+      if (!name) return json({ error: "Nome da função em falta." }, 400);
+      // Não permitir eliminar funções em uso.
+      const { count } = await admin.from("utilizadores")
+        .select("id", { count: "exact", head: true }).eq("perfil", name);
+      if ((count ?? 0) > 0) return json({ error: "Função em uso por utilizadores." }, 400);
+      const { data: role } = await admin.from("app_roles").select("is_admin").eq("name", name).maybeSingle();
+      if (role?.is_admin) return json({ error: "Não é possível eliminar uma função de administrador." }, 400);
+      const { error: dErr } = await admin.from("app_roles").delete().eq("name", name);
+      if (dErr) return json({ error: dErr.message }, 400);
+      return json({ ok: true });
     }
 
     return json({ error: "Ação desconhecida." }, 400);

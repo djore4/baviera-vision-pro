@@ -54,6 +54,10 @@ export interface CarWashCycle {
   started_at: string;        // ISO
   ended_at: string | null;   // ISO, null = em curso
   created_by: string | null;
+  quality_score: number | null;    // controlo de qualidade 0–10
+  quality_comment: string | null;
+  quality_by: string | null;
+  quality_at: string | null;        // ISO
   created_at: string;
   updated_at: string;
 }
@@ -119,6 +123,28 @@ export async function deleteCycle(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/* Controlo de qualidade — nota (0–10) e comentário. score null limpa a nota. */
+export async function setQuality(
+  id: string,
+  score: number | null,
+  comment: string | null,
+  by?: string | null,
+): Promise<CarWashCycle> {
+  const { data, error } = await supabase
+    .from('car_wash_cycles')
+    .update({
+      quality_score: score,
+      quality_comment: comment && comment.trim() ? comment.trim() : null,
+      quality_by: score === null && !comment ? null : (by ?? null),
+      quality_at: score === null && !comment ? null : new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CarWashCycle;
+}
+
 /* ── Relatório Excel ──────────────────────────────────────────────────────────
  * Gera e descarrega um .xlsx com o detalhe das lavagens (matrícula, tipo,
  * duração, timestamps) + uma folha de resumo por tipo.
@@ -148,6 +174,8 @@ export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): vo
     'Início': fmtPT(c.started_at),
     'Fim': fmtPT(c.ended_at),
     'Estado': c.ended_at ? 'Terminada' : 'Em curso',
+    'Nota QC': c.quality_score ?? '',
+    'Comentário QC': c.quality_comment ?? '',
     'Início (ISO)': c.started_at,
     'Fim (ISO)': c.ended_at ?? '',
   }));
@@ -172,7 +200,8 @@ export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): vo
   const wsDetail = XLSX.utils.json_to_sheet(detail);
   wsDetail['!cols'] = [
     { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-    { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 22 }, { wch: 22 },
+    { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 8 }, { wch: 30 },
+    { wch: 22 }, { wch: 22 },
   ];
   const wsSummary = XLSX.utils.json_to_sheet(summary);
   wsSummary['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
