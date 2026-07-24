@@ -289,6 +289,9 @@ export default function VendedoresPage() {
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }}
                     domain={[0, (max: number) => Math.max(2, Math.ceil(max))]}
                     tickFormatter={(v: number) => v.toFixed(1)} />
+                  {/* Eixo próprio (escondido) para a carteira — não distorce as barras de fluxo. */}
+                  <YAxis yAxisId="cart" hide
+                    domain={[(min: number) => Math.max(0, Math.floor(min - 5)), (max: number) => Math.ceil(max + 5)]} />
                   <Tooltip
                     contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                     formatter={(value: number, name: string) =>
@@ -304,7 +307,7 @@ export default function VendedoresPage() {
                     <LabelList dataKey="retNeg" position="bottom" fontSize={9} fill="hsl(var(--foreground))"
                       formatter={(v: number) => (v < 0 ? Math.abs(v) : '')} />
                   </Bar>
-                  <Line yAxisId="left" type="monotone" dataKey="carteira" name="Carteira" stroke="#8B5CF6"
+                  <Line yAxisId="cart" type="monotone" dataKey="carteira" name="Carteira" stroke="#8B5CF6"
                     strokeWidth={2} dot={{ r: 2.5, fill: '#8B5CF6' }}>
                     <LabelList dataKey="carteira" position="top" fontSize={9} fill="#8B5CF6"
                       formatter={(v: number) => (v > 0 ? v : '')} />
