@@ -120,13 +120,15 @@ export default function LavagemPage() {
   const { session } = useAuth();
   const { isAdmin, roleName } = usePermissions();
   // Permissões específicas dentro do tab Lavagem (ver tab: qualquer perfil com acesso).
-  const canStart = isAdmin || roleName === 'Lavador';                              // iniciar/terminar
-  const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';   // controlo de qualidade
-  const canExport = isAdmin;                                                       // exportar Excel
-  const canDelete = isAdmin;                                                       // remover registos
+  const canCreate = isAdmin || roleName === 'Lavador' || roleName === 'Preparador'; // adicionar/agendar
+  const canTerminate = isAdmin || roleName === 'Lavador';                           // terminar
+  const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';    // controlo de qualidade
+  const canExport = isAdmin;                                                        // exportar Excel
+  const canDelete = isAdmin;                                                        // remover registos
 
   const [plate, setPlate] = useState('');
   const [washType, setWashType] = useState<WashTypeId | ''>('');
+  const [schedAt, setSchedAt] = useState('');   // agendamento (datetime-local); vazio = agora
   const [submitting, setSubmitting] = useState(false);
 
   const [cycles, setCycles] = useState<CarWashCycle[]>([]);
@@ -187,18 +189,25 @@ export default function LavagemPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canStart) return;
+    if (!canCreate) return;
     if (!plate.trim()) { toast.error('Indica a matrícula ou chassis.'); return; }
     if (!washType) { toast.error('Escolhe o tipo de lavagem.'); return; }
+    let startedAt: string | undefined;
+    if (schedAt) {
+      const d = new Date(schedAt);
+      if (isNaN(d.getTime())) { toast.error('Data de agendamento inválida.'); return; }
+      startedAt = d.toISOString();
+    }
     setSubmitting(true);
     try {
-      await createCycle({ plate, wash_type: washType, created_by: session?.user.email ?? null });
-      toast.success('Lavagem iniciada.');
+      await createCycle({ plate, wash_type: washType, created_by: session?.user.email ?? null, started_at: startedAt });
+      toast.success(startedAt ? 'Lavagem agendada.' : 'Lavagem iniciada.');
       setPlate('');
       setWashType('');
+      setSchedAt('');
       await refresh();
     } catch (err) {
-      toast.error('Não foi possível iniciar a lavagem.');
+      toast.error('Não foi possível registar a lavagem.');
       console.error(err);
     } finally {
       setSubmitting(false);
@@ -206,7 +215,7 @@ export default function LavagemPage() {
   };
 
   const handleEnd = async (id: string) => {
-    if (!canStart) return;
+    if (!canTerminate) return;
     try { await endCycle(id); toast.success('Lavagem terminada.'); await refresh(); }
     catch (err) { toast.error('Não foi possível terminar a lavagem.'); console.error(err); }
   };
@@ -248,10 +257,20 @@ export default function LavagemPage() {
     }
   };
 
-  const activeSorted = useMemo(
-    () => [...active].sort((a, b) => a.started_at.localeCompare(b.started_at)),
-    [active],
-  );
+  // "Em curso" = por terminar e já iniciadas (as agendadas para o futuro só
+  // aparecem na agenda até chegar a hora).
+  const activeSorted = useMemo(() => {
+    const nowIso = new Date().toISOString();
+    return [...active]
+      .filter(c => c.started_at <= nowIso)
+      .sort((a, b) => a.started_at.localeCompare(b.started_at));
+  }, [active]);
+
+  // Lavagens agendadas para o futuro (por iniciar).
+  const scheduledCount = useMemo(() => {
+    const nowIso = new Date().toISOString();
+    return active.filter(c => c.started_at > nowIso).length;
+  }, [active]);
 
   // Estatísticas por período (hoje / semana / mês) — quantas e que tipo.
   const stats = useMemo(() => {
@@ -317,14 +336,14 @@ export default function LavagemPage() {
         <span className="text-xs text-muted-foreground">· Controlo do fluxo de lavagens</span>
       </div>
 
-      {/* ── Formulário: abrir ciclo (apenas Lavador e Admin) ─────────────────── */}
-      {canStart && (
+      {/* ── Formulário: adicionar/agendar lavagem (Lavador, Preparador, Admin) ── */}
+      {canCreate && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">Nova lavagem</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
               <div className="space-y-1.5">
                 <Label htmlFor="plate">Matrícula / Chassis</Label>
                 <Input
@@ -357,15 +376,26 @@ export default function LavagemPage() {
                 </Select>
               </div>
 
+              <div className="space-y-1.5">
+                <Label htmlFor="sched">Agendar para <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+                <Input
+                  id="sched"
+                  type="datetime-local"
+                  value={schedAt}
+                  onChange={e => setSchedAt(e.target.value)}
+                />
+              </div>
+
               <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Timer className="h-4 w-4" />}
-                Iniciar
+                {schedAt ? 'Agendar' : 'Iniciar'}
               </Button>
             </form>
 
             {selectedType && (
               <p className="mt-2 text-xs text-muted-foreground">
                 Duração prevista: <span className="font-medium text-foreground">{selectedType.duration} min</span>
+                {schedAt ? ' · será colocada na agenda à hora indicada' : ''}
               </p>
             )}
           </CardContent>
@@ -378,6 +408,11 @@ export default function LavagemPage() {
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Timer className="h-4 w-4" /> Em curso
             <span className="text-xs font-normal text-muted-foreground">({activeSorted.length})</span>
+            {scheduledCount > 0 && (
+              <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                {scheduledCount} agendada{scheduledCount > 1 ? 's' : ''}
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -416,7 +451,7 @@ export default function LavagemPage() {
                       <Button size="sm" variant="ghost" onClick={() => openQC(c)} title="Controlo de qualidade">
                         <ClipboardCheck className="h-4 w-4" />
                       </Button>
-                      {canStart && (
+                      {canTerminate && (
                         <Button
                           size="sm"
                           variant="secondary"
@@ -575,17 +610,18 @@ export default function LavagemPage() {
                       const height = Math.max(p.dur * PX_PER_MIN, MIN_SLOT_PX);
                       const widthPct = 100 / lanes;
                       const compact = height < 34;
+                      const scheduled = !p.c.ended_at && new Date(p.c.started_at).getTime() > Date.now();
                       return (
                         <div
                           key={p.c.id}
                           onClick={() => openQC(p.c)}
-                          className={`group absolute rounded border px-1.5 py-0.5 overflow-hidden text-[11px] leading-tight cursor-pointer ${t?.block ?? ''} ${p.c.ended_at ? 'opacity-60' : ''}`}
+                          className={`group absolute rounded border px-1.5 py-0.5 overflow-hidden text-[11px] leading-tight cursor-pointer ${t?.block ?? ''} ${p.c.ended_at ? 'opacity-60' : ''} ${scheduled ? 'border-dashed' : ''}`}
                           style={{
                             top, height,
                             left: `calc(${p.lane * widthPct}% + 2px)`,
                             width: `calc(${widthPct}% - 4px)`,
                           }}
-                          title={`${p.c.plate} · ${t?.label ?? p.c.wash_type} · ${p.c.duration_min} min · ${fmtTime(p.c.started_at)}${p.c.quality_score != null ? ` · QC ${p.c.quality_score}/10` : ''}`}
+                          title={`${p.c.plate} · ${t?.label ?? p.c.wash_type} · ${p.c.duration_min} min · ${fmtTime(p.c.started_at)}${scheduled ? ' · agendada' : ''}${p.c.quality_score != null ? ` · QC ${p.c.quality_score}/10` : ''}`}
                         >
                           <div className="flex items-center justify-between gap-1">
                             <span className="font-semibold truncate">{p.c.plate}</span>
