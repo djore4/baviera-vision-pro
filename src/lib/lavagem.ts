@@ -63,11 +63,23 @@ export type NewCycle = {
   created_by?: string | null;
 };
 
-/* Lista os ciclos com início a partir de `since` (ISO), mais recentes primeiro. */
-export async function listCycles(since?: string): Promise<CarWashCycle[]> {
+/* Lista os ciclos com início dentro de [from, to) (ISO), mais recentes primeiro. */
+export async function listCycles(range?: { from?: string; to?: string }): Promise<CarWashCycle[]> {
   let q = supabase.from('car_wash_cycles').select('*');
-  if (since) q = q.gte('started_at', since);
+  if (range?.from) q = q.gte('started_at', range.from);
+  if (range?.to) q = q.lt('started_at', range.to);
   const { data, error } = await q.order('started_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CarWashCycle[];
+}
+
+/* Ciclos em curso (por encerrar), independentemente da semana. */
+export async function listActiveCycles(): Promise<CarWashCycle[]> {
+  const { data, error } = await supabase
+    .from('car_wash_cycles')
+    .select('*')
+    .is('ended_at', null)
+    .order('started_at', { ascending: true });
   if (error) throw error;
   return (data ?? []) as CarWashCycle[];
 }
