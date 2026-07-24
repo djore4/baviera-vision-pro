@@ -1,4 +1,6 @@
 project_id = "fzjabtcjueyuekfhzuds"
 
 [functions.admin-users]
-verify_jwt = true
+# Validação de JWT feita dentro da função (getUser), para evitar o erro de
+# verificação no gateway com chaves de assinatura ES256.
+verify_jwt = false

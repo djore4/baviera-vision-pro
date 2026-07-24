@@ -1,9 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Coins, Car, Target, Calculator, CalendarClock, Users, HeartHandshake, Droplets, UserCog } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, HeartHandshake, Droplets, UserCog, Archive } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { TABS } from '@/lib/permissions';
 import { useState, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import bmwLogo from '@/assets/bmw-logo.png';
@@ -21,13 +22,9 @@ const NAV_ITEMS = [
 
 const ADMIN_NAV_ITEMS = [
   { path: '/vendedores', label: 'PERFORMANCE', icon: Users },
-  { path: '/emprestimos', label: 'EMPRÉSTIMOS', icon: CalendarClock },
   { path: '/fidelizacao', label: 'FIDELIZAÇÃO', icon: HeartHandshake },
-  { path: '/multas', label: 'MULTAS', icon: Coins },
   { path: '/dados', label: 'DADOS', icon: Database },
-  { path: '/database', label: 'DATABASE', icon: Database },
-  { path: '/demos', label: 'DEMOS', icon: Car },
-  { path: '/objetivos', label: 'OBJETIVOS', icon: Target },
+  { path: '/arquivo', label: 'ARQUIVO', icon: Archive },
   { path: '/utilizadores', label: 'UTILIZADORES', icon: UserCog },
 ];
 
@@ -122,7 +119,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </button>
             <img src={bmwLogo} alt="BMW" className="h-8 w-8" />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {[...NAV_ITEMS, ...ADMIN_NAV_ITEMS].find(n => n.path === location.pathname)?.label || 'Dashboard'}
+              {[...NAV_ITEMS, ...ADMIN_NAV_ITEMS].find(n => n.path === location.pathname)?.label
+                || TABS.find(t => t.path === location.pathname)?.label
+                || 'Dashboard'}
             </span>
           </div>
 <div className="flex items-center gap-2">

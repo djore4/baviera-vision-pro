@@ -33,8 +33,12 @@ export const TABS: TabDef[] = [
   { key: 'database', label: 'Database', path: '/database', group: 'admin' },
   { key: 'demos', label: 'Demos', path: '/demos', group: 'admin' },
   { key: 'objetivos', label: 'Objetivos', path: '/objetivos', group: 'admin' },
+  { key: 'arquivo', label: 'Arquivo', path: '/arquivo', group: 'admin' },
   { key: 'utilizadores', label: 'Utilizadores', path: '/utilizadores', group: 'admin' },
 ];
+
+/* Tabs "arrumados" dentro do Arquivo (não aparecem diretamente na barra lateral). */
+export const ARCHIVED_TAB_KEYS = ['emprestimos', 'multas', 'database', 'demos', 'objetivos'];
 
 export const TAB_BY_PATH: Record<string, TabDef> =
   TABS.reduce((acc, t) => { acc[t.path] = t; return acc; }, {} as Record<string, TabDef>);
