@@ -289,9 +289,9 @@ export default function VendedoresPage() {
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }}
                     domain={[0, (max: number) => Math.max(2, Math.ceil(max))]}
                     tickFormatter={(v: number) => v.toFixed(1)} />
-                  {/* Eixo próprio (escondido) para a carteira — não distorce as barras de fluxo. */}
-                  <YAxis yAxisId="cart" hide
-                    domain={[(min: number) => Math.max(0, Math.floor(min - 5)), (max: number) => Math.ceil(max + 5)]} />
+                  {/* Eixo próprio (escondido) para a carteira — a partir do zero, para
+                      o nível ficar em cima e não distorcer as barras de fluxo. */}
+                  <YAxis yAxisId="cart" hide domain={[0, (max: number) => Math.ceil(max * 1.2)]} />
                   <Tooltip
                     contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                     formatter={(value: number, name: string) =>
@@ -299,11 +299,13 @@ export default function VendedoresPage() {
                   <Legend wrapperStyle={{ fontSize: 10 }} />
                   <ReferenceLine yAxisId="left" y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.4} />
                   <ReferenceLine yAxisId="right" y={1} stroke="#1C69D4" strokeDasharray="4 4" strokeOpacity={0.5} />
-                  <Bar yAxisId="left" dataKey="neg" name="Negócios" stackId="fluxo" fill="#16A34A" radius={[3, 3, 0, 0]} barSize={26}>
+                  <Bar yAxisId="left" dataKey="neg" name="Negócios" stackId="fluxo" fill="#16A34A"
+                    radius={[3, 3, 0, 0]} barSize={26} stroke="hsl(var(--card))" strokeWidth={1}>
                     <LabelList dataKey="neg" position="top" fontSize={9} fill="hsl(var(--foreground))"
                       formatter={(v: number) => (v > 0 ? v : '')} />
                   </Bar>
-                  <Bar yAxisId="left" dataKey="retNeg" name="Retails" stackId="fluxo" fill="#DC2626" radius={[0, 0, 3, 3]} barSize={26}>
+                  <Bar yAxisId="left" dataKey="retNeg" name="Retails" stackId="fluxo" fill="#DC2626"
+                    radius={[0, 0, 3, 3]} barSize={26} stroke="hsl(var(--card))" strokeWidth={1}>
                     <LabelList dataKey="retNeg" position="bottom" fontSize={9} fill="hsl(var(--foreground))"
                       formatter={(v: number) => (v < 0 ? Math.abs(v) : '')} />
                   </Bar>
