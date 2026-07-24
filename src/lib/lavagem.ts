@@ -66,6 +66,7 @@ export type NewCycle = {
   plate: string;
   wash_type: WashTypeId;
   created_by?: string | null;
+  started_at?: string;   // ISO; se ausente, começa agora (agendamento)
 };
 
 /* Lista os ciclos com início dentro de [from, to) (ISO), mais recentes primeiro. */
@@ -92,14 +93,16 @@ export async function listActiveCycles(): Promise<CarWashCycle[]> {
 /* Abre um novo ciclo de lavagem. A duração é fixada a partir do tipo. */
 export async function createCycle(input: NewCycle): Promise<CarWashCycle> {
   const type = WASH_TYPE_MAP[input.wash_type];
+  const row: Record<string, unknown> = {
+    plate: input.plate.trim().toUpperCase(),
+    wash_type: input.wash_type,
+    duration_min: type.duration,
+    created_by: input.created_by ?? null,
+  };
+  if (input.started_at) row.started_at = input.started_at;   // agendamento
   const { data, error } = await supabase
     .from('car_wash_cycles')
-    .insert({
-      plate: input.plate.trim().toUpperCase(),
-      wash_type: input.wash_type,
-      duration_min: type.duration,
-      created_by: input.created_by ?? null,
-    })
+    .insert(row)
     .select()
     .single();
   if (error) throw error;
