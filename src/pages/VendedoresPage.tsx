@@ -114,7 +114,7 @@ export default function VendedoresPage() {
           ret,                       // retails entregues (valor real, para tooltip)
           retNeg: -ret,              // retails (barra vermelha, ↓)
           r: ret ? +(neg / ret).toFixed(2) : null, // R do mês (linha azul)
-          carteira: carteiraAt(k),   // carteira total da equipa no fim do mês — linha roxa
+          carteira: carteiraAt(k),   // carteira total da equipa no fim do mês — linha amarela
         };
       });
   }, [negocios, retails, control, selectedResps]);
@@ -290,8 +290,8 @@ export default function VendedoresPage() {
                 <ComposedChart data={balancoCarteira} stackOffset="sign" barCategoryGap="24%">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                  {/* Eixo visível da esquerda = carteira (linha roxa), a partir do zero. */}
-                  <YAxis yAxisId="cart" tick={{ fontSize: 10, fill: '#8B5CF6' }} allowDecimals={false}
+                  {/* Eixo visível da esquerda = carteira (linha amarela), a partir do zero. */}
+                  <YAxis yAxisId="cart" tick={{ fontSize: 10, fill: '#F59E0B' }} allowDecimals={false}
                     domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }}
                     domain={[0, (max: number) => Math.max(2, Math.ceil(max))]}
@@ -315,9 +315,9 @@ export default function VendedoresPage() {
                     <LabelList dataKey="retNeg" position="bottom" fontSize={9} fill="hsl(var(--foreground))"
                       formatter={(v: number) => (v < 0 ? Math.abs(v) : '')} />
                   </Bar>
-                  <Line yAxisId="cart" type="monotone" dataKey="carteira" name="Carteira" stroke="#8B5CF6"
-                    strokeWidth={2} dot={{ r: 2.5, fill: '#8B5CF6' }}>
-                    <LabelList dataKey="carteira" position="top" fontSize={9} fill="#8B5CF6"
+                  <Line yAxisId="cart" type="monotone" dataKey="carteira" name="Carteira" stroke="#F59E0B"
+                    strokeWidth={2} dot={{ r: 2.5, fill: '#F59E0B' }}>
+                    <LabelList dataKey="carteira" position="top" fontSize={9} fill="#F59E0B"
                       formatter={(v: number) => (v > 0 ? v : '')} />
                   </Line>
                   <Line yAxisId="right" type="monotone" dataKey="r" name="R" stroke="#1C69D4"
@@ -327,7 +327,7 @@ export default function VendedoresPage() {
             )}
             <p className="text-[10px] text-muted-foreground mt-1 px-1">
               Barras verdes = negócios fechados (entram) · barras vermelhas = retails entregues (saem) ·
-              <span className="text-[#8B5CF6]"> linha roxa = carteira total da equipa</span> (stock em aberto, ancorado no valor atual) ·
+              <span className="text-[#F59E0B]"> linha amarela = carteira total da equipa</span> (stock em aberto, ancorado no valor atual) ·
               linha azul = <strong>R</strong> (eixo dir.). Saldo acima de zero e
               <span className="text-[#1C69D4] dark:text-sky-300"> R&gt;1</span> ⇒ carteira a crescer;
               abaixo e <span className="text-amber-700 dark:text-amber-400">R&lt;1</span> ⇒ a queimar.
