@@ -51,8 +51,10 @@ export interface CarWashCycle {
   plate: string;
   wash_type: WashTypeId;
   duration_min: number;
-  started_at: string;        // ISO
-  ended_at: string | null;   // ISO, null = em curso
+  scheduled_at: string | null;  // ISO, hora agendada (null = lavagem imediata)
+  started_at: string | null;    // ISO, início real (null = ainda só agendada)
+  ended_at: string | null;      // ISO, null = por terminar
+  effective_at: string | null;  // ISO, gerado: started_at ?? scheduled_at
   created_by: string | null;
   quality_score: number | null;    // controlo de qualidade 0–10
   quality_comment: string | null;
@@ -62,35 +64,49 @@ export interface CarWashCycle {
   updated_at: string;
 }
 
+/* Estado de uma lavagem, derivado dos timestamps. */
+export type CycleStatus = 'scheduled' | 'in_progress' | 'done';
+export function cycleStatus(c: CarWashCycle): CycleStatus {
+  if (c.ended_at) return 'done';
+  if (c.started_at) return 'in_progress';
+  return 'scheduled';
+}
+
+/* Hora que posiciona a lavagem na agenda: início real ou, na sua falta, o agendamento. */
+export const effectiveAt = (c: CarWashCycle): string =>
+  c.effective_at ?? c.started_at ?? c.scheduled_at ?? c.created_at;
+
 export type NewCycle = {
   plate: string;
   wash_type: WashTypeId;
   created_by?: string | null;
-  started_at?: string;   // ISO; se ausente, começa agora (agendamento)
+  scheduled_at?: string;   // ISO; se presente, cria uma lavagem agendada (started_at fica null)
 };
 
-/* Lista os ciclos com início dentro de [from, to) (ISO), mais recentes primeiro. */
+/* Lista os ciclos com hora efetiva dentro de [from, to) (ISO), mais recentes primeiro. */
 export async function listCycles(range?: { from?: string; to?: string }): Promise<CarWashCycle[]> {
   let q = supabase.from('car_wash_cycles').select('*');
-  if (range?.from) q = q.gte('started_at', range.from);
-  if (range?.to) q = q.lt('started_at', range.to);
-  const { data, error } = await q.order('started_at', { ascending: false });
+  if (range?.from) q = q.gte('effective_at', range.from);
+  if (range?.to) q = q.lt('effective_at', range.to);
+  const { data, error } = await q.order('effective_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as CarWashCycle[];
 }
 
-/* Ciclos em curso (por encerrar), independentemente da semana. */
+/* Ciclos por terminar (agendados + em curso), independentemente da semana. */
 export async function listActiveCycles(): Promise<CarWashCycle[]> {
   const { data, error } = await supabase
     .from('car_wash_cycles')
     .select('*')
     .is('ended_at', null)
-    .order('started_at', { ascending: true });
+    .order('effective_at', { ascending: true });
   if (error) throw error;
   return (data ?? []) as CarWashCycle[];
 }
 
-/* Abre um novo ciclo de lavagem. A duração é fixada a partir do tipo. */
+/* Cria um ciclo de lavagem. A duração é fixada a partir do tipo.
+ * Com scheduled_at -> lavagem agendada (started_at fica null, entra na fila);
+ * sem scheduled_at -> lavagem imediata (arranca já). */
 export async function createCycle(input: NewCycle): Promise<CarWashCycle> {
   const type = WASH_TYPE_MAP[input.wash_type];
   const row: Record<string, unknown> = {
@@ -99,10 +115,23 @@ export async function createCycle(input: NewCycle): Promise<CarWashCycle> {
     duration_min: type.duration,
     created_by: input.created_by ?? null,
   };
-  if (input.started_at) row.started_at = input.started_at;   // agendamento
+  if (input.scheduled_at) row.scheduled_at = input.scheduled_at;      // agendada
+  else row.started_at = new Date().toISOString();                    // imediata
   const { data, error } = await supabase
     .from('car_wash_cycles')
     .insert(row)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CarWashCycle;
+}
+
+/* Inicia uma lavagem agendada: regista o início real (fila -> em curso). */
+export async function startCycle(id: string): Promise<CarWashCycle> {
+  const { data, error } = await supabase
+    .from('car_wash_cycles')
+    .update({ started_at: new Date().toISOString() })
+    .eq('id', id)
     .select()
     .single();
   if (error) throw error;
@@ -165,21 +194,26 @@ const fmtDatePT = (iso: string): string => {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 };
 
+const STATUS_LABEL: Record<CycleStatus, string> = {
+  scheduled: 'Agendada', in_progress: 'Em curso', done: 'Terminada',
+};
+
 export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): void {
-  // Detalhe — mais antigos primeiro (leitura cronológica).
-  const sorted = [...rows].sort((a, b) => a.started_at.localeCompare(b.started_at));
+  // Detalhe — mais antigos primeiro (leitura cronológica, por hora efetiva).
+  const sorted = [...rows].sort((a, b) => effectiveAt(a).localeCompare(effectiveAt(b)));
 
   const detail = sorted.map(c => ({
     'Matrícula/Chassis': c.plate,
     'Tipo': WASH_TYPE_MAP[c.wash_type]?.label ?? c.wash_type,
     'Duração (min)': c.duration_min,
-    'Data': fmtDatePT(c.started_at),
+    'Data': fmtDatePT(effectiveAt(c)),
+    'Agendada': fmtPT(c.scheduled_at),
     'Início': fmtPT(c.started_at),
     'Fim': fmtPT(c.ended_at),
-    'Estado': c.ended_at ? 'Terminada' : 'Em curso',
+    'Estado': STATUS_LABEL[cycleStatus(c)],
     'Nota QC': c.quality_score ?? '',
     'Comentário QC': c.quality_comment ?? '',
-    'Início (ISO)': c.started_at,
+    'Início (ISO)': c.started_at ?? '',
     'Fim (ISO)': c.ended_at ?? '',
   }));
 
@@ -202,7 +236,7 @@ export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): vo
   const wb = XLSX.utils.book_new();
   const wsDetail = XLSX.utils.json_to_sheet(detail);
   wsDetail['!cols'] = [
-    { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+    { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
     { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 8 }, { wch: 30 },
     { wch: 22 }, { wch: 22 },
   ];

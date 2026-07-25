@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Car, Loader2, CheckCircle2, Timer, CalendarDays, Trash2, ChevronLeft, ChevronRight,
-  BarChart3, FileSpreadsheet, Star, ClipboardCheck,
+  BarChart3, FileSpreadsheet, Star, ClipboardCheck, Play, ListOrdered, ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle,
-  listCycles, listActiveCycles, createCycle, endCycle, deleteCycle, setQuality, exportCyclesToExcel,
+  cycleStatus, effectiveAt,
+  listCycles, listActiveCycles, createCycle, startCycle, endCycle, deleteCycle, setQuality, exportCyclesToExcel,
 } from '@/lib/lavagem';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -68,6 +69,8 @@ const fmtDayMonth = (d: Date) =>
   new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit' }).format(d);
 
 const minutesOfDay = (iso: string) => { const d = new Date(iso); return d.getHours() * 60 + d.getMinutes(); };
+const fmtDayTime = (iso: string) =>
+  new Intl.DateTimeFormat('pt-PT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
 
 type PlacedCycle = { c: CarWashCycle; start: number; dur: number; lane: number };
 type PeriodStat = { total: number; minutes: number; byType: Map<WashTypeId, number> };
@@ -104,7 +107,7 @@ function StatBlock({ title, stat }: { title: string; stat: PeriodStat }) {
 /* Distribui os ciclos de um dia por "faixas" para evitar sobreposição visual. */
 function layoutDay(items: CarWashCycle[]): { placed: PlacedCycle[]; lanes: number } {
   const evs = items
-    .map(c => ({ c, start: minutesOfDay(c.started_at), dur: Math.max(c.duration_min, 5) }))
+    .map(c => ({ c, start: minutesOfDay(effectiveAt(c)), dur: Math.max(c.duration_min, 5) }))
     .sort((a, b) => a.start - b.start || a.dur - b.dur);
   const laneEnds: number[] = [];
   const placed: PlacedCycle[] = evs.map(e => {
@@ -120,7 +123,9 @@ export default function LavagemPage() {
   const { session } = useAuth();
   const { isAdmin, roleName } = usePermissions();
   // Permissões específicas dentro do tab Lavagem (ver tab: qualquer perfil com acesso).
-  const canCreate = isAdmin || roleName === 'Lavador' || roleName === 'Preparador'; // adicionar/agendar
+  const canSchedule = isAdmin || roleName === 'Preparador';                         // agendar (marcação)
+  const canStart = isAdmin || roleName === 'Lavador';                               // iniciar (imediata/agendada)
+  const canCreate = canSchedule || canStart;                                        // ver formulário
   const canTerminate = isAdmin || roleName === 'Lavador';                           // terminar
   const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';    // controlo de qualidade
   const canExport = isAdmin;                                                        // exportar Excel
@@ -128,7 +133,7 @@ export default function LavagemPage() {
 
   const [plate, setPlate] = useState('');
   const [washType, setWashType] = useState<WashTypeId | ''>('');
-  const [schedAt, setSchedAt] = useState('');   // agendamento (datetime-local); vazio = agora
+  const [schedAt, setSchedAt] = useState('');   // agendamento (datetime-local); vazio = imediata
   const [submitting, setSubmitting] = useState(false);
 
   const [cycles, setCycles] = useState<CarWashCycle[]>([]);
@@ -192,16 +197,21 @@ export default function LavagemPage() {
     if (!canCreate) return;
     if (!plate.trim()) { toast.error('Indica a matrícula ou chassis.'); return; }
     if (!washType) { toast.error('Escolhe o tipo de lavagem.'); return; }
-    let startedAt: string | undefined;
+
+    let scheduledAt: string | undefined;
     if (schedAt) {
+      if (!canSchedule) { toast.error('Sem permissão para agendar lavagens.'); return; }
       const d = new Date(schedAt);
       if (isNaN(d.getTime())) { toast.error('Data de agendamento inválida.'); return; }
-      startedAt = d.toISOString();
+      scheduledAt = d.toISOString();
+    } else if (!canStart) {
+      toast.error('Indica a hora do agendamento.'); return;
     }
+
     setSubmitting(true);
     try {
-      await createCycle({ plate, wash_type: washType, created_by: session?.user.email ?? null, started_at: startedAt });
-      toast.success(startedAt ? 'Lavagem agendada.' : 'Lavagem iniciada.');
+      await createCycle({ plate, wash_type: washType, created_by: session?.user.email ?? null, scheduled_at: scheduledAt });
+      toast.success(scheduledAt ? 'Lavagem agendada.' : 'Lavagem iniciada.');
       setPlate('');
       setWashType('');
       setSchedAt('');
@@ -214,6 +224,11 @@ export default function LavagemPage() {
     }
   };
 
+  const handleStart = async (id: string) => {
+    if (!canStart) return;
+    try { await startCycle(id); toast.success('Lavagem iniciada.'); await refresh(); }
+    catch (err) { toast.error('Não foi possível iniciar a lavagem.'); console.error(err); }
+  };
   const handleEnd = async (id: string) => {
     if (!canTerminate) return;
     try { await endCycle(id); toast.success('Lavagem terminada.'); await refresh(); }
@@ -257,20 +272,20 @@ export default function LavagemPage() {
     }
   };
 
-  // "Em curso" = por terminar e já iniciadas (as agendadas para o futuro só
-  // aparecem na agenda até chegar a hora).
-  const activeSorted = useMemo(() => {
-    const nowIso = new Date().toISOString();
-    return [...active]
-      .filter(c => c.started_at <= nowIso)
-      .sort((a, b) => a.started_at.localeCompare(b.started_at));
-  }, [active]);
+  // "Em curso" = lavagens já iniciadas e por terminar.
+  const activeSorted = useMemo(() =>
+    active
+      .filter(c => cycleStatus(c) === 'in_progress')
+      .sort((a, b) => (a.started_at ?? '').localeCompare(b.started_at ?? '')),
+    [active]);
 
-  // Lavagens agendadas para o futuro (por iniciar).
-  const scheduledCount = useMemo(() => {
-    const nowIso = new Date().toISOString();
-    return active.filter(c => c.started_at > nowIso).length;
-  }, [active]);
+  // Fila de agendamentos (por iniciar), por ordem da hora marcada — dá ao
+  // lavador a noção do "próximo carro a lavar".
+  const queue = useMemo(() =>
+    active
+      .filter(c => cycleStatus(c) === 'scheduled')
+      .sort((a, b) => (a.scheduled_at ?? '').localeCompare(b.scheduled_at ?? '')),
+    [active]);
 
   // Estatísticas por período (hoje / semana / mês) — quantas e que tipo.
   const stats = useMemo(() => {
@@ -280,7 +295,7 @@ export default function LavagemPage() {
     const monthMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
     const build = (fromMs: number): PeriodStat => {
-      const items = statsCycles.filter(c => new Date(c.started_at).getTime() >= fromMs);
+      const items = statsCycles.filter(c => new Date(effectiveAt(c)).getTime() >= fromMs);
       const byType = new Map<WashTypeId, number>();
       items.forEach(c => byType.set(c.wash_type, (byType.get(c.wash_type) ?? 0) + 1));
       return { total: items.length, minutes: items.reduce((s, c) => s + c.duration_min, 0), byType };
@@ -292,7 +307,7 @@ export default function LavagemPage() {
   const days = useMemo(() => {
     const base = WEEKDAYS.map((label, i) => ({ label, date: addDays(weekStart, i), items: [] as CarWashCycle[] }));
     cycles.forEach(c => {
-      const idx = Math.floor((new Date(c.started_at).getTime() - weekStart.getTime()) / DAY_MS);
+      const idx = Math.floor((new Date(effectiveAt(c)).getTime() - weekStart.getTime()) / DAY_MS);
       if (idx >= 0 && idx < 5) base[idx].items.push(c);
     });
     return base;
@@ -303,7 +318,7 @@ export default function LavagemPage() {
   const [windowStartMin, windowEndMin] = useMemo(() => {
     let min = DEFAULT_START_MIN, max = DEFAULT_END_MIN;
     cycles.forEach(c => {
-      const s = minutesOfDay(c.started_at);
+      const s = minutesOfDay(effectiveAt(c));
       const e = s + Math.max(c.duration_min, 5);
       min = Math.min(min, Math.floor(s / 30) * 30);
       max = Math.max(max, Math.ceil(e / 30) * 30);
@@ -323,6 +338,8 @@ export default function LavagemPage() {
   const fmtMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
   const selectedType = washType ? WASH_TYPE_MAP[washType] : null;
+  // Perfis que só podem agendar (ex.: Preparador) submetem sempre um agendamento.
+  const willSchedule = !!schedAt || !canStart;
   const todayIdx = Math.round((new Date().setHours(0, 0, 0, 0) - weekStart.getTime()) / DAY_MS);
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
 
@@ -336,14 +353,21 @@ export default function LavagemPage() {
         <span className="text-xs text-muted-foreground">· Controlo do fluxo de lavagens</span>
       </div>
 
-      {/* ── Formulário: adicionar/agendar lavagem (Lavador, Preparador, Admin) ── */}
+      {/* ── Formulário: agendar / iniciar lavagem ────────────────────────────
+       * Admin e Preparador agendam (marcação numa hora futura → entra na fila e
+       * na agenda). Admin e Lavador iniciam de imediato (walk-in). */}
       {canCreate && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Nova lavagem</CardTitle>
+            <CardTitle className="text-sm font-semibold">
+              {canSchedule ? (canStart ? 'Nova lavagem' : 'Agendar lavagem') : 'Nova lavagem'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+            <form
+              onSubmit={handleSubmit}
+              className={`grid gap-3 sm:grid-cols-2 sm:items-end ${canSchedule ? 'lg:grid-cols-[1fr_1fr_1fr_auto]' : 'lg:grid-cols-[1fr_1fr_auto]'}`}
+            >
               <div className="space-y-1.5">
                 <Label htmlFor="plate">Matrícula / Chassis</Label>
                 <Input
@@ -376,31 +400,104 @@ export default function LavagemPage() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="sched">Agendar para <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-                <Input
-                  id="sched"
-                  type="datetime-local"
-                  value={schedAt}
-                  onChange={e => setSchedAt(e.target.value)}
-                />
-              </div>
+              {canSchedule && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="sched">
+                    Agendar para {canStart && <span className="text-muted-foreground font-normal">(opcional)</span>}
+                  </Label>
+                  <Input
+                    id="sched"
+                    type="datetime-local"
+                    value={schedAt}
+                    onChange={e => setSchedAt(e.target.value)}
+                  />
+                </div>
+              )}
 
               <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Timer className="h-4 w-4" />}
-                {schedAt ? 'Agendar' : 'Iniciar'}
+                {submitting
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : willSchedule ? <CalendarDays className="h-4 w-4" /> : <Timer className="h-4 w-4" />}
+                {willSchedule ? 'Agendar' : 'Iniciar'}
               </Button>
             </form>
 
             {selectedType && (
               <p className="mt-2 text-xs text-muted-foreground">
                 Duração prevista: <span className="font-medium text-foreground">{selectedType.duration} min</span>
-                {schedAt ? ' · será colocada na agenda à hora indicada' : ''}
+                {willSchedule ? ' · será colocada na agenda e na fila à hora indicada' : ''}
               </p>
             )}
           </CardContent>
         </Card>
       )}
+
+      {/* ── Fila de agendamentos ────────────────────────────────────────────
+       * O "próximo carro a lavar" para o lavador: lavagens agendadas por ordem
+       * da hora marcada. A primeira é destacada como "A seguir". */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <ListOrdered className="h-4 w-4" /> Próximas lavagens
+            <span className="text-xs font-normal text-muted-foreground">({queue.length})</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <Loader2 className="h-4 w-4 animate-spin" /> A carregar…
+            </div>
+          ) : queue.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">
+              Sem lavagens agendadas.{canSchedule ? ' Agende uma acima para a colocar na fila.' : ''}
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {queue.map((c, idx) => {
+                const t = WASH_TYPE_MAP[c.wash_type];
+                const next = idx === 0;
+                const overdue = !!c.scheduled_at && new Date(c.scheduled_at).getTime() < Date.now();
+                return (
+                  <li
+                    key={c.id}
+                    className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 ${next ? 'border-primary/60 bg-primary/5' : ''}`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 ${t?.dot ?? 'bg-slate-400'}`} />
+                      <div className="min-w-0">
+                        <div className="font-semibold truncate flex items-center gap-1.5">
+                          {c.plate}
+                          {next && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                              <ArrowRight className="h-3 w-3" /> A seguir
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {t?.label ?? c.wash_type} · {c.duration_min} min · {c.scheduled_at ? fmtDayTime(c.scheduled_at) : 'sem hora'}
+                          {overdue && <span className="ml-1 font-semibold text-red-600 dark:text-red-400">· em atraso</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {canStart && (
+                        <Button size="sm" onClick={() => handleStart(c.id)}>
+                          <Play className="h-4 w-4" /> Iniciar
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button size="sm" variant="ghost" onClick={() => handleDelete(c.id)} title="Remover agendamento">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── Ciclos em curso ─────────────────────────────────────────────────── */}
       <Card>
@@ -408,11 +505,6 @@ export default function LavagemPage() {
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Timer className="h-4 w-4" /> Em curso
             <span className="text-xs font-normal text-muted-foreground">({activeSorted.length})</span>
-            {scheduledCount > 0 && (
-              <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                {scheduledCount} agendada{scheduledCount > 1 ? 's' : ''}
-              </span>
-            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -443,7 +535,7 @@ export default function LavagemPage() {
                           )}
                         </div>
                         <div className="text-xs opacity-80">
-                          {t?.label ?? c.wash_type} · {c.duration_min} min · início {fmtTime(c.started_at)}
+                          {t?.label ?? c.wash_type} · {c.duration_min} min · início {fmtTime(effectiveAt(c))}
                         </div>
                       </div>
                     </div>
@@ -610,7 +702,7 @@ export default function LavagemPage() {
                       const height = Math.max(p.dur * PX_PER_MIN, MIN_SLOT_PX);
                       const widthPct = 100 / lanes;
                       const compact = height < 34;
-                      const scheduled = !p.c.ended_at && new Date(p.c.started_at).getTime() > Date.now();
+                      const scheduled = cycleStatus(p.c) === 'scheduled';
                       return (
                         <div
                           key={p.c.id}
@@ -621,7 +713,7 @@ export default function LavagemPage() {
                             left: `calc(${p.lane * widthPct}% + 2px)`,
                             width: `calc(${widthPct}% - 4px)`,
                           }}
-                          title={`${p.c.plate} · ${t?.label ?? p.c.wash_type} · ${p.c.duration_min} min · ${fmtTime(p.c.started_at)}${scheduled ? ' · agendada' : ''}${p.c.quality_score != null ? ` · QC ${p.c.quality_score}/10` : ''}`}
+                          title={`${p.c.plate} · ${t?.label ?? p.c.wash_type} · ${p.c.duration_min} min · ${fmtTime(effectiveAt(p.c))}${scheduled ? ' · agendada' : ''}${p.c.quality_score != null ? ` · QC ${p.c.quality_score}/10` : ''}`}
                         >
                           <div className="flex items-center justify-between gap-1">
                             <span className="font-semibold truncate">{p.c.plate}</span>
@@ -644,7 +736,7 @@ export default function LavagemPage() {
                           </div>
                           {!compact && (
                             <div className="opacity-80 truncate">
-                              {fmtTime(p.c.started_at)} · {t?.label ?? p.c.wash_type} · {p.c.duration_min}m
+                              {fmtTime(effectiveAt(p.c))} · {t?.label ?? p.c.wash_type} · {p.c.duration_min}m
                             </div>
                           )}
                         </div>
@@ -673,7 +765,7 @@ export default function LavagemPage() {
             </DialogTitle>
             {qcCycle && (
               <DialogDescription>
-                {qcCycle.plate} · {WASH_TYPE_MAP[qcCycle.wash_type]?.label ?? qcCycle.wash_type} · {fmtTime(qcCycle.started_at)}
+                {qcCycle.plate} · {WASH_TYPE_MAP[qcCycle.wash_type]?.label ?? qcCycle.wash_type} · {fmtTime(effectiveAt(qcCycle))}
               </DialogDescription>
             )}
           </DialogHeader>
