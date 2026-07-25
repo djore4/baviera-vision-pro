@@ -2,14 +2,15 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Car, Loader2, CheckCircle2, Timer, CalendarDays, Trash2, ChevronLeft, ChevronRight,
   BarChart3, FileSpreadsheet, Star, ClipboardCheck, Play, ListOrdered, ArrowRight,
+  ChevronsUp, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle,
-  cycleStatus, effectiveAt,
-  listCycles, listActiveCycles, createCycle, startCycle, endCycle, deleteCycle, setQuality, exportCyclesToExcel,
+  cycleStatus, effectiveAt, queueKey, startDeviationMin,
+  listCycles, listActiveCycles, createCycle, startCycle, setQueueOrder, endCycle, deleteCycle, setQuality, exportCyclesToExcel,
 } from '@/lib/lavagem';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -125,6 +126,7 @@ export default function LavagemPage() {
   // Permissões específicas dentro do tab Lavagem (ver tab: qualquer perfil com acesso).
   const canSchedule = isAdmin || roleName === 'Preparador';                         // agendar (marcação)
   const canStart = isAdmin || roleName === 'Lavador';                               // iniciar (imediata/agendada)
+  const canReorder = isAdmin || roleName === 'Preparador';                          // reordenar/antecipar a fila
   const canCreate = canSchedule || canStart;                                        // ver formulário
   const canTerminate = isAdmin || roleName === 'Lavador';                           // terminar
   const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';    // controlo de qualidade
@@ -229,6 +231,33 @@ export default function LavagemPage() {
     try { await startCycle(id); toast.success('Lavagem iniciada.'); await refresh(); }
     catch (err) { toast.error('Não foi possível iniciar a lavagem.'); console.error(err); }
   };
+
+  // Ajustes operacionais da fila (Admin/Preparador). A nova chave é calculada a
+  // partir dos vizinhos visíveis, sem tocar no plano (scheduled_at).
+  const applyOrder = async (id: string, order: number) => {
+    if (!canReorder) return;
+    try { await setQueueOrder(id, order); await refresh(); }
+    catch (err) { toast.error('Não foi possível reordenar a fila.'); console.error(err); }
+  };
+  const moveTop = (i: number) => {
+    if (i <= 0) return;
+    applyOrder(queue[i].id, queueKey(queue[0]) - 1);
+  };
+  const moveUp = (i: number) => {
+    if (i <= 0) return;
+    const order = i - 1 === 0
+      ? queueKey(queue[0]) - 1
+      : (queueKey(queue[i - 2]) + queueKey(queue[i - 1])) / 2;
+    applyOrder(queue[i].id, order);
+  };
+  const moveDown = (i: number) => {
+    if (i >= queue.length - 1) return;
+    const last = queue.length - 1;
+    const order = i + 1 === last
+      ? queueKey(queue[last]) + 1
+      : (queueKey(queue[i + 1]) + queueKey(queue[i + 2])) / 2;
+    applyOrder(queue[i].id, order);
+  };
   const handleEnd = async (id: string) => {
     if (!canTerminate) return;
     try { await endCycle(id); toast.success('Lavagem terminada.'); await refresh(); }
@@ -279,12 +308,13 @@ export default function LavagemPage() {
       .sort((a, b) => (a.started_at ?? '').localeCompare(b.started_at ?? '')),
     [active]);
 
-  // Fila de agendamentos (por iniciar), por ordem da hora marcada — dá ao
-  // lavador a noção do "próximo carro a lavar".
+  // Fila de execução (agendamentos por iniciar): ordem manual, se definida,
+  // senão a hora marcada. Dá ao lavador a noção do "próximo carro a lavar";
+  // Admin/Preparador podem antecipar/reordenar sem mexer no plano.
   const queue = useMemo(() =>
     active
       .filter(c => cycleStatus(c) === 'scheduled')
-      .sort((a, b) => (a.scheduled_at ?? '').localeCompare(b.scheduled_at ?? '')),
+      .sort((a, b) => queueKey(a) - queueKey(b)),
     [active]);
 
   // Estatísticas por período (hoje / semana / mês) — quantas e que tipo.
@@ -441,6 +471,11 @@ export default function LavagemPage() {
             <ListOrdered className="h-4 w-4" /> Próximas lavagens
             <span className="text-xs font-normal text-muted-foreground">({queue.length})</span>
           </CardTitle>
+          {canReorder && queue.length > 1 && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Ordem de execução — antecipe ou reordene sem alterar a marcação na agenda.
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -457,12 +492,44 @@ export default function LavagemPage() {
                 const t = WASH_TYPE_MAP[c.wash_type];
                 const next = idx === 0;
                 const overdue = !!c.scheduled_at && new Date(c.scheduled_at).getTime() < Date.now();
+                const reordered = c.queue_order != null;   // ordem ajustada face ao plano
                 return (
                   <li
                     key={c.id}
                     className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 ${next ? 'border-primary/60 bg-primary/5' : ''}`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {canReorder && (
+                        <div className="flex flex-col -my-1 flex-shrink-0">
+                          <button
+                            onClick={() => moveTop(idx)}
+                            disabled={idx === 0}
+                            title="Antecipar (topo)"
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground"
+                          >
+                            <ChevronsUp className="h-3.5 w-3.5" />
+                          </button>
+                          <div className="flex">
+                            <button
+                              onClick={() => moveUp(idx)}
+                              disabled={idx === 0}
+                              title="Subir"
+                              className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground"
+                            >
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => moveDown(idx)}
+                              disabled={idx === queue.length - 1}
+                              title="Descer"
+                              className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      <span className="text-xs font-semibold tabular-nums text-muted-foreground w-4 text-right flex-shrink-0">{idx + 1}</span>
                       <span className={`inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 ${t?.dot ?? 'bg-slate-400'}`} />
                       <div className="min-w-0">
                         <div className="font-semibold truncate flex items-center gap-1.5">
@@ -470,6 +537,14 @@ export default function LavagemPage() {
                           {next && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
                               <ArrowRight className="h-3 w-3" /> A seguir
+                            </span>
+                          )}
+                          {reordered && (
+                            <span
+                              className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full"
+                              title="Ordem ajustada face à marcação"
+                            >
+                              ajustada
                             </span>
                           )}
                         </div>
@@ -518,6 +593,7 @@ export default function LavagemPage() {
             <ul className="space-y-2">
               {activeSorted.map(c => {
                 const t = WASH_TYPE_MAP[c.wash_type];
+                const dev = startDeviationMin(c);   // desvio face à marcação
                 return (
                   <li
                     key={c.id}
@@ -528,6 +604,16 @@ export default function LavagemPage() {
                       <div className="min-w-0">
                         <div className="font-semibold truncate flex items-center gap-1.5">
                           {c.plate}
+                          {dev != null && dev <= -5 && (
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 dark:bg-emerald-500/20 dark:text-emerald-300 px-1.5 py-0.5 rounded-full" title="Iniciada antes da hora marcada">
+                              antecipada {Math.abs(dev)}min
+                            </span>
+                          )}
+                          {dev != null && dev >= 15 && (
+                            <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 dark:bg-amber-500/20 dark:text-amber-300 px-1.5 py-0.5 rounded-full" title="Iniciada depois da hora marcada">
+                              atraso {dev}min
+                            </span>
+                          )}
                           {c.quality_score != null && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600">
                               <Star className="h-3 w-3 fill-amber-500 text-amber-500" />{c.quality_score}
