@@ -55,6 +55,7 @@ export interface CarWashCycle {
   started_at: string | null;    // ISO, início real (null = ainda só agendada)
   ended_at: string | null;      // ISO, null = por terminar
   effective_at: string | null;  // ISO, gerado: started_at ?? scheduled_at
+  queue_order: number | null;   // ordem manual na fila (null = segue o plano)
   created_by: string | null;
   quality_score: number | null;    // controlo de qualidade 0–10
   quality_comment: string | null;
@@ -75,6 +76,18 @@ export function cycleStatus(c: CarWashCycle): CycleStatus {
 /* Hora que posiciona a lavagem na agenda: início real ou, na sua falta, o agendamento. */
 export const effectiveAt = (c: CarWashCycle): string =>
   c.effective_at ?? c.started_at ?? c.scheduled_at ?? c.created_at;
+
+/* Chave de ordenação da fila de execução (segundos): ordem manual, se definida,
+ * senão a hora do plano. Permite antecipar/reordenar sem tocar em scheduled_at. */
+export const queueKey = (c: CarWashCycle): number =>
+  c.queue_order ?? new Date(c.scheduled_at ?? c.effective_at ?? c.created_at).getTime() / 1000;
+
+/* Desvio (min) entre o início real e a hora agendada.
+ * Negativo = antecipada; positivo = iniciada em atraso; null = sem base de comparação. */
+export function startDeviationMin(c: CarWashCycle): number | null {
+  if (!c.started_at || !c.scheduled_at) return null;
+  return Math.round((new Date(c.started_at).getTime() - new Date(c.scheduled_at).getTime()) / 60000);
+}
 
 export type NewCycle = {
   plate: string;
@@ -131,6 +144,19 @@ export async function startCycle(id: string): Promise<CarWashCycle> {
   const { data, error } = await supabase
     .from('car_wash_cycles')
     .update({ started_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CarWashCycle;
+}
+
+/* Ajuste operacional da fila: define a ordem manual (antecipar/reordenar).
+ * Não altera o plano (scheduled_at) nem a agenda. */
+export async function setQueueOrder(id: string, order: number): Promise<CarWashCycle> {
+  const { data, error } = await supabase
+    .from('car_wash_cycles')
+    .update({ queue_order: order })
     .eq('id', id)
     .select()
     .single();
@@ -210,6 +236,7 @@ export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): vo
     'Agendada': fmtPT(c.scheduled_at),
     'Início': fmtPT(c.started_at),
     'Fim': fmtPT(c.ended_at),
+    'Desvio (min)': startDeviationMin(c) ?? '',
     'Estado': STATUS_LABEL[cycleStatus(c)],
     'Nota QC': c.quality_score ?? '',
     'Comentário QC': c.quality_comment ?? '',
@@ -237,8 +264,8 @@ export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): vo
   const wsDetail = XLSX.utils.json_to_sheet(detail);
   wsDetail['!cols'] = [
     { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
-    { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 8 }, { wch: 30 },
-    { wch: 22 }, { wch: 22 },
+    { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 8 },
+    { wch: 30 }, { wch: 22 }, { wch: 22 },
   ];
   const wsSummary = XLSX.utils.json_to_sheet(summary);
   wsSummary['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
