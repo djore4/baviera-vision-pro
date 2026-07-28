@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Trophy, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList, Legend,
-  ComposedChart, Line, Tooltip, ReferenceLine,
+  ComposedChart, Line, Tooltip, ReferenceLine, Customized,
 } from 'recharts';
 
 /* ── Tab Vendedores (admin) ──────────────────────────────────────────────────
@@ -31,6 +31,51 @@ const PERF_COLS: { key: SortKey; label: string; align: 'left' | 'right'; title?:
   { key: 'open', label: 'Cart.', align: 'right', title: 'Carteira atual em aberto (Carteira + Matrícula)' },
   { key: 'age', label: 'Idade', align: 'right', title: 'Idade média da carteira atual (dias desde o negócio)' },
 ];
+
+/* Método de pagamento (campo `fin`): ordem de empilhamento e cores. */
+const FIN_ORDER = ['PP', 'FS', 'Fint', 'Fext', 'N/A'] as const;
+const FIN_COLORS: Record<string, string> = {
+  PP: '#1C69D4', FS: '#16A34A', Fint: '#8B5CF6', Fext: '#F59E0B', 'N/A': '#94A3B8',
+};
+const finColor = (m: string) => FIN_COLORS[m] ?? '#94A3B8';
+
+/* Overlay "series lines": liga o topo de cada série de barra para barra (estilo
+ * Excel). Lê os retângulos reais das barras (formattedGraphicalItems) para ter a
+ * geometria exata. Recebe os props internos do recharts via <Customized>. */
+type BarRect = { x: number; y: number; width: number; height: number };
+interface FinItem { props: { data?: BarRect[] }; item?: { props?: { dataKey?: string | number } } }
+interface FinSeriesLinesProps {
+  formattedGraphicalItems?: FinItem[];
+}
+function FinSeriesLines({ formattedGraphicalItems }: FinSeriesLinesProps) {
+  const items = formattedGraphicalItems ?? [];
+  if (items.length === 0) return null;
+  // Mapeia cada série (dataKey do <Bar> original) aos seus retângulos.
+  const byKey = new Map(items.map(it => [String(it.item?.props?.dataKey), it.props.data ?? []]));
+  const stack = FIN_ORDER.map(m => byKey.get(m)).filter((d): d is BarRect[] => !!d && d.length > 0);
+  if (stack.length < 2) return null;
+  const months = stack[0].length;
+  const lines: React.ReactNode[] = [];
+  // Divisórias internas: topo da série k (k de 0..n-2), entre meses adjacentes.
+  for (let k = 0; k < stack.length - 1; k++) {
+    for (let i = 0; i < months - 1; i++) {
+      const a = stack[k][i];
+      const b = stack[k][i + 1];
+      if (!a || !b) continue;
+      lines.push(
+        <line
+          key={`${k}-${i}`}
+          x1={a.x + a.width} y1={a.y}
+          x2={b.x} y2={b.y}
+          stroke={finColor(FIN_ORDER[k])}
+          strokeOpacity={0.5}
+          strokeWidth={1.25}
+        />,
+      );
+    }
+  }
+  return <g>{lines}</g>;
+}
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
 const fmtR = (r: number | null) => (r === null ? '—' : r.toFixed(2));
@@ -243,6 +288,30 @@ export default function VendedoresPage() {
     });
   }, [rows, sort]);
 
+  // Mix de método de pagamento (`fin`) por mês — contagens brutas (normalizadas a
+  // 100% no gráfico via stackOffset="expand"). Base: negócios fechados no período.
+  const finByMonth = useMemo(() => {
+    const map: Record<number, Record<string, number>> = {};
+    negocios.forEach(r => {
+      if (!r.neg) return;
+      const k = monthKey(r.neg);
+      const method = (FIN_ORDER as readonly string[]).includes(r.fin) ? r.fin : 'N/A';
+      (map[k] ??= {})[method] = (map[k][method] ?? 0) + 1;
+    });
+    return Object.keys(map).map(Number).sort((a, b) => a - b).map(k => {
+      const counts = map[k];
+      const total = FIN_ORDER.reduce((s, m) => s + (counts[m] ?? 0), 0);
+      const row: Record<string, number | string> = { label: monthLabel(k), _total: total };
+      FIN_ORDER.forEach(m => { row[m] = counts[m] ?? 0; });
+      return row;
+    });
+  }, [negocios]);
+
+  const renderFinLines = useCallback(
+    (props: object) => <FinSeriesLines {...(props as FinSeriesLinesProps)} />,
+    [],
+  );
+
   const rClass = (r: number | null) =>
     r === null ? 'text-muted-foreground'
       : r > 1.02 ? 'bg-[#1C69D4]/10 text-[#1C69D4] dark:text-sky-300'
@@ -447,6 +516,47 @@ export default function VendedoresPage() {
             </table>
             <p className="text-[10px] text-muted-foreground px-2 py-1.5 border-t border-border">
               %BEV / %QoR sobre negócios do período · Cart. / Idade referem-se à carteira atual em aberto.
+            </p>
+          </div>
+
+          {/* Método de pagamento — mix mensal (barras 100%) */}
+          <div className="bg-card border border-border rounded-lg p-2">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Método de pagamento — mix mensal</h3>
+              <span className="text-[10px] text-muted-foreground">% dos negócios · por mês</span>
+            </div>
+            {finByMonth.length === 0 ? (
+              <div className="h-[220px] flex items-center justify-center text-[11px] text-muted-foreground">
+                Sem registos no período.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                {/* Barras normalizadas a 100% (stackOffset="expand"); as linhas de
+                    continuação (Customized) ligam cada método de mês para mês. */}
+                <BarChart data={finByMonth} stackOffset="expand" barCategoryGap="22%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} domain={[0, 1]} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} />
+                  <Tooltip
+                    contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                    formatter={(value: number, name: string, item: { payload?: { _total?: number } }) => {
+                      const total = item?.payload?._total ?? 0;
+                      const pct = total ? Math.round((value / total) * 100) : 0;
+                      return [`${value} (${pct}%)`, name];
+                    }} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  {FIN_ORDER.map(m => (
+                    <Bar key={m} dataKey={m} name={m} stackId="fin" fill={finColor(m)}
+                      maxBarSize={44} isAnimationActive={false} />
+                  ))}
+                  <Customized component={renderFinLines} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+            <p className="text-[10px] text-muted-foreground mt-1 px-1">
+              Cada barra soma 100% dos negócios do mês, repartida por método de pagamento
+              (<strong>PP</strong> · <strong>FS</strong> · <strong>Fint</strong> · <strong>Fext</strong> · N/A).
+              As linhas ligam cada método entre meses (continuação).
             </p>
           </div>
 
