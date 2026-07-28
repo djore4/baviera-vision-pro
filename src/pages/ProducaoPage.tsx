@@ -1,5 +1,7 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { fireConfetti } from '@/lib/confetti';
 import { useData } from '@/contexts/DataContext';
 import { useRecordEditor } from '@/components/RecordEditor';
 import { PeriodFilter } from '@/components/PeriodFilter';
@@ -120,6 +122,18 @@ export default function ProducaoPage() {
     const pct = target ? Math.round((totalNeg / target) * 100) : 0;
     return { actual: totalNeg, targetCaetano, targetBMW: totalObjetivoResp || targetBMW, target110, pct };
   }, [data, totalNeg, selectedMonthKeys, filter]);
+
+  // Easter egg: confete ao atingir 100%+ do objetivo (uma vez por sessão).
+  const celebrated = useRef(false);
+  useEffect(() => {
+    if (realization.pct < 100 || realization.targetBMW <= 0) return;
+    if (celebrated.current) return;
+    celebrated.current = true;
+    if (sessionStorage.getItem('egg_goal') === '1') return;
+    sessionStorage.setItem('egg_goal', '1');
+    fireConfetti();
+    toast('🏆 Objetivo atingido!', { description: 'Boa equipa — 100%+ do objetivo.' });
+  }, [realization.pct, realization.targetBMW]);
 
   const finData = useMemo(() => {
     const map: Record<string, number> = {};

@@ -29,6 +29,7 @@ import LavagemPage from "./pages/LavagemPage";
 import UtilizadoresPage from "./pages/UtilizadoresPage";
 import ArquivoPage from "./pages/ArquivoPage";
 import DefinicoesPage from "./pages/DefinicoesPage";
+import { EasterEggs } from "@/components/EasterEggs";
 import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
 import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -82,6 +83,7 @@ const App = () => (
         <DataProvider>
           <RecordEditorProvider>
           <PermissionsProvider>
+          <EasterEggs />
           <HashRouter>
             <Routes>
               <Route path="/" element={<Index />} />

@@ -12,6 +12,7 @@ import {
   cycleStatus, effectiveAt, queueKey, startDeviationMin,
   listCycles, listActiveCycles, createCycle, startCycle, setQueueOrder, endCycle, deleteCycle, setQuality, exportCyclesToExcel,
 } from '@/lib/lavagem';
+import { funLoadingLabel } from '@/lib/loading-messages';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -147,6 +148,7 @@ export default function LavagemPage() {
   const [statsCycles, setStatsCycles] = useState<CarWashCycle[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [loadingLabel] = useState(funLoadingLabel);   // escolhido uma vez por montagem
 
   // Semana selecionada (segunda-feira 00:00); navegável para trás/frente.
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
@@ -501,7 +503,7 @@ export default function LavagemPage() {
         <CardContent>
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-              <Loader2 className="h-4 w-4 animate-spin" /> A carregar…
+              <Loader2 className="h-4 w-4 animate-spin" /> {loadingLabel}
             </div>
           ) : queue.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">
@@ -606,7 +608,7 @@ export default function LavagemPage() {
         <CardContent>
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-              <Loader2 className="h-4 w-4 animate-spin" /> A carregar…
+              <Loader2 className="h-4 w-4 animate-spin" /> {loadingLabel}
             </div>
           ) : activeSorted.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">Nenhuma lavagem em curso.</p>
@@ -857,7 +859,7 @@ export default function LavagemPage() {
 
           {loading && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> A carregar…
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> {loadingLabel}
             </div>
           )}
         </CardContent>
