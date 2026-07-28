@@ -23,6 +23,10 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 
 /* ── Tab Lavagem (admin) ───────────────────────────────────────────────────────
  * Landing page alcançada a partir da leitura de um QR code externo. Permite abrir
@@ -274,6 +278,26 @@ export default function LavagemPage() {
   const [qcScore, setQcScore] = useState<string>('');
   const [qcComment, setQcComment] = useState<string>('');
   const [qcSaving, setQcSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);   // confirmação de remoção (admin)
+  const [deleting, setDeleting] = useState(false);
+
+  // Remove a lavagem/agendamento aberto no controlo de qualidade (só admin).
+  const handleDeleteFromQC = async () => {
+    if (!qcCycle || !canDelete) return;
+    setDeleting(true);
+    try {
+      await deleteCycle(qcCycle.id);
+      toast.success('Lavagem removida.');
+      setConfirmDelete(false);
+      setQcCycle(null);
+      await refresh();
+    } catch (err) {
+      toast.error('Não foi possível remover a lavagem.');
+      console.error(err);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const openQC = (c: CarWashCycle) => {
     setQcCycle(c);
@@ -903,17 +927,52 @@ export default function LavagemPage() {
             )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setQcCycle(null)}>Fechar</Button>
-            {canQC && (
-              <Button onClick={handleSaveQC} disabled={qcSaving}>
-                {qcSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                Guardar
+          <DialogFooter className="sm:justify-between">
+            {/* Remover lavagem/agendamento — só admin. Acessível clicando na slot. */}
+            {canDelete ? (
+              <Button variant="destructive" onClick={() => setConfirmDelete(true)} disabled={qcSaving || deleting}>
+                <Trash2 className="h-4 w-4" /> Remover
               </Button>
-            )}
+            ) : <span />}
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setQcCycle(null)}>Fechar</Button>
+              {canQC && (
+                <Button onClick={handleSaveQC} disabled={qcSaving}>
+                  {qcSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Guardar
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Confirmação de remoção (admin) ──────────────────────────────────── */}
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover lavagem?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {qcCycle && (
+                <>
+                  Esta ação remove definitivamente {qcCycle.plate} · {WASH_TYPE_MAP[qcCycle.wash_type]?.label ?? qcCycle.wash_type} ({fmtTime(effectiveAt(qcCycle))}) e não pode ser anulada.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteFromQC(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
