@@ -267,29 +267,20 @@ export default function LavagemPage() {
     try { await endCycle(id); toast.success('Lavagem terminada.'); await refresh(); }
     catch (err) { toast.error('Não foi possível terminar a lavagem.'); console.error(err); }
   };
-  const handleDelete = async (id: string) => {
-    if (!canDelete) return;
-    try { await deleteCycle(id); await refresh(); }
-    catch (err) { toast.error('Não foi possível remover o registo.'); console.error(err); }
-  };
-
-  // Controlo de qualidade (nota 0–10 + comentário).
-  const [qcCycle, setQcCycle] = useState<CarWashCycle | null>(null);
-  const [qcScore, setQcScore] = useState<string>('');
-  const [qcComment, setQcComment] = useState<string>('');
-  const [qcSaving, setQcSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);   // confirmação de remoção (admin)
+  // Remoção (só admin) — pede sempre confirmação antes de apagar. Qualquer
+  // origem (slot da agenda, fila ou controlo de qualidade) passa pelo mesmo diálogo.
+  const [deleteTarget, setDeleteTarget] = useState<CarWashCycle | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  // Remove a lavagem/agendamento aberto no controlo de qualidade (só admin).
-  const handleDeleteFromQC = async () => {
-    if (!qcCycle || !canDelete) return;
+  const requestDelete = (c: CarWashCycle) => { if (canDelete) setDeleteTarget(c); };
+  const confirmDelete = async () => {
+    if (!deleteTarget || !canDelete) return;
+    const { id } = deleteTarget;
     setDeleting(true);
     try {
-      await deleteCycle(qcCycle.id);
+      await deleteCycle(id);
       toast.success('Lavagem removida.');
-      setConfirmDelete(false);
-      setQcCycle(null);
+      setDeleteTarget(null);
+      setQcCycle(c => (c?.id === id ? null : c));   // fecha o QC se era o mesmo ciclo
       await refresh();
     } catch (err) {
       toast.error('Não foi possível remover a lavagem.');
@@ -298,6 +289,12 @@ export default function LavagemPage() {
       setDeleting(false);
     }
   };
+
+  // Controlo de qualidade (nota 0–10 + comentário).
+  const [qcCycle, setQcCycle] = useState<CarWashCycle | null>(null);
+  const [qcScore, setQcScore] = useState<string>('');
+  const [qcComment, setQcComment] = useState<string>('');
+  const [qcSaving, setQcSaving] = useState(false);
 
   const openQC = (c: CarWashCycle) => {
     setQcCycle(c);
@@ -585,7 +582,7 @@ export default function LavagemPage() {
                         </Button>
                       )}
                       {canDelete && (
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(c.id)} title="Remover agendamento">
+                        <Button size="sm" variant="ghost" onClick={() => requestDelete(c)} title="Remover agendamento">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
@@ -835,7 +832,7 @@ export default function LavagemPage() {
                               )}
                               {canDelete && (
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); handleDelete(p.c.id); }}
+                                  onClick={(e) => { e.stopPropagation(); requestDelete(p.c); }}
                                   className="opacity-0 group-hover:opacity-100 transition-opacity"
                                   title="Remover"
                                 >
@@ -928,13 +925,20 @@ export default function LavagemPage() {
           </div>
 
           <DialogFooter className="sm:justify-between">
-            {/* Remover lavagem/agendamento — só admin. Acessível clicando na slot. */}
+            {/* Remover lavagem/agendamento — só admin. Botão discreto (texto), à
+             * esquerda no ecrã largo; pede confirmação antes de apagar. */}
             {canDelete ? (
-              <Button variant="destructive" onClick={() => setConfirmDelete(true)} disabled={qcSaving || deleting}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => qcCycle && requestDelete(qcCycle)}
+                disabled={qcSaving || deleting}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
                 <Trash2 className="h-4 w-4" /> Remover
               </Button>
             ) : <span />}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 sm:space-x-0">
               <Button variant="outline" onClick={() => setQcCycle(null)}>Fechar</Button>
               {canQC && (
                 <Button onClick={handleSaveQC} disabled={qcSaving}>
@@ -948,14 +952,14 @@ export default function LavagemPage() {
       </Dialog>
 
       {/* ── Confirmação de remoção (admin) ──────────────────────────────────── */}
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remover lavagem?</AlertDialogTitle>
             <AlertDialogDescription>
-              {qcCycle && (
+              {deleteTarget && (
                 <>
-                  Esta ação remove definitivamente {qcCycle.plate} · {WASH_TYPE_MAP[qcCycle.wash_type]?.label ?? qcCycle.wash_type} ({fmtTime(effectiveAt(qcCycle))}) e não pode ser anulada.
+                  Esta ação remove definitivamente {deleteTarget.plate} · {WASH_TYPE_MAP[deleteTarget.wash_type]?.label ?? deleteTarget.wash_type} ({fmtTime(effectiveAt(deleteTarget))}) e não pode ser anulada.
                 </>
               )}
             </AlertDialogDescription>
@@ -963,7 +967,7 @@ export default function LavagemPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={(e) => { e.preventDefault(); handleDeleteFromQC(); }}
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
