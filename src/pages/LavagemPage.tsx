@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Car, Loader2, CheckCircle2, Timer, CalendarDays, Trash2, ChevronLeft, ChevronRight,
   BarChart3, FileSpreadsheet, Star, ClipboardCheck, Play, ListOrdered, ArrowRight,
@@ -10,7 +10,7 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle,
   cycleStatus, effectiveAt, queueKey, startDeviationMin,
-  listCycles, listActiveCycles, createCycle, startCycle, setQueueOrder, endCycle, deleteCycle, setQuality, exportCyclesToExcel,
+  listCycles, listActiveCycles, createCycle, startCycle, setQueueOrder, rescheduleCycle, endCycle, deleteCycle, setQuality, exportCyclesToExcel,
 } from '@/lib/lavagem';
 import { funLoadingLabel } from '@/lib/loading-messages';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,6 +43,10 @@ const DAY_MS = 86400000;
 const HOUR_PX = 64;                 // altura de 1 hora
 const PX_PER_MIN = HOUR_PX / 60;    // altura por minuto (proporcional à duração)
 const MIN_SLOT_PX = 22;             // altura mínima legível (lavagens muito curtas)
+const GUTTER_PX = 48;               // largura do gutter de horas (w-12)
+const SNAP_MIN = 5;                 // arredondamento ao arrastar (minutos)
+const DRAG_THRESHOLD_PX = 4;        // deslocamento mínimo para distinguir arrasto de clique
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 /* Horário de funcionamento da lavagem (em minutos desde a meia-noite).
  * Manhã 08:30–12:30 · Tarde 14:00–18:00 · Extra 18:00–19:00 (sujeito a
@@ -321,6 +325,70 @@ export default function LavagemPage() {
       console.error(err);
     } finally {
       setQcSaving(false);
+    }
+  };
+
+  // ── Arrastar slots na agenda (reagendar) ────────────────────────────────────
+  // Só lavagens agendadas e só quem pode agendar. Distingue clique de arrasto por
+  // limiar de movimento; ao largar, fixa novo dia/hora (scheduled_at) com snap.
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ id: string; dur: number } | null>(null);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const grabOffsetMinRef = useRef(0);
+  const movedRef = useRef(false);
+  const [drag, setDrag] = useState<{ id: string; plate: string; dur: number; dayIndex: number; startMin: number } | null>(null);
+
+  const pointerToSlot = (clientX: number, clientY: number, dur: number) => {
+    const el = gridRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const dayWidth = (rect.width - GUTTER_PX) / 5;
+    if (dayWidth <= 0) return null;
+    const dayIndex = clamp(Math.floor((clientX - rect.left - GUTTER_PX) / dayWidth), 0, 4);
+    const rawMin = windowStartMin + (clientY - rect.top) / PX_PER_MIN - grabOffsetMinRef.current;
+    const startMin = clamp(Math.round(rawMin / SNAP_MIN) * SNAP_MIN, 0, 24 * 60 - dur);
+    return { dayIndex, startMin };
+  };
+
+  const onBlockPointerDown = (e: React.PointerEvent, c: CarWashCycle) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    grabOffsetMinRef.current = (e.clientY - rect.top) / PX_PER_MIN;
+    dragRef.current = { id: c.id, dur: Math.max(c.duration_min, 5) };
+    startRef.current = { x: e.clientX, y: e.clientY };
+    movedRef.current = false;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onBlockPointerMove = (e: React.PointerEvent, c: CarWashCycle) => {
+    if (!dragRef.current || !startRef.current) return;
+    if (!movedRef.current) {
+      const dx = e.clientX - startRef.current.x;
+      const dy = e.clientY - startRef.current.y;
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+      movedRef.current = true;
+    }
+    const slot = pointerToSlot(e.clientX, e.clientY, dragRef.current.dur);
+    if (slot) setDrag({ id: c.id, plate: c.plate, dur: dragRef.current.dur, ...slot });
+  };
+
+  const onBlockPointerUp = async (e: React.PointerEvent, c: CarWashCycle) => {
+    const wasDragging = movedRef.current;
+    const slot = dragRef.current ? pointerToSlot(e.clientX, e.clientY, dragRef.current.dur) : null;
+    dragRef.current = null;
+    startRef.current = null;
+    movedRef.current = false;
+    setDrag(null);
+    if (!wasDragging) { openQC(c); return; }   // não arrastou → clique normal
+    if (!slot) return;
+    const when = new Date(addDays(weekStart, slot.dayIndex));
+    when.setHours(Math.floor(slot.startMin / 60), slot.startMin % 60, 0, 0);
+    try {
+      await rescheduleCycle(c.id, when.toISOString());
+      toast.success('Lavagem reagendada.');
+      await refresh();
+    } catch (err) {
+      toast.error('Não foi possível reagendar a lavagem.');
+      console.error(err);
     }
   };
 
@@ -717,6 +785,7 @@ export default function LavagemPage() {
               </CardTitle>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 Horário: 08:30–12:30 · 14:00–18:00 · <span className="text-amber-700 dark:text-amber-400">extra 18:00–19:00</span>
+                {canSchedule && <span className="text-muted-foreground"> · arraste as lavagens agendadas para reagendar</span>}
               </p>
             </div>
             <div className="flex items-center gap-1">
@@ -749,7 +818,7 @@ export default function LavagemPage() {
             </div>
 
             {/* Grelha horária */}
-            <div className="flex min-w-[640px] relative" style={{ height: gridHeight }}>
+            <div ref={gridRef} className="flex min-w-[640px] relative" style={{ height: gridHeight }}>
               {/* Gutter de horas */}
               <div className="w-12 flex-shrink-0 relative">
                 {ticks.filter(m => m % 60 === 0 || m === windowStartMin).map(m => (
@@ -812,17 +881,26 @@ export default function LavagemPage() {
                       const widthPct = 100 / lanes;
                       const compact = height < 34;
                       const scheduled = cycleStatus(p.c) === 'scheduled';
+                      const draggable = canSchedule && scheduled;
+                      const isDragging = drag?.id === p.c.id;
+                      const blockHandlers = draggable
+                        ? {
+                            onPointerDown: (e: React.PointerEvent) => onBlockPointerDown(e, p.c),
+                            onPointerMove: (e: React.PointerEvent) => onBlockPointerMove(e, p.c),
+                            onPointerUp: (e: React.PointerEvent) => onBlockPointerUp(e, p.c),
+                          }
+                        : { onClick: () => openQC(p.c) };
                       return (
                         <div
                           key={p.c.id}
-                          onClick={() => openQC(p.c)}
-                          className={`group absolute rounded border px-1.5 py-0.5 overflow-hidden text-[11px] leading-tight cursor-pointer ${t?.block ?? ''} ${p.c.ended_at ? 'opacity-60' : ''} ${scheduled ? 'border-dashed' : ''}`}
+                          {...blockHandlers}
+                          className={`group absolute rounded border px-1.5 py-0.5 overflow-hidden text-[11px] leading-tight ${t?.block ?? ''} ${p.c.ended_at ? 'opacity-60' : ''} ${scheduled ? 'border-dashed' : ''} ${draggable ? 'cursor-grab active:cursor-grabbing touch-none select-none' : 'cursor-pointer'} ${isDragging ? 'opacity-40' : ''}`}
                           style={{
                             top, height,
                             left: `calc(${p.lane * widthPct}% + 2px)`,
                             width: `calc(${widthPct}% - 4px)`,
                           }}
-                          title={`${p.c.plate} · ${t?.label ?? p.c.wash_type} · ${p.c.duration_min} min · ${fmtTime(effectiveAt(p.c))}${scheduled ? ' · agendada' : ''}${p.c.quality_score != null ? ` · QC ${p.c.quality_score}/10` : ''}`}
+                          title={`${p.c.plate} · ${t?.label ?? p.c.wash_type} · ${p.c.duration_min} min · ${fmtTime(effectiveAt(p.c))}${scheduled ? ' · agendada' : ''}${p.c.quality_score != null ? ` · QC ${p.c.quality_score}/10` : ''}${draggable ? ' · arraste para reagendar' : ''}`}
                         >
                           <div className="flex items-center justify-between gap-1">
                             <span className="font-semibold truncate">{p.c.plate}</span>
@@ -834,6 +912,7 @@ export default function LavagemPage() {
                               )}
                               {canDelete && (
                                 <button
+                                  onPointerDown={(e) => e.stopPropagation()}
                                   onClick={(e) => { e.stopPropagation(); requestDelete(p.c); }}
                                   className="opacity-0 group-hover:opacity-100 transition-opacity"
                                   title="Remover"
@@ -854,6 +933,21 @@ export default function LavagemPage() {
                   </div>
                 );
               })}
+
+              {/* Fantasma: pré-visualização do destino ao arrastar. */}
+              {drag && (
+                <div
+                  className="pointer-events-none absolute z-20 rounded border-2 border-dashed border-primary bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary overflow-hidden"
+                  style={{
+                    top: (drag.startMin - windowStartMin) * PX_PER_MIN,
+                    height: Math.max(drag.dur * PX_PER_MIN, MIN_SLOT_PX),
+                    left: `calc(${GUTTER_PX}px + ${drag.dayIndex} * (100% - ${GUTTER_PX}px) / 5)`,
+                    width: `calc((100% - ${GUTTER_PX}px) / 5)`,
+                  }}
+                >
+                  {drag.plate} · {fmtMin(drag.startMin)}
+                </div>
+              )}
             </div>
           </div>
 
