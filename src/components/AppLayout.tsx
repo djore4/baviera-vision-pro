@@ -20,10 +20,11 @@ const NAV_ITEMS = [
   { path: '/ficha-margem', label: 'FICHA MARGEM', icon: Calculator },
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
   { path: '/lavagem', label: 'LAVAGEM', icon: Droplets },
+  // Acessível a perfis não-admin (via permissões) → estilo normal, não "admin" (amarelo).
+  { path: '/vendedores', label: 'PERFORMANCE', icon: Users },
 ];
 
 const ADMIN_NAV_ITEMS = [
-  { path: '/vendedores', label: 'PERFORMANCE', icon: Users },
   { path: '/fidelizacao', label: 'FIDELIZAÇÃO', icon: HeartHandshake },
   { path: '/dados', label: 'DADOS', icon: Database },
   { path: '/arquivo', label: 'ARQUIVO', icon: Archive },
