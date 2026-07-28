@@ -5,8 +5,10 @@ import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { TABS } from '@/lib/permissions';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { seasonalFlags } from '@/lib/seasonal';
 import bmwLogo from '@/assets/bmw-logo.png';
 
 const NAV_ITEMS = [
@@ -38,9 +40,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const week = getCurrentWeek();
+  const season = seasonalFlags();
 
   const navItems = NAV_ITEMS.filter(item => canView(item.path.slice(1)));
   const adminNavItems = ADMIN_NAV_ITEMS.filter(item => canView(item.path.slice(1)));
+
+  // Easter egg: clicar no logo várias vezes seguidas faz "vrum".
+  const [vroom, setVroom] = useState(false);
+  const logoClicks = useRef(0);
+  const logoTimer = useRef<number | null>(null);
+  const handleLogoClick = () => {
+    logoClicks.current += 1;
+    if (logoTimer.current) window.clearTimeout(logoTimer.current);
+    logoTimer.current = window.setTimeout(() => { logoClicks.current = 0; }, 1200);
+    if (logoClicks.current >= 7) {
+      logoClicks.current = 0;
+      setVroom(true);
+      window.setTimeout(() => setVroom(false), 500);
+      toast('🏁 Vrum vrum!', { description: 'Este dashboard tem cavalos a mais.' });
+    }
+  };
 
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
@@ -135,7 +154,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-muted-foreground hover:text-foreground">
               {sidebarOpen && !isMobile ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </button>
-            <img src={bmwLogo} alt="BMW" className="h-8 w-8" />
+            <button onClick={handleLogoClick} className="relative flex-shrink-0" title="BMW" aria-label="BMW">
+              <img src={bmwLogo} alt="BMW" className={`h-8 w-8 ${vroom ? 'animate-vroom' : ''}`} />
+              {season.xmas && (
+                <span className="absolute -top-2 -right-1 text-[13px] leading-none select-none" aria-hidden>🎅</span>
+              )}
+            </button>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               {[...NAV_ITEMS, ...ADMIN_NAV_ITEMS, SETTINGS_NAV_ITEM].find(n => n.path === location.pathname)?.label
                 || TABS.find(t => t.path === location.pathname)?.label
@@ -144,7 +168,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 <div className="flex items-center gap-2">
             <div className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
-              Semana {week}
+              Semana {week}{season.fridayPM && <span className="hidden sm:inline"> · Bom fim de semana 🎉</span>}
             </div>
             <button onClick={() => supabase.auth.signOut()} className="text-muted-foreground hover:text-foreground">
               <LogOut className="h-4 w-4" />

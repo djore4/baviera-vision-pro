@@ -97,11 +97,26 @@ extend: {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        // Easter eggs.
+        "turbo-swipe": {
+          "0%": { opacity: "0", transform: "translateX(-30%)" },
+          "20%": { opacity: "1" },
+          "100%": { opacity: "0", transform: "translateX(30%)" },
+        },
+        vroom: {
+          "0%,100%": { transform: "translateX(0) rotate(0)" },
+          "20%": { transform: "translateX(-2px) rotate(-8deg)" },
+          "40%": { transform: "translateX(2px) rotate(8deg)" },
+          "60%": { transform: "translateX(-2px) rotate(-6deg)" },
+          "80%": { transform: "translateX(2px) rotate(6deg)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.3s ease-out",
+        "turbo-swipe": "turbo-swipe 1.5s ease-out",
+        vroom: "vroom 0.5s ease-in-out",
       },
     },
   },
