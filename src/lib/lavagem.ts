@@ -151,6 +151,20 @@ export async function startCycle(id: string): Promise<CarWashCycle> {
   return data as CarWashCycle;
 }
 
+/* Reagenda uma lavagem (arrastar na agenda): fixa nova hora do plano e limpa a
+ * ordem manual da fila, para que a fila (queueKey = scheduled_at) volte a seguir
+ * o plano — mantendo agenda e fila coerentes. */
+export async function rescheduleCycle(id: string, scheduledAtISO: string): Promise<CarWashCycle> {
+  const { data, error } = await supabase
+    .from('car_wash_cycles')
+    .update({ scheduled_at: scheduledAtISO, queue_order: null })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CarWashCycle;
+}
+
 /* Ajuste operacional da fila: define a ordem manual (antecipar/reordenar).
  * Não altera o plano (scheduled_at) nem a agenda. */
 export async function setQueueOrder(id: string, order: number): Promise<CarWashCycle> {
