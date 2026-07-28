@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Trophy } from 'lucide-react';
+import { Trophy, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import {
@@ -18,6 +18,19 @@ import {
 const isVehicle = (t: string) => t === 'VN' || t === 'VD';
 const CLOSED = new Set(['Carteira', 'Matricula', 'Retail']); // negócio fechado (entrou em carteira ou além)
 const OPEN = new Set(['Carteira', 'Matricula']); // carteira ainda por entregar
+
+/* Colunas ordenáveis da tabela "Desempenho por Comercial". */
+type SortKey = 'resp' | 'neg' | 'ret' | 'r' | 'bevPct' | 'qorPct' | 'open' | 'age';
+const PERF_COLS: { key: SortKey; label: string; align: 'left' | 'right'; title?: string }[] = [
+  { key: 'resp', label: 'Comercial', align: 'left' },
+  { key: 'neg', label: 'Neg', align: 'right', title: 'Negócios fechados no período' },
+  { key: 'ret', label: 'Ret', align: 'right', title: 'Retails entregues no período' },
+  { key: 'r', label: 'R', align: 'right', title: 'Negócios ÷ Retails (fluxo)' },
+  { key: 'bevPct', label: '%BEV', align: 'right', title: '% BEV dos negócios do período' },
+  { key: 'qorPct', label: '%QoR', align: 'right', title: '% QoR dos negócios do período' },
+  { key: 'open', label: 'Cart.', align: 'right', title: 'Carteira atual em aberto (Carteira + Matrícula)' },
+  { key: 'age', label: 'Idade', align: 'right', title: 'Idade média da carteira atual (dias desde o negócio)' },
+];
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
 const fmtR = (r: number | null) => (r === null ? '—' : r.toFixed(2));
@@ -208,6 +221,28 @@ export default function VendedoresPage() {
       .sort((a, b) => b.neg - a.neg);
   }, [negocios, retails, openCarteira]);
 
+  // Ordenação da tabela por coluna (clique alterna asc/desc). Por defeito, Neg desc.
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'neg', dir: 'desc' });
+  const toggleSort = (key: SortKey) =>
+    setSort(s => s.key === key
+      ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: key === 'resp' ? 'asc' : 'desc' });
+
+  const sortedRows = useMemo(() => {
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const av = a[sort.key];
+      const bv = b[sort.key];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;   // nulos (R/Idade sem valor) sempre no fim
+      if (bv == null) return -1;
+      if (typeof av === 'string' || typeof bv === 'string') {
+        return String(av).localeCompare(String(bv)) * dir;
+      }
+      return (av - bv) * dir;
+    });
+  }, [rows, sort]);
+
   const rClass = (r: number | null) =>
     r === null ? 'text-muted-foreground'
       : r > 1.02 ? 'bg-[#1C69D4]/10 text-[#1C69D4] dark:text-sky-300'
@@ -371,18 +406,29 @@ export default function VendedoresPage() {
             <table className="w-full text-[11px]">
               <thead>
                 <tr className="text-[10px] text-muted-foreground bg-muted/40">
-                  <th className="px-2 py-1.5 text-left font-medium">Comercial</th>
-                  <th className="px-2 py-1.5 text-right font-medium" title="Negócios fechados no período">Neg</th>
-                  <th className="px-2 py-1.5 text-right font-medium" title="Retails entregues no período">Ret</th>
-                  <th className="px-2 py-1.5 text-right font-medium" title="Negócios ÷ Retails (fluxo)">R</th>
-                  <th className="px-2 py-1.5 text-right font-medium" title="% BEV dos negócios do período">%BEV</th>
-                  <th className="px-2 py-1.5 text-right font-medium" title="% QoR dos negócios do período">%QoR</th>
-                  <th className="px-2 py-1.5 text-right font-medium" title="Carteira atual em aberto (Carteira + Matrícula)">Cart.</th>
-                  <th className="px-2 py-1.5 text-right font-medium" title="Idade média da carteira atual (dias desde o negócio)">Idade</th>
+                  {PERF_COLS.map(c => {
+                    const active = sort.key === c.key;
+                    return (
+                      <th
+                        key={c.key}
+                        onClick={() => toggleSort(c.key)}
+                        title={c.title}
+                        aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                        className={`px-2 py-1.5 font-medium cursor-pointer select-none hover:text-foreground ${c.align === 'left' ? 'text-left' : 'text-right'}`}
+                      >
+                        <span className="inline-flex items-center gap-0.5">
+                          {c.label}
+                          {active
+                            ? (sort.dir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)
+                            : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                        </span>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {rows.map(row => (
+                {sortedRows.map(row => (
                   <tr key={row.resp} className="hover:bg-muted/40">
                     <td className="px-2 py-1 font-medium whitespace-nowrap">{row.resp}</td>
                     <td className="px-2 py-1 text-right tabular-nums">{row.neg}</td>
@@ -394,7 +440,7 @@ export default function VendedoresPage() {
                     <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{row.age === null ? '—' : `${row.age} d`}</td>
                   </tr>
                 ))}
-                {rows.length === 0 && (
+                {sortedRows.length === 0 && (
                   <tr><td colSpan={8} className="px-2 py-4 text-center text-muted-foreground">Sem registos no período.</td></tr>
                 )}
               </tbody>
