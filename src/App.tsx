@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -27,6 +28,7 @@ import FidelizacaoPage from "./pages/FidelizacaoPage";
 import LavagemPage from "./pages/LavagemPage";
 import UtilizadoresPage from "./pages/UtilizadoresPage";
 import ArquivoPage from "./pages/ArquivoPage";
+import DefinicoesPage from "./pages/DefinicoesPage";
 import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
 import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,6 +73,7 @@ const tab = (key: string, node: React.ReactNode) => (
 );
 
 const App = () => (
+  <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -100,6 +103,8 @@ const App = () => (
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
               <Route path="/arquivo" element={tab('arquivo', <ArquivoPage />)} />
               <Route path="/utilizadores" element={tab('utilizadores', <UtilizadoresPage />)} />
+              {/* Definições — pessoal, acessível a qualquer utilizador (fora da matriz de permissões). */}
+              <Route path="/definicoes" element={<AppLayout><DefinicoesPage /></AppLayout>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </HashRouter>
@@ -109,6 +114,7 @@ const App = () => (
       </AuthGate>
     </TooltipProvider>
   </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;

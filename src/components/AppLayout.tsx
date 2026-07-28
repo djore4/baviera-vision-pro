@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, HeartHandshake, Droplets, UserCog, Archive } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, HeartHandshake, Droplets, UserCog, Archive, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
@@ -27,6 +27,9 @@ const ADMIN_NAV_ITEMS = [
   { path: '/arquivo', label: 'ARQUIVO', icon: Archive },
   { path: '/utilizadores', label: 'UTILIZADORES', icon: UserCog },
 ];
+
+/* Sempre disponível (área pessoal, fora da matriz de permissões). */
+const SETTINGS_NAV_ITEM = { path: '/definicoes', label: 'DEFINIÇÕES', icon: Settings };
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -105,6 +108,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+
+          {/* Definições — sempre visível (área pessoal). */}
+          <div className="pt-2 mt-2 border-t border-white/10">
+            <Link
+              to={SETTINGS_NAV_ITEM.path}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                location.pathname === SETTINGS_NAV_ITEM.path
+                  ? 'bg-bmw-blue text-white'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <SETTINGS_NAV_ITEM.icon className="h-4 w-4" />
+              {SETTINGS_NAV_ITEM.label}
+            </Link>
+          </div>
         </nav>
         <div className="px-4 py-3 border-t border-white/10">
           <span className="text-[10px] text-white/40 uppercase tracking-wider">BMW Dealer Dashboard</span>
@@ -119,7 +137,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </button>
             <img src={bmwLogo} alt="BMW" className="h-8 w-8" />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {[...NAV_ITEMS, ...ADMIN_NAV_ITEMS].find(n => n.path === location.pathname)?.label
+              {[...NAV_ITEMS, ...ADMIN_NAV_ITEMS, SETTINGS_NAV_ITEM].find(n => n.path === location.pathname)?.label
                 || TABS.find(t => t.path === location.pathname)?.label
                 || 'Dashboard'}
             </span>
