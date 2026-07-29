@@ -131,11 +131,14 @@ function layoutDay(items: CarWashCycle[]): { placed: PlacedCycle[]; lanes: numbe
 
 export default function LavagemPage() {
   const { session } = useAuth();
-  const { isAdmin, roleName } = usePermissions();
+  const { isAdmin, roleName, canEdit } = usePermissions();
   // Permissões específicas dentro do tab Lavagem (ver tab: qualquer perfil com acesso).
-  const canSchedule = isAdmin || roleName === 'Preparador';                         // agendar (marcação)
+  // Acesso de edição ao tab Lavagem concede as tarefas de planeamento (agendar/reordenar),
+  // para além dos perfis dedicados — ex.: APV agenda lavagens de serviço.
+  const lavagemEdit = canEdit('lavagem');                                           // edição atribuída ao perfil
+  const canSchedule = isAdmin || roleName === 'Preparador' || lavagemEdit;          // agendar (marcação)
   const canStart = isAdmin || roleName === 'Lavador';                               // iniciar (imediata/agendada)
-  const canReorder = isAdmin || roleName === 'Preparador';                          // reordenar/antecipar a fila
+  const canReorder = isAdmin || roleName === 'Preparador' || lavagemEdit;           // reordenar/antecipar a fila
   const canCreate = canSchedule || canStart;                                        // ver formulário
   const canTerminate = isAdmin || roleName === 'Lavador';                           // terminar
   const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';    // controlo de qualidade
