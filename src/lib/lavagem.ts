@@ -11,7 +11,8 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type WashTypeId =
   | 'simples' | 'oferta' | 'completa' | 'parque'
-  | 'servico' | 'novo' | 'bps' | 'retoma';
+  | 'servico' | 'novo' | 'bps' | 'retoma'
+  | 'mota_vn' | 'mota_vu';
 
 export interface WashType {
   id: WashTypeId;
@@ -41,6 +42,10 @@ export const WASH_TYPES: WashType[] = [
     dot: 'bg-rose-500',    block: 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-500/20 dark:text-rose-200 dark:border-rose-500/40',           badge: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' },
   { id: 'retoma',   label: 'Retoma',   duration: 15,
     dot: 'bg-orange-500',  block: 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-500/20 dark:text-orange-200 dark:border-orange-500/40',   badge: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' },
+  { id: 'mota_vn',  label: 'Mota VN',  duration: 15,
+    dot: 'bg-teal-500',    block: 'bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-500/20 dark:text-teal-200 dark:border-teal-500/40',           badge: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300' },
+  { id: 'mota_vu',  label: 'Mota VU',  duration: 30,
+    dot: 'bg-pink-500',    block: 'bg-pink-100 text-pink-800 border-pink-300 dark:bg-pink-500/20 dark:text-pink-200 dark:border-pink-500/40',           badge: 'bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300' },
 ];
 
 export const WASH_TYPE_MAP: Record<WashTypeId, WashType> =
