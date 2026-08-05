@@ -253,17 +253,23 @@ function DayCell({
           {status === 'Férias' && <Check className="h-4 w-4 text-repsol-orange" />}
         </button>
         <div className="my-1 border-t border-border" />
-        <button
-          onClick={() => { if (isShift(status)) { onToggleLimpeza(); setOpen(false); } }}
-          disabled={!isShift(status)}
-          className="flex w-full items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-40"
-        >
-          <span className="flex items-center gap-1.5 font-medium">
-            <Sparkles className="h-3.5 w-3.5 text-repsol-orange" />
-            Limpeza (L)
-          </span>
-          {value?.limpeza && <Check className="h-4 w-4 text-repsol-orange" />}
-        </button>
+        {isShift(status) ? (
+          <button
+            onClick={() => { onToggleLimpeza(); setOpen(false); }}
+            className="flex w-full items-center justify-between rounded px-2 py-1.5 text-sm hover:bg-accent"
+          >
+            <span className="flex items-center gap-1.5 font-medium">
+              <Sparkles className="h-3.5 w-3.5 text-repsol-orange" />
+              {value?.limpeza ? 'Retirar limpeza (L)' : 'Marcar limpeza (L)'}
+            </span>
+            {value?.limpeza && <Check className="h-4 w-4 text-repsol-orange" />}
+          </button>
+        ) : (
+          <div className="flex items-start gap-1.5 px-2 py-1.5 text-[11px] text-muted-foreground">
+            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>Limpeza (L): escolhe primeiro um turno para esta pessoa.</span>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );
@@ -565,7 +571,7 @@ export default function EscalaRepsolPage() {
           <Button variant="outline" size="icon" onClick={() => changeMonth(-1)} aria-label="Mês anterior">
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="min-w-[9rem] text-center">
+          <div className="min-w-[7rem] text-center">
             <div className="text-sm font-semibold text-foreground">{MONTHS_PT_FULL[month]} {year}</div>
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Escala mensal</div>
           </div>
@@ -574,15 +580,15 @@ export default function EscalaRepsolPage() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setTeamOpen(o => !o)}>
-            <Users className="h-4 w-4 mr-1.5" /> Equipa
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setTeamOpen(o => !o)} title="Equipa">
+            <Users className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Equipa</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={clearMonth}>
-            <RotateCcw className="h-4 w-4 mr-1.5" /> Limpar mês
+          <Button variant="outline" size="sm" onClick={clearMonth} title="Limpar mês">
+            <RotateCcw className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Limpar mês</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={exportPdf}>
-            <FileDown className="h-4 w-4 mr-1.5" /> Exportar PDF
+          <Button variant="outline" size="sm" onClick={exportPdf} title="Exportar PDF">
+            <FileDown className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Exportar PDF</span>
           </Button>
           <Button size="sm" onClick={save} disabled={saving || !dirty}
             className="bg-repsol-orange text-white hover:bg-repsol-orange/90">
@@ -640,24 +646,24 @@ export default function EscalaRepsolPage() {
       )}
 
       {/* Schedule grid: linhas = dias, colunas = funcionários */}
-      <div className="w-full overflow-x-auto rounded-lg border border-border">
+      <div className="w-full rounded-lg border border-border">
         <table className="w-full table-fixed border-collapse text-xs">
           <colgroup>
-            <col className="w-[6%]" />
-            <col className="w-[11%]" />
-            <col className="w-[8%]" />
-            {team.map(m => <col key={m.id} style={{ width: `${75 / Math.max(team.length, 1)}%` }} />)}
+            <col className="w-[9%]" />
+            <col className="w-[9%]" />
+            <col className="w-[13%]" />
+            {team.map(m => <col key={m.id} style={{ width: `${69 / Math.max(team.length, 1)}%` }} />)}
           </colgroup>
           <thead>
             <tr className="bg-repsol-orange text-white">
-              <th className="px-1 py-1.5 text-left font-semibold">SEM</th>
-              <th className="px-1 py-1.5 text-left font-semibold">DATA</th>
-              <th className="px-1 py-1.5 text-left font-semibold">DIA</th>
+              <th className="px-2 py-2 text-center font-semibold">SEM</th>
+              <th className="px-2 py-2 text-center font-semibold">DIA</th>
+              <th className="border-r border-white/25 px-2 py-2 text-left font-semibold" aria-label="Dia da semana"></th>
               {team.map((m, i) => (
-                <th key={m.id} className="px-1 py-1.5 text-center font-semibold">
-                  <span className="flex items-center justify-center gap-1 leading-tight">
+                <th key={m.id} className="px-1 py-2 text-center font-semibold" title={m.name || m.initials}>
+                  <span className="flex flex-col items-center gap-1 leading-tight">
                     <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${colorOf(i)} ring-1 ring-white/60`} />
-                    <span className="truncate" title={m.name || m.initials}>{firstName(m.name, m.initials)}</span>
+                    <span>{m.initials}</span>
                   </span>
                 </th>
               ))}
@@ -670,12 +676,13 @@ export default function EscalaRepsolPage() {
               const gap = cov && (!cov.opening || !cov.closing);
               return (
                 <tr key={d.key} className={rowBg}>
-                  <td className="px-1 py-1 text-muted-foreground tabular-nums">{d.week}</td>
-                  <td className="px-1 py-1 tabular-nums whitespace-nowrap">
-                    {String(d.day).padStart(2, '0')} {MONTHS_PT[month]}
+                  <td className="px-2 py-1.5 text-center text-muted-foreground tabular-nums">{d.week}</td>
+                  <td className="px-2 py-1.5 text-center font-medium tabular-nums">
+                    {String(d.day).padStart(2, '0')}
                   </td>
-                  <td className="px-1 py-1">
-                    <span className="flex items-center gap-1">
+                  <td className="border-r border-border px-2 py-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <span className={`font-medium ${d.weekend ? 'text-repsol-orange' : ''}`}>{d.weekday}</span>
                       {gap && (
                         <span
                           className="h-1.5 w-1.5 shrink-0 rounded-full bg-repsol-red"
@@ -683,11 +690,10 @@ export default function EscalaRepsolPage() {
                           aria-hidden
                         />
                       )}
-                      <span className={`font-medium ${d.weekend ? 'text-repsol-orange' : ''}`}>{d.weekday}</span>
                     </span>
                   </td>
                   {team.map(m => (
-                    <td key={m.id} className="px-0.5 py-0.5">
+                    <td key={m.id} className="px-1 py-1">
                       <DayCell
                         value={assignments[d.key]?.[m.id]}
                         onSet={status => setCell(d.key, m.id, status)}
