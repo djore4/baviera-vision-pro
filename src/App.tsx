@@ -15,6 +15,7 @@ import PendentesPage from "./pages/PendentesPage";
 import MultasPage from "./pages/MultasPage";
 import DadosPage from "./pages/DadosPage";
 import EscalaPage from "./pages/EscalaPage";
+import EscalaRepsolPage from "./pages/EscalaRepsolPage";
 import NotFound from "./pages/NotFound";
 import FunilPage from "./pages/FunilPage";
 import LoginPage from "./pages/LoginPage";
@@ -93,6 +94,7 @@ const App = () => (
               <Route path="/carteira" element={tab('carteira', <CarteiraPage />)} />
               <Route path="/pendentes" element={tab('pendentes', <PendentesPage />)} />
               <Route path="/escala" element={tab('escala', <EscalaPage />)} />
+              <Route path="/escala-repsol" element={tab('escala-repsol', <EscalaRepsolPage />)} />
               <Route path="/funil" element={tab('funil', <FunilPage />)} />
               <Route path="/ficha-margem" element={tab('ficha-margem', <FichaMargemPage />)} />
               <Route path="/emprestimos" element={tab('emprestimos', <EmprestimosPage />)} />

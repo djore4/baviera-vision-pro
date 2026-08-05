@@ -78,6 +78,12 @@ extend: {
           orange: "#F59E0B",
           darkblue: "#1E40AF",
         },
+        repsol: {
+          orange: "#EF7D00",
+          red: "#E4032E",
+          blue: "#004A8F",
+          navy: "#1A2A3A",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
