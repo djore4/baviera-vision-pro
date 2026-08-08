@@ -32,6 +32,9 @@ const PT_MONTHS = [
 const isVehicle = (t: string) => t === 'VN' || t === 'VD';
 const RADIUS_TICKS = [0, 2, 4, 6, 8, 10];
 
+/* Responsáveis que aparecem como `resp` mas não são vendedores. */
+const NOT_VENDEDOR = new Set(['JD']);
+
 type FormState = Record<QualityMetricKey, string>;
 const emptyForm = (): FormState =>
   QUALITY_METRICS.reduce((acc, m) => { acc[m.key] = ''; return acc; }, {} as FormState);
@@ -65,6 +68,7 @@ export default function QualidadePage() {
     const set = new Set<string>();
     (data?.control ?? []).forEach(r => { if (isVehicle(r.type) && r.resp) set.add(r.resp); });
     rows.forEach(r => { if (r.vendedor) set.add(r.vendedor); });
+    NOT_VENDEDOR.forEach(v => set.delete(v));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [data, rows]);
 
