@@ -12,9 +12,8 @@ import { supabase } from '@/integrations/supabase/client';
 export const QUALITY_METRICS = [
   { key: 'retails', label: 'Retails' },
   { key: 'contratos', label: 'Contratos' },
-  { key: 'atitude', label: 'Atitude' },
-  { key: 'atendimento', label: 'Atendimento' },
-  { key: 'assiduidade', label: 'Assiduidade' },
+  { key: 'atitude', label: 'BMW FS' },
+  { key: 'assiduidade', label: 'CCGo' },
   { key: 'equipa', label: 'Equipa' },
   { key: 'nps100', label: 'NPS100' },
 ] as const;
