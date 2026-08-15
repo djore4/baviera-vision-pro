@@ -18,8 +18,8 @@ import { Label } from '@/components/ui/label';
 
 /* ── Tab Qualidade (admin) ─────────────────────────────────────────────────────
  * Gráfico de aranha das notas de qualidade do serviço, por mês e por vendedor.
- * As 7 pontas são as dimensões (retails, contratos, atitude, atendimento,
- * assiduidade, equipa, NPS100). A escala é fixa (0–10) em ambos os eixos, para
+ * As pontas são as dimensões (retails, contratos, BMW FS, CCGo, equipa,
+ * NPS100). A escala é fixa (0–10) em ambos os eixos, para
  * se perceber quando nenhuma nota está no máximo.
  *  - Sem seleção: mostra-se a média da equipa.
  *  - Um vendedor: lançam-se/editam-se as suas notas do mês.
