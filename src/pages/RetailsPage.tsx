@@ -531,7 +531,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 <td className="px-3 py-1 whitespace-nowrap">{r.chas}</td>
                 <td className="px-3 py-1 whitespace-nowrap">
                   {r.status === 'Carteira'
-                    ? <PedirMatriculaButton record={{ cliente: r.cliente, enc: r.enc, chas: r.chas, biz: r.biz }} />
+                    ? <PedirMatriculaButton record={{ cliente: r.cliente, enc: r.enc, chas: r.chas, biz: r.biz, fin: r.fin }} />
                     : r.mat}
                 </td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>

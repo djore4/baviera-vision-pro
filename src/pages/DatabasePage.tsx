@@ -450,7 +450,7 @@ export default function DatabasePage() {
                   ))}
                   <td className="px-2 py-1.5 whitespace-nowrap">
                     <PedirMatriculaButton
-                      record={{ cliente: r.id_cliente, enc: r.enc, chas: r.chas, biz: r.biz }}
+                      record={{ cliente: r.id_cliente, enc: r.enc, chas: r.chas, biz: r.biz, fin: r.fin }}
                     />
                   </td>
                 </tr>
