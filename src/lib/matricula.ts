@@ -6,6 +6,7 @@
  *  - enc      ← número de encomenda
  *  - chas     ← chassis / VIN
  *  - biz      ← número Bizagi
+ *  - fin      ← método de pagamento (coluna "Pag")
  */
 
 export interface MatriculaFields {
@@ -13,7 +14,12 @@ export interface MatriculaFields {
   enc?: string | null;
   chas?: string | null;
   biz?: string | null;
+  fin?: string | null;
 }
+
+/** Destinatários e CC fixos do pedido de matrícula. */
+const DESTINATARIOS = ['sonia.carvalho@caetano.pt', 'lurdes.aguiar@caetano.pt'];
+const CC = ['jose.mesquita@caetano.pt', 'joaocarlos.duarte@caetano.pt'];
 
 /** Saudação em função da hora: bom dia (<12h), boa tarde (12–20h), boa noite (>=20h). */
 export function saudacao(now: Date = new Date()): string {
@@ -29,9 +35,9 @@ export function buildMatriculaRequest(f: MatriculaFields, now: Date = new Date()
     v === null || v === undefined || String(v).trim() === '' ? '' : String(v).trim();
 
   return [
-    'Destinatários:',
-    'CC:',
-    'Assunto: *Pedido de matrícula* | *Bizagi*',
+    `Destinatários: ${DESTINATARIOS.join('; ')}`,
+    `CC: ${CC.join('; ')}`,
+    `Assunto: *Pedido de matrícula* | *${val(f.cliente)}*`,
     '',
     `${saudacao(now)},`,
     '',
@@ -41,5 +47,6 @@ export function buildMatriculaRequest(f: MatriculaFields, now: Date = new Date()
     `Encomenda: ${val(f.enc)}`,
     `Chassis: ${val(f.chas)}`,
     `Bizagi: ${val(f.biz)}`,
+    `Pagamento: ${val(f.fin)}`,
   ].join('\n');
 }

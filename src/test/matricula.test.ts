@@ -19,6 +19,7 @@ describe('buildMatriculaRequest', () => {
     enc: '8282632',
     chas: 'WB10K8108T6N23935',
     biz: '568511',
+    fin: 'FS',
   };
 
   it('inclui todos os campos da viatura', () => {
@@ -27,7 +28,18 @@ describe('buildMatriculaRequest', () => {
     expect(out).toContain('Encomenda: 8282632');
     expect(out).toContain('Chassis: WB10K8108T6N23935');
     expect(out).toContain('Bizagi: 568511');
-    expect(out).toContain('Assunto: *Pedido de matrícula* | *Bizagi*');
+    expect(out).toContain('Pagamento: FS');
+  });
+
+  it('usa o nome do cliente no assunto', () => {
+    const out = buildMatriculaRequest(rec, new Date('2026-08-19T10:00:00'));
+    expect(out).toContain('Assunto: *Pedido de matrícula* | *Carlos Ferreira de Melo*');
+  });
+
+  it('preenche destinatários e CC fixos', () => {
+    const out = buildMatriculaRequest(rec, new Date('2026-08-19T10:00:00'));
+    expect(out).toContain('Destinatários: sonia.carvalho@caetano.pt; lurdes.aguiar@caetano.pt');
+    expect(out).toContain('CC: jose.mesquita@caetano.pt; joaocarlos.duarte@caetano.pt');
   });
 
   it('ajusta a saudação à hora do copy', () => {
