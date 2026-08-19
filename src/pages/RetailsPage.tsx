@@ -387,7 +387,7 @@ export default function RetailsPage() {
           </div>
 
           {isMobile && (
-            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />
+            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={openEditor} />
           )}
 
           {/* Row 2 */}
@@ -472,7 +472,7 @@ export default function RetailsPage() {
           </div>
 
           {!isMobile && (
-            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />
+            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={openEditor} />
           )}
         </div>
       </div>
@@ -480,9 +480,10 @@ export default function RetailsPage() {
   );
 }
 
-function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, toggleSort, SortIcon, exportCSV }: {
+function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, toggleSort, SortIcon, exportCSV, openEditor }: {
   tableData: any[]; tableColumns: [SortKey, string][]; searchTerm: string; setSearchTerm: (v: string) => void;
   toggleSort: (k: SortKey) => void; SortIcon: React.FC<{ col: SortKey }>; exportCSV: () => void;
+  openEditor: (id: string) => void;
 }) {
   return (
     <div className="bg-card border border-border rounded-lg">
@@ -507,7 +508,6 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                   <span className="inline-flex items-center">{label}<SortIcon col={key} /></span>
                 </th>
               ))}
-              <th className="h-9 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap bg-card">AÇÃO</th>
             </tr>
           </thead>
           <tbody>
@@ -529,14 +529,15 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 <td className="px-3 py-1 whitespace-nowrap">{r.biz}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.chas}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{r.mat}</td>
+                <td className="px-3 py-1 whitespace-nowrap">
+                  {r.status === 'Carteira'
+                    ? <PedirMatriculaButton record={{ cliente: r.cliente, enc: r.enc, chas: r.chas, biz: r.biz }} />
+                    : r.mat}
+                </td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.dmat)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.date298)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.app)}</td>
-                <td className="px-3 py-1 whitespace-nowrap">
-                  <PedirMatriculaButton record={{ cliente: r.cliente, enc: r.enc, chas: r.chas, biz: r.biz }} />
-                </td>
               </tr>
             ))}
           </tbody>
