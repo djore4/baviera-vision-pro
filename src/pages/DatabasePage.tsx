@@ -5,6 +5,7 @@ import { useData } from '@/contexts/DataContext';
 import { replaceControlRecords } from '@/lib/control-records';
 import { useRecordEditor, RECORDS_CHANGED_EVENT } from '@/components/RecordEditor';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 
 interface ControlRecord {
   id: string;
@@ -423,6 +424,7 @@ export default function DatabasePage() {
                     </th>
                   );
                 })}
+                <th className="px-2 py-2 text-left whitespace-nowrap font-semibold text-white/90">AÇÃO</th>
               </tr>
             </thead>
             <tbody>
@@ -446,6 +448,11 @@ export default function DatabasePage() {
                       ) : fmtVal(col, r[col.key])}
                     </td>
                   ))}
+                  <td className="px-2 py-1.5 whitespace-nowrap">
+                    <PedirMatriculaButton
+                      record={{ cliente: r.id_cliente, enc: r.enc, chas: r.chas, biz: r.biz }}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
