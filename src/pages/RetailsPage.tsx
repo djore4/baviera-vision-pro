@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useData } from '@/contexts/DataContext';
 import { useRecordEditor } from '@/components/RecordEditor';
+import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { formatDate } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle, Download } from 'lucide-react';
@@ -506,6 +507,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                   <span className="inline-flex items-center">{label}<SortIcon col={key} /></span>
                 </th>
               ))}
+              <th className="h-9 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap bg-card">AÇÃO</th>
             </tr>
           </thead>
           <tbody>
@@ -532,6 +534,9 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.dmat)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.date298)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.app)}</td>
+                <td className="px-3 py-1 whitespace-nowrap">
+                  <PedirMatriculaButton record={{ cliente: r.cliente, enc: r.enc, chas: r.chas, biz: r.biz }} />
+                </td>
               </tr>
             ))}
           </tbody>
