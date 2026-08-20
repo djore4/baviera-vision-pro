@@ -38,7 +38,7 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
     try {
       const [acc, openTasks] = await Promise.all([
         listAccounts(scope),
-        listTasks(scope, { types: ['next_action', 'appointment'], done: false }),
+        listTasks(scope, { types: ['next_action', 'todo'], done: false }),
       ]);
       setAccounts(acc);
       const now = Date.now();
