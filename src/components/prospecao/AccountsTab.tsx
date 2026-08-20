@@ -135,7 +135,7 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
               <th className="text-left font-medium px-3 py-2 hidden sm:table-cell">Setor</th>
               <th className="text-center font-medium px-3 py-2">Score</th>
               <th className="text-left font-medium px-3 py-2">Fase</th>
-              {isDirector && <th className="text-left font-medium px-3 py-2 hidden md:table-cell">Vendedor</th>}
+              <th className="text-left font-medium px-3 py-2">Responsável</th>
               <th className="text-center font-medium px-3 py-2">Estado</th>
             </tr>
           </thead>
@@ -151,7 +151,7 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
                 <td className="px-3 py-2">
                   <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${faseCls(a.fase)}`}>{faseLabel(a.fase)}</span>
                 </td>
-                {isDirector && <td className="px-3 py-2 text-muted-foreground hidden md:table-cell">{a.owner_nome ?? a.owner_email ?? '—'}</td>}
+                <td className="px-3 py-2 text-muted-foreground">{a.owner_nome ?? a.owner_email ?? '—'}</td>
                 <td className="px-3 py-2 text-center">
                   {overdueIds.has(a.id)
                     ? <span className="inline-flex items-center gap-1 text-destructive text-xs font-medium"><AlertTriangle className="h-3.5 w-3.5" />Atrasado</span>
