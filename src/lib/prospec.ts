@@ -38,7 +38,20 @@ export const FONTES: { value: Fonte; label: string }[] = [
 
 export const fonteLabel = (f: Fonte | null) => FONTES.find(x => x.value === f)?.label ?? '—';
 
-export type TaskType = 'todo' | 'next_action' | 'appointment';
+export type TaskType = 'todo' | 'next_action';
+
+/* Patamares da dimensão da frota (substituem a antiga escala 1–5). */
+export const FLEET_TIERS: { value: number; label: string; short: string }[] = [
+  { value: 0, label: 'Sem frota', short: '0' },
+  { value: 1, label: '3–14 viaturas', short: '3–14' },
+  { value: 2, label: '15+ viaturas', short: '15+' },
+];
+
+export const fleetLabel = (v: number | null) => FLEET_TIERS.find(t => t.value === v)?.label ?? '—';
+
+/* Contribuição do patamar de frota para o score, na escala 1–5. */
+export const fleetScoreValue = (v: number | null): number =>
+  v === 2 ? 5 : v === 1 ? 3 : 0;
 
 export type InteractionTipo = 'chamada' | 'email' | 'reuniao' | 'visita';
 
@@ -53,11 +66,13 @@ export const INTERACTION_TIPOS: { value: InteractionTipo; label: string }[] = [
  * (potencial 0.5 · dimensão frota 0.3 · relação 0.2) */
 export const SCORE_WEIGHTS = { potencial: 0.5, dimensao_frota: 0.3, relacao: 0.2 } as const;
 
+/* Espelha a coluna GENERATED da BD: o patamar de frota é convertido para a
+ * escala 1–5 (0→0, 3–14→3, 15+→5) antes de aplicar o peso. */
 export function computeScore(
   potencial?: number | null, dimensao_frota?: number | null, relacao?: number | null,
 ): number {
   const v = (potencial ?? 0) * SCORE_WEIGHTS.potencial
-    + (dimensao_frota ?? 0) * SCORE_WEIGHTS.dimensao_frota
+    + fleetScoreValue(dimensao_frota ?? null) * SCORE_WEIGHTS.dimensao_frota
     + (relacao ?? 0) * SCORE_WEIGHTS.relacao;
   return Math.round(v * 100) / 100;
 }

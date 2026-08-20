@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
-  FASES, FONTES, INTERACTION_TIPOS, faseLabel, computeScore,
+  FASES, FONTES, FLEET_TIERS, INTERACTION_TIPOS, computeScore,
   type Account, type AccountPatch, type Contact, type Interaction, type Task,
   type Fase, type Fonte, type InteractionTipo,
   createAccount, updateAccount, deleteAccount,
@@ -22,7 +22,7 @@ import {
   listTasks, createTask, setTaskDone, deleteTask,
 } from '@/lib/prospec';
 
-/* Seletor 1–5 (potencial / frota / relação). */
+/* Seletor 1–5 (potencial / relação). */
 function Score15({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
   return (
     <div className="flex gap-1">
@@ -161,18 +161,34 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Potencial</Label>
               <Score15 value={potencial} onChange={setPotencial} />
             </div>
             <div className="space-y-1">
-              <Label>Dimensão da frota</Label>
-              <Score15 value={frota} onChange={setFrota} />
-            </div>
-            <div className="space-y-1">
               <Label>Relação</Label>
               <Score15 value={relacao} onChange={setRelacao} />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label>Dimensão da frota</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {FLEET_TIERS.map(t => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setFrota(t.value)}
+                  className={`h-8 px-3 rounded text-xs font-medium border transition-colors ${
+                    frota === t.value
+                      ? 'bg-bmw-blue text-white border-bmw-blue'
+                      : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
           </div>
 

@@ -8,7 +8,7 @@ import {
 } from '@/lib/prospec';
 
 const fmt = (iso: string | null) => iso ? new Date(iso).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
-const typeLabel: Record<Task['type'], string> = { todo: 'Tarefa', next_action: 'Próxima ação', appointment: 'Compromisso' };
+const typeLabel: Record<Task['type'], string> = { todo: 'Tarefa', next_action: 'Próxima ação' };
 
 export function ManagementTab() {
   const scope: Scope = useMemo(() => ({ isDirector: true, email: null }), []);
