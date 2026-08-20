@@ -26,6 +26,7 @@ export const TABS: TabDef[] = [
   { key: 'escala', label: 'Escala', path: '/escala', group: 'geral' },
   { key: 'lavagem', label: 'Lavagem', path: '/lavagem', group: 'geral' },
   { key: 'escala-repsol', label: 'Escala Repsol', path: '/escala-repsol', group: 'admin' },
+  { key: 'prospecao', label: 'Prospeção', path: '/prospecao', group: 'admin' },
   { key: 'vendedores', label: 'Performance', path: '/vendedores', group: 'admin' },
   { key: 'emprestimos', label: 'Empréstimos', path: '/emprestimos', group: 'admin' },
   { key: 'fidelizacao', label: 'Fidelização', path: '/fidelizacao', group: 'admin' },

@@ -31,8 +31,10 @@ import UtilizadoresPage from "./pages/UtilizadoresPage";
 import ArquivoPage from "./pages/ArquivoPage";
 import DefinicoesPage from "./pages/DefinicoesPage";
 import QualidadePage from "./pages/QualidadePage";
+import ProspecaoPage from "./pages/ProspecaoPage";
 import { EasterEggs } from "@/components/EasterEggs";
 import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
+import { ProspecProvider } from "@/contexts/ProspecContext";
 import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
@@ -85,6 +87,7 @@ const App = () => (
         <DataProvider>
           <RecordEditorProvider>
           <PermissionsProvider>
+          <ProspecProvider>
           <EasterEggs />
           <HashRouter>
             <Routes>
@@ -108,12 +111,14 @@ const App = () => (
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
               <Route path="/arquivo" element={tab('arquivo', <ArquivoPage />)} />
               <Route path="/qualidade" element={tab('qualidade', <QualidadePage />)} />
+              <Route path="/prospecao" element={tab('prospecao', <ProspecaoPage />)} />
               <Route path="/utilizadores" element={tab('utilizadores', <UtilizadoresPage />)} />
               {/* Definições — pessoal, acessível a qualquer utilizador (fora da matriz de permissões). */}
               <Route path="/definicoes" element={<AppLayout><DefinicoesPage /></AppLayout>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </HashRouter>
+          </ProspecProvider>
           </PermissionsProvider>
           </RecordEditorProvider>
         </DataProvider>

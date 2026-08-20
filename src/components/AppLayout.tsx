@@ -1,9 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, HeartHandshake, Droplets, UserCog, Archive, Settings, Radar, Fuel } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, AlertTriangle, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, HeartHandshake, Droplets, UserCog, Archive, Settings, Radar, Fuel, Target } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { useProspec } from '@/contexts/ProspecContext';
 import { TABS } from '@/lib/permissions';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
 ];
 
 const ADMIN_NAV_ITEMS = [
+  { path: '/prospecao', label: 'PROSPEÇÃO', icon: Target },
   { path: '/escala-repsol', label: 'ESCALA REPSOL', icon: Fuel },
   { path: '/fidelizacao', label: 'FIDELIZAÇÃO', icon: HeartHandshake },
   { path: '/dados', label: 'DADOS', icon: Database },
@@ -40,6 +42,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { error } = useData();
   const { canView } = usePermissions();
+  const { overdue: prospecOverdue } = useProspec();
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const week = getCurrentWeek();
@@ -115,6 +118,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           })}
           {adminNavItems.map(item => {
             const active = location.pathname === item.path;
+            const badge = item.path === '/prospecao' && prospecOverdue > 0 ? prospecOverdue : null;
             return (
               <Link
                 key={item.path}
@@ -127,6 +131,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}
+                {badge !== null && (
+                  <span className="ml-auto rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold px-1.5 py-0.5 leading-none" title={`${badge} em atraso`}>
+                    {badge}
+                  </span>
+                )}
               </Link>
             );
           })}
