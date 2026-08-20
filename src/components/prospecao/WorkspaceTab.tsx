@@ -9,6 +9,7 @@ import {
   listTasks, listAccounts, createTask, setTaskDone, deleteTask, isOverdue,
   type Task, type Account, type Scope,
 } from '@/lib/prospec';
+import { TaskDialog } from './TaskDialog';
 
 interface Props { myEmail: string | null; myNome: string | null; onCountsChanged: () => void; }
 
@@ -28,6 +29,11 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
   const [descricao, setDescricao] = useState('');
   const [quando, setQuando] = useState('');
   const [contaId, setContaId] = useState('');
+
+  // diálogo de edição de tarefa
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [selTask, setSelTask] = useState<Task | null>(null);
+  const openTask = (t: Task) => { setSelTask(t); setTaskOpen(true); };
 
   const load = useCallback(async () => {
     try {
@@ -86,7 +92,7 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
   const Row = ({ t }: { t: Task }) => {
     const overdue = isOverdue(t);
     return (
-      <div className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1.5 text-sm bg-card">
+      <div onClick={() => openTask(t)} className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1.5 text-sm bg-card cursor-pointer hover:bg-muted/40">
         <div className="min-w-0">
           <div className="truncate">{t.descricao}</div>
           <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2">
@@ -100,8 +106,8 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
           </div>
         </div>
         <div className="flex gap-1 shrink-0">
-          <button onClick={() => complete(t.id)} className="text-muted-foreground hover:text-green-600" title="Concluir"><Check className="h-4 w-4" /></button>
-          <button onClick={() => remove(t.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+          <button onClick={(e) => { e.stopPropagation(); complete(t.id); }} className="text-muted-foreground hover:text-green-600" title="Concluir"><Check className="h-4 w-4" /></button>
+          <button onClick={(e) => { e.stopPropagation(); remove(t.id); }} className="text-muted-foreground hover:text-destructive" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
         </div>
       </div>
     );
@@ -154,10 +160,10 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
                   {dayTasks.map(t => {
                     const overdue = isOverdue(t);
                     return (
-                      <div key={t.id} className={`group text-[11px] rounded px-1 py-0.5 leading-tight ${overdue ? 'bg-destructive/10 text-destructive' : 'bg-bmw-blue/10 text-bmw-blue'}`}>
+                      <div key={t.id} onClick={() => openTask(t)} className={`group text-[11px] rounded px-1 py-0.5 leading-tight cursor-pointer ${overdue ? 'bg-destructive/10 text-destructive' : 'bg-bmw-blue/10 text-bmw-blue'}`}>
                         <div className="flex items-center justify-between gap-1">
                           <span className="font-medium">{fmtTime(t.due_at)}</span>
-                          <button onClick={() => complete(t.id)} className="opacity-0 group-hover:opacity-100 hover:text-green-600"><Check className="h-3 w-3" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); complete(t.id); }} className="opacity-0 group-hover:opacity-100 hover:text-green-600"><Check className="h-3 w-3" /></button>
                         </div>
                         <div className="truncate" title={t.descricao}>{t.descricao}</div>
                         {accountName(t.account_id) && <div className="truncate text-[10px] opacity-70">{accountName(t.account_id)}</div>}
@@ -170,6 +176,8 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
           })}
         </div>
       </div>
+
+      <TaskDialog open={taskOpen} onOpenChange={setTaskOpen} task={selTask} accounts={accounts} onChanged={refresh} />
     </div>
   );
 }
