@@ -153,12 +153,9 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
             {rows.map(a => (
               <tr key={a.id} onClick={() => openEdit(a)} className="border-t border-border/70 hover:bg-primary/[0.04] cursor-pointer transition-colors">
                 <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <Avatar name={a.nome} />
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">{a.nome}</div>
-                      <div className="text-xs text-muted-foreground truncate">{a.setor ?? 'Sem setor'}</div>
-                    </div>
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{a.nome}</div>
+                    <div className="text-xs text-muted-foreground truncate">{a.setor ?? 'Sem setor'}</div>
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-center"><ScoreBadge score={a.score} /></td>

@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Avatar, ScoreBadge } from './ui';
+import { ScoreBadge } from './ui';
 import {
   FASES, FONTES, FLEET_TIERS, INTERACTION_TIPOS, computeScore,
   type Account, type AccountPatch, type Contact, type Interaction, type Task,
@@ -144,9 +144,7 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2.5">
-            {isNew
-              ? <span className="grid place-items-center h-9 w-9 rounded-lg bg-primary/10 text-primary shrink-0"><Building2 className="h-4 w-4" /></span>
-              : <Avatar name={account!.nome} />}
+            <span className="grid place-items-center h-9 w-9 rounded-lg bg-primary/10 text-primary shrink-0"><Building2 className="h-4 w-4" /></span>
             <span className="truncate">{isNew ? 'Nova conta' : account!.nome}</span>
           </DialogTitle>
         </DialogHeader>
