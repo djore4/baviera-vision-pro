@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Target, Building2, CalendarDays, LineChart } from 'lucide-react';
+import { Target, Building2, CalendarDays, LineChart, AlertTriangle } from 'lucide-react';
 import { useProspecScope } from '@/hooks/useProspecScope';
 import { useProspec } from '@/contexts/ProspecContext';
 import { AccountsTab } from '@/components/prospecao/AccountsTab';
@@ -15,22 +15,29 @@ export default function ProspecaoPage() {
   const { overdue, refresh } = useProspec();
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <div className="flex items-center gap-2">
-        <Target className="h-5 w-5 text-bmw-blue" />
-        <h1 className="text-lg font-semibold">Prospeção Comercial</h1>
+    <div className="max-w-6xl mx-auto space-y-5 animate-fade-in">
+      {/* Cabeçalho */}
+      <header className="flex items-center gap-3 rounded-xl border border-border bg-gradient-to-r from-primary/10 via-card to-card px-4 py-3.5 shadow-sm">
+        <span className="grid place-items-center h-11 w-11 rounded-xl bg-primary text-primary-foreground shadow-sm">
+          <Target className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <h1 className="text-lg font-bold tracking-tight leading-tight">Prospeção Comercial</h1>
+          <p className="text-xs text-muted-foreground">Contas empresariais, agenda e pipeline da equipa de vendas.</p>
+        </div>
         {overdue > 0 && (
-          <span className="rounded-full bg-destructive text-destructive-foreground text-xs px-2 py-0.5 font-semibold">
-            {overdue} atrasado{overdue === 1 ? '' : 's'}
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-destructive/10 text-destructive text-xs font-semibold px-3 py-1.5">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {overdue} em atraso
           </span>
         )}
-      </div>
+      </header>
 
       <Tabs defaultValue="contas">
-        <TabsList>
-          <TabsTrigger value="contas"><Building2 className="h-4 w-4 mr-1" />Contas</TabsTrigger>
-          <TabsTrigger value="dia"><CalendarDays className="h-4 w-4 mr-1" />O meu dia</TabsTrigger>
-          {isDirector && <TabsTrigger value="gestao"><LineChart className="h-4 w-4 mr-1" />Gestão</TabsTrigger>}
+        <TabsList className="h-10 p-1 bg-muted/60">
+          <TabsTrigger value="contas" className="gap-1.5 data-[state=active]:shadow-sm"><Building2 className="h-4 w-4" />Contas</TabsTrigger>
+          <TabsTrigger value="dia" className="gap-1.5 data-[state=active]:shadow-sm"><CalendarDays className="h-4 w-4" />O meu dia</TabsTrigger>
+          {isDirector && <TabsTrigger value="gestao" className="gap-1.5 data-[state=active]:shadow-sm"><LineChart className="h-4 w-4" />Gestão</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="contas" className="mt-4">

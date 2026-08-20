@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Avatar, ScoreBadge } from './ui';
 import {
   FASES, FONTES, FLEET_TIERS, INTERACTION_TIPOS, computeScore,
   type Account, type AccountPatch, type Contact, type Interaction, type Task,
@@ -142,9 +143,11 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-bmw-blue" />
-            {isNew ? 'Nova conta' : account!.nome}
+          <DialogTitle className="flex items-center gap-2.5">
+            {isNew
+              ? <span className="grid place-items-center h-9 w-9 rounded-lg bg-primary/10 text-primary shrink-0"><Building2 className="h-4 w-4" /></span>
+              : <Avatar name={account!.nome} />}
+            <span className="truncate">{isNew ? 'Nova conta' : account!.nome}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -192,9 +195,12 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
             </div>
           </div>
 
-          <div className="text-xs text-muted-foreground">
-            Score composto: <span className="font-semibold text-foreground">{liveScore.toFixed(2)}</span>
-            <span className="ml-1">(pesos 0.5 · 0.3 · 0.2)</span>
+          <div className="flex items-center gap-2.5 rounded-lg bg-muted/40 px-3 py-2">
+            <ScoreBadge score={liveScore} />
+            <div className="text-xs text-muted-foreground leading-tight">
+              <div className="font-medium text-foreground">Score composto</div>
+              <div>Média ponderada · potencial 0.5 · frota 0.3 · relação 0.2</div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

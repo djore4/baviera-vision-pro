@@ -1,24 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  AlertTriangle, Plus, Check, Trash2, CalendarDays, ListChecks, Loader2, Building2, Bell,
+  AlertTriangle, Plus, Check, Trash2, CalendarDays, ListChecks, Loader2, Building2,
+  Bell, CircleDot, Target, PartyPopper, CalendarCheck,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
   listTasks, listAccounts, createTask, setTaskDone, deleteTask, isOverdue,
   type Task, type Account, type Scope,
 } from '@/lib/prospec';
+import { SectionCard, EmptyState, relativeLabel } from './ui';
 import { TaskDialog } from './TaskDialog';
 
 interface Props { myEmail: string | null; myNome: string | null; onCountsChanged: () => void; }
 
 const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const fmtDay = (iso: string | null) => iso ? new Date(iso).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: '2-digit' }) : 'sem data';
 const fmtTime = (iso: string | null) => iso ? new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '';
 
-const typeLabel: Record<Task['type'], string> = { todo: 'Tarefa', next_action: 'Próxima ação' };
+const typeMeta: Record<Task['type'], { label: string; icon: typeof CircleDot }> = {
+  todo: { label: 'Tarefa', icon: CircleDot },
+  next_action: { label: 'Próxima ação', icon: Target },
+};
 
 export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
   const scope: Scope = useMemo(() => ({ isDirector: false, email: myEmail }), [myEmail]);
@@ -72,13 +77,12 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
     const openList = all.filter(t => !isOverdue(t))
       .sort((a, b) => {
         if (!a.due_at && !b.due_at) return 0;
-        if (!a.due_at) return 1;               // sem data por último
+        if (!a.due_at) return 1;
         if (!b.due_at) return -1;
         return new Date(a.due_at).getTime() - new Date(b.due_at).getTime();
       });
-    // agenda: tarefas com data na semana atual (seg–dom)
     const today0 = startOfDay(new Date());
-    const day = today0.getDay(); // 0 dom
+    const day = today0.getDay();
     const monday = addDays(today0, day === 0 ? -6 : 1 - day);
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
     const dated = all.filter(t => t.due_at);
@@ -86,50 +90,60 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
   }, [tasks]);
 
   if (tasks === null) {
-    return <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" />A carregar…</div>;
+    return <div className="flex items-center justify-center py-20 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" />A carregar…</div>;
   }
 
-  const Row = ({ t }: { t: Task }) => {
+  const TaskItem = ({ t }: { t: Task }) => {
     const overdue = isOverdue(t);
+    const rel = relativeLabel(t.due_at, t.done);
+    const Meta = typeMeta[t.type];
     return (
-      <div onClick={() => openTask(t)} className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1.5 text-sm bg-card cursor-pointer hover:bg-muted/40">
-        <div className="min-w-0">
-          <div className="truncate">{t.descricao}</div>
-          <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2">
-            <span>{typeLabel[t.type]}</span>
+      <div
+        onClick={() => openTask(t)}
+        className={cn(
+          'group flex items-center gap-3 rounded-lg border bg-card px-3 py-2 cursor-pointer transition-all hover:shadow-sm hover:-translate-y-px',
+          overdue ? 'border-destructive/30' : 'border-border',
+        )}
+      >
+        <span className={cn(
+          'grid place-items-center h-7 w-7 rounded-md shrink-0',
+          overdue ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary',
+        )}>
+          <Meta.icon className="h-3.5 w-3.5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium truncate">{t.descricao}</div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
+            <span>{Meta.label}</span>
             {t.due_at && (
-              <span className={`inline-flex items-center gap-0.5 ${overdue ? 'text-destructive font-medium' : ''}`}>
-                <Bell className="h-3 w-3" />{fmtDay(t.due_at)} {fmtTime(t.due_at)}
+              <span className={cn('inline-flex items-center gap-1', overdue && 'text-destructive font-medium')}>
+                <Bell className="h-3 w-3" />{rel.text}
               </span>
             )}
-            {accountName(t.account_id) && <span className="inline-flex items-center gap-0.5"><Building2 className="h-3 w-3" />{accountName(t.account_id)}</span>}
+            {accountName(t.account_id) && <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" />{accountName(t.account_id)}</span>}
           </div>
         </div>
-        <div className="flex gap-1 shrink-0">
-          <button onClick={(e) => { e.stopPropagation(); complete(t.id); }} className="text-muted-foreground hover:text-green-600" title="Concluir"><Check className="h-4 w-4" /></button>
-          <button onClick={(e) => { e.stopPropagation(); remove(t.id); }} className="text-muted-foreground hover:text-destructive" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+        <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={(e) => { e.stopPropagation(); complete(t.id); }} className="grid place-items-center h-7 w-7 rounded-md text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-600" title="Concluir"><Check className="h-4 w-4" /></button>
+          <button onClick={(e) => { e.stopPropagation(); remove(t.id); }} className="grid place-items-center h-7 w-7 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
         </div>
       </div>
     );
   };
 
-  return (
-    <div className="space-y-4">
-      {/* ── Atrasados (destaque sempre visível) ── */}
-      <div className={`rounded-lg border p-3 ${groups.overdue.length ? 'border-destructive/40 bg-destructive/5' : 'border-border'}`}>
-        <div className="flex items-center gap-2 mb-2">
-          <AlertTriangle className={`h-4 w-4 ${groups.overdue.length ? 'text-destructive' : 'text-muted-foreground'}`} />
-          <h3 className="font-semibold text-sm">Atrasados</h3>
-          {groups.overdue.length > 0 && <span className="rounded-full bg-destructive text-destructive-foreground text-xs px-2 py-0.5 font-semibold">{groups.overdue.length}</span>}
-        </div>
-        {groups.overdue.length === 0
-          ? <p className="text-xs text-muted-foreground">Nada em atraso. 👌</p>
-          : <div className="space-y-1.5">{groups.overdue.map(t => <Row key={t.id} t={t} />)}</div>}
-      </div>
+  const today0 = startOfDay(new Date());
 
-      {/* ── As minhas tarefas (versáteis: texto + lembrete + conta) ── */}
-      <div className="rounded-lg border border-border p-3">
-        <div className="flex items-center gap-2 mb-2"><ListChecks className="h-4 w-4 text-bmw-blue" /><h3 className="font-semibold text-sm">As minhas tarefas</h3></div>
+  return (
+    <div className="space-y-4 animate-fade-in">
+      {/* ── Atrasados (destaque sempre visível) ── */}
+      <SectionCard icon={AlertTriangle} title="Atrasados" count={groups.overdue.length} tone="danger">
+        {groups.overdue.length === 0
+          ? <EmptyState icon={PartyPopper} title="Nada em atraso" hint="Estás em dia com tudo. Bom trabalho!" />
+          : <div className="space-y-2">{groups.overdue.map(t => <TaskItem key={t.id} t={t} />)}</div>}
+      </SectionCard>
+
+      {/* ── As minhas tarefas ── */}
+      <SectionCard icon={ListChecks} title="As minhas tarefas" count={groups.openList.length}>
         <div className="flex flex-wrap gap-2 mb-3">
           <Input value={descricao} onChange={e => setDescricao(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} placeholder="Nova tarefa…" className="w-full sm:flex-1 sm:min-w-[12rem]" />
           <Input type="datetime-local" value={quando} onChange={e => setQuando(e.target.value)} className="w-full sm:w-52" title="Lembrete / prazo (opcional)" />
@@ -137,36 +151,44 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
             <option value="">Sem conta</option>
             {accounts.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
           </select>
-          <Button onClick={add}><Plus className="h-4 w-4 mr-1" />Adicionar</Button>
+          <Button onClick={add} className="shadow-sm"><Plus className="h-4 w-4 mr-1" />Adicionar</Button>
         </div>
-        <div className="space-y-1.5">
-          {groups.openList.length === 0 && <p className="text-xs text-muted-foreground">Sem tarefas abertas.</p>}
-          {groups.openList.map(t => <Row key={t.id} t={t} />)}
-        </div>
-      </div>
+        {groups.openList.length === 0
+          ? <EmptyState icon={CalendarCheck} title="Sem tarefas abertas" hint="Adiciona uma tarefa acima — com data, viras um lembrete." />
+          : <div className="space-y-2">{groups.openList.map(t => <TaskItem key={t.id} t={t} />)}</div>}
+      </SectionCard>
 
-      {/* ── Agenda semanal (tarefas com data nesta semana) ── */}
-      <div className="rounded-lg border border-border p-3">
-        <div className="flex items-center gap-2 mb-2"><CalendarDays className="h-4 w-4 text-bmw-blue" /><h3 className="font-semibold text-sm">Agenda semanal</h3></div>
+      {/* ── Agenda semanal ── */}
+      <SectionCard icon={CalendarDays} title="Agenda semanal">
         <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
           {groups.weekDays.map(d => {
             const dayTasks = groups.dated.filter(t => startOfDay(new Date(t.due_at!)).getTime() === d.getTime())
               .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime());
-            const isToday = d.getTime() === startOfDay(new Date()).getTime();
+            const isToday = d.getTime() === today0.getTime();
+            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
             return (
-              <div key={d.toISOString()} className={`rounded border p-1.5 min-h-[70px] ${isToday ? 'border-bmw-blue bg-bmw-blue/5' : 'border-border'}`}>
-                <div className="text-[10px] uppercase text-muted-foreground mb-1">{d.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit' })}</div>
+              <div key={d.toISOString()} className={cn(
+                'rounded-lg border p-1.5 min-h-[84px] transition-colors',
+                isToday ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : isWeekend ? 'border-border/60 bg-muted/30' : 'border-border',
+              )}>
+                <div className={cn('flex items-center justify-between mb-1', isToday && 'text-primary')}>
+                  <span className="text-[10px] uppercase font-semibold tracking-wide text-muted-foreground">{d.toLocaleDateString('pt-PT', { weekday: 'short' })}</span>
+                  <span className={cn('text-[11px] font-bold h-5 w-5 grid place-items-center rounded-full', isToday ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{d.getDate()}</span>
+                </div>
                 <div className="space-y-1">
                   {dayTasks.map(t => {
                     const overdue = isOverdue(t);
                     return (
-                      <div key={t.id} onClick={() => openTask(t)} className={`group text-[11px] rounded px-1 py-0.5 leading-tight cursor-pointer ${overdue ? 'bg-destructive/10 text-destructive' : 'bg-bmw-blue/10 text-bmw-blue'}`}>
+                      <div key={t.id} onClick={() => openTask(t)} className={cn(
+                        'group text-[11px] rounded-md px-1.5 py-1 leading-tight cursor-pointer transition-colors',
+                        overdue ? 'bg-destructive/10 text-destructive hover:bg-destructive/15' : 'bg-primary/10 text-primary hover:bg-primary/15',
+                      )}>
                         <div className="flex items-center justify-between gap-1">
-                          <span className="font-medium">{fmtTime(t.due_at)}</span>
-                          <button onClick={(e) => { e.stopPropagation(); complete(t.id); }} className="opacity-0 group-hover:opacity-100 hover:text-green-600"><Check className="h-3 w-3" /></button>
+                          <span className="font-semibold tabular-nums">{fmtTime(t.due_at)}</span>
+                          <button onClick={(e) => { e.stopPropagation(); complete(t.id); }} className="opacity-0 group-hover:opacity-100 hover:text-emerald-600"><Check className="h-3 w-3" /></button>
                         </div>
-                        <div className="truncate" title={t.descricao}>{t.descricao}</div>
-                        {accountName(t.account_id) && <div className="truncate text-[10px] opacity-70">{accountName(t.account_id)}</div>}
+                        <div className="truncate font-medium" title={t.descricao}>{t.descricao}</div>
+                        {accountName(t.account_id) && <div className="truncate opacity-70">{accountName(t.account_id)}</div>}
                       </div>
                     );
                   })}
@@ -175,7 +197,7 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
             );
           })}
         </div>
-      </div>
+      </SectionCard>
 
       <TaskDialog open={taskOpen} onOpenChange={setTaskOpen} task={selTask} accounts={accounts} onChanged={refresh} />
     </div>

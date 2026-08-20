@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Loader2, AlertTriangle, ArrowUpDown } from 'lucide-react';
+import { Plus, Loader2, AlertTriangle, ArrowUpDown, Search, Building2, CheckCircle2 } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -11,6 +11,7 @@ import {
   listAccounts, listTasks,
   type Account, type Fase, type Scope,
 } from '@/lib/prospec';
+import { Avatar, ScoreBadge, EmptyState } from './ui';
 import { AccountDialog } from './AccountDialog';
 
 interface Props {
@@ -83,14 +84,17 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
   const openEdit = (a: Account) => { setSelected(a); setDialogOpen(true); };
 
   if (accounts === null) {
-    return <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" />A carregar…</div>;
+    return <div className="flex items-center justify-center py-20 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" />A carregar…</div>;
   }
 
   return (
-    <div className="space-y-3">
-      {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Procurar empresa/setor…" className="w-full sm:w-48" />
+    <div className="space-y-3 animate-fade-in">
+      {/* Barra de filtros */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2.5 shadow-sm">
+        <div className="relative w-full sm:w-56">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Procurar empresa ou setor…" className="pl-8" />
+        </div>
         <Select value={fFase} onValueChange={v => setFFase(v as Fase | 'all')}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Fase" /></SelectTrigger>
           <SelectContent>
@@ -100,9 +104,9 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
         </Select>
         {isDirector && owners.length > 0 && (
           <Select value={fOwner} onValueChange={setFOwner}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Vendedor" /></SelectTrigger>
+            <SelectTrigger className="w-44"><SelectValue placeholder="Responsável" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os vendedores</SelectItem>
+              <SelectItem value="all">Todos os responsáveis</SelectItem>
               {owners.map(([email, nome]) => <SelectItem key={email} value={email}>{nome}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -123,39 +127,57 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
             <SelectItem value="fase">Fase</SelectItem>
           </SelectContent>
         </Select>
-        <Button className="ml-auto" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nova conta</Button>
+        <Button className="ml-auto shadow-sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nova conta</Button>
+      </div>
+
+      <div className="flex items-center justify-between px-1">
+        <span className="text-xs text-muted-foreground">{rows.length} {rows.length === 1 ? 'conta' : 'contas'}</span>
       </div>
 
       {/* Tabela */}
-      <div className="overflow-x-auto rounded border border-border">
+      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
         <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+          <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
             <tr>
-              <th className="text-left font-medium px-3 py-2">Empresa</th>
-              <th className="text-left font-medium px-3 py-2 hidden sm:table-cell">Setor</th>
-              <th className="text-center font-medium px-3 py-2">Score</th>
-              <th className="text-left font-medium px-3 py-2">Fase</th>
-              <th className="text-left font-medium px-3 py-2">Responsável</th>
-              <th className="text-center font-medium px-3 py-2">Estado</th>
+              <th className="text-left font-semibold px-4 py-2.5">Empresa</th>
+              <th className="text-center font-semibold px-3 py-2.5">Score</th>
+              <th className="text-left font-semibold px-3 py-2.5">Fase</th>
+              <th className="text-left font-semibold px-3 py-2.5">Responsável</th>
+              <th className="text-center font-semibold px-3 py-2.5">Estado</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">Sem contas.</td></tr>
+              <tr><td colSpan={5}><EmptyState icon={Building2} title="Sem contas para mostrar" hint="Ajusta os filtros ou cria uma nova conta para começares a prospetar." /></td></tr>
             )}
             {rows.map(a => (
-              <tr key={a.id} onClick={() => openEdit(a)} className="border-t border-border hover:bg-muted/40 cursor-pointer">
-                <td className="px-3 py-2 font-medium">{a.nome}</td>
-                <td className="px-3 py-2 text-muted-foreground hidden sm:table-cell">{a.setor ?? '—'}</td>
-                <td className="px-3 py-2 text-center font-semibold">{a.score?.toFixed(2) ?? '—'}</td>
-                <td className="px-3 py-2">
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${faseCls(a.fase)}`}>{faseLabel(a.fase)}</span>
+              <tr key={a.id} onClick={() => openEdit(a)} className="border-t border-border/70 hover:bg-primary/[0.04] cursor-pointer transition-colors">
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <Avatar name={a.nome} />
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{a.nome}</div>
+                      <div className="text-xs text-muted-foreground truncate">{a.setor ?? 'Sem setor'}</div>
+                    </div>
+                  </div>
                 </td>
-                <td className="px-3 py-2 text-muted-foreground">{a.owner_nome ?? a.owner_email ?? '—'}</td>
-                <td className="px-3 py-2 text-center">
+                <td className="px-3 py-2.5 text-center"><ScoreBadge score={a.score} /></td>
+                <td className="px-3 py-2.5">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${faseCls(a.fase)}`}>
+                    <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+                    {faseLabel(a.fase)}
+                  </span>
+                </td>
+                <td className="px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <Avatar name={a.owner_nome ?? a.owner_email ?? '—'} size="sm" rounded="full" />
+                    <span className="text-sm text-muted-foreground truncate max-w-[10rem]">{a.owner_nome ?? a.owner_email ?? '—'}</span>
+                  </div>
+                </td>
+                <td className="px-3 py-2.5 text-center">
                   {overdueIds.has(a.id)
-                    ? <span className="inline-flex items-center gap-1 text-destructive text-xs font-medium"><AlertTriangle className="h-3.5 w-3.5" />Atrasado</span>
-                    : <span className="text-xs text-muted-foreground">—</span>}
+                    ? <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium px-2 py-0.5"><AlertTriangle className="h-3.5 w-3.5" />Atrasado</span>
+                    : <span className="inline-flex items-center gap-1 text-muted-foreground/70 text-xs"><CheckCircle2 className="h-3.5 w-3.5" />Em dia</span>}
                 </td>
               </tr>
             ))}
