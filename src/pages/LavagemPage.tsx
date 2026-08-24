@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Car, Loader2, CheckCircle2, Timer, CalendarDays, Trash2, ChevronLeft, ChevronRight,
   BarChart3, FileSpreadsheet, Star, ClipboardCheck, Play, ListOrdered, ArrowRight,
-  ChevronsUp, ChevronUp, ChevronDown,
+  ChevronsUp, ChevronUp, ChevronDown, Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { useData } from '@/contexts/DataContext';
 import {
   WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle,
   cycleStatus, effectiveAt, queueKey, startDeviationMin,
@@ -131,6 +132,7 @@ function layoutDay(items: CarWashCycle[]): { placed: PlacedCycle[]; lanes: numbe
 
 export default function LavagemPage() {
   const { session } = useAuth();
+  const { data: appData } = useData();
   const { isAdmin, roleName, canEdit } = usePermissions();
   // Permissões específicas dentro do tab Lavagem (ver tab: qualquer perfil com acesso).
   // Acesso de edição ao tab Lavagem concede as tarefas de planeamento (agendar/reordenar),
@@ -146,9 +148,19 @@ export default function LavagemPage() {
   const canDelete = isAdmin;                                                        // remover registos
 
   const [plate, setPlate] = useState('');
+  const [model, setModel] = useState('');
   const [washType, setWashType] = useState<WashTypeId | ''>('');
+  const [notes, setNotes] = useState('');
   const [schedAt, setSchedAt] = useState('');   // agendamento (datetime-local); vazio = imediata
   const [submitting, setSubmitting] = useState(false);
+
+  // Modelos sugeridos — reutiliza os modelos já registados noutras tabelas
+  // (control_records), permitindo escolher um existente ou escrever um novo.
+  const modelOptions = useMemo(() => {
+    const set = new Set<string>();
+    (appData?.control ?? []).forEach(r => { const m = r.model?.trim(); if (m) set.add(m); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt'));
+  }, [appData]);
 
   const [cycles, setCycles] = useState<CarWashCycle[]>([]);
   const [active, setActive] = useState<CarWashCycle[]>([]);
@@ -225,10 +237,19 @@ export default function LavagemPage() {
 
     setSubmitting(true);
     try {
-      await createCycle({ plate, wash_type: washType, created_by: session?.user.email ?? null, scheduled_at: scheduledAt });
+      await createCycle({
+        plate,
+        wash_type: washType,
+        model: model.trim() || null,
+        notes: notes.trim() || null,
+        created_by: session?.user.email ?? null,
+        scheduled_at: scheduledAt,
+      });
       toast.success(scheduledAt ? 'Lavagem agendada.' : 'Lavagem iniciada.');
       setPlate('');
+      setModel('');
       setWashType('');
+      setNotes('');
       setSchedAt('');
       await refresh();
     } catch (err) {
@@ -488,62 +509,101 @@ export default function LavagemPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form
-              onSubmit={handleSubmit}
-              className={`grid gap-3 sm:grid-cols-2 sm:items-end ${canSchedule ? 'lg:grid-cols-[1fr_1fr_1fr_auto]' : 'lg:grid-cols-[1fr_1fr_auto]'}`}
-            >
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div className={`grid gap-3 sm:grid-cols-2 sm:items-end ${canSchedule ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+                <div className="space-y-1.5">
+                  <Label htmlFor="plate">Matrícula / Chassis</Label>
+                  <Input
+                    id="plate"
+                    value={plate}
+                    onChange={e => setPlate(e.target.value)}
+                    placeholder="AA-00-BB"
+                    autoComplete="off"
+                    className="uppercase"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="model">
+                    Modelo <span className="text-muted-foreground font-normal">(opcional)</span>
+                  </Label>
+                  <Input
+                    id="model"
+                    list="wash-model-options"
+                    value={model}
+                    onChange={e => setModel(e.target.value)}
+                    placeholder="Modelo da viatura"
+                    autoComplete="off"
+                  />
+                  <datalist id="wash-model-options">
+                    {modelOptions.map(m => <option key={m} value={m} />)}
+                  </datalist>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Tipo de lavagem</Label>
+                  <Select value={washType} onValueChange={v => setWashType(v as WashTypeId)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Escolher tipo…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WASH_TYPES.map(t => (
+                        <SelectItem key={t.id} value={t.id}>
+                          <span className="flex items-center gap-2">
+                            <span className={`inline-block h-2.5 w-2.5 rounded-full ${t.dot}`} />
+                            {t.label}
+                            <span className="text-muted-foreground text-xs">· {t.duration} min</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {canSchedule && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="sched">
+                      Agendar para {canStart && <span className="text-muted-foreground font-normal">(opcional)</span>}
+                    </Label>
+                    <Input
+                      id="sched"
+                      type="datetime-local"
+                      value={schedAt}
+                      onChange={e => setSchedAt(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-1.5">
-                <Label htmlFor="plate">Matrícula / Chassis</Label>
-                <Input
-                  id="plate"
-                  value={plate}
-                  onChange={e => setPlate(e.target.value)}
-                  placeholder="AA-00-BB"
-                  autoComplete="off"
-                  className="uppercase"
+                <Label htmlFor="notes">
+                  Observações <span className="text-muted-foreground font-normal">(opcional)</span>
+                </Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Notas ou indicações para a lavagem…"
+                  rows={2}
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label>Tipo de lavagem</Label>
-                <Select value={washType} onValueChange={v => setWashType(v as WashTypeId)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Escolher tipo…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WASH_TYPES.map(t => (
-                      <SelectItem key={t.id} value={t.id}>
-                        <span className="flex items-center gap-2">
-                          <span className={`inline-block h-2.5 w-2.5 rounded-full ${t.dot}`} />
-                          {t.label}
-                          <span className="text-muted-foreground text-xs">· {t.duration} min</span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
+              {/* Aviso de antecedência mínima para agendamentos. */}
               {canSchedule && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="sched">
-                    Agendar para {canStart && <span className="text-muted-foreground font-normal">(opcional)</span>}
-                  </Label>
-                  <Input
-                    id="sched"
-                    type="datetime-local"
-                    value={schedAt}
-                    onChange={e => setSchedAt(e.target.value)}
-                  />
-                </div>
+                <p className="flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                  <Info className="h-3.5 w-3.5 flex-shrink-0" />
+                  Realizar agendamento com, pelo menos, 48h de antecedência.
+                </p>
               )}
 
-              <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
-                {submitting
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : willSchedule ? <CalendarDays className="h-4 w-4" /> : <Timer className="h-4 w-4" />}
-                {willSchedule ? 'Agendar' : 'Iniciar'}
-              </Button>
+              <div className="flex items-center justify-end">
+                <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+                  {submitting
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : willSchedule ? <CalendarDays className="h-4 w-4" /> : <Timer className="h-4 w-4" />}
+                  {willSchedule ? 'Agendar' : 'Iniciar'}
+                </Button>
+              </div>
             </form>
 
             {selectedType && (
@@ -643,9 +703,14 @@ export default function LavagemPage() {
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {t?.label ?? c.wash_type} · {c.duration_min} min · {c.scheduled_at ? fmtDayTime(c.scheduled_at) : 'sem hora'}
+                          {c.model ? `${c.model} · ` : ''}{t?.label ?? c.wash_type} · {c.duration_min} min · {c.scheduled_at ? fmtDayTime(c.scheduled_at) : 'sem hora'}
                           {overdue && <span className="ml-1 font-semibold text-red-600 dark:text-red-400">· em atraso</span>}
                         </div>
+                        {c.notes && (
+                          <div className="text-xs text-muted-foreground/80 italic truncate" title={c.notes}>
+                            {c.notes}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -971,10 +1036,17 @@ export default function LavagemPage() {
             </DialogTitle>
             {qcCycle && (
               <DialogDescription>
-                {qcCycle.plate} · {WASH_TYPE_MAP[qcCycle.wash_type]?.label ?? qcCycle.wash_type} · {fmtTime(effectiveAt(qcCycle))}
+                {qcCycle.plate}{qcCycle.model ? ` · ${qcCycle.model}` : ''} · {WASH_TYPE_MAP[qcCycle.wash_type]?.label ?? qcCycle.wash_type} · {fmtTime(effectiveAt(qcCycle))}
               </DialogDescription>
             )}
           </DialogHeader>
+
+          {qcCycle?.notes && (
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
+              <span className="font-semibold">Observações: </span>
+              <span className="text-muted-foreground">{qcCycle.notes}</span>
+            </div>
+          )}
 
           <div className="space-y-4 py-1">
             <div className="space-y-1.5">
