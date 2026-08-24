@@ -64,6 +64,7 @@ export interface CarWashCycle {
   effective_at: string | null;  // ISO, gerado: started_at ?? scheduled_at
   queue_order: number | null;   // ordem manual na fila (null = segue o plano)
   created_by: string | null;
+  scheduled_by: string | null;  // interlocutor: quem agendou/reagendou a lavagem
   quality_score: number | null;    // controlo de qualidade 0–10
   quality_comment: string | null;
   quality_by: string | null;
@@ -138,6 +139,7 @@ export async function createCycle(input: NewCycle): Promise<CarWashCycle> {
     model: input.model && input.model.trim() ? input.model.trim() : null,
     notes: input.notes && input.notes.trim() ? input.notes.trim() : null,
     created_by: input.created_by ?? null,
+    scheduled_by: input.created_by ?? null,   // interlocutor inicial do agendamento
   };
   if (input.scheduled_at) row.scheduled_at = input.scheduled_at;      // agendada
   else row.started_at = new Date().toISOString();                    // imediata
@@ -163,12 +165,14 @@ export async function startCycle(id: string): Promise<CarWashCycle> {
 }
 
 /* Reagenda uma lavagem (arrastar na agenda): fixa nova hora do plano e limpa a
- * ordem manual da fila, para que a fila (queueKey = scheduled_at) volte a seguir
- * o plano — mantendo agenda e fila coerentes. */
-export async function rescheduleCycle(id: string, scheduledAtISO: string): Promise<CarWashCycle> {
+ * ordem manual da fila. Regista também o interlocutor que reagendou (scheduled_by),
+ * para que a slot indique com quem falar sobre a marcação. */
+export async function rescheduleCycle(id: string, scheduledAtISO: string, by?: string | null): Promise<CarWashCycle> {
+  const patch: Record<string, unknown> = { scheduled_at: scheduledAtISO, queue_order: null };
+  if (by !== undefined) patch.scheduled_by = by;
   const { data, error } = await supabase
     .from('car_wash_cycles')
-    .update({ scheduled_at: scheduledAtISO, queue_order: null })
+    .update(patch)
     .eq('id', id)
     .select()
     .single();
@@ -260,6 +264,7 @@ export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): vo
     'Duração (min)': c.duration_min,
     'Data': fmtDatePT(effectiveAt(c)),
     'Agendada': fmtPT(c.scheduled_at),
+    'Agendado por': c.scheduled_by ?? '',
     'Início': fmtPT(c.started_at),
     'Fim': fmtPT(c.ended_at),
     'Desvio (min)': startDeviationMin(c) ?? '',
@@ -291,8 +296,8 @@ export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): vo
   const wsDetail = XLSX.utils.json_to_sheet(detail);
   wsDetail['!cols'] = [
     { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-    { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 12 },
-    { wch: 8 }, { wch: 30 }, { wch: 30 }, { wch: 22 }, { wch: 22 },
+    { wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 12 },
+    { wch: 12 }, { wch: 8 }, { wch: 30 }, { wch: 30 }, { wch: 22 }, { wch: 22 },
   ];
   const wsSummary = XLSX.utils.json_to_sheet(summary);
   wsSummary['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
