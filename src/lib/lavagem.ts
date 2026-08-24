@@ -54,8 +54,10 @@ export const WASH_TYPE_MAP: Record<WashTypeId, WashType> =
 export interface CarWashCycle {
   id: string;
   plate: string;
+  model: string | null;         // modelo da viatura a lavar
   wash_type: WashTypeId;
   duration_min: number;
+  notes: string | null;         // observações (mensagem curta do agendamento)
   scheduled_at: string | null;  // ISO, hora agendada (null = lavagem imediata)
   started_at: string | null;    // ISO, início real (null = ainda só agendada)
   ended_at: string | null;      // ISO, null = por terminar
@@ -97,6 +99,8 @@ export function startDeviationMin(c: CarWashCycle): number | null {
 export type NewCycle = {
   plate: string;
   wash_type: WashTypeId;
+  model?: string | null;   // modelo da viatura
+  notes?: string | null;   // observações
   created_by?: string | null;
   scheduled_at?: string;   // ISO; se presente, cria uma lavagem agendada (started_at fica null)
 };
@@ -131,6 +135,8 @@ export async function createCycle(input: NewCycle): Promise<CarWashCycle> {
     plate: input.plate.trim().toUpperCase(),
     wash_type: input.wash_type,
     duration_min: type.duration,
+    model: input.model && input.model.trim() ? input.model.trim() : null,
+    notes: input.notes && input.notes.trim() ? input.notes.trim() : null,
     created_by: input.created_by ?? null,
   };
   if (input.scheduled_at) row.scheduled_at = input.scheduled_at;      // agendada
@@ -249,6 +255,7 @@ export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): vo
 
   const detail = sorted.map(c => ({
     'Matrícula/Chassis': c.plate,
+    'Modelo': c.model ?? '',
     'Tipo': WASH_TYPE_MAP[c.wash_type]?.label ?? c.wash_type,
     'Duração (min)': c.duration_min,
     'Data': fmtDatePT(effectiveAt(c)),
@@ -259,6 +266,7 @@ export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): vo
     'Estado': STATUS_LABEL[cycleStatus(c)],
     'Nota QC': c.quality_score ?? '',
     'Comentário QC': c.quality_comment ?? '',
+    'Observações': c.notes ?? '',
     'Início (ISO)': c.started_at ?? '',
     'Fim (ISO)': c.ended_at ?? '',
   }));
@@ -282,9 +290,9 @@ export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): vo
   const wb = XLSX.utils.book_new();
   const wsDetail = XLSX.utils.json_to_sheet(detail);
   wsDetail['!cols'] = [
-    { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
-    { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 8 },
-    { wch: 30 }, { wch: 22 }, { wch: 22 },
+    { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+    { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 12 },
+    { wch: 8 }, { wch: 30 }, { wch: 30 }, { wch: 22 }, { wch: 22 },
   ];
   const wsSummary = XLSX.utils.json_to_sheet(summary);
   wsSummary['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
