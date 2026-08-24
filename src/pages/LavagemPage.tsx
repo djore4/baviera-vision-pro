@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  Car, Loader2, CheckCircle2, Timer, CalendarDays, Trash2, ChevronLeft, ChevronRight,
-  BarChart3, FileSpreadsheet, Star, ClipboardCheck, Info,
+  Car, Loader2, CheckCircle2, CalendarDays, Trash2, ChevronLeft, ChevronRight,
+  BarChart3, FileSpreadsheet, Star, ClipboardCheck, Info, User,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
@@ -9,8 +9,8 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import { useData } from '@/contexts/DataContext';
 import {
   WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle,
-  cycleStatus, effectiveAt, startDeviationMin,
-  listCycles, listActiveCycles, createCycle, rescheduleCycle, endCycle, deleteCycle, setQuality, exportCyclesToExcel,
+  cycleStatus, effectiveAt,
+  listCycles, createCycle, rescheduleCycle, deleteCycle, setQuality, exportCyclesToExcel,
 } from '@/lib/lavagem';
 import { funLoadingLabel } from '@/lib/loading-messages';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -82,6 +82,18 @@ const minutesOfDay = (iso: string) => { const d = new Date(iso); return d.getHou
 const fmtDayTime = (iso: string) =>
   new Intl.DateTimeFormat('pt-PT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
 
+/* Nome legível do interlocutor a partir do email (parte antes do @, com
+ * separadores convertidos em espaços e iniciais maiúsculas). */
+const personLabel = (email: string | null | undefined): string => {
+  if (!email) return '';
+  const local = email.split('@')[0];
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ') || email;
+};
+
 type PlacedCycle = { c: CarWashCycle; start: number; dur: number; lane: number };
 type PeriodStat = { total: number; minutes: number; byType: Map<WashTypeId, number> };
 
@@ -140,7 +152,6 @@ export default function LavagemPage() {
   const canSchedule = isAdmin || roleName === 'Preparador' || lavagemEdit;          // agendar (marcação)
   const canStart = isAdmin || roleName === 'Lavador';                               // iniciar (imediata)
   const canCreate = canSchedule || canStart;                                        // ver formulário
-  const canTerminate = isAdmin || roleName === 'Lavador';                           // terminar
   const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';    // controlo de qualidade
   const canExport = isAdmin;                                                        // exportar Excel
   const canDelete = isAdmin;                                                        // remover registos
@@ -161,7 +172,6 @@ export default function LavagemPage() {
   }, [appData]);
 
   const [cycles, setCycles] = useState<CarWashCycle[]>([]);
-  const [active, setActive] = useState<CarWashCycle[]>([]);
   const [statsCycles, setStatsCycles] = useState<CarWashCycle[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -184,13 +194,11 @@ export default function LavagemPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [rows, act, stats] = await Promise.all([
+      const [rows, stats] = await Promise.all([
         listCycles({ from: weekStart.toISOString(), to: weekEnd.toISOString() }),
-        listActiveCycles(),
         listCycles({ from: statsFrom.toISOString() }),
       ]);
       setCycles(rows);
-      setActive(act);
       setStatsCycles(stats);
     } catch (e) {
       toast.error('Não foi possível carregar as lavagens.');
@@ -258,11 +266,6 @@ export default function LavagemPage() {
     }
   };
 
-  const handleEnd = async (id: string) => {
-    if (!canTerminate) return;
-    try { await endCycle(id); toast.success('Lavagem terminada.'); await refresh(); }
-    catch (err) { toast.error('Não foi possível terminar a lavagem.'); console.error(err); }
-  };
   // Remoção (só admin) — pede sempre confirmação antes de apagar. Qualquer
   // origem (slot da agenda, fila ou controlo de qualidade) passa pelo mesmo diálogo.
   const [deleteTarget, setDeleteTarget] = useState<CarWashCycle | null>(null);
@@ -373,7 +376,7 @@ export default function LavagemPage() {
     const when = new Date(addDays(weekStart, slot.dayIndex));
     when.setHours(Math.floor(slot.startMin / 60), slot.startMin % 60, 0, 0);
     try {
-      await rescheduleCycle(c.id, when.toISOString());
+      await rescheduleCycle(c.id, when.toISOString(), session?.user.email ?? null);
       toast.success('Lavagem reagendada.');
       await refresh();
     } catch (err) {
@@ -381,13 +384,6 @@ export default function LavagemPage() {
       console.error(err);
     }
   };
-
-  // "Em curso" = lavagens já iniciadas e por terminar.
-  const activeSorted = useMemo(() =>
-    active
-      .filter(c => cycleStatus(c) === 'in_progress')
-      .sort((a, b) => (a.started_at ?? '').localeCompare(b.started_at ?? '')),
-    [active]);
 
   // Estatísticas por período (hoje / semana / mês) — quantas e que tipo.
   const stats = useMemo(() => {
@@ -571,79 +567,6 @@ export default function LavagemPage() {
         </Card>
       )}
 
-      {/* ── Ciclos em curso ─────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Timer className="h-4 w-4" /> Em curso
-            <span className="text-xs font-normal text-muted-foreground">({activeSorted.length})</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-              <Loader2 className="h-4 w-4 animate-spin" /> {loadingLabel}
-            </div>
-          ) : activeSorted.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">Nenhuma lavagem em curso.</p>
-          ) : (
-            <ul className="space-y-2">
-              {activeSorted.map(c => {
-                const t = WASH_TYPE_MAP[c.wash_type];
-                const dev = startDeviationMin(c);   // desvio face à marcação
-                return (
-                  <li
-                    key={c.id}
-                    className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 ${t?.block ?? ''}`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className={`inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 ${t?.dot ?? 'bg-slate-400'}`} />
-                      <div className="min-w-0">
-                        <div className="font-semibold truncate flex items-center gap-1.5">
-                          {c.plate}
-                          {dev != null && dev <= -5 && (
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 dark:bg-emerald-500/20 dark:text-emerald-300 px-1.5 py-0.5 rounded-full" title="Iniciada antes da hora marcada">
-                              antecipada {Math.abs(dev)}min
-                            </span>
-                          )}
-                          {dev != null && dev >= 15 && (
-                            <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 dark:bg-amber-500/20 dark:text-amber-300 px-1.5 py-0.5 rounded-full" title="Iniciada depois da hora marcada">
-                              atraso {dev}min
-                            </span>
-                          )}
-                          {c.quality_score != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600">
-                              <Star className="h-3 w-3 fill-amber-500 text-amber-500" />{c.quality_score}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs opacity-80">
-                          {t?.label ?? c.wash_type} · {c.duration_min} min · início {fmtTime(effectiveAt(c))}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <Button size="sm" variant="ghost" onClick={() => openQC(c)} title="Controlo de qualidade">
-                        <ClipboardCheck className="h-4 w-4" />
-                      </Button>
-                      {canTerminate && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => handleEnd(c.id)}
-                        >
-                          <CheckCircle2 className="h-4 w-4" /> Terminar
-                        </Button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
       {/* ── Legenda de tipos ────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-2">
         {WASH_TYPES.map(t => (
@@ -806,7 +729,7 @@ export default function LavagemPage() {
                             left: `calc(${p.lane * widthPct}% + 2px)`,
                             width: `calc(${widthPct}% - 4px)`,
                           }}
-                          title={`${p.c.plate} · ${t?.label ?? p.c.wash_type} · ${p.c.duration_min} min · ${fmtTime(effectiveAt(p.c))}${scheduled ? ' · agendada' : ''}${p.c.quality_score != null ? ` · QC ${p.c.quality_score}/10` : ''}${draggable ? ' · arraste para reagendar' : ''}`}
+                          title={`${p.c.plate} · ${t?.label ?? p.c.wash_type} · ${p.c.duration_min} min · ${fmtTime(effectiveAt(p.c))}${scheduled ? ' · agendada' : ''}${p.c.scheduled_by ? ` · agendou ${personLabel(p.c.scheduled_by)}` : ''}${p.c.quality_score != null ? ` · QC ${p.c.quality_score}/10` : ''}${draggable ? ' · arraste para reagendar' : ''}`}
                         >
                           <div className="flex items-center justify-between gap-1">
                             <span className="font-semibold truncate">{p.c.plate}</span>
@@ -831,6 +754,12 @@ export default function LavagemPage() {
                           {!compact && (
                             <div className="opacity-80 truncate">
                               {fmtTime(effectiveAt(p.c))} · {t?.label ?? p.c.wash_type} · {p.c.duration_min}m
+                            </div>
+                          )}
+                          {!compact && p.c.scheduled_by && (
+                            <div className="flex items-center gap-0.5 opacity-70 truncate" title={`Agendado por ${personLabel(p.c.scheduled_by)}`}>
+                              <User className="h-2.5 w-2.5 flex-shrink-0" />
+                              <span className="truncate">{personLabel(p.c.scheduled_by)}</span>
                             </div>
                           )}
                         </div>
@@ -878,6 +807,13 @@ export default function LavagemPage() {
               </DialogDescription>
             )}
           </DialogHeader>
+
+          {qcCycle?.scheduled_by && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <User className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>Agendado por <span className="font-medium text-foreground">{personLabel(qcCycle.scheduled_by)}</span></span>
+            </div>
+          )}
 
           {qcCycle?.notes && (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
