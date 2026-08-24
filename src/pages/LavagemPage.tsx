@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Car, Loader2, CheckCircle2, Timer, CalendarDays, Trash2, ChevronLeft, ChevronRight,
-  BarChart3, FileSpreadsheet, Star, ClipboardCheck, Play, ListOrdered, ArrowRight,
-  ChevronsUp, ChevronUp, ChevronDown, Info,
+  BarChart3, FileSpreadsheet, Star, ClipboardCheck, Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
@@ -10,8 +9,8 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import { useData } from '@/contexts/DataContext';
 import {
   WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle,
-  cycleStatus, effectiveAt, queueKey, startDeviationMin,
-  listCycles, listActiveCycles, createCycle, startCycle, setQueueOrder, rescheduleCycle, endCycle, deleteCycle, setQuality, exportCyclesToExcel,
+  cycleStatus, effectiveAt, startDeviationMin,
+  listCycles, listActiveCycles, createCycle, rescheduleCycle, endCycle, deleteCycle, setQuality, exportCyclesToExcel,
 } from '@/lib/lavagem';
 import { funLoadingLabel } from '@/lib/loading-messages';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -139,8 +138,7 @@ export default function LavagemPage() {
   // para além dos perfis dedicados — ex.: APV agenda lavagens de serviço.
   const lavagemEdit = canEdit('lavagem');                                           // edição atribuída ao perfil
   const canSchedule = isAdmin || roleName === 'Preparador' || lavagemEdit;          // agendar (marcação)
-  const canStart = isAdmin || roleName === 'Lavador';                               // iniciar (imediata/agendada)
-  const canReorder = isAdmin || roleName === 'Preparador' || lavagemEdit;           // reordenar/antecipar a fila
+  const canStart = isAdmin || roleName === 'Lavador';                               // iniciar (imediata)
   const canCreate = canSchedule || canStart;                                        // ver formulário
   const canTerminate = isAdmin || roleName === 'Lavador';                           // terminar
   const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';    // controlo de qualidade
@@ -260,38 +258,6 @@ export default function LavagemPage() {
     }
   };
 
-  const handleStart = async (id: string) => {
-    if (!canStart) return;
-    try { await startCycle(id); toast.success('Lavagem iniciada.'); await refresh(); }
-    catch (err) { toast.error('Não foi possível iniciar a lavagem.'); console.error(err); }
-  };
-
-  // Ajustes operacionais da fila (Admin/Preparador). A nova chave é calculada a
-  // partir dos vizinhos visíveis, sem tocar no plano (scheduled_at).
-  const applyOrder = async (id: string, order: number) => {
-    if (!canReorder) return;
-    try { await setQueueOrder(id, order); await refresh(); }
-    catch (err) { toast.error('Não foi possível reordenar a fila.'); console.error(err); }
-  };
-  const moveTop = (i: number) => {
-    if (i <= 0) return;
-    applyOrder(queue[i].id, queueKey(queue[0]) - 1);
-  };
-  const moveUp = (i: number) => {
-    if (i <= 0) return;
-    const order = i - 1 === 0
-      ? queueKey(queue[0]) - 1
-      : (queueKey(queue[i - 2]) + queueKey(queue[i - 1])) / 2;
-    applyOrder(queue[i].id, order);
-  };
-  const moveDown = (i: number) => {
-    if (i >= queue.length - 1) return;
-    const last = queue.length - 1;
-    const order = i + 1 === last
-      ? queueKey(queue[last]) + 1
-      : (queueKey(queue[i + 1]) + queueKey(queue[i + 2])) / 2;
-    applyOrder(queue[i].id, order);
-  };
   const handleEnd = async (id: string) => {
     if (!canTerminate) return;
     try { await endCycle(id); toast.success('Lavagem terminada.'); await refresh(); }
@@ -421,15 +387,6 @@ export default function LavagemPage() {
     active
       .filter(c => cycleStatus(c) === 'in_progress')
       .sort((a, b) => (a.started_at ?? '').localeCompare(b.started_at ?? '')),
-    [active]);
-
-  // Fila de execução (agendamentos por iniciar): ordem manual, se definida,
-  // senão a hora marcada. Dá ao lavador a noção do "próximo carro a lavar";
-  // Admin/Preparador podem antecipar/reordenar sem mexer no plano.
-  const queue = useMemo(() =>
-    active
-      .filter(c => cycleStatus(c) === 'scheduled')
-      .sort((a, b) => queueKey(a) - queueKey(b)),
     [active]);
 
   // Estatísticas por período (hoje / semana / mês) — quantas e que tipo.
@@ -598,10 +555,8 @@ export default function LavagemPage() {
 
               <div className="flex items-center justify-end">
                 <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
-                  {submitting
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : willSchedule ? <CalendarDays className="h-4 w-4" /> : <Timer className="h-4 w-4" />}
-                  {willSchedule ? 'Agendar' : 'Iniciar'}
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
+                  Agendar
                 </Button>
               </div>
             </form>
@@ -609,129 +564,12 @@ export default function LavagemPage() {
             {selectedType && (
               <p className="mt-2 text-xs text-muted-foreground">
                 Duração prevista: <span className="font-medium text-foreground">{selectedType.duration} min</span>
-                {willSchedule ? ' · será colocada na agenda e na fila à hora indicada' : ''}
+                {willSchedule ? ' · será colocada na agenda à hora indicada' : ''}
               </p>
             )}
           </CardContent>
         </Card>
       )}
-
-      {/* ── Fila de agendamentos ────────────────────────────────────────────
-       * O "próximo carro a lavar" para o lavador: lavagens agendadas por ordem
-       * da hora marcada. A primeira é destacada como "A seguir". */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <ListOrdered className="h-4 w-4" /> Próximas lavagens
-            <span className="text-xs font-normal text-muted-foreground">({queue.length})</span>
-          </CardTitle>
-          {canReorder && queue.length > 1 && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              Ordem de execução — antecipe ou reordene sem alterar a marcação na agenda.
-            </p>
-          )}
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-              <Loader2 className="h-4 w-4 animate-spin" /> {loadingLabel}
-            </div>
-          ) : queue.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">
-              Sem lavagens agendadas.{canSchedule ? ' Agende uma acima para a colocar na fila.' : ''}
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {queue.map((c, idx) => {
-                const t = WASH_TYPE_MAP[c.wash_type];
-                const next = idx === 0;
-                const overdue = !!c.scheduled_at && new Date(c.scheduled_at).getTime() < Date.now();
-                const reordered = c.queue_order != null;   // ordem ajustada face ao plano
-                return (
-                  <li
-                    key={c.id}
-                    className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 ${next ? 'border-primary/60 bg-primary/5' : ''}`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {canReorder && (
-                        <div className="flex flex-col -my-1 flex-shrink-0">
-                          <button
-                            onClick={() => moveTop(idx)}
-                            disabled={idx === 0}
-                            title="Antecipar (topo)"
-                            className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground"
-                          >
-                            <ChevronsUp className="h-3.5 w-3.5" />
-                          </button>
-                          <div className="flex">
-                            <button
-                              onClick={() => moveUp(idx)}
-                              disabled={idx === 0}
-                              title="Subir"
-                              className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground"
-                            >
-                              <ChevronUp className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => moveDown(idx)}
-                              disabled={idx === queue.length - 1}
-                              title="Descer"
-                              className="text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground"
-                            >
-                              <ChevronDown className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      <span className="text-xs font-semibold tabular-nums text-muted-foreground w-4 text-right flex-shrink-0">{idx + 1}</span>
-                      <span className={`inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 ${t?.dot ?? 'bg-slate-400'}`} />
-                      <div className="min-w-0">
-                        <div className="font-semibold truncate flex items-center gap-1.5">
-                          {c.plate}
-                          {next && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
-                              <ArrowRight className="h-3 w-3" /> A seguir
-                            </span>
-                          )}
-                          {reordered && (
-                            <span
-                              className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full"
-                              title="Ordem ajustada face à marcação"
-                            >
-                              ajustada
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {c.model ? `${c.model} · ` : ''}{t?.label ?? c.wash_type} · {c.duration_min} min · {c.scheduled_at ? fmtDayTime(c.scheduled_at) : 'sem hora'}
-                          {overdue && <span className="ml-1 font-semibold text-red-600 dark:text-red-400">· em atraso</span>}
-                        </div>
-                        {c.notes && (
-                          <div className="text-xs text-muted-foreground/80 italic truncate" title={c.notes}>
-                            {c.notes}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {canStart && (
-                        <Button size="sm" onClick={() => handleStart(c.id)}>
-                          <Play className="h-4 w-4" /> Iniciar
-                        </Button>
-                      )}
-                      {canDelete && (
-                        <Button size="sm" variant="ghost" onClick={() => requestDelete(c)} title="Remover agendamento">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
 
       {/* ── Ciclos em curso ─────────────────────────────────────────────────── */}
       <Card>
