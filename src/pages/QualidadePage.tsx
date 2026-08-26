@@ -62,15 +62,18 @@ const fmtNum = (n: number) => Number(n.toFixed(2));
 export default function QualidadePage() {
   const { session } = useAuth();
   const { data } = useData();
-  const { canEdit } = usePermissions();
-  const editable = canEdit('qualidade');
+  const { isAdmin } = usePermissions();
+  // Lançar/editar/remover notas é exclusivo do perfil administrador; os restantes
+  // perfis com acesso (ex.: Vendedor, Chefe de Vendas) só consultam.
+  const editable = isAdmin;
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);   // 1–12
 
   const [rows, setRows] = useState<QualityRow[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());   // vazio = média
+  const [selected, setSelected] = useState<Set<string>>(new Set());   // vendedores escolhidos
+  const [showAvg, setShowAvg] = useState(true);                       // média sobreposta (toggle independente)
   const [form, setForm] = useState<FormState>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -140,12 +143,19 @@ export default function QualidadePage() {
   // Média da equipa (todos os vendedores com notas no mês).
   const teamAvg = useMemo(() => averageScores(rows), [rows]);
 
-  // Séries desenhadas na teia (cada uma com a sua cor).
+  // A média é uma teia independente que se pode sobrepor aos vendedores. Sem
+  // nenhum vendedor escolhido mostra-se sempre a média, para o gráfico nunca ficar vazio.
+  const avgShown = showAvg || selectedList.length === 0;
+
+  // Séries desenhadas na teia (cada uma com a sua cor). Média (se ligada) + cada
+  // vendedor selecionado; o que está em edição usa as notas do formulário (ao vivo).
   const series = useMemo<{ key: string; color: string; scores: QualityScores }[]>(() => {
-    if (selectedList.length === 0) return [{ key: 'Média', color: AVG_COLOR, scores: teamAvg }];
-    if (editing) return [{ key: editing, color: colorOf(editing), scores: editScores }];
-    return selectedList.map(v => ({ key: v, color: colorOf(v), scores: scoresOf(v) }));
-  }, [selectedList, editing, editScores, teamAvg, colorOf, scoresOf]);
+    const out: { key: string; color: string; scores: QualityScores }[] = [];
+    if (avgShown) out.push({ key: 'Média', color: AVG_COLOR, scores: teamAvg });
+    selectedList.forEach(v =>
+      out.push({ key: v, color: colorOf(v), scores: editing === v ? editScores : scoresOf(v) }));
+    return out;
+  }, [avgShown, selectedList, editing, editScores, teamAvg, colorOf, scoresOf]);
 
   const chartData = useMemo(
     () => QUALITY_METRICS.map(m => {
@@ -163,7 +173,7 @@ export default function QualidadePage() {
 
   const toggle = (v: string) => setSelected(prev => {
     const n = new Set(prev);
-    n.has(v) ? n.delete(v) : n.add(v);
+    if (n.has(v)) n.delete(v); else n.add(v);
     return n;
   });
 
@@ -203,11 +213,12 @@ export default function QualidadePage() {
     }
   };
 
-  const subtitle = selectedList.length === 0
-    ? `Média (${rows.length} vend.)`
-    : selectedList.length === 1
+  const subtitle = [
+    avgShown ? `Média (${rows.length} vend.)` : null,
+    selectedList.length === 1
       ? selectedList[0]
-      : `${selectedList.length} vendedores`;
+      : selectedList.length > 1 ? `${selectedList.length} vendedores` : null,
+  ].filter(Boolean).join(' + ');
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
@@ -222,17 +233,17 @@ export default function QualidadePage() {
         <CardContent className="py-3">
           <div className="flex items-center justify-between gap-2 mb-2">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Vendedores <span className="normal-case font-normal">· escolha um para editar, vários para comparar</span>
+              Vendedores <span className="normal-case font-normal">· a média combina-se com os vendedores; um único vendedor abre a edição</span>
             </p>
-            {selectedList.length > 0 && (
-              <button onClick={() => setSelected(new Set())}
+            {(selectedList.length > 0 || !showAvg) && (
+              <button onClick={() => { setSelected(new Set()); setShowAvg(true); }}
                 className="text-[10px] font-medium text-primary hover:underline">Limpar</button>
             )}
           </div>
           <div className="flex flex-wrap gap-1.5">
             <button
-              onClick={() => setSelected(new Set())}
-              className={selectedList.length === 0
+              onClick={() => setShowAvg(s => !s)}
+              className={avgShown
                 ? 'inline-flex items-center gap-1 rounded-md border border-primary bg-primary px-2.5 py-1.5 text-[11px] font-semibold text-primary-foreground'
                 : 'inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent'}
             >
@@ -362,7 +373,7 @@ export default function QualidadePage() {
 
                 <div className="flex items-center justify-between border-t pt-3">
                   <span className="text-xs font-medium text-muted-foreground">Somatório</span>
-                  <span className="text-lg font-bold tabular-nums">{fmtNum(centerTotal)}</span>
+                  <span className="text-lg font-bold tabular-nums">{fmtNum(sumScores(editScores))}</span>
                 </div>
 
                 {editable ? (
@@ -401,7 +412,7 @@ export default function QualidadePage() {
 
                 <div className="flex items-center justify-between border-t pt-3">
                   <span className="text-xs font-medium text-muted-foreground">Somatório médio</span>
-                  <span className="text-lg font-bold tabular-nums">{rows.length ? fmtNum(centerTotal) : '—'}</span>
+                  <span className="text-lg font-bold tabular-nums">{rows.length ? fmtNum(sumScores(teamAvg)) : '—'}</span>
                 </div>
 
                 <p className="text-[11px] text-muted-foreground">
@@ -418,6 +429,14 @@ export default function QualidadePage() {
                     <thead>
                       <tr className="text-[10px] text-muted-foreground">
                         <th className="px-2 py-1 text-left font-medium">Vetor</th>
+                        {avgShown && (
+                          <th className="px-2 py-1 text-right font-medium whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1">
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: AVG_COLOR }} />
+                              Média
+                            </span>
+                          </th>
+                        )}
                         {selectedList.map(v => (
                           <th key={v} className="px-2 py-1 text-right font-medium whitespace-nowrap">
                             <span className="inline-flex items-center gap-1">
@@ -432,6 +451,9 @@ export default function QualidadePage() {
                       {QUALITY_METRICS.map(m => (
                         <tr key={m.key}>
                           <td className="px-2 py-1 text-foreground whitespace-nowrap">{m.label}</td>
+                          {avgShown && (
+                            <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{fmtNum(teamAvg[m.key])}</td>
+                          )}
                           {selectedList.map(v => (
                             <td key={v} className="px-2 py-1 text-right tabular-nums">{fmtNum(scoresOf(v)[m.key])}</td>
                           ))}
@@ -439,6 +461,9 @@ export default function QualidadePage() {
                       ))}
                       <tr className="border-t font-semibold">
                         <td className="px-2 py-1 text-muted-foreground">Total</td>
+                        {avgShown && (
+                          <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{fmtNum(sumScores(teamAvg))}</td>
+                        )}
                         {selectedList.map(v => (
                           <td key={v} className="px-2 py-1 text-right tabular-nums">{fmtNum(sumScores(scoresOf(v)))}</td>
                         ))}

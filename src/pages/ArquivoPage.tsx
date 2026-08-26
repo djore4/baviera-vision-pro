@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Archive, CalendarClock, Coins, Database, Car, Target, ChevronRight } from 'lucide-react';
+import { Archive, CalendarClock, Coins, Database, Car, Target, Fuel, ChevronRight } from 'lucide-react';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { Card } from '@/components/ui/card';
 
@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const ARCHIVED = [
+  { key: 'escala-repsol', label: 'Escala Repsol', path: '/escala-repsol', icon: Fuel, desc: 'Escala do posto Repsol' },
   { key: 'emprestimos', label: 'Empréstimos', path: '/emprestimos', icon: CalendarClock, desc: 'Empréstimos de viaturas demo' },
   { key: 'multas', label: 'Multas', path: '/multas', icon: Coins, desc: 'Infrações e penalizações' },
   { key: 'database', label: 'Database', path: '/database', icon: Database, desc: 'Base de dados / registos' },

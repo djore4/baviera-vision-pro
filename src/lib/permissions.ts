@@ -41,7 +41,7 @@ export const TABS: TabDef[] = [
 ];
 
 /* Tabs "arrumados" dentro do Arquivo (não aparecem diretamente na barra lateral). */
-export const ARCHIVED_TAB_KEYS = ['emprestimos', 'multas', 'database', 'demos', 'objetivos'];
+export const ARCHIVED_TAB_KEYS = ['escala-repsol', 'emprestimos', 'multas', 'database', 'demos', 'objetivos'];
 
 export const TAB_BY_PATH: Record<string, TabDef> =
   TABS.reduce((acc, t) => { acc[t.path] = t; return acc; }, {} as Record<string, TabDef>);
