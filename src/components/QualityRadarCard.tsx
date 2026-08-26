@@ -34,6 +34,7 @@ export function QualityRadarCard({ selectedResps }: { selectedResps: Set<string>
   const [state, setState] = useState<{ year: number; month: number; rows: QualityRow[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showAvg, setShowAvg] = useState(true);   // média sobreposta (toggle independente)
 
   useEffect(() => {
     let alive = true;
@@ -71,15 +72,21 @@ export function QualityRadarCard({ selectedResps }: { selectedResps: Set<string>
     () => vendedores.filter(v => selectedResps.has(v)),
     [vendedores, selectedResps]);
 
-  // Séries desenhadas: média (sem seleção) ou os vendedores selecionados.
+  // A média é uma teia independente que se pode sobrepor aos vendedores. Sem
+  // vendedores selecionados mostra-se sempre a média (o gráfico nunca fica vazio).
+  const avgShown = showAvg || shownResps.length === 0;
+
+  // Séries desenhadas: média (se ligada) + cada vendedor selecionado.
   const series = useMemo<{ key: string; color: string; scores: QualityScores }[]>(() => {
-    if (shownResps.length === 0) return [{ key: 'Média', color: AVG_COLOR, scores: teamAvg }];
-    return shownResps.map(v => ({
+    const out: { key: string; color: string; scores: QualityScores }[] = [];
+    if (avgShown) out.push({ key: 'Média', color: AVG_COLOR, scores: teamAvg });
+    shownResps.forEach(v => out.push({
       key: v,
       color: PALETTE[Math.max(0, vendedores.indexOf(v)) % PALETTE.length],
       scores: scoresFromRow(rowByVendedor.get(v)!),
     }));
-  }, [shownResps, teamAvg, rowByVendedor, vendedores]);
+    return out;
+  }, [avgShown, shownResps, teamAvg, rowByVendedor, vendedores]);
 
   const chartData = useMemo(
     () => QUALITY_METRICS.map(m => {
@@ -98,13 +105,28 @@ export function QualityRadarCard({ selectedResps }: { selectedResps: Set<string>
 
   return (
     <div className="bg-card border border-border rounded-lg p-2">
-      <div className="flex items-center justify-between mb-1">
-        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Qualidade do Serviço</h3>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Qualidade do Serviço</h3>
+          {state && rows.length > 0 && (
+            <button
+              onClick={() => setShowAvg(s => !s)}
+              title="Sobrepor a média da equipa"
+              className={avgShown
+                ? 'inline-flex items-center rounded border border-primary bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground'
+                : 'inline-flex items-center rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-foreground hover:bg-accent'}
+            >
+              Média
+            </button>
+          )}
+        </div>
         {state && (
-          <span className="text-[10px] text-muted-foreground">
-            {PT_MONTHS[state.month - 1]} {state.year} · {shownResps.length === 0
-              ? `média (${rows.length} vend.)`
-              : shownResps.length === 1 ? shownResps[0] : `${shownResps.length} vendedores`}
+          <span className="text-[10px] text-muted-foreground truncate">
+            {PT_MONTHS[state.month - 1]} {state.year} · {[
+              avgShown ? `média (${rows.length} vend.)` : null,
+              shownResps.length === 1 ? shownResps[0]
+                : shownResps.length > 1 ? `${shownResps.length} vendedores` : null,
+            ].filter(Boolean).join(' + ')}
           </span>
         )}
       </div>
@@ -154,7 +176,7 @@ export function QualityRadarCard({ selectedResps }: { selectedResps: Set<string>
 
       <p className="text-[10px] text-muted-foreground mt-1 px-1">
         Notas de qualidade do serviço (escala 0–{QUALITY_MAX}), geridas no separador Qualidade.
-        Sem vendedor selecionado mostra-se a média da equipa; selecione vendedores no filtro para comparar.
+        Selecione vendedores no filtro da página e ligue/desligue a <strong>Média</strong> para ver a equipa, os vendedores ou ambos.
         {missing.length > 0 && ` Sem notas neste mês: ${missing.join(', ')}.`}
       </p>
     </div>
