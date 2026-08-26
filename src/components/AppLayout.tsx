@@ -21,8 +21,9 @@ const NAV_ITEMS = [
   { path: '/ficha-margem', label: 'FICHA MARGEM', icon: Calculator },
   { path: '/escala', label: 'ESCALA', icon: CalendarDays },
   { path: '/lavagem', label: 'LAVAGEM', icon: Droplets },
-  // Acessível a perfis não-admin (via permissões) → estilo normal, não "admin" (amarelo).
+  // Acessíveis a perfis não-admin (via permissões) → estilo normal, não "admin" (amarelo).
   { path: '/vendedores', label: 'PERFORMANCE', icon: Users },
+  { path: '/qualidade', label: 'QUALIDADE', icon: Radar },
 ];
 
 const ADMIN_NAV_ITEMS = [
@@ -30,7 +31,6 @@ const ADMIN_NAV_ITEMS = [
   { path: '/escala-repsol', label: 'ESCALA REPSOL', icon: Fuel },
   { path: '/fidelizacao', label: 'FIDELIZAÇÃO', icon: HeartHandshake },
   { path: '/dados', label: 'DADOS', icon: Database },
-  { path: '/qualidade', label: 'QUALIDADE', icon: Radar },
   { path: '/arquivo', label: 'ARQUIVO', icon: Archive },
   { path: '/utilizadores', label: 'UTILIZADORES', icon: UserCog },
 ];
