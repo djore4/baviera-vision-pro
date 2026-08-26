@@ -442,32 +442,6 @@ export default function VendedoresPage() {
             </p>
           </div>
 
-          {/* Lead time — distribuição */}
-          <div className="bg-card border border-border rounded-lg p-2">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Lead time Negócio → Retail (dias)</h3>
-              <span className="text-[10px] text-muted-foreground">n = {lead.n}</span>
-            </div>
-            <ResponsiveContainer width="100%" height={180}>
-              {/* Cada série no seu próprio eixo-x (1 e 2 ocultos) → todas centradas na
-                  mesma categoria, sobrepondo-se. Larguras decrescentes (Retails > QoR > BEV)
-                  mantêm as três sempre visíveis; preenchimento opaco. */}
-              <BarChart data={lead.buckets} barCategoryGap="28%">
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="label" xAxisId={0} tick={{ fontSize: 10 }} />
-                <XAxis dataKey="label" xAxisId={1} hide />
-                <XAxis dataKey="label" xAxisId={2} hide />
-                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="Todos" name="Retails" xAxisId={0} barSize={44} fill="#1C69D4" radius={[3, 3, 0, 0]}>
-                  <LabelList dataKey="Todos" position="top" fontSize={9} fill="hsl(var(--foreground))" formatter={(v: number) => v > 0 ? v : ''} />
-                </Bar>
-                <Bar dataKey="QoR" name="QoR" xAxisId={1} barSize={26} fill="#F59E0B" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="BEV" name="BEV" xAxisId={2} barSize={12} fill="#16A34A" radius={[2, 2, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
           {/* Desempenho por comercial */}
           <div className="bg-card border border-border rounded-lg overflow-x-auto">
             <div className="px-2 py-1.5 border-b border-border">
