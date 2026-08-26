@@ -494,8 +494,8 @@ export default function VendedoresPage() {
             </p>
           </div>
 
-          {/* Qualidade do serviço — resultado (read-only); gestão no separador Qualidade */}
-          <QualityRadarCard selectedResps={selectedResps} />
+          {/* Qualidade do serviço — resultado (read-only, seletor próprio); gestão no separador Qualidade */}
+          <QualityRadarCard />
 
           {/* Método de pagamento — mix mensal (barras 100%) */}
           <div className="bg-card border border-border rounded-lg p-2">
