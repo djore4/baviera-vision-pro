@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { Trophy, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
+import { QualityRadarCard } from '@/components/QualityRadarCard';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList, Legend,
   ComposedChart, Line, Tooltip, ReferenceLine, Customized,
@@ -97,7 +98,7 @@ export default function VendedoresPage() {
   const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
   const toggleResp = (resp: string) => setSelectedResps(prev => {
     const n = new Set(prev);
-    n.has(resp) ? n.delete(resp) : n.add(resp);
+    if (n.has(resp)) n.delete(resp); else n.add(resp);
     return n;
   });
 
@@ -518,6 +519,9 @@ export default function VendedoresPage() {
               %BEV / %QoR sobre negócios do período · Cart. / Idade referem-se à carteira atual em aberto.
             </p>
           </div>
+
+          {/* Qualidade do serviço — resultado (read-only); gestão no separador Qualidade */}
+          <QualityRadarCard selectedResps={selectedResps} />
 
           {/* Método de pagamento — mix mensal (barras 100%) */}
           <div className="bg-card border border-border rounded-lg p-2">

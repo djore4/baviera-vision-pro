@@ -58,6 +58,22 @@ export async function getMonthScores(year: number, month: number): Promise<Quali
   return ((data as QualityRow[] | null) ?? []).filter(r => (r.vendedor ?? '') !== '');
 }
 
+/* Notas do mês mais recente que tenha registos (para leitura read-only, ex.: o
+ * cartão de Qualidade no tab Performance). Devolve null se não houver notas. */
+export async function getLatestScores(): Promise<{ year: number; month: number; rows: QualityRow[] } | null> {
+  const { data, error } = await supabase
+    .from('quality_scores')
+    .select('year, month')
+    .order('year', { ascending: false })
+    .order('month', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  const top = (data as { year: number; month: number }[] | null)?.[0];
+  if (!top) return null;
+  const rows = await getMonthScores(top.year, top.month);
+  return { year: top.year, month: top.month, rows };
+}
+
 /* Grava (upsert) as notas de um vendedor num mês. */
 export async function saveVendedorScores(
   year: number,
