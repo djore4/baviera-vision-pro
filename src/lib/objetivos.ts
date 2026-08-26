@@ -35,7 +35,7 @@ export async function loadObjetivos(): Promise<{ objetivosTotal: ObjetivoTotal[]
     mes,
     orcado: gsc,                    // Caetano (GSC)
     range2: bmw,                    // BMW
-    range3: Math.round(bmw * 1.1),  // BMW 110%
+    range3: Math.ceil(bmw * 1.1),   // BMW 110% (majora sempre para o inteiro seguinte)
     real: 0,                        // calculado a partir dos registos, não guardado
   }));
 
