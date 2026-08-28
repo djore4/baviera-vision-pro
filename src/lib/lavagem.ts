@@ -104,6 +104,7 @@ export type NewCycle = {
   notes?: string | null;   // observações
   created_by?: string | null;
   scheduled_at?: string;   // ISO; se presente, cria uma lavagem agendada (started_at fica null)
+  start_now?: boolean;     // "Agendar já": agenda para este instante e inicia de imediato
 };
 
 /* Lista os ciclos com hora efetiva dentro de [from, to) (ISO), mais recentes primeiro. */
@@ -128,8 +129,10 @@ export async function listActiveCycles(): Promise<CarWashCycle[]> {
 }
 
 /* Cria um ciclo de lavagem. A duração é fixada a partir do tipo.
- * Com scheduled_at -> lavagem agendada (started_at fica null, entra na fila);
- * sem scheduled_at -> lavagem imediata (arranca já). */
+ * - start_now -> "Agendar já": agenda para este instante e arranca de imediato
+ *   (scheduled_at e started_at = agora);
+ * - scheduled_at (sem start_now) -> lavagem agendada (started_at fica null, entra na fila);
+ * - nenhum dos dois -> lavagem imediata (arranca já, sem agendamento). */
 export async function createCycle(input: NewCycle): Promise<CarWashCycle> {
   const type = WASH_TYPE_MAP[input.wash_type];
   const row: Record<string, unknown> = {
@@ -141,8 +144,15 @@ export async function createCycle(input: NewCycle): Promise<CarWashCycle> {
     created_by: input.created_by ?? null,
     scheduled_by: input.created_by ?? null,   // interlocutor inicial do agendamento
   };
-  if (input.scheduled_at) row.scheduled_at = input.scheduled_at;      // agendada
-  else row.started_at = new Date().toISOString();                    // imediata
+  const now = new Date().toISOString();
+  if (input.start_now) {                                             // agendar já (agenda + inicia)
+    row.scheduled_at = input.scheduled_at ?? now;
+    row.started_at = now;
+  } else if (input.scheduled_at) {                                   // agendada (por iniciar)
+    row.scheduled_at = input.scheduled_at;
+  } else {                                                           // imediata (sem agendamento)
+    row.started_at = now;
+  }
   const { data, error } = await supabase
     .from('car_wash_cycles')
     .insert(row)
