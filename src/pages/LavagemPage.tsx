@@ -149,11 +149,13 @@ export default function LavagemPage() {
   // Acesso de edição ao tab Lavagem concede as tarefas de planeamento (agendar/reordenar),
   // para além dos perfis dedicados — ex.: APV agenda lavagens de serviço.
   const lavagemEdit = canEdit('lavagem');                                           // edição atribuída ao perfil
-  const canSchedule = isAdmin || roleName === 'Preparador' || lavagemEdit;          // agendar (marcação)
-  // O Lavador NÃO agenda lavagens (não vê o formulário). O seu papel é confirmar o
-  // arranque: clica na lavagem agendada e prime "Iniciar" para registar o início real.
-  const canStartCycle = isAdmin || roleName === 'Lavador';                          // iniciar uma lavagem agendada
-  const canCreate = canSchedule;                                                    // ver formulário (só quem agenda)
+  // Reagendar/editar lavagens já existentes (arrastar na agenda). O Lavador NÃO edita
+  // existentes — só cria novas e inicia as agendadas.
+  const canReschedule = isAdmin || roleName === 'Preparador' || lavagemEdit;        // editar existentes (arrastar)
+  // Iniciar uma lavagem agendada e usar "Agendar já" (agendar para agora + arrancar).
+  const canStartCycle = isAdmin || roleName === 'Lavador';                          // iniciar / agendar já
+  // Criar/agendar novas lavagens (ver o formulário): quem edita existentes e também o Lavador.
+  const canCreate = canReschedule || canStartCycle;                                 // ver formulário
   const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';    // controlo de qualidade
   const canExport = isAdmin;                                                        // exportar Excel
   const canDelete = isAdmin;                                                        // remover registos
@@ -162,8 +164,8 @@ export default function LavagemPage() {
   const [model, setModel] = useState('');
   const [washType, setWashType] = useState<WashTypeId | ''>('');
   const [notes, setNotes] = useState('');
-  const [schedAt, setSchedAt] = useState('');   // agendamento (datetime-local); vazio = imediata
-  const [submitting, setSubmitting] = useState(false);
+  const [schedAt, setSchedAt] = useState('');   // agendamento (datetime-local)
+  const [submitting, setSubmitting] = useState<'schedule' | 'now' | null>(null);
 
   // Modelos sugeridos — reutiliza os modelos já registados noutras tabelas
   // (control_records), permitindo escolher um existente ou escrever um novo.
@@ -227,23 +229,24 @@ export default function LavagemPage() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Submissão do formulário. Dois modos:
+  //  - 'schedule' (botão "Agendar"): marca para a hora indicada em schedAt (fila).
+  //  - 'now' ("Agendar já"): agenda para este instante e arranca de imediato.
+  const submit = async (mode: 'schedule' | 'now') => {
     if (!canCreate) return;
+    if (mode === 'now' && !canStartCycle) { toast.error('Sem permissão para iniciar lavagens.'); return; }
     if (!plate.trim()) { toast.error('Indica a matrícula ou chassis.'); return; }
     if (!washType) { toast.error('Escolhe o tipo de lavagem.'); return; }
 
     let scheduledAt: string | undefined;
-    if (schedAt) {
-      if (!canSchedule) { toast.error('Sem permissão para agendar lavagens.'); return; }
+    if (mode === 'schedule') {
+      if (!schedAt) { toast.error('Indica a hora do agendamento (ou usa "Agendar já").'); return; }
       const d = new Date(schedAt);
       if (isNaN(d.getTime())) { toast.error('Data de agendamento inválida.'); return; }
       scheduledAt = d.toISOString();
-    } else if (!canStartCycle) {
-      toast.error('Indica a hora do agendamento.'); return;
     }
 
-    setSubmitting(true);
+    setSubmitting(mode);
     try {
       await createCycle({
         plate,
@@ -252,8 +255,9 @@ export default function LavagemPage() {
         notes: notes.trim() || null,
         created_by: session?.user.email ?? null,
         scheduled_at: scheduledAt,
+        start_now: mode === 'now',
       });
-      toast.success(scheduledAt ? 'Lavagem agendada.' : 'Lavagem iniciada.');
+      toast.success(mode === 'now' ? 'Lavagem agendada e iniciada.' : 'Lavagem agendada.');
       setPlate('');
       setModel('');
       setWashType('');
@@ -264,9 +268,11 @@ export default function LavagemPage() {
       toast.error('Não foi possível registar a lavagem.');
       console.error(err);
     } finally {
-      setSubmitting(false);
+      setSubmitting(null);
     }
   };
+
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); submit('schedule'); };
 
   // Remoção (só admin) — pede sempre confirmação antes de apagar. Qualquer
   // origem (slot da agenda, fila ou controlo de qualidade) passa pelo mesmo diálogo.
@@ -457,8 +463,6 @@ export default function LavagemPage() {
   const fmtMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
   const selectedType = washType ? WASH_TYPE_MAP[washType] : null;
-  // Perfis que só podem agendar (ex.: Preparador) submetem sempre um agendamento.
-  const willSchedule = !!schedAt || !canStartCycle;
   const todayIdx = Math.round((new Date().setHours(0, 0, 0, 0) - weekStart.getTime()) / DAY_MS);
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
 
@@ -472,19 +476,19 @@ export default function LavagemPage() {
         <span className="text-xs text-muted-foreground">· Controlo do fluxo de lavagens</span>
       </div>
 
-      {/* ── Formulário: agendar / iniciar lavagem ────────────────────────────
-       * Admin e Preparador agendam (marcação numa hora futura → entra na fila e
-       * na agenda). Admin e Lavador iniciam de imediato (walk-in). */}
+      {/* ── Formulário: agendar lavagem ──────────────────────────────────────
+       * Admin, Preparador e Lavador agendam para uma hora futura ("Agendar").
+       * Admin e Lavador podem ainda "Agendar já" (agenda para o instante e
+       * arranca de imediato). Editar lavagens já existentes (arrastar) é só de
+       * quem tem canReschedule — o Lavador não edita as existentes. */}
       {canCreate && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">
-              {canStartCycle ? 'Nova lavagem' : 'Agendar lavagem'}
-            </CardTitle>
+            <CardTitle className="text-sm font-semibold">Nova lavagem</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-3">
-              <div className={`grid gap-3 sm:grid-cols-2 sm:items-end ${canSchedule ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+              <div className="grid gap-3 sm:grid-cols-2 sm:items-end lg:grid-cols-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="plate">Matrícula / Chassis</Label>
                   <Input
@@ -534,19 +538,15 @@ export default function LavagemPage() {
                   </Select>
                 </div>
 
-                {canSchedule && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="sched">
-                      Agendar para {canStartCycle && <span className="text-muted-foreground font-normal">(opcional)</span>}
-                    </Label>
-                    <Input
-                      id="sched"
-                      type="datetime-local"
-                      value={schedAt}
-                      onChange={e => setSchedAt(e.target.value)}
-                    />
-                  </div>
-                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="sched">Agendar para</Label>
+                  <Input
+                    id="sched"
+                    type="datetime-local"
+                    value={schedAt}
+                    onChange={e => setSchedAt(e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -562,17 +562,28 @@ export default function LavagemPage() {
                 />
               </div>
 
-              {/* Aviso de antecedência mínima para agendamentos. */}
-              {canSchedule && (
-                <p className="flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
-                  <Info className="h-3.5 w-3.5 flex-shrink-0" />
-                  Realizar agendamento com, pelo menos, 48h de antecedência.
-                </p>
-              )}
+              {/* Aviso de antecedência mínima para agendamentos futuros. */}
+              <p className="flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                <Info className="h-3.5 w-3.5 flex-shrink-0" />
+                Realizar agendamento com, pelo menos, 48h de antecedência.
+              </p>
 
-              <div className="flex items-center justify-end">
-                <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-2">
+                {canStartCycle && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => submit('now')}
+                    disabled={submitting !== null}
+                    className="w-full sm:w-auto"
+                    title="Agenda para este instante e inicia de imediato"
+                  >
+                    {submitting === 'now' ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                    Agendar já
+                  </Button>
+                )}
+                <Button type="submit" disabled={submitting !== null} className="w-full sm:w-auto">
+                  {submitting === 'schedule' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
                   Agendar
                 </Button>
               </div>
@@ -581,7 +592,7 @@ export default function LavagemPage() {
             {selectedType && (
               <p className="mt-2 text-xs text-muted-foreground">
                 Duração prevista: <span className="font-medium text-foreground">{selectedType.duration} min</span>
-                {willSchedule ? ' · será colocada na agenda à hora indicada' : ''}
+                {canStartCycle && ' · "Agendar já" arranca de imediato'}
               </p>
             )}
           </CardContent>
@@ -635,7 +646,7 @@ export default function LavagemPage() {
               </CardTitle>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 Horário: 08:30–12:30 · 14:00–18:00 · <span className="text-amber-700 dark:text-amber-400">extra 18:00–19:00</span>
-                {canSchedule && <span className="text-muted-foreground"> · arraste as lavagens agendadas para reagendar</span>}
+                {canReschedule && <span className="text-muted-foreground"> · arraste as lavagens agendadas para reagendar</span>}
               </p>
             </div>
             <div className="flex items-center gap-1">
@@ -731,7 +742,7 @@ export default function LavagemPage() {
                       const widthPct = 100 / lanes;
                       const compact = height < 34;
                       const scheduled = cycleStatus(p.c) === 'scheduled';
-                      const draggable = canSchedule && scheduled;
+                      const draggable = canReschedule && scheduled;
                       const isDragging = drag?.id === p.c.id;
                       const blockHandlers = draggable
                         ? {
