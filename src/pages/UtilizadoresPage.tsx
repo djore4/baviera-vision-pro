@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import {
   UserPlus, Loader2, Trash2, KeyRound, Save, ShieldCheck, Users as UsersIcon, X, Plus,
 } from 'lucide-react';
@@ -87,6 +87,27 @@ function UsersSection({
 
   const resetForm = () => { setNome(''); setEmail(''); setPassword(''); setPerfil(''); };
 
+  // Aglutinação por função (cluster): agrupa os utilizadores pela sua função,
+  // com contagem por grupo. Grupos e nomes ordenados alfabeticamente (pt);
+  // "Sem função" fica sempre no fim.
+  const SEM_FUNCAO = 'Sem função';
+  const grouped = useMemo(() => {
+    const byName = (a: AppUser, b: AppUser) =>
+      (a.nome || a.email || '').localeCompare(b.nome || b.email || '', 'pt', { sensitivity: 'base' });
+    const map = new Map<string, AppUser[]>();
+    for (const u of users) {
+      const key = (u.perfil && u.perfil.trim()) || SEM_FUNCAO;
+      (map.get(key) ?? map.set(key, []).get(key)!).push(u);
+    }
+    return Array.from(map.entries())
+      .map(([perfil, list]) => ({ perfil, list: [...list].sort(byName) }))
+      .sort((a, b) => {
+        if (a.perfil === SEM_FUNCAO) return 1;
+        if (b.perfil === SEM_FUNCAO) return -1;
+        return a.perfil.localeCompare(b.perfil, 'pt', { sensitivity: 'base' });
+      });
+  }, [users]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) { toast.error('Email e password são obrigatórios.'); return; }
@@ -163,6 +184,20 @@ function UsersSection({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {!loading && users.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {grouped.map(g => (
+              <span
+                key={g.perfil}
+                className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs"
+                title={`${g.list.length} ${g.list.length === 1 ? 'pessoa' : 'pessoas'} em ${g.perfil}`}
+              >
+                {g.perfil}
+                <span className="rounded-full bg-primary/10 px-1.5 font-semibold text-primary">{g.list.length}</span>
+              </span>
+            ))}
+          </div>
+        )}
         {showForm && (
           <form onSubmit={handleCreate} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 rounded-md border bg-muted/30 p-3">
             <div className="space-y-1.5">
@@ -213,7 +248,15 @@ function UsersSection({
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
+                {grouped.map(g => (
+                  <Fragment key={g.perfil}>
+                    <tr className="bg-muted/40 border-b">
+                      <td colSpan={4} className="py-1.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {g.perfil}
+                        <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 font-semibold text-primary normal-case">{g.list.length}</span>
+                      </td>
+                    </tr>
+                    {g.list.map(u => (
                   <tr key={u.id} className="border-b last:border-0">
                     <td className="py-2 pr-3 font-medium">{u.nome || '—'}</td>
                     <td className="py-2 pr-3 text-muted-foreground">{u.email}</td>
@@ -238,6 +281,8 @@ function UsersSection({
                       </div>
                     </td>
                   </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -395,7 +440,6 @@ function RolesMatrix({
                   <tr key={t.key} className="border-b last:border-0">
                     <td className="py-1.5 pr-3 font-medium sticky left-0 bg-card whitespace-nowrap">
                       {t.label}
-                      {t.group === 'admin' && <span className="ml-1 text-[10px] text-amber-600">admin</span>}
                     </td>
                     {roles.map(r => (
                       <td key={r.name} className="py-1.5 px-2">
