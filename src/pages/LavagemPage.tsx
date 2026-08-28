@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Car, Loader2, CheckCircle2, CalendarDays, Trash2, ChevronLeft, ChevronRight,
-  BarChart3, FileSpreadsheet, Star, ClipboardCheck, Info, User,
+  BarChart3, FileSpreadsheet, Star, Info, User, PlayCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
@@ -10,7 +10,7 @@ import { useData } from '@/contexts/DataContext';
 import {
   WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle,
   cycleStatus, effectiveAt,
-  listCycles, createCycle, rescheduleCycle, deleteCycle, setQuality, exportCyclesToExcel,
+  listCycles, createCycle, startCycle, rescheduleCycle, deleteCycle, setQuality, exportCyclesToExcel,
 } from '@/lib/lavagem';
 import { funLoadingLabel } from '@/lib/loading-messages';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -150,8 +150,10 @@ export default function LavagemPage() {
   // para além dos perfis dedicados — ex.: APV agenda lavagens de serviço.
   const lavagemEdit = canEdit('lavagem');                                           // edição atribuída ao perfil
   const canSchedule = isAdmin || roleName === 'Preparador' || lavagemEdit;          // agendar (marcação)
-  const canStart = isAdmin || roleName === 'Lavador';                               // iniciar (imediata)
-  const canCreate = canSchedule || canStart;                                        // ver formulário
+  // O Lavador NÃO agenda lavagens (não vê o formulário). O seu papel é confirmar o
+  // arranque: clica na lavagem agendada e prime "Iniciar" para registar o início real.
+  const canStartCycle = isAdmin || roleName === 'Lavador';                          // iniciar uma lavagem agendada
+  const canCreate = canSchedule;                                                    // ver formulário (só quem agenda)
   const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';    // controlo de qualidade
   const canExport = isAdmin;                                                        // exportar Excel
   const canDelete = isAdmin;                                                        // remover registos
@@ -237,7 +239,7 @@ export default function LavagemPage() {
       const d = new Date(schedAt);
       if (isNaN(d.getTime())) { toast.error('Data de agendamento inválida.'); return; }
       scheduledAt = d.toISOString();
-    } else if (!canStart) {
+    } else if (!canStartCycle) {
       toast.error('Indica a hora do agendamento.'); return;
     }
 
@@ -299,6 +301,25 @@ export default function LavagemPage() {
     setQcCycle(c);
     setQcScore(c.quality_score != null ? String(c.quality_score) : '');
     setQcComment(c.quality_comment ?? '');
+  };
+
+  // Iniciar uma lavagem agendada (Lavador/admin): regista o início real e move a
+  // lavagem de "agendada" para "em curso". Confirma o arranque a partir do detalhe.
+  const [starting, setStarting] = useState(false);
+  const handleStart = async (c: CarWashCycle) => {
+    if (!canStartCycle) return;
+    setStarting(true);
+    try {
+      await startCycle(c.id);
+      toast.success('Lavagem iniciada.');
+      setQcCycle(null);
+      await refresh();
+    } catch (err) {
+      toast.error('Não foi possível iniciar a lavagem.');
+      console.error(err);
+    } finally {
+      setStarting(false);
+    }
   };
 
   const handleSaveQC = async () => {
@@ -437,7 +458,7 @@ export default function LavagemPage() {
 
   const selectedType = washType ? WASH_TYPE_MAP[washType] : null;
   // Perfis que só podem agendar (ex.: Preparador) submetem sempre um agendamento.
-  const willSchedule = !!schedAt || !canStart;
+  const willSchedule = !!schedAt || !canStartCycle;
   const todayIdx = Math.round((new Date().setHours(0, 0, 0, 0) - weekStart.getTime()) / DAY_MS);
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
 
@@ -458,7 +479,7 @@ export default function LavagemPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">
-              {canSchedule ? (canStart ? 'Nova lavagem' : 'Agendar lavagem') : 'Nova lavagem'}
+              {canStartCycle ? 'Nova lavagem' : 'Agendar lavagem'}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -516,7 +537,7 @@ export default function LavagemPage() {
                 {canSchedule && (
                   <div className="space-y-1.5">
                     <Label htmlFor="sched">
-                      Agendar para {canStart && <span className="text-muted-foreground font-normal">(opcional)</span>}
+                      Agendar para {canStartCycle && <span className="text-muted-foreground font-normal">(opcional)</span>}
                     </Label>
                     <Input
                       id="sched"
@@ -799,7 +820,7 @@ export default function LavagemPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ClipboardCheck className="h-4 w-4" /> Controlo de qualidade
+              <Car className="h-4 w-4" /> Lavagem
             </DialogTitle>
             {qcCycle && (
               <DialogDescription>
@@ -822,6 +843,31 @@ export default function LavagemPage() {
             </div>
           )}
 
+          {/* Estado + arranque. O Lavador confirma o início da lavagem agendada aqui. */}
+          {qcCycle && (() => {
+            const status = cycleStatus(qcCycle);
+            const statusLabel = status === 'scheduled'
+              ? 'Agendada'
+              : status === 'in_progress'
+                ? `Em curso${qcCycle.started_at ? ` desde ${fmtTime(qcCycle.started_at)}` : ''}`
+                : 'Terminada';
+            return (
+              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+                <div className="text-xs">
+                  <span className="font-semibold">Estado: </span>
+                  <span className="text-muted-foreground">{statusLabel}</span>
+                </div>
+                {status === 'scheduled' && canStartCycle && (
+                  <Button size="sm" className="gap-1.5" onClick={() => handleStart(qcCycle)} disabled={starting}>
+                    {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                    Iniciar
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
+
+          {canQC && (
           <div className="space-y-4 py-1">
             <div className="space-y-1.5">
               <Label>Nota (0–10)</Label>
@@ -868,6 +914,7 @@ export default function LavagemPage() {
               </p>
             )}
           </div>
+          )}
 
           <DialogFooter className="sm:justify-between">
             {/* Remover lavagem/agendamento — só admin. Botão discreto (texto), à
