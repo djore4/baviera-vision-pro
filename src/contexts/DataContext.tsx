@@ -31,7 +31,7 @@ interface DbControlRow {
   chas: string | null; mat: string | null; model: string | null; version: string | null;
   gar: string | null; qor: number | null; xev: number | null; bev: number | null; m: number | null;
   csc: number | null; cme: number | null; fin: string | null; week198: string | null;
-  dmat: string | null; date298: string | null; app: string | null; obs: string | null;
+  dmat: string | null; date298: string | null; app: string | null; dfat: string | null; obs: string | null;
 }
 
 const s = (v: string | null | undefined) => v ?? '';
@@ -69,6 +69,7 @@ function mapDbRow(r: DbControlRow): ControlRecord {
     dmat: dt(r.dmat),
     date298: dt(r.date298),
     app: dt(r.app),
+    dfat: dt(r.dfat),
     obs: s(r.obs),
   };
 }

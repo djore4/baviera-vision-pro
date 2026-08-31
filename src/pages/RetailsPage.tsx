@@ -19,7 +19,7 @@ const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext:
 const STATUS_COLORS: Record<string, string> = { Retail: '#1C69D4', Matricula: '#06B6D4', Carteira: '#F59E0B' };
 const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
 
-type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'version' | 'week198' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'app';
+type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'version' | 'week198' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'app' | 'dfat';
 type SortDir = 'asc' | 'desc';
 type AnalysisTab = 'entidade' | 'origem' | 'modelos';
 
@@ -173,6 +173,7 @@ export default function RetailsPage() {
         case 'dmat': cmp = (a.dmat?.getTime() || 0) - (b.dmat?.getTime() || 0); break;
         case 'date298': cmp = (a.date298?.getTime() || 0) - (b.date298?.getTime() || 0); break;
         case 'app': cmp = (a.app?.getTime() || 0) - (b.app?.getTime() || 0); break;
+        case 'dfat': cmp = (a.dfat?.getTime() || 0) - (b.dfat?.getTime() || 0); break;
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -213,8 +214,8 @@ export default function RetailsPage() {
   const handleLegendClick = (e: any) => { if (e?.value) handleStatusClick(e.value); };
 
   const exportCSV = useCallback(() => {
-    const headers = ['RESP', 'GAR', 'STATUS', 'TIPO', 'MODELO', 'VERSAO', '198', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', 'Data Negocio', 'Data Matricula', 'Data Retail', 'Data Apping'];
-    const rows = tableData.map(r => [r.resp, r.gar === 'GAR' ? 'Certo' : 'Incerto', r.status, r.type, r.model, r.version, r.week198, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.app)]);
+    const headers = ['RESP', 'GAR', 'STATUS', 'TIPO', 'MODELO', 'VERSAO', '198', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', 'Data Negocio', 'Data Matricula', 'Data Retail', 'Data Fatura', 'Data Apping'];
+    const rows = tableData.map(r => [r.resp, r.gar === 'GAR' ? 'Certo' : 'Incerto', r.status, r.type, r.model, r.version, r.week198, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.dfat), formatDate(r.app)]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -253,7 +254,7 @@ export default function RetailsPage() {
     ['resp', 'Resp'], ['status', 'Status'], ['type', 'Tipo'],
     ['model', 'Modelo'], ['version', 'Versao'], ['week198', '198'], ['cliente', 'Cliente'],
     ['fin', 'Pag'], ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matricula'],
-    ['neg', 'Data Fecho'], ['dmat', 'Data Matricula'], ['date298', 'Data Retail'], ['app', 'Data Apping'],
+    ['neg', 'Data Fecho'], ['dmat', 'Data Matricula'], ['date298', 'Data Retail'], ['dfat', 'Data Fatura'], ['app', 'Data Apping'],
   ];
 
   const activeFilters = [
@@ -537,6 +538,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.dmat)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.date298)}</td>
+                <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.dfat)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.app)}</td>
               </tr>
             ))}
