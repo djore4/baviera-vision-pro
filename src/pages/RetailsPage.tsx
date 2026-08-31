@@ -388,8 +388,8 @@ export default function RetailsPage() {
                     <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16A34A' }}>Faturas</p>
                     <GaugeSimple value={realization.faturasPct} size="lg" />
                     <div className="grid grid-cols-3 gap-1 w-full text-center mt-1">
+                      <div><p className="text-lg font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Objetivo Caetano</p></div>
                       <div><p className="text-lg font-extrabold" style={{ color: '#16A34A' }}>{realization.faturas}</p><p className="text-[9px] text-muted-foreground">Faturas</p></div>
-                      <div><p className="text-lg font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Caetano</p></div>
                       <div><p className="text-lg font-extrabold" style={{ color: realization.faturasPct >= 100 ? '#16A34A' : realization.faturasPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.faturasPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
                     </div>
                   </div>
@@ -398,8 +398,8 @@ export default function RetailsPage() {
                     <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#1C69D4' }}>Retails</p>
                     <GaugeSimple value={realization.retailsPct} size="lg" />
                     <div className="grid grid-cols-3 gap-1 w-full text-center mt-1">
+                      <div><p className="text-lg font-bold text-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">Objetivo BMW</p></div>
                       <div><p className="text-lg font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] text-muted-foreground">Retails</p></div>
-                      <div><p className="text-lg font-bold text-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">BMW</p></div>
                       <div><p className="text-lg font-extrabold" style={{ color: realization.retailsPct >= 100 ? '#16A34A' : realization.retailsPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.retailsPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
                     </div>
                   </div>
