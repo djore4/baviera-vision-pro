@@ -398,8 +398,8 @@ export default function RetailsPage() {
                     <GaugeSimple value={realization.faturasPct} size="lg" />
                     <div className="grid grid-cols-4 gap-1 w-full text-center mt-1">
                       <div><p className="text-base font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Orcamento</p></div>
-                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsao</p></div>
                       <div><p className="text-base font-extrabold" style={{ color: '#16A34A' }}>{realization.faturas}</p><p className="text-[9px] text-muted-foreground">Atual</p></div>
+                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsao</p></div>
                       <div><p className="text-base font-extrabold" style={{ color: realization.faturasPct >= 100 ? '#16A34A' : realization.faturasPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.faturasPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
                     </div>
                   </div>
@@ -409,8 +409,8 @@ export default function RetailsPage() {
                     <GaugeSimple value={realization.retailsPct} size="lg" />
                     <div className="grid grid-cols-4 gap-1 w-full text-center mt-1">
                       <div><p className="text-base font-bold text-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">Orcamento</p></div>
-                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsao</p></div>
                       <div><p className="text-base font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] text-muted-foreground">Atual</p></div>
+                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsao</p></div>
                       <div><p className="text-base font-extrabold" style={{ color: realization.retailsPct >= 100 ? '#16A34A' : realization.retailsPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.retailsPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
                     </div>
                   </div>
