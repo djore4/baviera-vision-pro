@@ -4,7 +4,7 @@ import { useData } from '@/contexts/DataContext';
 import { useRecordEditor } from '@/components/RecordEditor';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
-import { formatDate } from '@/lib/excel-parser';
+import { formatDate, getDeliveryMonth } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle, Download } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -90,7 +90,7 @@ export default function RetailsPage() {
   }, [filter]);
 
   const realization = useMemo(() => {
-    const empty = { faturas: 0, retails: 0, targetCaetano: 0, targetBMW: 0, faturasPct: 0, retailsPct: 0 };
+    const empty = { faturas: 0, retails: 0, previsao: 0, targetCaetano: 0, targetBMW: 0, faturasPct: 0, retailsPct: 0 };
     if (!data) return empty;
     const matchingObj = data.objetivosTotal.filter(o => {
       if (selectedMonthKeys.size === 0) return true;
@@ -107,13 +107,22 @@ export default function RetailsPage() {
       if (selectedMonthKeys.size === 0) return true;
       return selectedMonthKeys.has(`${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`);
     };
+    const monthInPeriod = (key: string) => selectedMonthKeys.size === 0 || selectedMonthKeys.has(key);
     const faturas = data.control.filter(r => inPeriod(r.dfat)).length;
     const retails = data.control.filter(r => inPeriod(r.date298)).length;
+
+    // Previsão = retails já realizados no período (date298) + carteira/matrícula
+    // com mês de entrega previsto no período. Igual para Faturas e Retails.
+    const previsao = data.control.filter(r => {
+      if (inPeriod(r.date298)) return true;
+      if (r.status === 'Carteira' || r.status === 'Matricula') return monthInPeriod(getDeliveryMonth(r));
+      return false;
+    }).length;
 
     // Faturas vs objetivo Caetano; Retails vs objetivo BMW.
     const faturasPct = targetCaetano ? Math.round((faturas / targetCaetano) * 100) : 0;
     const retailsPct = targetBMW ? Math.round((retails / targetBMW) * 100) : 0;
-    return { faturas, retails, targetCaetano, targetBMW, faturasPct, retailsPct };
+    return { faturas, retails, previsao, targetCaetano, targetBMW, faturasPct, retailsPct };
   }, [data, selectedMonthKeys]);
 
   const finData = useMemo(() => {
@@ -387,20 +396,22 @@ export default function RetailsPage() {
                   <div className="flex flex-col items-center justify-between pr-3 border-r-2 border-dashed border-primary/30">
                     <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16A34A' }}>Faturas</p>
                     <GaugeSimple value={realization.faturasPct} size="lg" />
-                    <div className="grid grid-cols-3 gap-1 w-full text-center mt-1">
-                      <div><p className="text-lg font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Objetivo Caetano</p></div>
-                      <div><p className="text-lg font-extrabold" style={{ color: '#16A34A' }}>{realization.faturas}</p><p className="text-[9px] text-muted-foreground">Faturas</p></div>
-                      <div><p className="text-lg font-extrabold" style={{ color: realization.faturasPct >= 100 ? '#16A34A' : realization.faturasPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.faturasPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
+                    <div className="grid grid-cols-4 gap-1 w-full text-center mt-1">
+                      <div><p className="text-base font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Orcamento</p></div>
+                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsao</p></div>
+                      <div><p className="text-base font-extrabold" style={{ color: '#16A34A' }}>{realization.faturas}</p><p className="text-[9px] text-muted-foreground">Atual</p></div>
+                      <div><p className="text-base font-extrabold" style={{ color: realization.faturasPct >= 100 ? '#16A34A' : realization.faturasPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.faturasPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
                     </div>
                   </div>
                   {/* Retails vs objetivo BMW */}
                   <div className="flex flex-col items-center justify-between pl-3">
                     <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#1C69D4' }}>Retails</p>
                     <GaugeSimple value={realization.retailsPct} size="lg" />
-                    <div className="grid grid-cols-3 gap-1 w-full text-center mt-1">
-                      <div><p className="text-lg font-bold text-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">Objetivo BMW</p></div>
-                      <div><p className="text-lg font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] text-muted-foreground">Retails</p></div>
-                      <div><p className="text-lg font-extrabold" style={{ color: realization.retailsPct >= 100 ? '#16A34A' : realization.retailsPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.retailsPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
+                    <div className="grid grid-cols-4 gap-1 w-full text-center mt-1">
+                      <div><p className="text-base font-bold text-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">Orcamento</p></div>
+                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsao</p></div>
+                      <div><p className="text-base font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] text-muted-foreground">Atual</p></div>
+                      <div><p className="text-base font-extrabold" style={{ color: realization.retailsPct >= 100 ? '#16A34A' : realization.retailsPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.retailsPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
                     </div>
                   </div>
                 </div>
