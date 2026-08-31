@@ -89,22 +89,32 @@ export default function RetailsPage() {
     return keys;
   }, [filter]);
 
-  const retailCount = useMemo(() => filtered.filter(r => r.status === 'Retail').length, [filtered]);
-
   const realization = useMemo(() => {
-    if (!data) return { actual: 0, retails: 0, targetCaetano: 0, targetBMW: 0, target110: 0, pct: 0 };
+    const empty = { faturas: 0, retails: 0, targetCaetano: 0, targetBMW: 0, faturasPct: 0, retailsPct: 0 };
+    if (!data) return empty;
     const matchingObj = data.objetivosTotal.filter(o => {
       if (selectedMonthKeys.size === 0) return true;
       if (selectedMonthKeys.has(o.mes)) return true;
       const normalized = normalizeMonthKey(o.mes);
       return normalized ? selectedMonthKeys.has(normalized) : false;
     });
-    const targetCaetano = matchingObj.reduce((s, o) => s + o.orcado, 0);
-    const targetBMW = matchingObj.reduce((s, o) => s + o.range2, 0);
-    const target110 = matchingObj.reduce((s, o) => s + o.range3, 0);
-    const pct = targetBMW ? Math.round((totalStatusSum / targetBMW) * 100) : 0;
-    return { actual: totalStatusSum, retails: retailCount, targetCaetano, targetBMW, target110, pct };
-  }, [data, totalStatusSum, selectedMonthKeys, retailCount]);
+    const targetCaetano = matchingObj.reduce((s, o) => s + o.orcado, 0); // objetivo Caetano (GSC)
+    const targetBMW = matchingObj.reduce((s, o) => s + o.range2, 0);     // objetivo BMW
+
+    // Conta as datas (fatura / retail) que caem no período selecionado.
+    const inPeriod = (d: Date | null) => {
+      if (!d) return false;
+      if (selectedMonthKeys.size === 0) return true;
+      return selectedMonthKeys.has(`${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`);
+    };
+    const faturas = data.control.filter(r => inPeriod(r.dfat)).length;
+    const retails = data.control.filter(r => inPeriod(r.date298)).length;
+
+    // Faturas vs objetivo Caetano; Retails vs objetivo BMW.
+    const faturasPct = targetCaetano ? Math.round((faturas / targetCaetano) * 100) : 0;
+    const retailsPct = targetBMW ? Math.round((retails / targetBMW) * 100) : 0;
+    return { faturas, retails, targetCaetano, targetBMW, faturasPct, retailsPct };
+  }, [data, selectedMonthKeys]);
 
   const finData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -372,16 +382,27 @@ export default function RetailsPage() {
             <div className="xl:col-span-3">
               <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
                 <p className="text-xs font-bold text-primary uppercase mb-1 tracking-wide">Realizacao vs Objetivo</p>
-                <div className="flex items-center justify-center flex-1">
-                  <GaugeSimple value={realization.pct} retailPct={realization.targetBMW ? Math.round((realization.retails / realization.targetBMW) * 100) : undefined} size="lg" />
-                </div>
-                <div className="grid grid-cols-6 gap-1 mt-1 text-center items-end">
-                  <div><p className="text-lg font-extrabold text-primary">{realization.actual}</p><p className="text-[9px] font-medium text-muted-foreground">Previsao</p></div>
-                  <div><p className="text-lg font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] font-medium text-muted-foreground">Retails</p></div>
-                  <div><p className="text-base font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Caetano</p></div>
-                  <div><p className="text-base font-bold text-muted-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">BMW</p></div>
-                  <div><p className="text-base font-bold text-muted-foreground/70">{realization.target110}</p><p className="text-[9px] text-muted-foreground">BMW 110%</p></div>
-                  <div><p className="text-lg font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.pct}%</p><p className="text-[9px] font-medium text-muted-foreground">Previsao %</p></div>
+                <div className="grid grid-cols-2 gap-2 flex-1">
+                  {/* Faturas vs objetivo Caetano */}
+                  <div className="flex flex-col items-center justify-between">
+                    <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: '#16A34A' }}>Faturas</p>
+                    <GaugeSimple value={realization.faturasPct} size="sm" />
+                    <div className="grid grid-cols-3 gap-1 w-full text-center mt-1">
+                      <div><p className="text-sm font-extrabold" style={{ color: '#16A34A' }}>{realization.faturas}</p><p className="text-[8px] text-muted-foreground">Faturas</p></div>
+                      <div><p className="text-sm font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[8px] text-muted-foreground">Caetano</p></div>
+                      <div><p className="text-sm font-extrabold" style={{ color: realization.faturasPct >= 100 ? '#16A34A' : realization.faturasPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.faturasPct}%</p><p className="text-[8px] text-muted-foreground">%</p></div>
+                    </div>
+                  </div>
+                  {/* Retails vs objetivo BMW */}
+                  <div className="flex flex-col items-center justify-between">
+                    <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: '#1C69D4' }}>Retails</p>
+                    <GaugeSimple value={realization.retailsPct} size="sm" />
+                    <div className="grid grid-cols-3 gap-1 w-full text-center mt-1">
+                      <div><p className="text-sm font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[8px] text-muted-foreground">Retails</p></div>
+                      <div><p className="text-sm font-bold text-foreground">{realization.targetBMW}</p><p className="text-[8px] text-muted-foreground">BMW</p></div>
+                      <div><p className="text-sm font-extrabold" style={{ color: realization.retailsPct >= 100 ? '#16A34A' : realization.retailsPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.retailsPct}%</p><p className="text-[8px] text-muted-foreground">%</p></div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
