@@ -351,7 +351,7 @@ export default function RetailsPage() {
 
           {/* Row 1 */}
           <div className="grid grid-cols-1 xl:grid-cols-8 gap-2">
-            <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
+            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Status por Responsavel</h3>
                 <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalStatusSum}</span>
@@ -379,28 +379,28 @@ export default function RetailsPage() {
               </ResponsiveContainer>
             </div>
 
-            <div className="xl:col-span-3">
+            <div className="xl:col-span-4">
               <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
-                <p className="text-xs font-bold text-primary uppercase mb-1 tracking-wide">Realizacao vs Objetivo</p>
-                <div className="grid grid-cols-2 gap-2 flex-1">
+                <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide text-center">Realizacao vs Objetivo</p>
+                <div className="grid grid-cols-2 flex-1">
                   {/* Faturas vs objetivo Caetano */}
-                  <div className="flex flex-col items-center justify-between">
-                    <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: '#16A34A' }}>Faturas</p>
-                    <GaugeSimple value={realization.faturasPct} size="sm" />
+                  <div className="flex flex-col items-center justify-between pr-3 border-r-2 border-dashed border-primary/30">
+                    <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16A34A' }}>Faturas</p>
+                    <GaugeSimple value={realization.faturasPct} size="lg" />
                     <div className="grid grid-cols-3 gap-1 w-full text-center mt-1">
-                      <div><p className="text-sm font-extrabold" style={{ color: '#16A34A' }}>{realization.faturas}</p><p className="text-[8px] text-muted-foreground">Faturas</p></div>
-                      <div><p className="text-sm font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[8px] text-muted-foreground">Caetano</p></div>
-                      <div><p className="text-sm font-extrabold" style={{ color: realization.faturasPct >= 100 ? '#16A34A' : realization.faturasPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.faturasPct}%</p><p className="text-[8px] text-muted-foreground">%</p></div>
+                      <div><p className="text-lg font-extrabold" style={{ color: '#16A34A' }}>{realization.faturas}</p><p className="text-[9px] text-muted-foreground">Faturas</p></div>
+                      <div><p className="text-lg font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Caetano</p></div>
+                      <div><p className="text-lg font-extrabold" style={{ color: realization.faturasPct >= 100 ? '#16A34A' : realization.faturasPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.faturasPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
                     </div>
                   </div>
                   {/* Retails vs objetivo BMW */}
-                  <div className="flex flex-col items-center justify-between">
-                    <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: '#1C69D4' }}>Retails</p>
-                    <GaugeSimple value={realization.retailsPct} size="sm" />
+                  <div className="flex flex-col items-center justify-between pl-3">
+                    <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#1C69D4' }}>Retails</p>
+                    <GaugeSimple value={realization.retailsPct} size="lg" />
                     <div className="grid grid-cols-3 gap-1 w-full text-center mt-1">
-                      <div><p className="text-sm font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[8px] text-muted-foreground">Retails</p></div>
-                      <div><p className="text-sm font-bold text-foreground">{realization.targetBMW}</p><p className="text-[8px] text-muted-foreground">BMW</p></div>
-                      <div><p className="text-sm font-extrabold" style={{ color: realization.retailsPct >= 100 ? '#16A34A' : realization.retailsPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.retailsPct}%</p><p className="text-[8px] text-muted-foreground">%</p></div>
+                      <div><p className="text-lg font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] text-muted-foreground">Retails</p></div>
+                      <div><p className="text-lg font-bold text-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">BMW</p></div>
+                      <div><p className="text-lg font-extrabold" style={{ color: realization.retailsPct >= 100 ? '#16A34A' : realization.retailsPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.retailsPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
                     </div>
                   </div>
                 </div>
@@ -606,7 +606,7 @@ function GaugeSimple({ value, retailPct, size = 'sm' }: { value: number; retailP
   const retailInner = retailAng != null ? { x: cx + 42 * Math.cos(toRad(retailAng)), y: cy + 42 * Math.sin(toRad(retailAng)) } : null;
   const retailOuter = retailAng != null ? { x: cx + 58 * Math.cos(toRad(retailAng)), y: cy + 58 * Math.sin(toRad(retailAng)) } : null;
   return (
-    <svg viewBox="0 0 120 70" className={size === 'lg' ? 'w-44 h-auto' : 'w-28 h-auto'}>
+    <svg viewBox="0 0 120 70" className={size === 'lg' ? 'w-full max-w-[280px] h-auto' : 'w-28 h-auto'}>
       <path d={describeArc(0, maxVal)} fill="none" stroke="hsl(var(--border))" strokeWidth="8" strokeLinecap="round" />
       <path d={describeArc(0, zone80)} fill="none" stroke="#DC262640" strokeWidth="8" strokeLinecap="round" />
       {zone80 < zone100 && <path d={describeArc(zone80, zone100)} fill="none" stroke="#F59E0B40" strokeWidth="8" strokeLinecap="round" />}
