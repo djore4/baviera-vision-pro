@@ -27,6 +27,7 @@ export interface ControlRecord {
   dmat: Date | null;
   date298: Date | null;
   app: Date | null;
+  dfat: Date | null;
   obs: string;
 }
 

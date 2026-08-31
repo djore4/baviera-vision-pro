@@ -46,6 +46,14 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
   });
 
   // Row 0 is headers, data from row 1+
+  // Deteta a coluna DFAT (data de fatura) pelo cabeçalho, para ser robusta à
+  // posição da coluna no ficheiro. Se não existir, dfat fica null.
+  const headerRow = (controlRaw[0] as unknown[]) || [];
+  const dfatIdx = headerRow.findIndex((h) => {
+    const label = str(h).toUpperCase();
+    return label === 'DFAT' || label.includes('DFAT') || label.includes('FATURA');
+  });
+
   const control: ControlRecord[] = [];
   for (let i = 1; i < controlRaw.length; i++) {
     const r = controlRaw[i] as unknown[];
@@ -79,6 +87,7 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
       dmat: excelDateToJS(r[25]),
       date298: excelDateToJS(r[26]),
       app: excelDateToJS(r[27]),
+      dfat: dfatIdx >= 0 ? excelDateToJS(r[dfatIdx]) : null,
       obs: str(r[28]),
     });
   }
