@@ -10,7 +10,7 @@ import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 interface ControlRecord {
   id: string;
   status: string; neg: string | null; mes1: string; resp: string; id_cliente: string;
-  local: string; type: string; origin: string; profile: string; biz: string;
+  type: string; biz: string;
   enc: string; chas: string; mat: string; model: string; version: string; gar: string;
   qor: number; xev: number; bev: number; m: number; mpa: number; gkl: number;
   csc: number; cme: number | null;
@@ -26,7 +26,6 @@ const ALL_COLS: ColDef[] = [
   { key: 'resp',       label: 'RESP',    group: 'Geral' },
   { key: 'id_cliente', label: 'ID',      group: 'Geral' },
   { key: 'type',       label: 'TYPE',    group: 'Veículo' },
-  { key: 'profile',    label: 'PROFILE', group: 'Veículo' },
   { key: 'model',      label: 'MODEL',   group: 'Veículo' },
   { key: 'version',    label: 'VERSION', group: 'Veículo' },
   { key: 'gar',        label: 'GAR',     group: 'Veículo' },
@@ -43,8 +42,6 @@ const ALL_COLS: ColDef[] = [
   { key: 'app',        label: 'APP',     type: 'date', group: 'Datas' },
   { key: 'obs',        label: 'OBS',     group: 'Obs.' },
   // hidden by default but available
-  { key: 'local',    label: 'LOCAL',   group: 'Geral' },
-  { key: 'origin',   label: 'ORIGIN',  group: 'Veículo' },
   { key: 'biz',      label: 'BIZ',     group: 'Veículo' },
   { key: 'enc',      label: 'ENC',     group: 'Veículo' },
   { key: 'chas',     label: 'CHAS',    group: 'Veículo' },
@@ -53,7 +50,7 @@ const ALL_COLS: ColDef[] = [
   { key: 'week198',  label: '198',     group: 'Datas' },
 ];
 
-const DEFAULT_HIDDEN = new Set(['local','origin','biz','enc','chas','csc','cme','week198','version']);
+const DEFAULT_HIDDEN = new Set(['biz','enc','chas','csc','cme','week198','version']);
 
 /* ── Filtros (valores distintos por campo, seleção de 1 ou vários) ── */
 interface SlicerDef { key: keyof ControlRecord; label: string; fmt?: (v: string) => string }

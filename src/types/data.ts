@@ -5,10 +5,7 @@ export interface ControlRecord {
   mes1: string;
   resp: string;
   cliente: string;
-  local: string;
   type: string;
-  origin: string;
-  profile: string;
   biz: string;
   enc: string;
   chas: string;
