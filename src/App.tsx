@@ -29,7 +29,6 @@ import LavagemPage from "./pages/LavagemPage";
 import UtilizadoresPage from "./pages/UtilizadoresPage";
 import ArquivoPage from "./pages/ArquivoPage";
 import DefinicoesPage from "./pages/DefinicoesPage";
-import QualidadePage from "./pages/QualidadePage";
 import ProspecaoPage from "./pages/ProspecaoPage";
 import { EasterEggs } from "@/components/EasterEggs";
 import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
@@ -108,7 +107,6 @@ const App = () => (
               <Route path="/vendedores" element={tab('vendedores', <VendedoresPage />)} />
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
               <Route path="/arquivo" element={tab('arquivo', <ArquivoPage />)} />
-              <Route path="/qualidade" element={tab('qualidade', <QualidadePage />)} />
               <Route path="/prospecao" element={tab('prospecao', <ProspecaoPage />)} />
               <Route path="/utilizadores" element={tab('utilizadores', <UtilizadoresPage />)} />
               {/* Definições — pessoal, acessível a qualquer utilizador (fora da matriz de permissões). */}

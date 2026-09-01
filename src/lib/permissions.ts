@@ -34,7 +34,6 @@ export const TABS: TabDef[] = [
   { key: 'database', label: 'Database', path: '/database', group: 'admin' },
   { key: 'demos', label: 'Demos', path: '/demos', group: 'admin' },
   { key: 'objetivos', label: 'Objetivos', path: '/objetivos', group: 'admin' },
-  { key: 'qualidade', label: 'Qualidade', path: '/qualidade', group: 'admin' },
   { key: 'arquivo', label: 'Arquivo', path: '/arquivo', group: 'admin' },
   { key: 'utilizadores', label: 'Utilizadores', path: '/utilizadores', group: 'admin' },
 ];
