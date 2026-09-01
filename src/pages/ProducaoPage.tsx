@@ -195,7 +195,7 @@ export default function ProducaoPage() {
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
 
   const exportCSV = useCallback(() => {
-    const headers = ['RESP', 'TIPO', 'MODELO', 'VERSAO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', 'Data Negocio', 'Data Matricula', 'Data Retail', 'Data Fatura', 'Data Apping'];
+    const headers = ['RESP', 'TIPO', 'MODELO', 'VERSÃO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Data Negócio', 'Data Matrícula', 'Data Retail', 'Data Fatura', 'Data Apping'];
     const rows = tableData.map(r => [r.resp, r.type, r.model, r.version, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.dfat), formatDate(r.app)]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -208,10 +208,10 @@ export default function ProducaoPage() {
   }, [tableData]);
 
   const tableColumns: [SortKey, string][] = [
-    ['resp', 'RESP'], ['type', 'TIPO'], ['model', 'Modelo'], ['version', 'Versao'],
+    ['resp', 'RESP'], ['type', 'TIPO'], ['model', 'Modelo'], ['version', 'Versão'],
     ['cliente', 'CLIENTE'], ['fin', 'FIN'], ['biz', 'Bizagi'], ['enc', 'Encomenda'],
-    ['chas', 'Chassis'], ['mat', 'Matricula'], ['neg', 'Data Negocio'],
-    ['dmat', 'Data Matricula'], ['date298', 'Data Retail'], ['dfat', 'Data Fatura'], ['app', 'Data Apping'],
+    ['chas', 'Chassis'], ['mat', 'Matrícula'], ['neg', 'Data Negócio'],
+    ['dmat', 'Data Matrícula'], ['date298', 'Data Retail'], ['dfat', 'Data Fatura'], ['app', 'Data Apping'],
   ];
 
   const activeFilters = [
@@ -289,10 +289,10 @@ export default function ProducaoPage() {
 
           {/* Row 1 */}
           <div className="grid grid-cols-1 xl:grid-cols-8 gap-2">
-            {/* Negocios por Responsavel */}
+            {/* Negócios por Responsável */}
             <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
               <div className="flex items-center justify-between mb-1">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Negocios por Responsavel</h3>
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Negócios por Responsável</h3>
                 <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalNeg}</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
@@ -302,7 +302,7 @@ export default function ProducaoPage() {
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                   <Legend wrapperStyle={{ fontSize: 10 }} />
-                  <Bar dataKey="total" name="Negocios Fechados" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
+                  <Bar dataKey="total" name="Negócios Fechados" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
                     <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                   </Bar>
                   <Bar dataKey="objetivo" name="Objetivo" fill="#334155" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
@@ -312,10 +312,10 @@ export default function ProducaoPage() {
               </ResponsiveContainer>
             </div>
 
-            {/* Realizacao vs Objetivo */}
+            {/* Realização vs Objetivo */}
             <div className="xl:col-span-3">
               <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
-                <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realizacao vs Objetivo</p>
+                <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
                 <div className="flex-1">
                   <ResponsiveContainer width="100%" height={130}>
                     <BarChart data={[{ name: 'Total', fechados: realization.actual, objetivo: realization.targetBMW }]} barSize={40} layout="vertical">
@@ -352,7 +352,7 @@ export default function ProducaoPage() {
           {/* Row 2 */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
 
-            {/* Analise — dropdown */}
+            {/* Análise — dropdown */}
             <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Mix Modelos</h3>
@@ -362,9 +362,9 @@ export default function ProducaoPage() {
               </div>
             </div>
 
-            {/* Metodo de Pagamento */}
+            {/* Método de Pagamento */}
             <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Metodo de Pagamento</h3>
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
               <div className="flex items-center gap-2">
                 <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
                   <PieChart>
