@@ -25,7 +25,6 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
@@ -123,9 +122,9 @@ function exportFileName(base: string, ext: string, from?: string, to?: string): 
   return `${base}_${suffix}.${ext}`;
 }
 
-/* Exportação com intervalo de datas. Um só botão abre um popover com atalhos
- * rápidos (Tudo / Este mês / Últimos 30 dias / Mês passado) e um intervalo
- * personalizado (de/até). Desenho pensado para caber bem no mobile. */
+/* Exportação com intervalo de datas SEMPRE visível (de/até). Os atalhos rápidos
+ * apenas preenchem as datas — o utilizador confirma no botão. Sem datas, exporta
+ * o histórico completo. Layout empilha no mobile e fica em linha em ecrã largo. */
 const isoDay = (d: Date) => {
   const x = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
   return x.toISOString().slice(0, 10);
@@ -135,11 +134,8 @@ function RangeExport({ icon, label, busy, onExport }: {
   icon: React.ReactNode; label: string; busy: boolean;
   onExport: (from?: string, to?: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-
-  const run = (f?: string, t?: string) => { onExport(f, t); setOpen(false); };
 
   const now = new Date();
   const monthStart = isoDay(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -153,56 +149,41 @@ function RangeExport({ icon, label, busy, onExport }: {
     { label: 'Últimos 30 dias', from: last30 },
     { label: 'Mês passado', from: prevMonthStart, to: prevMonthEnd },
   ];
+  const applyPreset = (p: { from?: string; to?: string }) => {
+    setFrom(p.from ?? '');
+    setTo(p.to ?? '');
+  };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-7 gap-1.5" disabled={busy}>
+    <div className="w-full space-y-2 rounded-md border border-border bg-muted/30 p-2.5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:flex-wrap">
+        <label className="flex flex-col gap-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          De
+          <Input type="date" value={from} max={to || undefined}
+            onChange={e => setFrom(e.target.value)} className="h-8 w-full text-xs sm:w-[9.5rem]" />
+        </label>
+        <label className="flex flex-col gap-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Até
+          <Input type="date" value={to} min={from || undefined}
+            onChange={e => setTo(e.target.value)} className="h-8 w-full text-xs sm:w-[9.5rem]" />
+        </label>
+        <Button size="sm" className="h-8 w-full gap-1.5 sm:w-auto"
+          onClick={() => onExport(from || undefined, to || undefined)} disabled={busy}>
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : icon}
           {label}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-[17rem] p-3 space-y-3">
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Atalhos</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {presets.map(p => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => run(p.from, p.to)}
-                className="rounded-md border border-border bg-background px-2 py-1.5 text-xs font-medium hover:bg-accent"
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-2 border-t border-border pt-2.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Intervalo personalizado</p>
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-2 text-xs">
-              <span className="w-8 text-muted-foreground">De</span>
-              <Input type="date" value={from} max={to || undefined}
-                onChange={e => setFrom(e.target.value)} className="h-8 flex-1 text-xs" />
-            </label>
-            <label className="flex items-center gap-2 text-xs">
-              <span className="w-8 text-muted-foreground">Até</span>
-              <Input type="date" value={to} min={from || undefined}
-                onChange={e => setTo(e.target.value)} className="h-8 flex-1 text-xs" />
-            </label>
-          </div>
-          <Button
-            size="sm"
-            className="w-full gap-1.5"
-            disabled={!from && !to}
-            onClick={() => run(from || undefined, to || undefined)}
-          >
-            {icon} Exportar intervalo
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+      </div>
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="text-[10px] text-muted-foreground mr-0.5">Atalhos:</span>
+        {presets.map(p => (
+          <button key={p.label} type="button" onClick={() => applyPreset(p)}
+            className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium hover:bg-accent">
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <p className="text-[10px] text-muted-foreground">Sem datas, exporta todo o histórico.</p>
+    </div>
   );
 }
 
@@ -752,21 +733,24 @@ export default function LavagemPage() {
       {/* ── Estatísticas + exportação ───────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" /> Estatísticas
-            </CardTitle>
-            {canExport && (
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" /> Estatísticas
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {canExport && (
+            <div className="mb-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+                Exportar lavagens
+              </p>
               <RangeExport
                 icon={<FileSpreadsheet className="h-3.5 w-3.5" />}
                 label="Exportar Excel"
                 busy={exporting}
                 onExport={handleExport}
               />
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <StatBlock title="Hoje" stat={stats.hoje} />
             <StatBlock title="Esta semana" stat={stats.semana} />
@@ -972,15 +956,18 @@ export default function LavagemPage() {
       {isAdmin && (
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div>
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <History className="h-4 w-4" /> Registos de lavagens
-                </CardTitle>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Marcações, alterações e eliminações — auditoria completa (só administrador).
-                </p>
-              </div>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <History className="h-4 w-4" /> Registos de lavagens
+            </CardTitle>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Marcações, alterações e eliminações — auditoria completa (só administrador).
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+                Exportar registos (CSV)
+              </p>
               <RangeExport
                 icon={<Download className="h-3.5 w-3.5" />}
                 label="Descarregar CSV"
@@ -988,8 +975,6 @@ export default function LavagemPage() {
                 onExport={handleExportCsv}
               />
             </div>
-          </CardHeader>
-          <CardContent>
             {events.length === 0 ? (
               <p className="text-xs text-muted-foreground py-2">Sem registos.</p>
             ) : (
