@@ -97,6 +97,81 @@ export function startDeviationMin(c: CarWashCycle): number | null {
   return Math.round((new Date(c.started_at).getTime() - new Date(c.scheduled_at).getTime()) / 60000);
 }
 
+/* ── Auditoria (car_wash_events) ──────────────────────────────────────────────
+ * Regista todas as marcações, alterações e eliminações de lavagens. Escrita em
+ * modo best-effort (nunca faz falhar a operação principal). Consulta/exportação
+ * disponíveis ao administrador (ver LavagemPage).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export type CarWashEventAction =
+  | 'create' | 'reschedule' | 'queue' | 'start' | 'end' | 'quality' | 'delete';
+
+export interface CarWashEvent {
+  id: string;
+  cycle_id: string | null;
+  action: CarWashEventAction;
+  actor: string | null;
+  plate: string | null;
+  wash_type: string | null;
+  detail: string | null;
+  snapshot: unknown;
+  created_at: string;
+}
+
+export const EVENT_ACTION_LABEL: Record<CarWashEventAction, string> = {
+  create: 'Marcação',
+  reschedule: 'Reagendamento',
+  queue: 'Reordenação',
+  start: 'Início',
+  end: 'Terminada',
+  quality: 'Qualidade',
+  delete: 'Eliminação',
+};
+
+async function currentUserEmail(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function logEvent(e: {
+  cycle_id: string | null;
+  action: CarWashEventAction;
+  plate?: string | null;
+  wash_type?: string | null;
+  detail?: string | null;
+  snapshot?: unknown;
+}): Promise<void> {
+  try {
+    const actor = await currentUserEmail();
+    await supabase.from('car_wash_events').insert({
+      cycle_id: e.cycle_id,
+      action: e.action,
+      actor,
+      plate: e.plate ?? null,
+      wash_type: e.wash_type ?? null,
+      detail: e.detail ?? null,
+      snapshot: e.snapshot ?? null,
+    });
+  } catch (err) {
+    // A auditoria não deve bloquear a operação principal.
+    console.error('Falha ao registar evento de lavagem:', err);
+  }
+}
+
+/* Lista os eventos de auditoria, mais recentes primeiro. */
+export async function listEvents(range?: { from?: string; to?: string }): Promise<CarWashEvent[]> {
+  let q = supabase.from('car_wash_events').select('*');
+  if (range?.from) q = q.gte('created_at', range.from);
+  if (range?.to) q = q.lt('created_at', range.to);
+  const { data, error } = await q.order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CarWashEvent[];
+}
+
 export type NewCycle = {
   plate: string;
   wash_type: WashTypeId;
@@ -159,7 +234,17 @@ export async function createCycle(input: NewCycle): Promise<CarWashCycle> {
     .select()
     .single();
   if (error) throw error;
-  return data as CarWashCycle;
+  const created = data as CarWashCycle;
+  const detail = input.start_now
+    ? 'Marcada e iniciada de imediato'
+    : input.scheduled_at
+      ? `Agendada para ${fmtPT(input.scheduled_at)}`
+      : 'Lavagem imediata';
+  await logEvent({
+    cycle_id: created.id, action: 'create', plate: created.plate,
+    wash_type: created.wash_type, detail, snapshot: created,
+  });
+  return created;
 }
 
 /* Inicia uma lavagem agendada: regista o início real (fila -> em curso). */
@@ -171,7 +256,13 @@ export async function startCycle(id: string): Promise<CarWashCycle> {
     .select()
     .single();
   if (error) throw error;
-  return data as CarWashCycle;
+  const updated = data as CarWashCycle;
+  await logEvent({
+    cycle_id: updated.id, action: 'start', plate: updated.plate,
+    wash_type: updated.wash_type, detail: `Início registado às ${fmtPT(updated.started_at)}`,
+    snapshot: updated,
+  });
+  return updated;
 }
 
 /* Reagenda uma lavagem (arrastar na agenda): fixa nova hora do plano e limpa a
@@ -187,7 +278,13 @@ export async function rescheduleCycle(id: string, scheduledAtISO: string, by?: s
     .select()
     .single();
   if (error) throw error;
-  return data as CarWashCycle;
+  const updated = data as CarWashCycle;
+  await logEvent({
+    cycle_id: updated.id, action: 'reschedule', plate: updated.plate,
+    wash_type: updated.wash_type, detail: `Reagendada para ${fmtPT(scheduledAtISO)}`,
+    snapshot: updated,
+  });
+  return updated;
 }
 
 /* Ajuste operacional da fila: define a ordem manual (antecipar/reordenar).
@@ -200,7 +297,13 @@ export async function setQueueOrder(id: string, order: number): Promise<CarWashC
     .select()
     .single();
   if (error) throw error;
-  return data as CarWashCycle;
+  const updated = data as CarWashCycle;
+  await logEvent({
+    cycle_id: updated.id, action: 'queue', plate: updated.plate,
+    wash_type: updated.wash_type, detail: `Ordem manual na fila: ${order}`,
+    snapshot: updated,
+  });
+  return updated;
 }
 
 /* Encerra o ciclo (botão "Terminar"). */
@@ -212,12 +315,33 @@ export async function endCycle(id: string): Promise<CarWashCycle> {
     .select()
     .single();
   if (error) throw error;
-  return data as CarWashCycle;
+  const updated = data as CarWashCycle;
+  await logEvent({
+    cycle_id: updated.id, action: 'end', plate: updated.plate,
+    wash_type: updated.wash_type, detail: `Terminada às ${fmtPT(updated.ended_at)}`,
+    snapshot: updated,
+  });
+  return updated;
 }
 
 export async function deleteCycle(id: string): Promise<void> {
+  // Captura o estado do ciclo antes de apagar, para a auditoria preservar o registo.
+  const { data: existing } = await supabase
+    .from('car_wash_cycles')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
   const { error } = await supabase.from('car_wash_cycles').delete().eq('id', id);
   if (error) throw error;
+  const snap = (existing ?? null) as CarWashCycle | null;
+  await logEvent({
+    cycle_id: id, action: 'delete', plate: snap?.plate ?? null,
+    wash_type: snap?.wash_type ?? null,
+    detail: snap
+      ? `Eliminada (${WASH_TYPE_MAP[snap.wash_type]?.label ?? snap.wash_type} · ${fmtPT(effectiveAt(snap))})`
+      : 'Lavagem eliminada',
+    snapshot: snap,
+  });
 }
 
 /* Controlo de qualidade — nota (0–10) e comentário. score null limpa a nota. */
@@ -239,7 +363,15 @@ export async function setQuality(
     .select()
     .single();
   if (error) throw error;
-  return data as CarWashCycle;
+  const updated = data as CarWashCycle;
+  const detail = score === null && !comment
+    ? 'Controlo de qualidade limpo'
+    : `Nota ${score ?? '—'}/10${comment && comment.trim() ? ` · ${comment.trim()}` : ''}`;
+  await logEvent({
+    cycle_id: updated.id, action: 'quality', plate: updated.plate,
+    wash_type: updated.wash_type, detail, snapshot: updated,
+  });
+  return updated;
 }
 
 /* ── Relatório Excel ──────────────────────────────────────────────────────────
@@ -317,4 +449,42 @@ export function exportCyclesToExcel(rows: CarWashCycle[], filename?: string): vo
 
   const name = filename ?? `lavagens_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, name);
+}
+
+/* ── Auditoria — exportação CSV ────────────────────────────────────────────────
+ * Descarrega o histórico completo de eventos (marcações, alterações, eliminações)
+ * em CSV, para consulta pelo administrador.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/* Escapa um valor para CSV (RFC 4180): aspas duplas quando há vírgula/aspas/quebra. */
+const csvCell = (v: unknown): string => {
+  const s = v == null ? '' : String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+export function exportEventsToCsv(rows: CarWashEvent[], filename?: string): void {
+  // Mais antigos primeiro (leitura cronológica).
+  const sorted = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const header = ['Data/Hora', 'Ação', 'Utilizador', 'Matrícula/Chassis', 'Tipo', 'Detalhe'];
+  const lines = [header.map(csvCell).join(',')];
+  sorted.forEach(e => {
+    lines.push([
+      fmtPT(e.created_at),
+      EVENT_ACTION_LABEL[e.action] ?? e.action,
+      e.actor ?? '',
+      e.plate ?? '',
+      e.wash_type ? (WASH_TYPE_MAP[e.wash_type as WashTypeId]?.label ?? e.wash_type) : '',
+      e.detail ?? '',
+    ].map(csvCell).join(','));
+  });
+  // BOM para o Excel abrir UTF-8 corretamente (acentos).
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename ?? `lavagens_registos_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

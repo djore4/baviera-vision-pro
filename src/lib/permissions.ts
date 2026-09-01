@@ -29,7 +29,6 @@ export const TABS: TabDef[] = [
   { key: 'prospecao', label: 'Prospeção', path: '/prospecao', group: 'admin' },
   { key: 'vendedores', label: 'Performance', path: '/vendedores', group: 'admin' },
   { key: 'emprestimos', label: 'Empréstimos', path: '/emprestimos', group: 'admin' },
-  { key: 'fidelizacao', label: 'Fidelização', path: '/fidelizacao', group: 'admin' },
   { key: 'multas', label: 'Multas', path: '/multas', group: 'admin' },
   { key: 'dados', label: 'Dados', path: '/dados', group: 'admin' },
   { key: 'database', label: 'Database', path: '/database', group: 'admin' },

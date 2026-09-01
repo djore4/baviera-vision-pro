@@ -1,16 +1,17 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Car, Loader2, CheckCircle2, CalendarDays, Trash2, ChevronLeft, ChevronRight,
-  BarChart3, FileSpreadsheet, Star, Info, User, PlayCircle,
+  BarChart3, FileSpreadsheet, Star, Info, User, PlayCircle, History, Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { useData } from '@/contexts/DataContext';
 import {
-  WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle,
-  cycleStatus, effectiveAt,
+  WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle, type CarWashEvent,
+  cycleStatus, effectiveAt, EVENT_ACTION_LABEL,
   listCycles, createCycle, startCycle, rescheduleCycle, deleteCycle, setQuality, exportCyclesToExcel,
+  listEvents, exportEventsToCsv,
 } from '@/lib/lavagem';
 import { funLoadingLabel } from '@/lib/loading-messages';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -94,6 +95,17 @@ const personLabel = (email: string | null | undefined): string => {
     .join(' ') || email;
 };
 
+/* Cor da etiqueta de cada tipo de evento na tabela de auditoria. */
+const EVENT_BADGE: Record<string, string> = {
+  create: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+  reschedule: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
+  queue: 'bg-slate-200 text-slate-700 dark:bg-slate-600/40 dark:text-slate-200',
+  start: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+  end: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+  quality: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+  delete: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
+};
+
 type PlacedCycle = { c: CarWashCycle; start: number; dur: number; lane: number };
 type PeriodStat = { total: number; minutes: number; byType: Map<WashTypeId, number> };
 
@@ -158,7 +170,10 @@ export default function LavagemPage() {
   const canCreate = canReschedule || canStartCycle;                                 // ver formulário
   const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';    // controlo de qualidade
   const canExport = isAdmin;                                                        // exportar Excel
-  const canDelete = isAdmin;                                                        // remover registos
+  // Remover lavagens: quem pode editar/reagendar as existentes (admin, Preparador e
+  // perfis com edição no tab — ex.: APV). Todas as eliminações ficam registadas na
+  // auditoria (car_wash_events), acessível ao administrador.
+  const canDelete = canReschedule;                                                  // remover registos
 
   const [plate, setPlate] = useState('');
   const [model, setModel] = useState('');
@@ -177,8 +192,10 @@ export default function LavagemPage() {
 
   const [cycles, setCycles] = useState<CarWashCycle[]>([]);
   const [statsCycles, setStatsCycles] = useState<CarWashCycle[]>([]);
+  const [events, setEvents] = useState<CarWashEvent[]>([]);       // auditoria (admin)
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [csvExporting, setCsvExporting] = useState(false);
   const [loadingLabel] = useState(funLoadingLabel);   // escolhido uma vez por montagem
 
   // Semana selecionada (segunda-feira 00:00); navegável para trás/frente.
@@ -204,13 +221,18 @@ export default function LavagemPage() {
       ]);
       setCycles(rows);
       setStatsCycles(stats);
+      // Auditoria (só admin): histórico completo de marcações/alterações/eliminações.
+      if (isAdmin) {
+        try { setEvents(await listEvents()); }
+        catch (e) { console.error('Falha ao carregar registos de auditoria', e); }
+      }
     } catch (e) {
       toast.error('Não foi possível carregar as lavagens.');
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [weekStart, weekEnd, statsFrom]);
+  }, [weekStart, weekEnd, statsFrom, isAdmin]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -224,6 +246,21 @@ export default function LavagemPage() {
       console.error(err);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setCsvExporting(true);
+    try {
+      const all = await listEvents();      // histórico completo de registos
+      if (all.length === 0) { toast.info('Ainda não há registos para exportar.'); return; }
+      exportEventsToCsv(all);
+      toast.success('Registos exportados (CSV).');
+    } catch (err) {
+      toast.error('Não foi possível exportar os registos.');
+      console.error(err);
+    } finally {
+      setCsvExporting(false);
     }
   };
 
@@ -274,8 +311,8 @@ export default function LavagemPage() {
 
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); submit('schedule'); };
 
-  // Remoção (só admin) — pede sempre confirmação antes de apagar. Qualquer
-  // origem (slot da agenda, fila ou controlo de qualidade) passa pelo mesmo diálogo.
+  // Remoção — pede sempre confirmação antes de apagar. Qualquer origem (slot da
+  // agenda, fila ou controlo de qualidade) passa pelo mesmo diálogo.
   const [deleteTarget, setDeleteTarget] = useState<CarWashCycle | null>(null);
   const [deleting, setDeleting] = useState(false);
   const requestDelete = (c: CarWashCycle) => { if (canDelete) setDeleteTarget(c); };
@@ -826,6 +863,74 @@ export default function LavagemPage() {
         </CardContent>
       </Card>
 
+      {/* ── Registos / auditoria (só admin) ─────────────────────────────────────
+       * Histórico completo de marcações, alterações e eliminações de lavagens.
+       * Colocado aqui, no próprio tab Lavagem, para manter a auditoria junto da
+       * operação; visível apenas ao administrador, com download em CSV. */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <History className="h-4 w-4" /> Registos de lavagens
+                </CardTitle>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Marcações, alterações e eliminações — auditoria completa (só administrador).
+                </p>
+              </div>
+              <Button
+                variant="outline" size="sm" className="h-7 gap-1.5"
+                onClick={handleExportCsv} disabled={csvExporting}
+              >
+                {csvExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                Descarregar CSV
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {events.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">Sem registos.</p>
+            ) : (
+              <div className="max-h-80 overflow-auto rounded-md border">
+                <table className="w-full text-[11px]">
+                  <thead className="sticky top-0 bg-muted/95 backdrop-blur">
+                    <tr className="text-left text-muted-foreground">
+                      <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Data / Hora</th>
+                      <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Ação</th>
+                      <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Utilizador</th>
+                      <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Matrícula</th>
+                      <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Tipo</th>
+                      <th className="px-2 py-1.5 font-semibold">Detalhe</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {events.map(ev => (
+                      <tr key={ev.id} className="border-t border-border/60 align-top">
+                        <td className="px-2 py-1.5 whitespace-nowrap tabular-nums text-muted-foreground">
+                          {new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(ev.created_at))}
+                        </td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">
+                          <span className={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${EVENT_BADGE[ev.action] ?? 'bg-muted text-foreground'}`}>
+                            {EVENT_ACTION_LABEL[ev.action] ?? ev.action}
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">{personLabel(ev.actor) || '—'}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap font-medium">{ev.plate ?? '—'}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">
+                          {ev.wash_type ? (WASH_TYPE_MAP[ev.wash_type as WashTypeId]?.label ?? ev.wash_type) : '—'}
+                        </td>
+                        <td className="px-2 py-1.5 text-muted-foreground">{ev.detail ?? ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Dialog: controlo de qualidade ───────────────────────────────────── */}
       <Dialog open={!!qcCycle} onOpenChange={(o) => { if (!o) setQcCycle(null); }}>
         <DialogContent className="sm:max-w-md">
@@ -928,8 +1033,8 @@ export default function LavagemPage() {
           )}
 
           <DialogFooter className="sm:justify-between">
-            {/* Remover lavagem/agendamento — só admin. Botão discreto (texto), à
-             * esquerda no ecrã largo; pede confirmação antes de apagar. */}
+            {/* Remover lavagem/agendamento. Botão discreto (texto), à esquerda no
+             * ecrã largo; pede confirmação antes de apagar. */}
             {canDelete ? (
               <Button
                 variant="ghost"
@@ -954,7 +1059,7 @@ export default function LavagemPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Confirmação de remoção (admin) ──────────────────────────────────── */}
+      {/* ── Confirmação de remoção ──────────────────────────────────────────── */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
