@@ -21,10 +21,11 @@ import { Input } from '@/components/ui/input';
  * NPS100). A escala é fixa (0–10) em ambos os eixos, para
  * se perceber quando nenhuma nota está no máximo.
  *  - Sem seleção: mostra-se a média da equipa.
- *  - Com vendedores escolhidos: o painel lateral abre uma coluna editável por
- *    cada um, para lançar/editar as notas de todos diretamente (sem ter de
- *    trocar o vendedor selecionado a cada alteração) e guardar de uma só vez.
- *    As teias sobrepõem-se (cada vendedor com a sua cor) para comparativo.
+ *  - Com vendedores escolhidos (admin): abre-se por baixo, a toda a largura,
+ *    uma grelha com uma coluna editável por cada vendedor, para lançar/editar
+ *    as notas de todos diretamente (sem trocar o vendedor selecionado a cada
+ *    alteração) e guardar de uma só vez. As teias sobrepõem-se (cada vendedor
+ *    com a sua cor) para comparativo.
  * Perfis sem permissão de edição só veem a leitura (tabela de consulta).
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -260,14 +261,16 @@ export default function QualidadePage() {
       : selectedList.length > 1 ? `${selectedList.length} vendedores` : null,
   ].filter(Boolean).join(' + ');
 
-  const sidePanelTitle = selectedList.length === 0
-    ? 'Média da equipa'
-    : editable
-      ? (selectedList.length === 1 ? `Editar notas — ${selectedList[0]}` : 'Editar notas')
-      : 'Comparativo';
+  // Grelha de edição (admin, com ≥1 vendedor escolhido) — a toda a largura.
+  const editingGrid = editable && selectedList.length >= 1;
+  // Painel lateral de leitura: comparativo (perfis sem edição, ≥1) ou média.
+  const showReadonlyCompare = !editable && selectedList.length >= 1;
+
+  const singleStampVend = selectedList.length === 1 ? selectedList[0] : null;
+  const singleStampRow = singleStampVend ? rowByVendedor.get(singleStampVend) : undefined;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
+    <div className="max-w-7xl mx-auto space-y-4">
       <div className="flex items-center gap-2">
         <RadarIcon className="h-5 w-5 text-primary" />
         <h1 className="text-lg font-bold tracking-tight">Qualidade</h1>
@@ -321,7 +324,7 @@ export default function QualidadePage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         {/* ── Gráfico de aranha ─────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-2">
@@ -395,125 +398,15 @@ export default function QualidadePage() {
           </CardContent>
         </Card>
 
-        {/* ── Painel lateral: média (0) / edição em colunas (≥1, admin) / comparativo (≥1, consulta) ── */}
+        {/* ── Painel lateral: comparativo (consulta) ou média da equipa ──────── */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">{sidePanelTitle}</CardTitle>
+            <CardTitle className="text-sm font-semibold">
+              {showReadonlyCompare ? 'Comparativo' : 'Média da equipa'}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {selectedList.length === 0 ? (
-              <>
-                {QUALITY_METRICS.map(m => (
-                  <div key={m.key} className="flex items-center justify-between gap-2">
-                    <span className="text-sm text-foreground">{m.label}</span>
-                    <span className="text-sm font-semibold tabular-nums">
-                      {rows.length ? fmtNum(teamAvg[m.key]) : '—'}
-                    </span>
-                  </div>
-                ))}
-
-                <div className="flex items-center justify-between border-t pt-3">
-                  <span className="text-xs font-medium text-muted-foreground">Somatório médio</span>
-                  <span className="text-lg font-bold tabular-nums">{rows.length ? fmtNum(sumScores(teamAvg)) : '—'}</span>
-                </div>
-
-                <p className="text-[11px] text-muted-foreground">
-                  {rows.length
-                    ? `Média das notas de ${rows.length} vendedor${rows.length > 1 ? 'es' : ''} neste mês. Escolha vendedores para ${editable ? 'lançar/editar (uma coluna por vendedor)' : 'comparar'}.`
-                    : `Ainda não há notas lançadas neste mês. Escolha ${editable ? 'vendedores para começar' : 'vendedores para comparar'}.`}
-                </p>
-              </>
-            ) : editable ? (
-              /* ── Edição em colunas: uma coluna por vendedor selecionado ─────── */
-              <>
-                <div className="overflow-x-auto -mx-2">
-                  <table className="w-full text-[11px]">
-                    <thead>
-                      <tr className="text-[10px] text-muted-foreground">
-                        <th className="px-2 py-1 text-left font-medium">Vetor</th>
-                        {avgShown && (
-                          <th className="px-2 py-1 text-right font-medium whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1">
-                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: AVG_COLOR }} />
-                              Média
-                            </span>
-                          </th>
-                        )}
-                        {selectedList.map(v => (
-                          <th key={v} className="px-1.5 py-1 text-center font-medium whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1">
-                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorOf(v) }} />
-                              {v}
-                              {rowByVendedor.has(v) && (
-                                <button
-                                  onClick={() => handleDeleteOne(v)}
-                                  disabled={saving || loading}
-                                  title={`Remover notas de ${v} neste mês`}
-                                  className="text-muted-foreground hover:text-destructive disabled:opacity-50"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              )}
-                            </span>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/50">
-                      {QUALITY_METRICS.map(m => (
-                        <tr key={m.key}>
-                          <td className="px-2 py-1 text-foreground whitespace-nowrap">{m.label}</td>
-                          {avgShown && (
-                            <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{fmtNum(teamAvg[m.key])}</td>
-                          )}
-                          {selectedList.map(v => (
-                            <td key={v} className="px-1 py-1">
-                              <Input
-                                aria-label={`${m.label} — ${v}`}
-                                type="number"
-                                inputMode="decimal"
-                                step="any"
-                                min={QUALITY_MIN}
-                                max={QUALITY_MAX}
-                                value={(forms[v] ?? emptyForm())[m.key]}
-                                onChange={e => setField(v, m.key, e.target.value)}
-                                placeholder="0"
-                                className="h-8 w-16 px-1.5 text-right tabular-nums"
-                              />
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                      <tr className="border-t font-semibold">
-                        <td className="px-2 py-1 text-muted-foreground">Total</td>
-                        {avgShown && (
-                          <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{fmtNum(sumScores(teamAvg))}</td>
-                        )}
-                        {selectedList.map(v => (
-                          <td key={v} className="px-1.5 py-1 text-right tabular-nums">{fmtNum(sumScores(liveScoresOf(v)))}</td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <Button className="w-full" onClick={handleSaveAll} disabled={saving || loading}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {selectedList.length > 1 ? 'Guardar todos' : 'Guardar'}
-                </Button>
-
-                <p className="text-[11px] text-muted-foreground">
-                  Edite as notas de cada vendedor diretamente na sua coluna e guarde de uma só vez. As teias atualizam ao vivo; o cesto remove as notas do mês desse vendedor.
-                </p>
-
-                {selectedList.length === 1 && rowByVendedor.get(selectedList[0])?.updated_at && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Último registo{rowByVendedor.get(selectedList[0])!.updated_by ? ` por ${rowByVendedor.get(selectedList[0])!.updated_by}` : ''} em {fmtStamp(rowByVendedor.get(selectedList[0])!.updated_at)}
-                  </p>
-                )}
-              </>
-            ) : (
-              /* Comparativo só de consulta (perfis sem permissão de edição). */
+            {showReadonlyCompare ? (
               <>
                 <div className="overflow-x-auto -mx-2">
                   <table className="w-full text-[11px]">
@@ -566,10 +459,139 @@ export default function QualidadePage() {
                   Teias sobrepostas para comparação. Sem permissão para editar.
                 </p>
               </>
+            ) : (
+              <>
+                {QUALITY_METRICS.map(m => (
+                  <div key={m.key} className="flex items-center justify-between gap-2">
+                    <span className="text-sm text-foreground">{m.label}</span>
+                    <span className="text-sm font-semibold tabular-nums">
+                      {rows.length ? fmtNum(teamAvg[m.key]) : '—'}
+                    </span>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between border-t pt-3">
+                  <span className="text-xs font-medium text-muted-foreground">Somatório médio</span>
+                  <span className="text-lg font-bold tabular-nums">{rows.length ? fmtNum(sumScores(teamAvg)) : '—'}</span>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground">
+                  {rows.length
+                    ? (editingGrid
+                        ? `Média de referência de ${rows.length} vendedor${rows.length > 1 ? 'es' : ''} — edite as notas na grelha em baixo.`
+                        : `Média das notas de ${rows.length} vendedor${rows.length > 1 ? 'es' : ''} neste mês. Escolha vendedores para ${editable ? 'lançar/editar (uma coluna por vendedor)' : 'comparar'}.`)
+                    : (editingGrid
+                        ? 'Ainda não há notas lançadas neste mês — lance-as na grelha em baixo.'
+                        : `Ainda não há notas lançadas neste mês. Escolha ${editable ? 'vendedores para começar' : 'vendedores para comparar'}.`)}
+                </p>
+              </>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Grelha de edição a toda a largura: uma coluna por vendedor ──────── */}
+      {editingGrid && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-sm font-semibold">
+                Editar notas · {PT_MONTHS[month - 1]} {year}
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  · {selectedList.length === 1 ? selectedList[0] : `${selectedList.length} vendedores`}
+                </span>
+              </CardTitle>
+              <Button size="sm" className="h-8" onClick={handleSaveAll} disabled={saving || loading}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {selectedList.length > 1 ? 'Guardar todos' : 'Guardar'}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] text-muted-foreground">
+                    <th className="px-2 py-1.5 text-left font-medium sticky left-0 bg-card">Vetor</th>
+                    {avgShown && (
+                      <th className="px-2 py-1.5 text-right font-medium whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: AVG_COLOR }} />
+                          Média
+                        </span>
+                      </th>
+                    )}
+                    {selectedList.map(v => (
+                      <th key={v} className="px-2 py-1.5 text-center font-medium whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorOf(v) }} />
+                          {v}
+                          {rowByVendedor.has(v) && (
+                            <button
+                              onClick={() => handleDeleteOne(v)}
+                              disabled={saving || loading}
+                              title={`Remover notas de ${v} neste mês`}
+                              className="text-muted-foreground hover:text-destructive disabled:opacity-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {QUALITY_METRICS.map(m => (
+                    <tr key={m.key}>
+                      <td className="px-2 py-1.5 text-foreground whitespace-nowrap font-medium sticky left-0 bg-card">{m.label}</td>
+                      {avgShown && (
+                        <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{fmtNum(teamAvg[m.key])}</td>
+                      )}
+                      {selectedList.map(v => (
+                        <td key={v} className="px-2 py-1.5 text-center">
+                          <Input
+                            aria-label={`${m.label} — ${v}`}
+                            type="number"
+                            inputMode="decimal"
+                            step="any"
+                            min={QUALITY_MIN}
+                            max={QUALITY_MAX}
+                            value={(forms[v] ?? emptyForm())[m.key]}
+                            onChange={e => setField(v, m.key, e.target.value)}
+                            placeholder="0"
+                            className="h-9 w-20 mx-auto px-2 text-right tabular-nums"
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  <tr className="border-t font-semibold">
+                    <td className="px-2 py-1.5 text-muted-foreground sticky left-0 bg-card">Total</td>
+                    {avgShown && (
+                      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{fmtNum(sumScores(teamAvg))}</td>
+                    )}
+                    {selectedList.map(v => (
+                      <td key={v} className="px-2 py-1.5 text-center tabular-nums">{fmtNum(sumScores(liveScoresOf(v)))}</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] text-muted-foreground">
+                Edite as notas de cada vendedor na sua coluna e guarde de uma só vez. As teias atualizam ao vivo; o cesto remove as notas do mês desse vendedor.
+              </p>
+              {singleStampRow?.updated_at && (
+                <p className="text-[11px] text-muted-foreground">
+                  Último registo{singleStampRow.updated_by ? ` por ${singleStampRow.updated_by}` : ''} em {fmtStamp(singleStampRow.updated_at)}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
