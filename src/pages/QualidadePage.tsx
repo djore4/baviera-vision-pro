@@ -14,7 +14,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 /* ── Tab Qualidade (admin) ─────────────────────────────────────────────────────
  * Gráfico de aranha das notas de qualidade do serviço, por mês e por vendedor.
@@ -22,9 +21,11 @@ import { Label } from '@/components/ui/label';
  * NPS100). A escala é fixa (0–10) em ambos os eixos, para
  * se perceber quando nenhuma nota está no máximo.
  *  - Sem seleção: mostra-se a média da equipa.
- *  - Um vendedor: lançam-se/editam-se as suas notas do mês.
- *  - Vários vendedores: sobrepõem-se as teias (cada um com a sua cor) para
- *    comparativo (leitura).
+ *  - Com vendedores escolhidos: o painel lateral abre uma coluna editável por
+ *    cada um, para lançar/editar as notas de todos diretamente (sem ter de
+ *    trocar o vendedor selecionado a cada alteração) e guardar de uma só vez.
+ *    As teias sobrepõem-se (cada vendedor com a sua cor) para comparativo.
+ * Perfis sem permissão de edição só veem a leitura (tabela de consulta).
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const PT_MONTHS = [
@@ -52,6 +53,15 @@ const formFromScores = (scores: QualityScores): FormState =>
 const scoresFromRow = (r: QualityRow): QualityScores =>
   QUALITY_METRICS.reduce((acc, m) => { acc[m.key] = Number(r[m.key]) || 0; return acc; }, {} as QualityScores);
 
+const scoresFromForm = (f: FormState): QualityScores =>
+  QUALITY_METRICS.reduce((acc, m) => {
+    const n = Number(f[m.key]);
+    acc[m.key] = Number.isFinite(n) ? n : 0;
+    return acc;
+  }, {} as QualityScores);
+
+const formHasValue = (f: FormState) => QUALITY_METRICS.some(m => (f[m.key] ?? '').trim() !== '');
+
 const sumScores = (s: QualityScores) => QUALITY_METRICS.reduce((t, m) => t + s[m.key], 0);
 
 const fmtStamp = (iso: string) =>
@@ -74,7 +84,8 @@ export default function QualidadePage() {
   const [rows, setRows] = useState<QualityRow[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());   // vendedores escolhidos
   const [showAvg, setShowAvg] = useState(true);                       // média sobreposta (toggle independente)
-  const [form, setForm] = useState<FormState>(emptyForm);
+  // Uma entrada de formulário por vendedor selecionado (edição em coluna).
+  const [forms, setForms] = useState<Record<string, FormState>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -116,29 +127,46 @@ export default function QualidadePage() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // Lista ordenada dos selecionados e o vendedor em edição (só quando é exatamente um).
+  // Lista ordenada dos selecionados.
   const selectedList = useMemo(
     () => vendedores.filter(v => selected.has(v)),
     [vendedores, selected]);
-  const editing = selectedList.length === 1 ? selectedList[0] : null;
-  const editingRow = useMemo(
-    () => (editing ? rowByVendedor.get(editing) ?? null : null),
-    [rowByVendedor, editing]);
 
-  // Repõe o formulário quando muda o vendedor em edição ou as linhas do mês.
+  // Re-semear os formulários a partir da BD quando as linhas do mês mudam
+  // (mudança de mês ou refresh após gravar). Descarta edições em curso — o que
+  // é o comportamento certo, pois só chegamos aqui depois de guardar/navegar.
   useEffect(() => {
-    if (!editing) { setForm(emptyForm()); return; }
-    setForm(editingRow ? formFromScores(editingRow) : emptyForm());
-  }, [editing, editingRow]);
+    setForms(() => {
+      const next: Record<string, FormState> = {};
+      selectedList.forEach(v => {
+        const r = rowByVendedor.get(v);
+        next[v] = r ? formFromScores(scoresFromRow(r)) : emptyForm();
+      });
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
-  // Notas em edição (a partir do formulário do vendedor único selecionado).
-  const editScores = useMemo<QualityScores>(() =>
-    QUALITY_METRICS.reduce((acc, m) => {
-      const n = Number(form[m.key]);
-      acc[m.key] = Number.isFinite(n) ? n : 0;
-      return acc;
-    }, {} as QualityScores),
-    [form]);
+  // Ajustar os formulários quando a seleção muda: acrescenta novos vendedores
+  // (semeados com as notas da BD, ou vazios) e remove os desmarcados,
+  // preservando as edições em curso dos que continuam selecionados.
+  useEffect(() => {
+    setForms(prev => {
+      const next: Record<string, FormState> = {};
+      selectedList.forEach(v => {
+        if (prev[v]) { next[v] = prev[v]; return; }
+        const r = rowByVendedor.get(v);
+        next[v] = r ? formFromScores(scoresFromRow(r)) : emptyForm();
+      });
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedList]);
+
+  // Notas ao vivo de um vendedor: do formulário se existir, senão da BD.
+  const liveScoresOf = useCallback(
+    (v: string): QualityScores => { const f = forms[v]; return f ? scoresFromForm(f) : scoresOf(v); },
+    [forms, scoresOf]);
 
   // Média da equipa (todos os vendedores com notas no mês).
   const teamAvg = useMemo(() => averageScores(rows), [rows]);
@@ -148,14 +176,14 @@ export default function QualidadePage() {
   const avgShown = showAvg || selectedList.length === 0;
 
   // Séries desenhadas na teia (cada uma com a sua cor). Média (se ligada) + cada
-  // vendedor selecionado; o que está em edição usa as notas do formulário (ao vivo).
+  // vendedor selecionado com as notas ao vivo (formulário em edição).
   const series = useMemo<{ key: string; color: string; scores: QualityScores }[]>(() => {
     const out: { key: string; color: string; scores: QualityScores }[] = [];
     if (avgShown) out.push({ key: 'Média', color: AVG_COLOR, scores: teamAvg });
     selectedList.forEach(v =>
-      out.push({ key: v, color: colorOf(v), scores: editing === v ? editScores : scoresOf(v) }));
+      out.push({ key: v, color: colorOf(v), scores: liveScoresOf(v) }));
     return out;
-  }, [avgShown, selectedList, editing, editScores, teamAvg, colorOf, scoresOf]);
+  }, [avgShown, selectedList, teamAvg, colorOf, liveScoresOf]);
 
   const chartData = useMemo(
     () => QUALITY_METRICS.map(m => {
@@ -177,18 +205,31 @@ export default function QualidadePage() {
     return n;
   });
 
-  const clampScores = (): QualityScores =>
-    QUALITY_METRICS.reduce((acc, m) => {
-      acc[m.key] = Math.min(QUALITY_MAX, Math.max(QUALITY_MIN, editScores[m.key]));
+  const setField = (v: string, key: QualityMetricKey, value: string) =>
+    setForms(prev => ({ ...prev, [v]: { ...(prev[v] ?? emptyForm()), [key]: value } }));
+
+  const clampScoresFor = (v: string): QualityScores => {
+    const s = liveScoresOf(v);
+    return QUALITY_METRICS.reduce((acc, m) => {
+      acc[m.key] = Math.min(QUALITY_MAX, Math.max(QUALITY_MIN, s[m.key]));
       return acc;
     }, {} as QualityScores);
+  };
 
-  const handleSave = async () => {
-    if (!editing) return;
+  // Guarda de uma só vez as notas de todos os vendedores selecionados que já
+  // tenham registo ou tenham algum campo preenchido (evita criar linhas a zero
+  // para colunas nunca tocadas, que baixariam a média da equipa).
+  const handleSaveAll = async () => {
+    const targets = selectedList.filter(v => rowByVendedor.has(v) || formHasValue(forms[v] ?? emptyForm()));
+    if (targets.length === 0) { toast.info('Nada para guardar.'); return; }
     setSaving(true);
     try {
-      await saveVendedorScores(year, month, editing, clampScores(), session?.user.email ?? null);
-      toast.success(`Notas de ${editing} guardadas.`);
+      for (const v of targets) {
+        await saveVendedorScores(year, month, v, clampScoresFor(v), session?.user.email ?? null);
+      }
+      toast.success(targets.length === 1
+        ? `Notas de ${targets[0]} guardadas.`
+        : `Notas de ${targets.length} vendedores guardadas.`);
       await refresh();
     } catch (err) {
       toast.error('Não foi possível guardar as notas.');
@@ -198,12 +239,11 @@ export default function QualidadePage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!editing) return;
+  const handleDeleteOne = async (v: string) => {
     setSaving(true);
     try {
-      await deleteVendedorScores(year, month, editing);
-      toast.success(`Notas de ${editing} removidas.`);
+      await deleteVendedorScores(year, month, v);
+      toast.success(`Notas de ${v} removidas.`);
       await refresh();
     } catch (err) {
       toast.error('Não foi possível remover as notas.');
@@ -220,6 +260,12 @@ export default function QualidadePage() {
       : selectedList.length > 1 ? `${selectedList.length} vendedores` : null,
   ].filter(Boolean).join(' + ');
 
+  const sidePanelTitle = selectedList.length === 0
+    ? 'Média da equipa'
+    : editable
+      ? (selectedList.length === 1 ? `Editar notas — ${selectedList[0]}` : 'Editar notas')
+      : 'Comparativo';
+
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       <div className="flex items-center gap-2">
@@ -228,17 +274,24 @@ export default function QualidadePage() {
         <span className="text-xs text-muted-foreground">· Notas por vendedor · escala 0–{QUALITY_MAX}</span>
       </div>
 
-      {/* Seletor de vendedores (múltiplo): nenhum = média; vários = comparativo sobreposto. */}
+      {/* Seletor de vendedores (múltiplo): nenhum = média; um ou mais abrem a
+          edição em colunas (uma por vendedor). */}
       <Card>
         <CardContent className="py-3">
           <div className="flex items-center justify-between gap-2 mb-2">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Vendedores <span className="normal-case font-normal">· a média combina-se com os vendedores; um único vendedor abre a edição</span>
+              Vendedores <span className="normal-case font-normal">· a média combina-se com os vendedores; {editable ? 'cada vendedor escolhido ganha uma coluna para editar diretamente' : 'escolha vendedores para comparar'}</span>
             </p>
-            {(selectedList.length > 0 || !showAvg) && (
-              <button onClick={() => { setSelected(new Set()); setShowAvg(true); }}
-                className="text-[10px] font-medium text-primary hover:underline">Limpar</button>
-            )}
+            <div className="flex items-center gap-2">
+              {editable && vendedores.length > 0 && (
+                <button onClick={() => setSelected(new Set(vendedores))}
+                  className="text-[10px] font-medium text-primary hover:underline">Todos</button>
+              )}
+              {(selectedList.length > 0 || !showAvg) && (
+                <button onClick={() => { setSelected(new Set()); setShowAvg(true); }}
+                  className="text-[10px] font-medium text-primary hover:underline">Limpar</button>
+              )}
+            </div>
           </div>
           <div className="flex flex-wrap gap-1.5">
             <button
@@ -268,7 +321,7 @@ export default function QualidadePage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         {/* ── Gráfico de aranha ─────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-2">
@@ -342,64 +395,13 @@ export default function QualidadePage() {
           </CardContent>
         </Card>
 
-        {/* ── Painel lateral: edição (1) / média (0) / comparativo (≥2) ──────── */}
+        {/* ── Painel lateral: média (0) / edição em colunas (≥1, admin) / comparativo (≥1, consulta) ── */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">
-              {editing ? `Notas — ${editing}` : selectedList.length === 0 ? 'Média da equipa' : 'Comparativo'}
-            </CardTitle>
+            <CardTitle className="text-sm font-semibold">{sidePanelTitle}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {editing ? (
-              <>
-                {QUALITY_METRICS.map(m => (
-                  <div key={m.key} className="grid grid-cols-[1fr_88px] items-center gap-2">
-                    <Label htmlFor={`q-${m.key}`}>{m.label}</Label>
-                    <Input
-                      id={`q-${m.key}`}
-                      type="number"
-                      inputMode="decimal"
-                      step="any"
-                      min={QUALITY_MIN}
-                      max={QUALITY_MAX}
-                      disabled={!editable}
-                      value={form[m.key]}
-                      onChange={e => setForm(f => ({ ...f, [m.key]: e.target.value }))}
-                      placeholder="0"
-                      className="text-right tabular-nums"
-                    />
-                  </div>
-                ))}
-
-                <div className="flex items-center justify-between border-t pt-3">
-                  <span className="text-xs font-medium text-muted-foreground">Somatório</span>
-                  <span className="text-lg font-bold tabular-nums">{fmtNum(sumScores(editScores))}</span>
-                </div>
-
-                {editable ? (
-                  <>
-                    <Button className="w-full" onClick={handleSave} disabled={saving || loading}>
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      Guardar
-                    </Button>
-                    {editingRow && (
-                      <Button variant="outline" className="w-full text-destructive hover:text-destructive"
-                        onClick={handleDelete} disabled={saving || loading}>
-                        <Trash2 className="h-4 w-4" /> Remover notas do mês
-                      </Button>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-[11px] text-muted-foreground">Sem permissão para editar.</p>
-                )}
-
-                {editingRow?.updated_at && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Último registo{editingRow.updated_by ? ` por ${editingRow.updated_by}` : ''} em {fmtStamp(editingRow.updated_at)}
-                  </p>
-                )}
-              </>
-            ) : selectedList.length === 0 ? (
+            {selectedList.length === 0 ? (
               <>
                 {QUALITY_METRICS.map(m => (
                   <div key={m.key} className="flex items-center justify-between gap-2">
@@ -417,12 +419,101 @@ export default function QualidadePage() {
 
                 <p className="text-[11px] text-muted-foreground">
                   {rows.length
-                    ? `Média das notas de ${rows.length} vendedor${rows.length > 1 ? 'es' : ''} neste mês. Escolha um vendedor para lançar/editar, ou vários para comparar.`
-                    : 'Ainda não há notas lançadas neste mês. Escolha um vendedor para começar.'}
+                    ? `Média das notas de ${rows.length} vendedor${rows.length > 1 ? 'es' : ''} neste mês. Escolha vendedores para ${editable ? 'lançar/editar (uma coluna por vendedor)' : 'comparar'}.`
+                    : `Ainda não há notas lançadas neste mês. Escolha ${editable ? 'vendedores para começar' : 'vendedores para comparar'}.`}
                 </p>
               </>
+            ) : editable ? (
+              /* ── Edição em colunas: uma coluna por vendedor selecionado ─────── */
+              <>
+                <div className="overflow-x-auto -mx-2">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="text-[10px] text-muted-foreground">
+                        <th className="px-2 py-1 text-left font-medium">Vetor</th>
+                        {avgShown && (
+                          <th className="px-2 py-1 text-right font-medium whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1">
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: AVG_COLOR }} />
+                              Média
+                            </span>
+                          </th>
+                        )}
+                        {selectedList.map(v => (
+                          <th key={v} className="px-1.5 py-1 text-center font-medium whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1">
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorOf(v) }} />
+                              {v}
+                              {rowByVendedor.has(v) && (
+                                <button
+                                  onClick={() => handleDeleteOne(v)}
+                                  disabled={saving || loading}
+                                  title={`Remover notas de ${v} neste mês`}
+                                  className="text-muted-foreground hover:text-destructive disabled:opacity-50"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              )}
+                            </span>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {QUALITY_METRICS.map(m => (
+                        <tr key={m.key}>
+                          <td className="px-2 py-1 text-foreground whitespace-nowrap">{m.label}</td>
+                          {avgShown && (
+                            <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{fmtNum(teamAvg[m.key])}</td>
+                          )}
+                          {selectedList.map(v => (
+                            <td key={v} className="px-1 py-1">
+                              <Input
+                                aria-label={`${m.label} — ${v}`}
+                                type="number"
+                                inputMode="decimal"
+                                step="any"
+                                min={QUALITY_MIN}
+                                max={QUALITY_MAX}
+                                value={(forms[v] ?? emptyForm())[m.key]}
+                                onChange={e => setField(v, m.key, e.target.value)}
+                                placeholder="0"
+                                className="h-8 w-16 px-1.5 text-right tabular-nums"
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                      <tr className="border-t font-semibold">
+                        <td className="px-2 py-1 text-muted-foreground">Total</td>
+                        {avgShown && (
+                          <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{fmtNum(sumScores(teamAvg))}</td>
+                        )}
+                        {selectedList.map(v => (
+                          <td key={v} className="px-1.5 py-1 text-right tabular-nums">{fmtNum(sumScores(liveScoresOf(v)))}</td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <Button className="w-full" onClick={handleSaveAll} disabled={saving || loading}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {selectedList.length > 1 ? 'Guardar todos' : 'Guardar'}
+                </Button>
+
+                <p className="text-[11px] text-muted-foreground">
+                  Edite as notas de cada vendedor diretamente na sua coluna e guarde de uma só vez. As teias atualizam ao vivo; o cesto remove as notas do mês desse vendedor.
+                </p>
+
+                {selectedList.length === 1 && rowByVendedor.get(selectedList[0])?.updated_at && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Último registo{rowByVendedor.get(selectedList[0])!.updated_by ? ` por ${rowByVendedor.get(selectedList[0])!.updated_by}` : ''} em {fmtStamp(rowByVendedor.get(selectedList[0])!.updated_at)}
+                  </p>
+                )}
+              </>
             ) : (
-              /* Comparativo (≥2 vendedores) — tabela por métrica, cor por vendedor. */
+              /* Comparativo só de consulta (perfis sem permissão de edição). */
               <>
                 <div className="overflow-x-auto -mx-2">
                   <table className="w-full text-[11px]">
@@ -472,7 +563,7 @@ export default function QualidadePage() {
                   </table>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Teias sobrepostas para comparação. Deixe apenas um vendedor selecionado para lançar ou editar as notas.
+                  Teias sobrepostas para comparação. Sem permissão para editar.
                 </p>
               </>
             )}
