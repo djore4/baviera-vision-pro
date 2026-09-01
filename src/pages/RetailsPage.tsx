@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button';
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
 const STATUS_COLORS: Record<string, string> = { Retail: '#1C69D4', Matricula: '#06B6D4', Carteira: '#F59E0B' };
+/* Rótulos de apresentação dos estados (o valor guardado mantém-se sem acento). */
+const STATUS_LABELS: Record<string, string> = { Retail: 'Retail', Matricula: 'Matrícula', Carteira: 'Carteira' };
 
 type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'version' | 'week198' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'app' | 'dfat';
 type SortDir = 'asc' | 'desc';
@@ -210,7 +212,7 @@ export default function RetailsPage() {
   const handleLegendClick = (e: any) => { if (e?.value) handleStatusClick(e.value); };
 
   const exportCSV = useCallback(() => {
-    const headers = ['RESP', 'GAR', 'STATUS', 'TIPO', 'MODELO', 'VERSAO', '198', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', 'Data Negocio', 'Data Matricula', 'Data Retail', 'Data Fatura', 'Data Apping'];
+    const headers = ['RESP', 'GAR', 'STATUS', 'TIPO', 'MODELO', 'VERSÃO', '198', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Data Negócio', 'Data Matrícula', 'Data Retail', 'Data Fatura', 'Data Apping'];
     const rows = tableData.map(r => [r.resp, r.gar === 'GAR' ? 'Certo' : 'Incerto', r.status, r.type, r.model, r.version, r.week198, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.dfat), formatDate(r.app)]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -248,9 +250,9 @@ export default function RetailsPage() {
 
   const tableColumns: [SortKey, string][] = [
     ['resp', 'Resp'], ['status', 'Status'], ['type', 'Tipo'],
-    ['model', 'Modelo'], ['version', 'Versao'], ['week198', '198'], ['cliente', 'Cliente'],
-    ['fin', 'Pag'], ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matricula'],
-    ['neg', 'Data Fecho'], ['dmat', 'Data Matricula'], ['date298', 'Data Retail'], ['dfat', 'Data Fatura'], ['app', 'Data Apping'],
+    ['model', 'Modelo'], ['version', 'Versão'], ['week198', '198'], ['cliente', 'Cliente'],
+    ['fin', 'Pag'], ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matrícula'],
+    ['neg', 'Data Fecho'], ['dmat', 'Data Matrícula'], ['date298', 'Data Retail'], ['dfat', 'Data Fatura'], ['app', 'Data Apping'],
   ];
 
   const activeFilters = [
@@ -328,7 +330,7 @@ export default function RetailsPage() {
           <div className="grid grid-cols-1 xl:grid-cols-8 gap-2">
             <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
               <div className="flex items-center justify-between mb-1">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Status por Responsavel</h3>
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Status por Responsável</h3>
                 <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalStatusSum}</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
@@ -343,7 +345,7 @@ export default function RetailsPage() {
                   <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                   <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
                     formatter={(value: string) => (
-                      <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal' }}>{value}</span>
+                      <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal' }}>{STATUS_LABELS[value] ?? value}</span>
                     )} />
                   <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1} />
                   <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Matricula' ? 0.2 : 1} />
@@ -356,17 +358,17 @@ export default function RetailsPage() {
 
             <div className="xl:col-span-4">
               <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
-                <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide text-center">Realizacao vs Objetivo</p>
+                <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide text-center">Realização vs Objetivo</p>
                 <div className="grid grid-cols-2 flex-1">
                   {/* Faturas vs objetivo Caetano */}
                   <div className="flex flex-col items-center justify-between pr-3 border-r-2 border-dashed border-primary/30">
                     <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16A34A' }}>Faturas</p>
                     <GaugeSimple value={realization.faturasPct} size="lg" />
                     <div className="grid grid-cols-4 gap-1 w-full text-center mt-1">
-                      <div><p className="text-base font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Orcamento</p></div>
+                      <div><p className="text-base font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Orçamento</p></div>
                       <div><p className="text-base font-extrabold" style={{ color: '#16A34A' }}>{realization.faturas}</p><p className="text-[9px] text-muted-foreground">Atual</p></div>
-                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsao</p></div>
-                      <div><p className="text-base font-extrabold" style={{ color: realization.faturasPct >= 100 ? '#16A34A' : realization.faturasPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.faturasPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
+                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsão</p></div>
+                      <div><p className="text-base font-extrabold" style={{ color: realization.faturasPct >= 100 ? '#16A34A' : realization.faturasPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.faturasPct}%</p><p className="text-[9px] text-muted-foreground">Realização</p></div>
                     </div>
                   </div>
                   {/* Retails vs objetivo BMW */}
@@ -374,10 +376,10 @@ export default function RetailsPage() {
                     <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#1C69D4' }}>Retails</p>
                     <GaugeSimple value={realization.retailsPct} size="lg" />
                     <div className="grid grid-cols-4 gap-1 w-full text-center mt-1">
-                      <div><p className="text-base font-bold text-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">Orcamento</p></div>
+                      <div><p className="text-base font-bold text-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">Orçamento</p></div>
                       <div><p className="text-base font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] text-muted-foreground">Atual</p></div>
-                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsao</p></div>
-                      <div><p className="text-base font-extrabold" style={{ color: realization.retailsPct >= 100 ? '#16A34A' : realization.retailsPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.retailsPct}%</p><p className="text-[9px] text-muted-foreground">Realizacao</p></div>
+                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsão</p></div>
+                      <div><p className="text-base font-extrabold" style={{ color: realization.retailsPct >= 100 ? '#16A34A' : realization.retailsPct >= 80 ? '#F59E0B' : '#DC2626' }}>{realization.retailsPct}%</p><p className="text-[9px] text-muted-foreground">Realização</p></div>
                     </div>
                   </div>
                 </div>
@@ -401,7 +403,7 @@ export default function RetailsPage() {
             </div>
 
             <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Metodo de Pagamento</h3>
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
               <div className="flex items-center gap-2">
                 <ResponsiveContainer width="50%" height={Math.max(140, finData.length * 32 + 20)}>
                   <PieChart>
@@ -507,7 +509,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 <td className="px-3 py-1 whitespace-nowrap">
                   <span className="inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[r.status] || '#888' }} />
-                    {r.status}
+                    {STATUS_LABELS[r.status] ?? r.status}
                   </span>
                 </td>
                 <td className="px-3 py-1">{r.type}</td>

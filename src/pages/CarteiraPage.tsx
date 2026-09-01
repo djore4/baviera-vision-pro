@@ -156,7 +156,7 @@ export default function CarteiraPage() {
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
 
   const exportCSV = useCallback(() => {
-    const headers = ['RESP', 'D.Fecho', 'Mes1', 'Tipo', 'Modelo', 'Versao', 'Cliente', 'Fin', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', '198'];
+    const headers = ['RESP', 'D.Fecho', 'Mes1', 'Tipo', 'Modelo', 'Versão', 'Cliente', 'Fin', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', '198'];
     const rows = tableData.map(r => [r.resp, formatDate(r.neg), r.mes1, r.type, r.model, r.version, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, r.week198]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -168,8 +168,8 @@ export default function CarteiraPage() {
 
   const tableColumns: [SortKey, string][] = [
     ['resp', 'RESP'], ['neg', 'D.Fecho'], ['mes1', 'Mes1'], ['type', 'Tipo'],
-    ['model', 'Modelo'], ['version', 'Versao'], ['cliente', 'Cliente'], ['fin', 'Fin'],
-    ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matricula'],
+    ['model', 'Modelo'], ['version', 'Versão'], ['cliente', 'Cliente'], ['fin', 'Fin'],
+    ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matrícula'],
     ['week198', '198'],
   ];
 
@@ -235,14 +235,14 @@ export default function CarteiraPage() {
         </div>
       )}
 
-      {/* Row 1 — Carteira/Tipologia | Metodo/Distribuicao */}
+      {/* Row 1 — Carteira/Tipologia | Método/Distribuição */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
 
         {/* Coluna esquerda */}
         <div className="space-y-2">
           <div className="bg-card border border-border rounded-lg p-2">
             <div className="flex items-center justify-between mb-1">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira por Responsavel</h3>
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Carteira por Responsável</h3>
               <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalCarteira}</span>
             </div>
             <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -308,7 +308,7 @@ export default function CarteiraPage() {
         {/* Coluna direita */}
         <div className="space-y-2">
           <div className="bg-card border border-border rounded-lg p-2">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Metodo de Pagamento</h3>
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
             <div className="flex items-center gap-2">
               <ResponsiveContainer width="50%" height={Math.max(120, finData.length * 28 + 20)}>
                 <PieChart>
@@ -343,7 +343,7 @@ export default function CarteiraPage() {
           </div>
 
           <div className="bg-card border border-border rounded-lg p-2">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Distribuicao Carteira</h3>
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Distribuição Carteira</h3>
             <ResponsiveContainer width="100%" height={CHART_HEIGHT + 60}>
               <PieChart>
                 <Tooltip formatter={(value: number, name: string) => [`${value} (${Math.round((value / (totalCarteira || 1)) * 100)}%)`, name]}
@@ -367,7 +367,7 @@ export default function CarteiraPage() {
         </div>
       </div>
 
-      {/* Row 2 — Analise full width */}
+      {/* Row 2 — Análise full width */}
       <div className="bg-card border border-border rounded-lg p-2">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Mix Modelos</h3>
