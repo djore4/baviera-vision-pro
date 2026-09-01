@@ -468,8 +468,11 @@ export default function VendedoresPage() {
             </p>
           </div>
 
-          {/* Desempenho por comercial */}
-          <div className="bg-card border border-border rounded-lg overflow-x-auto">
+          {/* Desempenho por comercial + Qualidade do serviço.
+              Desktop: lado a lado (tabela flexível + teia à direita). Mobile:
+              empilhados (não há largura para os pôr lado a lado). */}
+          <div className="flex flex-col lg:flex-row gap-2 lg:items-start">
+          <div className="bg-card border border-border rounded-lg overflow-x-auto flex-1 min-w-0">
             <div className="px-2 py-1.5 border-b border-border">
               <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Desempenho por Comercial</h3>
             </div>
@@ -521,7 +524,10 @@ export default function VendedoresPage() {
           </div>
 
           {/* Qualidade do serviço — resultado (read-only, seletor próprio); gestão no separador Qualidade */}
-          <QualityRadarCard />
+          <div className="lg:w-96 lg:flex-shrink-0">
+            <QualityRadarCard />
+          </div>
+          </div>
 
           {/* Método de pagamento — mix mensal (barras 100%) */}
           <div className="bg-card border border-border rounded-lg p-2">

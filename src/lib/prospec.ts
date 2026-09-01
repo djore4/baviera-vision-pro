@@ -26,12 +26,13 @@ export const FASES: { value: Fase; label: string; cls: string }[] = [
 export const faseLabel = (f: Fase) => FASES.find(x => x.value === f)?.label ?? f;
 export const faseCls   = (f: Fase) => FASES.find(x => x.value === f)?.cls ?? '';
 
-export type Fonte = 'geografica' | 'lookalike' | 'indicacao' | 'lusha' | 'outro';
+export type Fonte = 'geografica' | 'lookalike' | 'indicacao' | 'relacao' | 'lusha' | 'outro';
 
 export const FONTES: { value: Fonte; label: string }[] = [
-  { value: 'geografica', label: 'Prospeção geográfica' },
+  { value: 'geografica', label: 'Prospeção' },
   { value: 'lookalike',  label: 'Perfil semelhante a cliente (lookalike)' },
-  { value: 'indicacao',  label: 'Indicação' },
+  { value: 'indicacao',  label: 'Recomendação' },
+  { value: 'relacao',    label: 'Relação' },
   { value: 'lusha',      label: 'Lusha' },
   { value: 'outro',      label: 'Outro' },
 ];

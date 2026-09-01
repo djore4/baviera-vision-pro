@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  AlertTriangle, Loader2, TrendingUp, Trophy, Handshake, Users, CheckCircle2,
+  AlertTriangle, Loader2, TrendingUp, Trophy, Handshake, Users, CheckCircle2, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -9,7 +9,12 @@ import {
   listAccounts, listTasks, isOverdue,
   type Account, type Task, type Scope, type Fase,
 } from '@/lib/prospec';
-import { SectionCard, Avatar, EmptyState, relativeLabel } from './ui';
+import { SectionCard, Avatar, EmptyState, relativeLabel, ScoreBadge } from './ui';
+
+/* KPIs clicáveis do topo — cada um evidencia (em baixo) os registos a que o
+ * número se refere. 'atrasados' lista tarefas; os restantes listam contas. */
+type KpiKey = 'total' | 'ganho' | 'negociacao' | 'atrasados';
+const NEGOCIACAO_FASES: Fase[] = ['reuniao', 'proposta', 'negociacao'];
 
 const typeLabel: Record<Task['type'], string> = { todo: 'Tarefa', next_action: 'Próxima ação' };
 
@@ -23,6 +28,7 @@ export function ManagementTab() {
   const scope: Scope = useMemo(() => ({ isDirector: true, email: null }), []);
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [overdue, setOverdue] = useState<Task[]>([]);
+  const [selected, setSelected] = useState<KpiKey | null>(null);   // KPI evidenciado
 
   const load = useCallback(async () => {
     try {
@@ -54,17 +60,98 @@ export function ManagementTab() {
   }
 
   const total = accounts.length;
-  const emNegociacao = accounts.filter(a => ['reuniao', 'proposta', 'negociacao'].includes(a.fase)).length;
+  const ganhas = accounts.filter(a => a.fase === 'ganho');
+  const emNegociacaoAcc = accounts.filter(a => NEGOCIACAO_FASES.includes(a.fase));
+
+  // Contas evidenciadas pelo KPI selecionado (ordenadas por score desc).
+  const selectedAccounts = (
+    selected === 'total' ? accounts
+    : selected === 'ganho' ? ganhas
+    : selected === 'negociacao' ? emNegociacaoAcc
+    : []
+  ).slice().sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+  const toggle = (k: KpiKey) => setSelected(s => (s === k ? null : k));
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* KPIs */}
+      {/* KPIs — clicáveis: evidenciam em baixo os registos a que o número se refere. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi icon={Users} label="Contas totais" value={total} tone="blue" />
-        <Kpi icon={Trophy} label="Ganhas" value={accounts.filter(a => a.fase === 'ganho').length} tone="green" />
-        <Kpi icon={Handshake} label="Em negociação" value={emNegociacao} tone="amber" />
-        <Kpi icon={AlertTriangle} label="Atrasados (equipa)" value={overdue.length} tone={overdue.length ? 'red' : 'slate'} />
+        <Kpi icon={Users} label="Contas totais" value={total} tone="blue"
+          active={selected === 'total'} onClick={() => toggle('total')} />
+        <Kpi icon={Trophy} label="Ganhas" value={ganhas.length} tone="green"
+          active={selected === 'ganho'} onClick={() => toggle('ganho')} />
+        <Kpi icon={Handshake} label="Em negociação" value={emNegociacaoAcc.length} tone="amber"
+          active={selected === 'negociacao'} onClick={() => toggle('negociacao')} />
+        <Kpi icon={AlertTriangle} label="Atrasados (equipa)" value={overdue.length} tone={overdue.length ? 'red' : 'slate'}
+          active={selected === 'atrasados'} onClick={() => toggle('atrasados')} />
       </div>
+
+      {/* Detalhe do KPI selecionado — clientes/oportunidades/leads correspondentes. */}
+      {selected && (
+        <SectionCard
+          icon={selected === 'atrasados' ? AlertTriangle : selected === 'ganho' ? Trophy : selected === 'negociacao' ? Handshake : Users}
+          title={
+            selected === 'total' ? 'Contas totais'
+            : selected === 'ganho' ? 'Contas ganhas'
+            : selected === 'negociacao' ? 'Em negociação'
+            : 'Atrasados — toda a equipa'
+          }
+          count={selected === 'atrasados' ? overdue.length : selectedAccounts.length}
+          tone={selected === 'atrasados' ? 'danger' : 'default'}
+          actions={
+            <button onClick={() => setSelected(null)} title="Fechar"
+              className="grid place-items-center h-7 w-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          }
+        >
+          {selected === 'atrasados' ? (
+            overdue.length === 0
+              ? <EmptyState icon={CheckCircle2} title="Equipa em dia" hint="Nenhuma tarefa em atraso em toda a equipa." />
+              : (
+                <div className="space-y-2">
+                  {overdue.map(t => {
+                    const rel = relativeLabel(t.due_at, t.done);
+                    return (
+                      <div key={t.id} className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-card px-3 py-2">
+                        <Avatar name={t.owner_nome ?? t.owner_email ?? '—'} size="sm" rounded="full" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium truncate">{t.descricao}</div>
+                          <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground mt-0.5">
+                            <span>{typeLabel[t.type]}</span>
+                            {accountName(t.account_id) && <span>· {accountName(t.account_id)}</span>}
+                            <span>· {t.owner_nome ?? t.owner_email ?? '—'}</span>
+                          </div>
+                        </div>
+                        <span className="text-xs font-semibold text-destructive shrink-0">{rel.text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+          ) : selectedAccounts.length === 0 ? (
+            <EmptyState icon={Users} title="Sem contas" hint="Nenhuma conta nesta categoria." />
+          ) : (
+            <div className="space-y-2">
+              {selectedAccounts.map(a => (
+                <div key={a.id} className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2">
+                  <Avatar name={a.nome} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">{a.nome}</div>
+                    <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground mt-0.5">
+                      <span>{faseLabel(a.fase)}</span>
+                      {a.setor && <span>· {a.setor}</span>}
+                      {(a.owner_nome ?? a.owner_email) && <span>· {a.owner_nome ?? a.owner_email}</span>}
+                    </div>
+                  </div>
+                  <ScoreBadge score={a.score} />
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      )}
 
       {/* Funil consolidado */}
       <SectionCard icon={TrendingUp} title="Funil consolidado">
@@ -116,8 +203,9 @@ export function ManagementTab() {
   );
 }
 
-function Kpi({ icon: Icon, label, value, tone }: {
+function Kpi({ icon: Icon, label, value, tone, active = false, onClick }: {
   icon: typeof Users; label: string; value: number; tone: 'blue' | 'green' | 'amber' | 'red' | 'slate';
+  active?: boolean; onClick?: () => void;
 }) {
   const tones: Record<string, string> = {
     blue: 'bg-primary/10 text-primary',
@@ -126,8 +214,22 @@ function Kpi({ icon: Icon, label, value, tone }: {
     red: 'bg-destructive/10 text-destructive',
     slate: 'bg-muted text-muted-foreground',
   };
+  const rings: Record<string, string> = {
+    blue: 'ring-primary', green: 'ring-emerald-500', amber: 'ring-amber-500',
+    red: 'ring-destructive', slate: 'ring-muted-foreground',
+  };
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm flex items-center gap-3 animate-fade-in">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      title={active ? 'Clique para ocultar' : 'Clique para ver os registos'}
+      className={cn(
+        'text-left rounded-xl border bg-card p-4 shadow-sm flex items-center gap-3 animate-fade-in',
+        'transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
+        active ? cn('ring-2', rings[tone]) : 'border-border',
+      )}
+    >
       <span className={cn('grid place-items-center h-10 w-10 rounded-lg shrink-0', tones[tone])}>
         <Icon className="h-5 w-5" />
       </span>
@@ -135,6 +237,6 @@ function Kpi({ icon: Icon, label, value, tone }: {
         <div className="text-2xl font-bold leading-none tabular-nums">{value}</div>
         <div className="text-xs text-muted-foreground mt-1 truncate">{label}</div>
       </div>
-    </div>
+    </button>
   );
 }

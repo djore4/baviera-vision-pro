@@ -106,6 +106,46 @@ const EVENT_BADGE: Record<string, string> = {
   delete: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
 };
 
+/* Converte datas (YYYY-MM-DD) num intervalo ISO [from, to) — 'to' inclui o dia
+ * escolhido (avança 1 dia). Devolve undefined quando nenhuma data é indicada. */
+function toIsoRange(from?: string, to?: string): { from?: string; to?: string } | undefined {
+  const r: { from?: string; to?: string } = {};
+  if (from) r.from = new Date(`${from}T00:00:00`).toISOString();
+  if (to) { const d = new Date(`${to}T00:00:00`); d.setDate(d.getDate() + 1); r.to = d.toISOString(); }
+  return (r.from || r.to) ? r : undefined;
+}
+
+/* Nome de ficheiro do exportável, com sufixo do intervalo quando definido. */
+function exportFileName(base: string, ext: string, from?: string, to?: string): string {
+  const today = new Date().toISOString().slice(0, 10);
+  const suffix = from || to ? `${from || 'inicio'}_a_${to || today}` : today;
+  return `${base}_${suffix}.${ext}`;
+}
+
+/* Controlo de exportação com intervalo de datas opcional (de/até). Sem datas,
+ * exporta o histórico completo. */
+function RangeExport({ icon, label, busy, onExport }: {
+  icon: React.ReactNode; label: string; busy: boolean;
+  onExport: (from?: string, to?: string) => void;
+}) {
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+      <Input type="date" value={from} max={to || undefined} onChange={e => setFrom(e.target.value)}
+        className="h-7 w-[9.5rem] text-xs" title="De (deixar vazio = desde o início)" aria-label="De" />
+      <span className="text-xs text-muted-foreground">–</span>
+      <Input type="date" value={to} min={from || undefined} onChange={e => setTo(e.target.value)}
+        className="h-7 w-[9.5rem] text-xs" title="Até (deixar vazio = até hoje)" aria-label="Até" />
+      <Button variant="outline" size="sm" className="h-7 gap-1.5"
+        onClick={() => onExport(from || undefined, to || undefined)} disabled={busy}>
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : icon}
+        {label}
+      </Button>
+    </div>
+  );
+}
+
 type PlacedCycle = { c: CarWashCycle; start: number; dur: number; lane: number };
 type PeriodStat = { total: number; minutes: number; byType: Map<WashTypeId, number> };
 
@@ -234,12 +274,12 @@ export default function LavagemPage() {
     }
   }, [weekStart, weekEnd, statsFrom, isAdmin]);
 
-  const handleExport = async () => {
+  const handleExport = async (from?: string, to?: string) => {
     setExporting(true);
     try {
-      const all = await listCycles();     // histórico completo
-      if (all.length === 0) { toast.info('Ainda não há lavagens para exportar.'); return; }
-      exportCyclesToExcel(all);
+      const all = await listCycles(toIsoRange(from, to));   // histórico (ou intervalo)
+      if (all.length === 0) { toast.info('Não há lavagens no intervalo escolhido.'); return; }
+      exportCyclesToExcel(all, exportFileName('lavagens', 'xlsx', from, to));
       toast.success('Relatório exportado.');
     } catch (err) {
       toast.error('Não foi possível exportar o relatório.');
@@ -249,12 +289,12 @@ export default function LavagemPage() {
     }
   };
 
-  const handleExportCsv = async () => {
+  const handleExportCsv = async (from?: string, to?: string) => {
     setCsvExporting(true);
     try {
-      const all = await listEvents();      // histórico completo de registos
-      if (all.length === 0) { toast.info('Ainda não há registos para exportar.'); return; }
-      exportEventsToCsv(all);
+      const all = await listEvents(toIsoRange(from, to));   // registos (ou intervalo)
+      if (all.length === 0) { toast.info('Não há registos no intervalo escolhido.'); return; }
+      exportEventsToCsv(all, exportFileName('lavagens_registos', 'csv', from, to));
       toast.success('Registos exportados (CSV).');
     } catch (err) {
       toast.error('Não foi possível exportar os registos.');
@@ -652,15 +692,17 @@ export default function LavagemPage() {
       {/* ── Estatísticas + exportação ───────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <BarChart3 className="h-4 w-4" /> Estatísticas
             </CardTitle>
             {canExport && (
-              <Button variant="outline" size="sm" className="h-7 gap-1.5" onClick={handleExport} disabled={exporting}>
-                {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
-                Exportar Excel
-              </Button>
+              <RangeExport
+                icon={<FileSpreadsheet className="h-3.5 w-3.5" />}
+                label="Exportar Excel"
+                busy={exporting}
+                onExport={handleExport}
+              />
             )}
           </div>
         </CardHeader>
@@ -870,7 +912,7 @@ export default function LavagemPage() {
       {isAdmin && (
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <div>
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <History className="h-4 w-4" /> Registos de lavagens
@@ -879,13 +921,12 @@ export default function LavagemPage() {
                   Marcações, alterações e eliminações — auditoria completa (só administrador).
                 </p>
               </div>
-              <Button
-                variant="outline" size="sm" className="h-7 gap-1.5"
-                onClick={handleExportCsv} disabled={csvExporting}
-              >
-                {csvExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                Descarregar CSV
-              </Button>
+              <RangeExport
+                icon={<Download className="h-3.5 w-3.5" />}
+                label="Descarregar CSV"
+                busy={csvExporting}
+                onExport={handleExportCsv}
+              />
             </div>
           </CardHeader>
           <CardContent>
