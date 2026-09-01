@@ -313,6 +313,32 @@ export default function VendedoresPage() {
     [],
   );
 
+  // Rótulo dentro de cada segmento da barra: % do método no mês e valor absoluto
+  // entre parêntesis. Só desenha quando o segmento tem altura suficiente para ler.
+  const renderFinSegLabel = useCallback(
+    (props: { x?: number; y?: number; width?: number; height?: number; value?: number; index?: number }) => {
+      const { x = 0, y = 0, width = 0, height = 0, value = 0, index = 0 } = props;
+      if (!value || height < 13) return null;
+      const total = Number(finByMonth[index]?._total ?? 0);
+      const pct = total ? Math.round((value / total) * 100) : 0;
+      return (
+        <text
+          x={x + width / 2}
+          y={y + height / 2}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={9}
+          fontWeight={600}
+          fill="#fff"
+          pointerEvents="none"
+        >
+          {pct}% ({value})
+        </text>
+      );
+    },
+    [finByMonth],
+  );
+
   const rClass = (r: number | null) =>
     r === null ? 'text-muted-foreground'
       : r > 1.02 ? 'bg-[#1C69D4]/10 text-[#1C69D4] dark:text-sky-300'
@@ -525,7 +551,9 @@ export default function VendedoresPage() {
                   <Legend wrapperStyle={{ fontSize: 10 }} />
                   {FIN_ORDER.map(m => (
                     <Bar key={m} dataKey={m} name={m} stackId="fin" fill={finColor(m)}
-                      maxBarSize={44} isAnimationActive={false} />
+                      maxBarSize={44} isAnimationActive={false}>
+                      <LabelList dataKey={m} content={renderFinSegLabel} />
+                    </Bar>
                   ))}
                   <Customized component={renderFinLines} />
                 </BarChart>
@@ -534,6 +562,7 @@ export default function VendedoresPage() {
             <p className="text-[10px] text-muted-foreground mt-1 px-1">
               Cada barra soma 100% dos negócios do mês, repartida por método de pagamento
               (<strong>PP</strong> · <strong>FS</strong> · <strong>Fint</strong> · <strong>Fext</strong> · N/A).
+              Cada segmento mostra a <strong>% do mês</strong> e o valor absoluto entre parêntesis.
               As linhas ligam cada método entre meses (continuação).
             </p>
           </div>
