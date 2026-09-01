@@ -26,8 +26,8 @@ const FILE_PATH = 'bmw-business-control.xlsx';
 interface DbControlRow {
   id: string;
   status: string | null; neg: string | null; mes1: string | null; resp: string | null;
-  id_cliente: string | null; cliente: string | null; local: string | null; type: string | null;
-  origin: string | null; profile: string | null; biz: string | null; enc: string | null;
+  id_cliente: string | null; cliente: string | null; type: string | null;
+  biz: string | null; enc: string | null;
   chas: string | null; mat: string | null; model: string | null; version: string | null;
   gar: string | null; qor: number | null; xev: number | null; bev: number | null; m: number | null;
   csc: number | null; cme: number | null; fin: string | null; week198: string | null;
@@ -47,10 +47,7 @@ function mapDbRow(r: DbControlRow): ControlRecord {
     mes1: s(r.mes1),
     resp: s(r.resp),
     cliente: s(r.id_cliente ?? r.cliente),
-    local: s(r.local),
     type: s(r.type),
-    origin: s(r.origin),
-    profile: s(r.profile),
     biz: s(r.biz),
     enc: s(r.enc),
     chas: s(r.chas),

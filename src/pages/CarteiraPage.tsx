@@ -12,22 +12,17 @@ import { Button } from '@/components/ui/button';
 
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
-const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
 
-type SortKey = 'resp' | 'neg' | 'mes1' | 'type' | 'model' | 'version' | 'cliente' | 'fin' | 'biz' | 'enc' | 'chas' | 'mat' | 'origin' | 'profile' | 'week198';
+type SortKey = 'resp' | 'neg' | 'mes1' | 'type' | 'model' | 'version' | 'cliente' | 'fin' | 'biz' | 'enc' | 'chas' | 'mat' | 'week198';
 type SortDir = 'asc' | 'desc';
-type AnalysisTab = 'entidade' | 'origem' | 'modelos';
 
 export default function CarteiraPage() {
   const { data } = useData();
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
-  const [selectedOrigin, setSelectedOrigin] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
-  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('modelos');
   const [sortKey, setSortKey] = useState<SortKey>('mes1');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,13 +37,11 @@ export default function CarteiraPage() {
     let result = baseRecords;
     if (selectedResps.size > 0) result = result.filter(r => selectedResps.has(r.resp));
     if (selectedFin) result = result.filter(r => r.fin === selectedFin);
-    if (selectedOrigin) result = result.filter(r => r.origin === selectedOrigin);
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
-    if (selectedEntity) result = result.filter(r => r.profile === selectedEntity);
     return result;
-  }, [baseRecords, selectedResps, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity]);
+  }, [baseRecords, selectedResps, selectedFin, selectedModel, selectedQor, selectedBev]);
 
   const { respChartData, resps } = useMemo(() => {
     const respSet = new Set(baseRecords.map(r => r.resp).filter(Boolean));
@@ -92,23 +85,9 @@ export default function CarteiraPage() {
     return entries;
   }, [filtered]);
 
-  const originData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach(r => { if (r.origin) map[r.origin] = (map[r.origin] || 0) + 1; });
-    const total = filtered.length || 1;
-    return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) })).sort((a, b) => b.value - a.value);
-  }, [filtered]);
-
   const modelData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(r => { if (r.model) map[r.model] = (map[r.model] || 0) + 1; });
-    const total = filtered.length || 1;
-    return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) })).sort((a, b) => b.value - a.value);
-  }, [filtered]);
-
-  const entityData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach(r => { if (r.profile) map[r.profile] = (map[r.profile] || 0) + 1; });
     const total = filtered.length || 1;
     return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) })).sort((a, b) => b.value - a.value);
   }, [filtered]);
@@ -172,15 +151,13 @@ export default function CarteiraPage() {
   }, [handleRespClick]);
 
   const handleFinClick = useCallback((fin: string) => { toggle(setSelectedFin, fin, null as string | null); }, []);
-  const handleOriginClick = useCallback((name: string) => { toggle(setSelectedOrigin, name, null as string | null); }, []);
   const handleModelClick = useCallback((name: string) => { toggle(setSelectedModel, name, null as string | null); }, []);
-  const handleEntityClick = useCallback((name: string) => { toggle(setSelectedEntity, name, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
 
   const exportCSV = useCallback(() => {
-    const headers = ['RESP', 'D.Fecho', 'Mes1', 'Tipo', 'Modelo', 'Versao', 'Cliente', 'Fin', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', 'Origem', 'Perfil', '198'];
-    const rows = tableData.map(r => [r.resp, formatDate(r.neg), r.mes1, r.type, r.model, r.version, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, r.origin, r.profile, r.week198]);
+    const headers = ['RESP', 'D.Fecho', 'Mes1', 'Tipo', 'Modelo', 'Versao', 'Cliente', 'Fin', 'Bizagi', 'Encomenda', 'Chassis', 'Matricula', '198'];
+    const rows = tableData.map(r => [r.resp, formatDate(r.neg), r.mes1, r.type, r.model, r.version, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, r.week198]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -193,17 +170,15 @@ export default function CarteiraPage() {
     ['resp', 'RESP'], ['neg', 'D.Fecho'], ['mes1', 'Mes1'], ['type', 'Tipo'],
     ['model', 'Modelo'], ['version', 'Versao'], ['cliente', 'Cliente'], ['fin', 'Fin'],
     ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matricula'],
-    ['origin', 'Origem'], ['profile', 'Perfil'], ['week198', '198'],
+    ['week198', '198'],
   ];
 
-  const hasFilters = selectedResps.size > 0 || selectedFin || selectedOrigin || selectedModel || selectedEntity || selectedQor !== null || selectedBev !== null;
+  const hasFilters = selectedResps.size > 0 || selectedFin || selectedModel || selectedQor !== null || selectedBev !== null;
 
   const clearFilter = (type: string) => {
     if (type === 'resp') setSelectedResps(new Set());
     if (type === 'fin') setSelectedFin(null);
-    if (type === 'origin') setSelectedOrigin(null);
     if (type === 'model') setSelectedModel(null);
-    if (type === 'entity') setSelectedEntity(null);
     if (type === 'qor') setSelectedQor(null);
     if (type === 'bev') setSelectedBev(null);
   };
@@ -244,10 +219,6 @@ export default function CarteiraPage() {
   }
 
   const CHART_HEIGHT = 240;
-  const analysisData = analysisTab === 'entidade' ? entityData : analysisTab === 'origem' ? originData : modelData;
-  const analysisSelected = analysisTab === 'entidade' ? selectedEntity : analysisTab === 'origem' ? selectedOrigin : selectedModel;
-  const analysisClick = analysisTab === 'entidade' ? handleEntityClick : analysisTab === 'origem' ? handleOriginClick : handleModelClick;
-  const analysisColorMap = analysisTab === 'entidade' ? PROFILE_COLORS : undefined;
 
   return (
     <div className="space-y-3 animate-fade-in">
@@ -258,9 +229,7 @@ export default function CarteiraPage() {
           <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
           {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('resp')}>{Array.from(selectedResps).join(', ')} x</Badge>}
           {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
-          {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('origin')}>{selectedOrigin} x</Badge>}
           {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
-          {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('entity')}>{selectedEntity} x</Badge>}
           {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR x</Badge>}
           {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV x</Badge>}
         </div>
@@ -401,19 +370,10 @@ export default function CarteiraPage() {
       {/* Row 2 — Analise full width */}
       <div className="bg-card border border-border rounded-lg p-2">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Analise</h3>
-          <select
-            value={analysisTab}
-            onChange={e => setAnalysisTab(e.target.value as AnalysisTab)}
-            className="text-[10px] bg-muted border border-border rounded px-2 py-0.5 cursor-pointer focus:outline-none"
-          >
-            <option value="entidade">Entidade</option>
-            <option value="origem">Origem</option>
-            <option value="modelos">Mix Modelos</option>
-          </select>
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Mix Modelos</h3>
         </div>
         <div className="max-h-44 overflow-y-auto pr-1">
-          <HorizontalBarList data={analysisData} colorMap={analysisColorMap} selected={analysisSelected} onClick={analysisClick} />
+          <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
         </div>
       </div>
 
@@ -457,8 +417,6 @@ export default function CarteiraPage() {
                   <td className="px-3 py-1 whitespace-nowrap">{r.enc}</td>
                   <td className="px-3 py-1 whitespace-nowrap">{r.chas}</td>
                   <td className="px-3 py-1 whitespace-nowrap">{r.mat}</td>
-                  <td className="px-3 py-1">{r.origin}</td>
-                  <td className="px-3 py-1">{r.profile}</td>
                   <td className="px-3 py-1">{r.week198}</td>
                 </tr>
               ))}

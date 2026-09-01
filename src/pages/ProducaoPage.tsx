@@ -17,11 +17,9 @@ import {
 
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
-const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
 
 type SortKey = 'neg' | 'mes1' | 'resp' | 'type' | 'model' | 'version' | 'cliente' | 'fin' | 'biz' | 'enc' | 'chas' | 'mat' | 'dmat' | 'date298' | 'app' | 'dfat';
 type SortDir = 'asc' | 'desc';
-type AnalysisTab = 'entidade' | 'origem' | 'modelos';
 
 export default function ProducaoPage() {
   const { data, filter } = useData();
@@ -29,12 +27,9 @@ export default function ProducaoPage() {
   const isMobile = useIsMobile();
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
-  const [selectedOrigin, setSelectedOrigin] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
-  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('modelos');
   const [sortKey, setSortKey] = useState<SortKey>('neg');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,13 +50,11 @@ export default function ProducaoPage() {
     let result = baseRecords;
     if (selectedResp) result = result.filter(r => r.resp === selectedResp);
     if (selectedFin) result = result.filter(r => r.fin === selectedFin);
-    if (selectedOrigin) result = result.filter(r => r.origin === selectedOrigin);
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
-    if (selectedEntity) result = result.filter(r => r.profile === selectedEntity);
     return result;
-  }, [baseRecords, selectedResp, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity]);
+  }, [baseRecords, selectedResp, selectedFin, selectedModel, selectedQor, selectedBev]);
 
   const negByResp = useMemo(() => {
     if (!data) return [];
@@ -145,13 +138,6 @@ export default function ProducaoPage() {
     return entries;
   }, [filtered]);
 
-  const originData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach(r => { if (r.origin) map[r.origin] = (map[r.origin] || 0) + 1; });
-    const total = filtered.length || 1;
-    return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) })).sort((a, b) => b.value - a.value);
-  }, [filtered]);
-
   const modelData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(r => { if (r.model) map[r.model] = (map[r.model] || 0) + 1; });
@@ -161,13 +147,6 @@ export default function ProducaoPage() {
 
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
   const bevCount = useMemo(() => filtered.filter(r => r.bev === 1).length, [filtered]);
-
-  const entityData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach(r => { if (r.profile) map[r.profile] = (map[r.profile] || 0) + 1; });
-    const total = filtered.length || 1;
-    return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) })).sort((a, b) => b.value - a.value);
-  }, [filtered]);
 
   const tableData = useMemo(() => {
     let rows = [...filtered];
@@ -211,9 +190,7 @@ export default function ProducaoPage() {
 
   const handleRespClick = useCallback((resp: string) => { toggle(setSelectedResp, resp, null as string | null); }, []);
   const handleFinClick = useCallback((fin: string) => { toggle(setSelectedFin, fin, null as string | null); }, []);
-  const handleOriginClick = useCallback((name: string) => { toggle(setSelectedOrigin, name, null as string | null); }, []);
   const handleModelClick = useCallback((name: string) => { toggle(setSelectedModel, name, null as string | null); }, []);
-  const handleEntityClick = useCallback((name: string) => { toggle(setSelectedEntity, name, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
 
@@ -240,9 +217,7 @@ export default function ProducaoPage() {
   const activeFilters = [
     selectedResp && `Resp: ${selectedResp}`,
     selectedFin && `Fin: ${selectedFin}`,
-    selectedOrigin && `Origem: ${selectedOrigin}`,
     selectedModel && `Modelo: ${selectedModel}`,
-    selectedEntity && `Entidade: ${selectedEntity}`,
     selectedQor !== null && 'QoR: Sim',
     selectedBev !== null && 'BEV: Sim',
   ].filter(Boolean) as string[];
@@ -250,9 +225,7 @@ export default function ProducaoPage() {
   const clearFilter = (type: string) => {
     if (type === 'resp') setSelectedResp(null);
     if (type === 'fin') setSelectedFin(null);
-    if (type === 'origin') setSelectedOrigin(null);
     if (type === 'model') setSelectedModel(null);
-    if (type === 'entity') setSelectedEntity(null);
     if (type === 'qor') setSelectedQor(null);
     if (type === 'bev') setSelectedBev(null);
   };
@@ -292,11 +265,6 @@ export default function ProducaoPage() {
     );
   }
 
-  const analysisData = analysisTab === 'entidade' ? entityData : analysisTab === 'origem' ? originData : modelData;
-  const analysisSelected = analysisTab === 'entidade' ? selectedEntity : analysisTab === 'origem' ? selectedOrigin : selectedModel;
-  const analysisClick = analysisTab === 'entidade' ? handleEntityClick : analysisTab === 'origem' ? handleOriginClick : handleModelClick;
-  const analysisColorMap = analysisTab === 'entidade' ? PROFILE_COLORS : undefined;
-
   return (
     <div className="space-y-3 animate-fade-in">
       <div className="flex flex-col lg:flex-row gap-3">
@@ -309,9 +277,7 @@ export default function ProducaoPage() {
               <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
               {selectedResp && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('resp')}>{selectedResp} x</Badge>}
               {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
-              {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('origin')}>{selectedOrigin} x</Badge>}
               {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
-              {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('entity')}>{selectedEntity} x</Badge>}
               {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
               {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
             </div>
@@ -389,19 +355,10 @@ export default function ProducaoPage() {
             {/* Analise — dropdown */}
             <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Analise</h3>
-                <select
-                  value={analysisTab}
-                  onChange={e => setAnalysisTab(e.target.value as AnalysisTab)}
-                  className="text-[10px] bg-muted border border-border rounded px-2 py-0.5 cursor-pointer focus:outline-none"
-                >
-                  <option value="entidade">Entidade</option>
-                  <option value="origem">Origem</option>
-                  <option value="modelos">Mix Modelos</option>
-                </select>
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Mix Modelos</h3>
               </div>
               <div className="max-h-44 overflow-y-auto pr-1">
-                <HorizontalBarList data={analysisData} colorMap={analysisColorMap} selected={analysisSelected} onClick={analysisClick} />
+                <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
               </div>
             </div>
 

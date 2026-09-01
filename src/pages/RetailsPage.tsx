@@ -17,11 +17,9 @@ import { Button } from '@/components/ui/button';
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
 const STATUS_COLORS: Record<string, string> = { Retail: '#1C69D4', Matricula: '#06B6D4', Carteira: '#F59E0B' };
-const PROFILE_COLORS: Record<string, string> = { PE: '#1C69D4', RAC: '#16A34A', BUS: '#F59E0B', FLE: '#EC4899', ENI: '#8B5CF6', PART: '#06B6D4', CA: '#F97316' };
 
 type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'version' | 'week198' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'app' | 'dfat';
 type SortDir = 'asc' | 'desc';
-type AnalysisTab = 'entidade' | 'origem' | 'modelos';
 
 export default function RetailsPage() {
   const { filteredControl, data, filter } = useData();
@@ -30,14 +28,11 @@ export default function RetailsPage() {
   const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
   const [selectedGar, setSelectedGar] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
-  const [selectedOrigin, setSelectedOrigin] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [selectedPark, setSelectedPark] = useState<boolean>(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('modelos');
   const [sortKey, setSortKey] = useState<SortKey>('date298');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,15 +46,13 @@ export default function RetailsPage() {
     if (selectedResps.size > 0) result = result.filter(r => selectedResps.has(r.resp));
     if (selectedGar) result = result.filter(r => (r.status === 'Carteira' || r.status === 'Matricula') && (r.gar === 'GAR' ? 'Certo' : 'Incerto') === selectedGar);
     if (selectedFin) result = result.filter(r => r.fin === selectedFin);
-    if (selectedOrigin) result = result.filter(r => r.origin === selectedOrigin);
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
-    if (selectedEntity) result = result.filter(r => r.profile === selectedEntity);
     if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail');
     if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
     return result;
-  }, [baseRecords, selectedResps, selectedGar, selectedFin, selectedOrigin, selectedModel, selectedQor, selectedBev, selectedEntity, selectedPark, selectedStatus]);
+  }, [baseRecords, selectedResps, selectedGar, selectedFin, selectedModel, selectedQor, selectedBev, selectedPark, selectedStatus]);
 
   const statusByResp = useMemo(() => {
     const map: Record<string, { resp: string; Carteira: number; Matricula: number; Retail: number; total: number }> = {};
@@ -135,13 +128,6 @@ export default function RetailsPage() {
     return entries;
   }, [filtered]);
 
-  const originData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach(r => { if (r.origin) map[r.origin] = (map[r.origin] || 0) + 1; });
-    const total = filtered.length || 1;
-    return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) })).sort((a, b) => b.value - a.value);
-  }, [filtered]);
-
   const modelData = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(r => { if (r.model) map[r.model] = (map[r.model] || 0) + 1; });
@@ -152,13 +138,6 @@ export default function RetailsPage() {
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
   const bevCount = useMemo(() => filtered.filter(r => r.bev === 1).length, [filtered]);
   const parkCount = useMemo(() => filtered.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail').length, [filtered]);
-
-  const entityData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach(r => { if (r.profile) map[r.profile] = (map[r.profile] || 0) + 1; });
-    const total = filtered.length || 1;
-    return Object.entries(map).map(([name, value]) => ({ name, value, pct: Math.round((value / total) * 100) })).sort((a, b) => b.value - a.value);
-  }, [filtered]);
 
   const tableData = useMemo(() => {
     let rows = [...filtered];
@@ -224,9 +203,7 @@ export default function RetailsPage() {
 
   const handleGarClick = useCallback((g: string) => { toggle(setSelectedGar, g, null as string | null); }, []);
   const handleFinClick = useCallback((f: string) => { toggle(setSelectedFin, f, null as string | null); }, []);
-  const handleOriginClick = useCallback((n: string) => { toggle(setSelectedOrigin, n, null as string | null); }, []);
   const handleModelClick = useCallback((n: string) => { toggle(setSelectedModel, n, null as string | null); }, []);
-  const handleEntityClick = useCallback((n: string) => { toggle(setSelectedEntity, n, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
   const handleStatusClick = useCallback((s: string) => { setSelectedStatus(prev => prev === s ? null : s); }, []);
@@ -280,9 +257,7 @@ export default function RetailsPage() {
     selectedResps.size > 0 && `Resp: ${Array.from(selectedResps).join(', ')}`,
     selectedGar && `Garantia: ${selectedGar}`,
     selectedFin && `Fin: ${selectedFin}`,
-    selectedOrigin && `Origem: ${selectedOrigin}`,
     selectedModel && `Modelo: ${selectedModel}`,
-    selectedEntity && `Entidade: ${selectedEntity}`,
     selectedQor !== null && 'QoR: Sim',
     selectedBev !== null && 'BEV: Sim',
     selectedPark && 'Parque',
@@ -293,9 +268,7 @@ export default function RetailsPage() {
     if (type === 'resp') setSelectedResps(new Set());
     if (type === 'gar') setSelectedGar(null);
     if (type === 'fin') setSelectedFin(null);
-    if (type === 'origin') setSelectedOrigin(null);
     if (type === 'model') setSelectedModel(null);
-    if (type === 'entity') setSelectedEntity(null);
     if (type === 'qor') setSelectedQor(null);
     if (type === 'bev') setSelectedBev(null);
     if (type === 'park') setSelectedPark(false);
@@ -310,11 +283,6 @@ export default function RetailsPage() {
       </div>
     );
   }
-
-  const analysisData = analysisTab === 'entidade' ? entityData : analysisTab === 'origem' ? originData : modelData;
-  const analysisSelected = analysisTab === 'entidade' ? selectedEntity : analysisTab === 'origem' ? selectedOrigin : selectedModel;
-  const analysisClick = analysisTab === 'entidade' ? handleEntityClick : analysisTab === 'origem' ? handleOriginClick : handleModelClick;
-  const analysisColorMap = analysisTab === 'entidade' ? PROFILE_COLORS : undefined;
 
   return (
     <div className="space-y-3 animate-fade-in">
@@ -344,9 +312,7 @@ export default function RetailsPage() {
               )}
               {selectedGar && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('gar')}>{selectedGar} x</Badge>}
               {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
-              {selectedOrigin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('origin')}>{selectedOrigin} x</Badge>}
               {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
-              {selectedEntity && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('entity')}>{selectedEntity} x</Badge>}
               {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
               {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
               {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('park')}>Parque x</Badge>}
@@ -427,19 +393,10 @@ export default function RetailsPage() {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
             <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Analise</h3>
-                <select
-                  value={analysisTab}
-                  onChange={e => setAnalysisTab(e.target.value as AnalysisTab)}
-                  className="text-[10px] bg-muted border border-border rounded px-2 py-0.5 cursor-pointer focus:outline-none"
-                >
-                  <option value="entidade">Entidade</option>
-                  <option value="origem">Origem</option>
-                  <option value="modelos">Mix Modelos</option>
-                </select>
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Mix Modelos</h3>
               </div>
               <div className="max-h-44 overflow-y-auto pr-1">
-                <HorizontalBarList data={analysisData} colorMap={analysisColorMap} selected={analysisSelected} onClick={analysisClick} />
+                <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
               </div>
             </div>
 

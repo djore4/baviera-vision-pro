@@ -6,7 +6,7 @@ import { X, Check, Trash2 } from 'lucide-react';
 /* ── Form shape (colunas de control_records) ── */
 export interface RecordForm {
   status: string; neg: string | null; mes1: string; resp: string; id_cliente: string;
-  local: string; type: string; origin: string; profile: string; biz: string;
+  type: string; biz: string;
   enc: string; chas: string; mat: string; model: string; version: string; gar: string;
   qor: number; xev: number; bev: number; m: number; mpa: number; gkl: number;
   csc: number; cme: number | null;
@@ -14,15 +14,14 @@ export interface RecordForm {
 }
 
 const EMPTY: RecordForm = {
-  status: '', neg: '', mes1: '', resp: '', id_cliente: '', local: '',
-  type: '', origin: '', profile: '', biz: '', enc: '', chas: '', mat: '',
+  status: '', neg: '', mes1: '', resp: '', id_cliente: '',
+  type: '', biz: '', enc: '', chas: '', mat: '',
   model: '', version: '', gar: '', qor: 0, xev: 0, bev: 0, m: 0, mpa: 0, gkl: 0,
   csc: 0, cme: null, fin: '', week198: '', dmat: '', date298: '', app: '', obs: '',
 };
 
 const STATUS_OPTS = ['Frio','Morno','Quente','Carteira','Matricula','Retail','Adiado','Perdido'];
 const TYPE_OPTS   = ['VN','VD','VP'];
-const PROFILE_OPTS = ['Part','ENI','PE','BUS','FLE','CA','RAC','INT'];
 const GAR_OPTS    = ['GAR','nGAR'];
 const FIN_OPTS    = ['PP','FS','Fint','Fext'];
 const CLASS_FLAGS  = ['qor','xev','bev','m','mpa','gkl'] as const;
@@ -192,7 +191,6 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                 <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Veículo</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <SelectField k="type" label="TYPE" opts={TYPE_OPTS} />
-                  <SelectField k="profile" label="PROFILE" opts={PROFILE_OPTS} />
                   <TextField k="model" label="MODEL" />
                   <TextField k="version" label="VERSION" />
                   <SelectField k="gar" label="GAR — Garantia de entrega" opts={GAR_OPTS} />
