@@ -195,7 +195,7 @@ export function QualityRadarCard() {
       )}
 
       <p className="text-[10px] text-muted-foreground mt-1 px-1">
-        Notas de qualidade do serviço (escala 0–{QUALITY_MAX}), geridas no separador Qualidade.
+        Notas de qualidade do serviço (escala 0–{QUALITY_MAX}), geridas no tab Dados.
         Ligue/desligue a <strong>Média</strong> e escolha vendedores para ver a equipa, os vendedores ou ambos.
       </p>
     </div>

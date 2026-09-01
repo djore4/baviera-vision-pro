@@ -15,7 +15,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-/* ── Tab Qualidade (admin) ─────────────────────────────────────────────────────
+/* ── Qualidade do Serviço (gestão) ─────────────────────────────────────────────
+ * Incorporado no tab Dados (é entrada de dados). O resultado é consultado noutros
+ * tabs (cartão de leitura no Performance).
  * Gráfico de aranha das notas de qualidade do serviço, por mês e por vendedor.
  * As pontas são as dimensões (retails, contratos, BMW FS, CCGo, equipa,
  * NPS100). A escala é fixa (0–10) em ambos os eixos, para
@@ -70,7 +72,7 @@ const fmtStamp = (iso: string) =>
 
 const fmtNum = (n: number) => Number(n.toFixed(2));
 
-export default function QualidadePage() {
+export function QualityManager() {
   const { session } = useAuth();
   const { data } = useData();
   const { isAdmin } = usePermissions();
@@ -270,10 +272,10 @@ export default function QualidadePage() {
   const singleStampRow = singleStampVend ? rowByVendedor.get(singleStampVend) : undefined;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center gap-2">
         <RadarIcon className="h-5 w-5 text-primary" />
-        <h1 className="text-lg font-bold tracking-tight">Qualidade</h1>
+        <h2 className="text-base font-bold tracking-tight">Qualidade do Serviço</h2>
         <span className="text-xs text-muted-foreground">· Notas por vendedor · escala 0–{QUALITY_MAX}</span>
       </div>
 

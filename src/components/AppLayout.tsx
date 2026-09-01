@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, Droplets, UserCog, Archive, Settings, Radar, Target } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, Droplets, UserCog, Archive, Settings, Target } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
@@ -22,7 +22,6 @@ const NAV_ITEMS = [
   { path: '/lavagem', label: 'LAVAGEM', icon: Droplets },
   // Acessíveis a perfis não-admin (via permissões) → estilo normal, não "admin" (amarelo).
   { path: '/vendedores', label: 'PERFORMANCE', icon: Users },
-  { path: '/qualidade', label: 'QUALIDADE', icon: Radar },
   { path: '/prospecao', label: 'PROSPEÇÃO', icon: Target },
 ];
 
