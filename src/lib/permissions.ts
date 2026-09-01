@@ -21,7 +21,7 @@ export const TABS: TabDef[] = [
   { key: 'funil', label: 'Funil', path: '/funil', group: 'geral' },
   { key: 'producao', label: 'Produção', path: '/producao', group: 'geral' },
   { key: 'carteira', label: 'Carteira', path: '/carteira', group: 'geral' },
-  { key: 'pendentes', label: 'Pendentes', path: '/pendentes', group: 'geral' },
+  { key: 'pendentes', label: 'Pendentes', path: '/pendentes', group: 'admin' },
   { key: 'ficha-margem', label: 'Ficha Margem', path: '/ficha-margem', group: 'geral' },
   { key: 'escala', label: 'Escala', path: '/escala', group: 'geral' },
   { key: 'lavagem', label: 'Lavagem', path: '/lavagem', group: 'geral' },
@@ -40,7 +40,7 @@ export const TABS: TabDef[] = [
 ];
 
 /* Tabs "arrumados" dentro do Arquivo (não aparecem diretamente na barra lateral). */
-export const ARCHIVED_TAB_KEYS = ['escala-repsol', 'emprestimos', 'multas', 'database', 'demos', 'objetivos'];
+export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'multas', 'database', 'demos', 'objetivos'];
 
 export const TAB_BY_PATH: Record<string, TabDef> =
   TABS.reduce((acc, t) => { acc[t.path] = t; return acc; }, {} as Record<string, TabDef>);
