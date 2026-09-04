@@ -157,7 +157,6 @@ export default function RetomaPage() {
   const [modeloFilter, setModeloFilter] = useState('all');
   const [anoFilter, setAnoFilter] = useState('all');
   const [motFilter, setMotFilter] = useState<'all' | Motorizacao>('all');
-  const [impFilter, setImpFilter] = useState<'all' | 'sim' | 'nao'>('all');
   const [clusterFilter, setClusterFilter] = useState<ClusterKey | null>(null);
   const [kmMin, setKmMin] = useState('');
   const [kmMax, setKmMax] = useState('');
@@ -246,7 +245,6 @@ export default function RetomaPage() {
       .filter(r => modeloFilter === 'all' || r.modelo === modeloFilter)
       .filter(r => anoFilter === 'all' || yearOf(r.data_matricula) === anoFilter)
       .filter(r => motFilter === 'all' || r.motorizacao === motFilter)
-      .filter(r => impFilter === 'all' || (impFilter === 'sim' ? r.importado : !r.importado))
       .filter(r => kMin === null || (r.quilometragem !== null && r.quilometragem >= kMin))
       .filter(r => kMax === null || (r.quilometragem !== null && r.quilometragem <= kMax))
       .filter(r => pMin === null || (r.preco !== null && r.preco >= pMin))
@@ -265,14 +263,14 @@ export default function RetomaPage() {
       if (va > vb) return 1 * dir;
       return 0;
     });
-  }, [rows, search, view, marcaFilter, modeloFilter, anoFilter, motFilter, impFilter, kmMin, kmMax, precoMin, precoMax, clusterFilter, sort]);
+  }, [rows, search, view, marcaFilter, modeloFilter, anoFilter, motFilter, kmMin, kmMax, precoMin, precoMax, clusterFilter, sort]);
 
   const anyFilter = !!(search || marcaFilter !== 'all' || modeloFilter !== 'all' || anoFilter !== 'all'
-    || motFilter !== 'all' || impFilter !== 'all' || clusterFilter
+    || motFilter !== 'all' || clusterFilter
     || kmMin || kmMax || precoMin || precoMax);
   const clearFilters = () => {
     setSearch(''); setMarcaFilter('all'); setModeloFilter('all'); setAnoFilter('all');
-    setMotFilter('all'); setImpFilter('all'); setClusterFilter(null);
+    setMotFilter('all'); setClusterFilter(null);
     setKmMin(''); setKmMax(''); setPrecoMin(''); setPrecoMax('');
   };
 
@@ -454,13 +452,6 @@ export default function RetomaPage() {
             <select value={motFilter} onChange={e => setMotFilter(e.target.value as 'all' | Motorizacao)} className={filterCls}>
               <option value="all">Todas</option>
               {MOTORIZACOES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-          </FilterBox>
-          <FilterBox label="Importado">
-            <select value={impFilter} onChange={e => setImpFilter(e.target.value as 'all' | 'sim' | 'nao')} className={filterCls}>
-              <option value="all">Todos</option>
-              <option value="sim">Sim</option>
-              <option value="nao">Não</option>
             </select>
           </FilterBox>
           <FilterBox label="Antiguidade">
