@@ -26,6 +26,7 @@ interface Retoma {
   data_matricula: string | null;
   data_entrada_stock: string | null;
   quilometragem: number | null;
+  preco: number | null;
   importado: boolean;
   link_caetano: string | null;
   link_maxterauto: string | null;
@@ -45,6 +46,7 @@ interface RetomaForm {
   data_matricula: string;
   data_entrada_stock: string;
   quilometragem: string;
+  preco: string;
   importado: boolean;
   link_caetano: string;
   link_maxterauto: string;
@@ -55,7 +57,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const EMPTY: RetomaForm = {
   marca: '', modelo: '', motorizacao: '', matricula: '', data_matricula: '',
-  data_entrada_stock: '', quilometragem: '', importado: false,
+  data_entrada_stock: '', quilometragem: '', preco: '', importado: false,
   link_caetano: '', link_maxterauto: '', link_fotos: '',
 };
 
@@ -94,6 +96,11 @@ function ageDays(r: Retoma): number | null {
 const kmFmt = (v: number | null) =>
   v === null || v === undefined ? '—' : `${v.toLocaleString('pt-PT')} km`;
 
+const precoFmt = (v: number | null) =>
+  v === null || v === undefined ? '—' : `${v.toLocaleString('pt-PT', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+
+const yearOf = (v: string | null) => (v ? v.slice(0, 4) : null);
+
 const dateFmt = (v: string | null) =>
   v ? new Date(v).toLocaleDateString('pt-PT') : '—';
 
@@ -107,11 +114,12 @@ const normalizeUrl = (u: string) => {
 
 type SortKey =
   | 'marca' | 'modelo' | 'motorizacao' | 'matricula'
-  | 'data_matricula' | 'data_entrada_stock' | 'antiguidade' | 'quilometragem' | 'importado';
+  | 'data_matricula' | 'data_entrada_stock' | 'antiguidade' | 'quilometragem' | 'preco' | 'importado';
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'antiguidade', label: 'Antiguidade' },
   { key: 'data_entrada_stock', label: 'Entrada em stock' },
+  { key: 'preco', label: 'Preço' },
   { key: 'marca', label: 'Marca' },
   { key: 'modelo', label: 'Modelo' },
   { key: 'motorizacao', label: 'Motorização' },
@@ -125,6 +133,7 @@ function sortValue(r: Retoma, key: SortKey): string | number {
   switch (key) {
     case 'antiguidade': return ageDays(r) ?? -1;
     case 'quilometragem': return r.quilometragem ?? -1;
+    case 'preco': return r.preco ?? -1;
     case 'importado': return r.importado ? 1 : 0;
     case 'data_matricula': return r.data_matricula ?? '';
     case 'data_entrada_stock': return r.data_entrada_stock ?? '';
@@ -144,9 +153,16 @@ export default function RetomaPage() {
 
   // Filtros
   const [search, setSearch] = useState('');
+  const [marcaFilter, setMarcaFilter] = useState('all');
+  const [modeloFilter, setModeloFilter] = useState('all');
+  const [anoFilter, setAnoFilter] = useState('all');
   const [motFilter, setMotFilter] = useState<'all' | Motorizacao>('all');
   const [impFilter, setImpFilter] = useState<'all' | 'sim' | 'nao'>('all');
   const [clusterFilter, setClusterFilter] = useState<ClusterKey | null>(null);
+  const [kmMin, setKmMin] = useState('');
+  const [kmMax, setKmMax] = useState('');
+  const [precoMin, setPrecoMin] = useState('');
+  const [precoMax, setPrecoMax] = useState('');
 
   // Ordenação (por defeito: mais antigas primeiro — o que interessa no aging)
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'antiguidade', dir: 'desc' });
@@ -163,7 +179,12 @@ export default function RetomaPage() {
     const { data, error } = await supabase
       .from('retomas').select('*').order('created_at', { ascending: false });
     if (error) toast.error('Não foi possível carregar as retomas.');
-    setRows((data as Retoma[]) ?? []);
+    // numeric (preco) chega como string do Postgrest — normaliza para número.
+    const norm = ((data as Retoma[]) ?? []).map(r => ({
+      ...r,
+      preco: r.preco === null || r.preco === undefined ? null : Number(r.preco),
+    }));
+    setRows(norm);
     setLoading(false);
   }
 
@@ -173,6 +194,27 @@ export default function RetomaPage() {
     ativas: rows.filter(r => !r.arquivada).length,
     arquivadas: rows.filter(r => r.arquivada).length,
   }), [rows]);
+
+  // Valores distintos para os selects (limitados à vista atual).
+  const scope = useMemo(
+    () => rows.filter(r => (view === 'arquivadas' ? r.arquivada : !r.arquivada)),
+    [rows, view],
+  );
+  const marcas = useMemo(
+    () => Array.from(new Set(scope.map(r => r.marca).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt')),
+    [scope],
+  );
+  const modelos = useMemo(
+    () => Array.from(new Set(
+      scope.filter(r => marcaFilter === 'all' || r.marca === marcaFilter).map(r => r.modelo).filter(Boolean),
+    )).sort((a, b) => a.localeCompare(b, 'pt')),
+    [scope, marcaFilter],
+  );
+  const anos = useMemo(
+    () => Array.from(new Set(scope.map(r => yearOf(r.data_matricula)).filter(Boolean) as string[]))
+      .sort((a, b) => b.localeCompare(a)),
+    [scope],
+  );
 
   // KPI de aging: sempre sobre o stock ativo (independente dos outros filtros).
   const clusterStats = useMemo(() => {
@@ -189,14 +231,26 @@ export default function RetomaPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const kMin = kmMin.trim() === '' ? null : Number(kmMin);
+    const kMax = kmMax.trim() === '' ? null : Number(kmMax);
+    const pMin = precoMin.trim() === '' ? null : Number(precoMin);
+    const pMax = precoMax.trim() === '' ? null : Number(precoMax);
+
     const list = rows
       .filter(r => (view === 'arquivadas' ? r.arquivada : !r.arquivada))
       .filter(r => !q ||
         r.marca?.toLowerCase().includes(q) ||
         r.modelo?.toLowerCase().includes(q) ||
         r.matricula?.toLowerCase().includes(q))
+      .filter(r => marcaFilter === 'all' || r.marca === marcaFilter)
+      .filter(r => modeloFilter === 'all' || r.modelo === modeloFilter)
+      .filter(r => anoFilter === 'all' || yearOf(r.data_matricula) === anoFilter)
       .filter(r => motFilter === 'all' || r.motorizacao === motFilter)
       .filter(r => impFilter === 'all' || (impFilter === 'sim' ? r.importado : !r.importado))
+      .filter(r => kMin === null || (r.quilometragem !== null && r.quilometragem >= kMin))
+      .filter(r => kMax === null || (r.quilometragem !== null && r.quilometragem <= kMax))
+      .filter(r => pMin === null || (r.preco !== null && r.preco >= pMin))
+      .filter(r => pMax === null || (r.preco !== null && r.preco <= pMax))
       .filter(r => {
         if (!clusterFilter || view !== 'ativas') return true;
         const a = ageDays(r);
@@ -211,10 +265,16 @@ export default function RetomaPage() {
       if (va > vb) return 1 * dir;
       return 0;
     });
-  }, [rows, search, view, motFilter, impFilter, clusterFilter, sort]);
+  }, [rows, search, view, marcaFilter, modeloFilter, anoFilter, motFilter, impFilter, kmMin, kmMax, precoMin, precoMax, clusterFilter, sort]);
 
-  const anyFilter = search || motFilter !== 'all' || impFilter !== 'all' || clusterFilter;
-  const clearFilters = () => { setSearch(''); setMotFilter('all'); setImpFilter('all'); setClusterFilter(null); };
+  const anyFilter = !!(search || marcaFilter !== 'all' || modeloFilter !== 'all' || anoFilter !== 'all'
+    || motFilter !== 'all' || impFilter !== 'all' || clusterFilter
+    || kmMin || kmMax || precoMin || precoMax);
+  const clearFilters = () => {
+    setSearch(''); setMarcaFilter('all'); setModeloFilter('all'); setAnoFilter('all');
+    setMotFilter('all'); setImpFilter('all'); setClusterFilter(null);
+    setKmMin(''); setKmMax(''); setPrecoMin(''); setPrecoMax('');
+  };
 
   function toggleSort(key: SortKey) {
     setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' });
@@ -230,6 +290,7 @@ export default function RetomaPage() {
       data_matricula: r.data_matricula ?? '',
       data_entrada_stock: r.data_entrada_stock ?? '',
       quilometragem: r.quilometragem?.toString() ?? '',
+      preco: r.preco?.toString() ?? '',
       importado: r.importado,
       link_caetano: r.link_caetano ?? '',
       link_maxterauto: r.link_maxterauto ?? '',
@@ -249,6 +310,11 @@ export default function RetomaPage() {
       toast.error('Quilometragem inválida.');
       return;
     }
+    const preco = form.preco.trim();
+    if (preco && (isNaN(Number(preco)) || Number(preco) < 0)) {
+      toast.error('Preço inválido.');
+      return;
+    }
     setSaving(true);
     const payload = {
       marca: form.marca.trim(),
@@ -258,6 +324,7 @@ export default function RetomaPage() {
       data_matricula: form.data_matricula || null,
       data_entrada_stock: form.data_entrada_stock || todayISO(),
       quilometragem: km ? Number(km) : null,
+      preco: preco ? Number(preco) : null,
       importado: form.importado,
       link_caetano: normalizeUrl(form.link_caetano) || null,
       link_maxterauto: normalizeUrl(form.link_maxterauto) || null,
@@ -362,31 +429,87 @@ export default function RetomaPage() {
         )}
       </div>
 
-      {/* Filtros secundários */}
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <select value={motFilter} onChange={e => setMotFilter(e.target.value as 'all' | Motorizacao)} className={filterCls}>
-          <option value="all">Motorização: todas</option>
-          {MOTORIZACOES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-        </select>
-        <select value={impFilter} onChange={e => setImpFilter(e.target.value as 'all' | 'sim' | 'nao')} className={filterCls}>
-          <option value="all">Importado: todos</option>
-          <option value="sim">Importado: sim</option>
-          <option value="nao">Importado: não</option>
-        </select>
-        {/* Ordenação (útil sobretudo em mobile, onde não há cabeçalhos clicáveis) */}
-        <select value={sort.key} onChange={e => setSort(s => ({ ...s, key: e.target.value as SortKey }))} className={`${filterCls} sm:hidden`}>
-          {SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>Ordenar: {o.label}</option>)}
-        </select>
-        <button onClick={() => setSort(s => ({ ...s, dir: s.dir === 'asc' ? 'desc' : 'asc' }))} className={`${filterCls} sm:hidden inline-flex items-center gap-1`}>
-          {sort.dir === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          {sort.dir === 'asc' ? 'Asc' : 'Desc'}
-        </button>
-        {anyFilter && (
-          <button onClick={clearFilters} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
-            <FilterX className="h-3.5 w-3.5" /> Limpar filtros
-          </button>
-        )}
-        <span className="ml-auto text-muted-foreground">{filtered.length} {filtered.length === 1 ? 'retoma' : 'retomas'}</span>
+      {/* Filtros */}
+      <div className="rounded-lg border border-border bg-muted/20 p-2.5">
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-2 text-xs">
+          <FilterBox label="Marca">
+            <select value={marcaFilter} onChange={e => { setMarcaFilter(e.target.value); setModeloFilter('all'); }} className={filterCls}>
+              <option value="all">Todas</option>
+              {marcas.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </FilterBox>
+          <FilterBox label="Modelo">
+            <select value={modeloFilter} onChange={e => setModeloFilter(e.target.value)} className={filterCls}>
+              <option value="all">Todos</option>
+              {modelos.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </FilterBox>
+          <FilterBox label="Ano matrícula">
+            <select value={anoFilter} onChange={e => setAnoFilter(e.target.value)} className={filterCls}>
+              <option value="all">Todos</option>
+              {anos.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </FilterBox>
+          <FilterBox label="Motorização">
+            <select value={motFilter} onChange={e => setMotFilter(e.target.value as 'all' | Motorizacao)} className={filterCls}>
+              <option value="all">Todas</option>
+              {MOTORIZACOES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </FilterBox>
+          <FilterBox label="Importado">
+            <select value={impFilter} onChange={e => setImpFilter(e.target.value as 'all' | 'sim' | 'nao')} className={filterCls}>
+              <option value="all">Todos</option>
+              <option value="sim">Sim</option>
+              <option value="nao">Não</option>
+            </select>
+          </FilterBox>
+          <FilterBox label="Antiguidade">
+            <select
+              value={view === 'ativas' ? (clusterFilter ?? 'all') : 'all'}
+              onChange={e => setClusterFilter(e.target.value === 'all' ? null : e.target.value as ClusterKey)}
+              disabled={view !== 'ativas'}
+              className={`${filterCls} disabled:opacity-50`}
+            >
+              <option value="all">Todas</option>
+              {CLUSTERS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+          </FilterBox>
+          <FilterBox label="Quilometragem">
+            <div className="flex items-center gap-1">
+              <input type="number" min={0} placeholder="mín" value={kmMin} onChange={e => setKmMin(e.target.value)} className={`${filterCls} w-20`} />
+              <span className="text-muted-foreground">–</span>
+              <input type="number" min={0} placeholder="máx" value={kmMax} onChange={e => setKmMax(e.target.value)} className={`${filterCls} w-20`} />
+            </div>
+          </FilterBox>
+          <FilterBox label="Preço (€)">
+            <div className="flex items-center gap-1">
+              <input type="number" min={0} placeholder="mín" value={precoMin} onChange={e => setPrecoMin(e.target.value)} className={`${filterCls} w-20`} />
+              <span className="text-muted-foreground">–</span>
+              <input type="number" min={0} placeholder="máx" value={precoMax} onChange={e => setPrecoMax(e.target.value)} className={`${filterCls} w-20`} />
+            </div>
+          </FilterBox>
+
+          {/* Ordenação (mobile, onde não há cabeçalhos clicáveis) */}
+          <FilterBox label="Ordenar" className="sm:hidden">
+            <div className="flex items-center gap-1">
+              <select value={sort.key} onChange={e => setSort(s => ({ ...s, key: e.target.value as SortKey }))} className={filterCls}>
+                {SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+              <button onClick={() => setSort(s => ({ ...s, dir: s.dir === 'asc' ? 'desc' : 'asc' }))} className={`${filterCls} inline-flex items-center`} title="Inverter ordem">
+                {sort.dir === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </FilterBox>
+        </div>
+
+        <div className="mt-2 flex items-center gap-3 text-xs">
+          {anyFilter && (
+            <button onClick={clearFilters} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+              <FilterX className="h-3.5 w-3.5" /> Limpar filtros
+            </button>
+          )}
+          <span className="ml-auto text-muted-foreground">{filtered.length} {filtered.length === 1 ? 'retoma' : 'retomas'}</span>
+        </div>
       </div>
 
       {/* Form modal */}
@@ -439,6 +562,10 @@ export default function RetomaPage() {
                   <Field label="Quilometragem">
                     <input type="number" min={0} className={inputCls} value={form.quilometragem} placeholder="km"
                       onChange={e => setForm(p => ({ ...p, quilometragem: e.target.value }))} />
+                  </Field>
+                  <Field label="Preço (€)">
+                    <input type="number" min={0} step="0.01" className={inputCls} value={form.preco} placeholder="€"
+                      onChange={e => setForm(p => ({ ...p, preco: e.target.value }))} />
                   </Field>
                 </div>
               </div>
@@ -525,6 +652,7 @@ export default function RetomaPage() {
                     <div>Entrada: <span className="text-foreground/80">{dateFmt(r.data_entrada_stock)}</span></div>
                     <div>Data mat.: <span className="text-foreground/80">{dateFmt(r.data_matricula)}</span></div>
                     <div>Km: <span className="text-foreground/80">{kmFmt(r.quilometragem)}</span></div>
+                    <div>Preço: <span className="font-medium text-foreground/90">{precoFmt(r.preco)}</span></div>
                     <div>Importado: <span className="text-foreground/80">{r.importado ? 'Sim' : 'Não'}</span></div>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
@@ -555,6 +683,7 @@ export default function RetomaPage() {
                   <SortableTh label="Entrada stock" k="data_entrada_stock" sort={sort} onSort={toggleSort} />
                   <SortableTh label="Antiguidade" k="antiguidade" sort={sort} onSort={toggleSort} />
                   <SortableTh label="Km" k="quilometragem" sort={sort} onSort={toggleSort} />
+                  <SortableTh label="Preço" k="preco" sort={sort} onSort={toggleSort} />
                   <SortableTh label="Import." k="importado" sort={sort} onSort={toggleSort} />
                   <th className="px-2 py-2 text-left font-semibold text-muted-foreground whitespace-nowrap border-b border-border">Links</th>
                   <th className="px-2 py-2 border-b border-border" />
@@ -582,6 +711,7 @@ export default function RetomaPage() {
                           : '—'}
                       </td>
                       <td className="px-2 py-1.5 whitespace-nowrap text-foreground/80">{kmFmt(r.quilometragem)}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap font-medium text-foreground/90">{precoFmt(r.preco)}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap text-foreground/80">{r.importado ? 'Sim' : 'Não'}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
@@ -632,6 +762,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return (
     <div>
       <label className="block text-[10px] font-medium text-muted-foreground mb-1">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function FilterBox({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
       {children}
     </div>
   );
