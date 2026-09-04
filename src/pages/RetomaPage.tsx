@@ -153,8 +153,6 @@ export default function RetomaPage() {
 
   // Filtros
   const [search, setSearch] = useState('');
-  const [marcaFilter, setMarcaFilter] = useState('all');
-  const [modeloFilter, setModeloFilter] = useState('all');
   const [anoFilter, setAnoFilter] = useState('all');
   const [motFilter, setMotFilter] = useState<'all' | Motorizacao>('all');
   const [clusterFilter, setClusterFilter] = useState<ClusterKey | null>(null);
@@ -199,16 +197,6 @@ export default function RetomaPage() {
     () => rows.filter(r => (view === 'arquivadas' ? r.arquivada : !r.arquivada)),
     [rows, view],
   );
-  const marcas = useMemo(
-    () => Array.from(new Set(scope.map(r => r.marca).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt')),
-    [scope],
-  );
-  const modelos = useMemo(
-    () => Array.from(new Set(
-      scope.filter(r => marcaFilter === 'all' || r.marca === marcaFilter).map(r => r.modelo).filter(Boolean),
-    )).sort((a, b) => a.localeCompare(b, 'pt')),
-    [scope, marcaFilter],
-  );
   const anos = useMemo(
     () => Array.from(new Set(scope.map(r => yearOf(r.data_matricula)).filter(Boolean) as string[]))
       .sort((a, b) => b.localeCompare(a)),
@@ -241,8 +229,6 @@ export default function RetomaPage() {
         r.marca?.toLowerCase().includes(q) ||
         r.modelo?.toLowerCase().includes(q) ||
         r.matricula?.toLowerCase().includes(q))
-      .filter(r => marcaFilter === 'all' || r.marca === marcaFilter)
-      .filter(r => modeloFilter === 'all' || r.modelo === modeloFilter)
       .filter(r => anoFilter === 'all' || yearOf(r.data_matricula) === anoFilter)
       .filter(r => motFilter === 'all' || r.motorizacao === motFilter)
       .filter(r => kMin === null || (r.quilometragem !== null && r.quilometragem >= kMin))
@@ -263,13 +249,13 @@ export default function RetomaPage() {
       if (va > vb) return 1 * dir;
       return 0;
     });
-  }, [rows, search, view, marcaFilter, modeloFilter, anoFilter, motFilter, kmMin, kmMax, precoMin, precoMax, clusterFilter, sort]);
+  }, [rows, search, view, anoFilter, motFilter, kmMin, kmMax, precoMin, precoMax, clusterFilter, sort]);
 
-  const anyFilter = !!(search || marcaFilter !== 'all' || modeloFilter !== 'all' || anoFilter !== 'all'
+  const anyFilter = !!(search || anoFilter !== 'all'
     || motFilter !== 'all' || clusterFilter
     || kmMin || kmMax || precoMin || precoMax);
   const clearFilters = () => {
-    setSearch(''); setMarcaFilter('all'); setModeloFilter('all'); setAnoFilter('all');
+    setSearch(''); setAnoFilter('all');
     setMotFilter('all'); setClusterFilter(null);
     setKmMin(''); setKmMax(''); setPrecoMin(''); setPrecoMax('');
   };
@@ -361,24 +347,24 @@ export default function RetomaPage() {
     <div className="space-y-3">
       {/* KPI: clusters de antiguidade (só na carteira ativa) */}
       {view === 'ativas' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
           {clusterStats.map(c => {
             const active = clusterFilter === c.key;
             return (
               <button
                 key={c.key}
                 onClick={() => setClusterFilter(active ? null : c.key)}
-                className={`rounded-lg border p-2.5 text-left transition-colors ${
+                className={`rounded-lg border p-2 sm:p-2.5 text-left transition-colors ${
                   active ? 'border-primary ring-1 ring-primary bg-primary/5' : 'border-border hover:bg-muted/40'
                 }`}
                 title={`Filtrar por ${c.label}`}
               >
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-                  <span className={`h-2 w-2 rounded-full ${c.dot}`} /> {c.label}
+                <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-muted-foreground leading-tight">
+                  <span className={`hidden sm:inline-block h-2 w-2 flex-shrink-0 rounded-full ${c.dot}`} /> {c.label}
                 </div>
-                <div className="mt-1 flex items-baseline gap-1.5">
-                  <span className="text-xl font-bold tabular-nums">{c.n}</span>
-                  <span className="text-xs text-muted-foreground">{c.pct}%</span>
+                <div className="mt-1 flex items-baseline gap-1 sm:gap-1.5">
+                  <span className="text-lg sm:text-xl font-bold tabular-nums">{c.n}</span>
+                  <span className="text-[11px] sm:text-xs text-muted-foreground">{c.pct}%</span>
                 </div>
               </button>
             );
@@ -430,18 +416,6 @@ export default function RetomaPage() {
       {/* Filtros */}
       <div className="rounded-lg border border-border bg-muted/20 p-2.5">
         <div className="flex flex-wrap items-end gap-x-3 gap-y-2 text-xs">
-          <FilterBox label="Marca">
-            <select value={marcaFilter} onChange={e => { setMarcaFilter(e.target.value); setModeloFilter('all'); }} className={filterCls}>
-              <option value="all">Todas</option>
-              {marcas.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </FilterBox>
-          <FilterBox label="Modelo">
-            <select value={modeloFilter} onChange={e => setModeloFilter(e.target.value)} className={filterCls}>
-              <option value="all">Todos</option>
-              {modelos.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </FilterBox>
           <FilterBox label="Ano matrícula">
             <select value={anoFilter} onChange={e => setAnoFilter(e.target.value)} className={filterCls}>
               <option value="all">Todos</option>
