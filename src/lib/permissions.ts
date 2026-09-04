@@ -25,6 +25,7 @@ export const TABS: TabDef[] = [
   { key: 'ficha-margem', label: 'Ficha Margem', path: '/ficha-margem', group: 'geral' },
   { key: 'escala', label: 'Escala', path: '/escala', group: 'geral' },
   { key: 'lavagem', label: 'Lavagem', path: '/lavagem', group: 'geral' },
+  { key: 'retoma', label: 'Retoma', path: '/retoma', group: 'admin' },
   { key: 'escala-repsol', label: 'Escala Repsol', path: '/escala-repsol', group: 'admin' },
   { key: 'prospecao', label: 'Prospeção', path: '/prospecao', group: 'admin' },
   { key: 'vendedores', label: 'Performance', path: '/vendedores', group: 'admin' },
