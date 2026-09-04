@@ -4,12 +4,14 @@ import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   Plus, Pencil, Trash2, X, Check, Search, Archive, ArchiveRestore, ExternalLink,
+  ChevronUp, ChevronDown, ChevronsUpDown, FilterX,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 /* ── Tab Retoma (admin) ────────────────────────────────────────────────────────
- * Repositório e stock de viaturas de retoma. Permite inserir/consultar retomas
- * e arquivá-las (saindo da carteira ativa, mas mantendo-se consultáveis).
+ * Repositório e stock de viaturas de retoma. Permite inserir/consultar retomas,
+ * arquivá-las (saindo da carteira ativa) e acompanhar a antiguidade em stock —
+ * indicador principal, com clusters de aging (0–30 / 31–90 / 91–120 / 121+).
  * O acesso é controlado pela matriz de permissões (tab 'retoma').
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -22,6 +24,7 @@ interface Retoma {
   motorizacao: Motorizacao | null;
   matricula: string | null;
   data_matricula: string | null;
+  data_entrada_stock: string | null;
   quilometragem: number | null;
   importado: boolean;
   link_caetano: string | null;
@@ -40,6 +43,7 @@ interface RetomaForm {
   motorizacao: Motorizacao | '';
   matricula: string;
   data_matricula: string;
+  data_entrada_stock: string;
   quilometragem: string;
   importado: boolean;
   link_caetano: string;
@@ -47,9 +51,11 @@ interface RetomaForm {
   link_fotos: string;
 }
 
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
 const EMPTY: RetomaForm = {
   marca: '', modelo: '', motorizacao: '', matricula: '', data_matricula: '',
-  quilometragem: '', importado: false,
+  data_entrada_stock: '', quilometragem: '', importado: false,
   link_caetano: '', link_maxterauto: '', link_fotos: '',
 };
 
@@ -62,18 +68,70 @@ const MOTORIZACOES: { value: Motorizacao; label: string; cls: string }[] = [
 const motLabel = (m: Motorizacao | null) => MOTORIZACOES.find(x => x.value === m)?.label ?? '—';
 const motCls   = (m: Motorizacao | null) => MOTORIZACOES.find(x => x.value === m)?.cls ?? '';
 
+/* ── Clusters de antiguidade (aging do stock) ──────────────────────────────── */
+
+type ClusterKey = '0-30' | '31-90' | '91-120' | '121+';
+
+const CLUSTERS: { key: ClusterKey; label: string; test: (a: number) => boolean; cls: string; dot: string }[] = [
+  { key: '0-30',   label: '0–30 dias',   test: a => a <= 30,             cls: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300',   dot: 'bg-green-500' },
+  { key: '31-90',  label: '31–90 dias',  test: a => a >= 31 && a <= 90,  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',   dot: 'bg-amber-500' },
+  { key: '91-120', label: '91–120 dias', test: a => a >= 91 && a <= 120, cls: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300', dot: 'bg-orange-500' },
+  { key: '121+',   label: '121+ dias',   test: a => a >= 121,            cls: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',           dot: 'bg-red-500' },
+];
+
+const clusterOf = (age: number | null) =>
+  age === null ? null : (CLUSTERS.find(c => c.test(age)) ?? null);
+
+/* Antiguidade em dias: entrada em stock → hoje (ativa) ou → data de arquivo
+ * (arquivada, para não continuar a "envelhecer" depois de sair da carteira). */
+function ageDays(r: Retoma): number | null {
+  if (!r.data_entrada_stock) return null;
+  const start = new Date(`${r.data_entrada_stock}T00:00:00`).getTime();
+  const end = r.arquivada && r.arquivada_at ? new Date(r.arquivada_at).getTime() : Date.now();
+  return Math.max(0, Math.floor((end - start) / 86400000));
+}
+
 const kmFmt = (v: number | null) =>
   v === null || v === undefined ? '—' : `${v.toLocaleString('pt-PT')} km`;
 
 const dateFmt = (v: string | null) =>
   v ? new Date(v).toLocaleDateString('pt-PT') : '—';
 
-/* Normaliza um link colado (aceita já com http(s) ou só o domínio). */
 const normalizeUrl = (u: string) => {
   const t = u.trim();
   if (!t) return '';
   return /^https?:\/\//i.test(t) ? t : `https://${t}`;
 };
+
+/* ── Ordenação ─────────────────────────────────────────────────────────────── */
+
+type SortKey =
+  | 'marca' | 'modelo' | 'motorizacao' | 'matricula'
+  | 'data_matricula' | 'data_entrada_stock' | 'antiguidade' | 'quilometragem' | 'importado';
+
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'antiguidade', label: 'Antiguidade' },
+  { key: 'data_entrada_stock', label: 'Entrada em stock' },
+  { key: 'marca', label: 'Marca' },
+  { key: 'modelo', label: 'Modelo' },
+  { key: 'motorizacao', label: 'Motorização' },
+  { key: 'matricula', label: 'Matrícula' },
+  { key: 'data_matricula', label: 'Data matrícula' },
+  { key: 'quilometragem', label: 'Quilometragem' },
+  { key: 'importado', label: 'Importado' },
+];
+
+function sortValue(r: Retoma, key: SortKey): string | number {
+  switch (key) {
+    case 'antiguidade': return ageDays(r) ?? -1;
+    case 'quilometragem': return r.quilometragem ?? -1;
+    case 'importado': return r.importado ? 1 : 0;
+    case 'data_matricula': return r.data_matricula ?? '';
+    case 'data_entrada_stock': return r.data_entrada_stock ?? '';
+    case 'motorizacao': return r.motorizacao ?? '';
+    default: return (r[key] as string | null)?.toLowerCase() ?? '';
+  }
+}
 
 export default function RetomaPage() {
   const { session } = useAuth();
@@ -82,8 +140,17 @@ export default function RetomaPage() {
 
   const [rows, setRows] = useState<Retoma[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
   const [view, setView] = useState<'ativas' | 'arquivadas'>('ativas');
+
+  // Filtros
+  const [search, setSearch] = useState('');
+  const [motFilter, setMotFilter] = useState<'all' | Motorizacao>('all');
+  const [impFilter, setImpFilter] = useState<'all' | 'sim' | 'nao'>('all');
+  const [clusterFilter, setClusterFilter] = useState<ClusterKey | null>(null);
+
+  // Ordenação (por defeito: mais antigas primeiro — o que interessa no aging)
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'antiguidade', dir: 'desc' });
+
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<RetomaForm>(EMPTY);
   const [editId, setEditId] = useState<string | null>(null);
@@ -107,17 +174,53 @@ export default function RetomaPage() {
     arquivadas: rows.filter(r => r.arquivada).length,
   }), [rows]);
 
+  // KPI de aging: sempre sobre o stock ativo (independente dos outros filtros).
+  const clusterStats = useMemo(() => {
+    const active = rows.filter(r => !r.arquivada);
+    const total = active.length;
+    return CLUSTERS.map(c => {
+      const n = active.filter(r => {
+        const a = ageDays(r);
+        return a !== null && c.test(a);
+      }).length;
+      return { ...c, n, pct: total ? Math.round((n / total) * 100) : 0 };
+    });
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows
+    const list = rows
       .filter(r => (view === 'arquivadas' ? r.arquivada : !r.arquivada))
       .filter(r => !q ||
         r.marca?.toLowerCase().includes(q) ||
         r.modelo?.toLowerCase().includes(q) ||
-        r.matricula?.toLowerCase().includes(q));
-  }, [rows, search, view]);
+        r.matricula?.toLowerCase().includes(q))
+      .filter(r => motFilter === 'all' || r.motorizacao === motFilter)
+      .filter(r => impFilter === 'all' || (impFilter === 'sim' ? r.importado : !r.importado))
+      .filter(r => {
+        if (!clusterFilter || view !== 'ativas') return true;
+        const a = ageDays(r);
+        return a !== null && CLUSTERS.find(c => c.key === clusterFilter)!.test(a);
+      });
 
-  function openNew() { setForm(EMPTY); setEditId(null); setShowForm(true); }
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...list].sort((a, b) => {
+      const va = sortValue(a, sort.key);
+      const vb = sortValue(b, sort.key);
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+  }, [rows, search, view, motFilter, impFilter, clusterFilter, sort]);
+
+  const anyFilter = search || motFilter !== 'all' || impFilter !== 'all' || clusterFilter;
+  const clearFilters = () => { setSearch(''); setMotFilter('all'); setImpFilter('all'); setClusterFilter(null); };
+
+  function toggleSort(key: SortKey) {
+    setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' });
+  }
+
+  function openNew() { setForm({ ...EMPTY, data_entrada_stock: todayISO() }); setEditId(null); setShowForm(true); }
   function openEdit(r: Retoma) {
     setForm({
       marca: r.marca ?? '',
@@ -125,6 +228,7 @@ export default function RetomaPage() {
       motorizacao: r.motorizacao ?? '',
       matricula: r.matricula ?? '',
       data_matricula: r.data_matricula ?? '',
+      data_entrada_stock: r.data_entrada_stock ?? '',
       quilometragem: r.quilometragem?.toString() ?? '',
       importado: r.importado,
       link_caetano: r.link_caetano ?? '',
@@ -152,6 +256,7 @@ export default function RetomaPage() {
       motorizacao: form.motorizacao || null,
       matricula: form.matricula.trim() || null,
       data_matricula: form.data_matricula || null,
+      data_entrada_stock: form.data_entrada_stock || todayISO(),
       quilometragem: km ? Number(km) : null,
       importado: form.importado,
       link_caetano: normalizeUrl(form.link_caetano) || null,
@@ -189,13 +294,40 @@ export default function RetomaPage() {
 
   return (
     <div className="space-y-3">
-      {/* Toggle Ativas / Arquivadas */}
+      {/* KPI: clusters de antiguidade (só na carteira ativa) */}
+      {view === 'ativas' && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          {clusterStats.map(c => {
+            const active = clusterFilter === c.key;
+            return (
+              <button
+                key={c.key}
+                onClick={() => setClusterFilter(active ? null : c.key)}
+                className={`rounded-lg border p-2.5 text-left transition-colors ${
+                  active ? 'border-primary ring-1 ring-primary bg-primary/5' : 'border-border hover:bg-muted/40'
+                }`}
+                title={`Filtrar por ${c.label}`}
+              >
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                  <span className={`h-2 w-2 rounded-full ${c.dot}`} /> {c.label}
+                </div>
+                <div className="mt-1 flex items-baseline gap-1.5">
+                  <span className="text-xl font-bold tabular-nums">{c.n}</span>
+                  <span className="text-xs text-muted-foreground">{c.pct}%</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Toggle Ativas / Arquivadas + pesquisa + inserir */}
       <div className="flex flex-wrap gap-2 items-center">
         <div className="inline-flex w-full sm:w-auto rounded-md border border-border overflow-hidden">
           {(['ativas', 'arquivadas'] as const).map(v => (
             <button
               key={v}
-              onClick={() => setView(v)}
+              onClick={() => { setView(v); if (v === 'arquivadas') setClusterFilter(null); }}
               className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium transition-colors ${
                 view === v ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'
               }`}
@@ -230,6 +362,33 @@ export default function RetomaPage() {
         )}
       </div>
 
+      {/* Filtros secundários */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <select value={motFilter} onChange={e => setMotFilter(e.target.value as 'all' | Motorizacao)} className={filterCls}>
+          <option value="all">Motorização: todas</option>
+          {MOTORIZACOES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </select>
+        <select value={impFilter} onChange={e => setImpFilter(e.target.value as 'all' | 'sim' | 'nao')} className={filterCls}>
+          <option value="all">Importado: todos</option>
+          <option value="sim">Importado: sim</option>
+          <option value="nao">Importado: não</option>
+        </select>
+        {/* Ordenação (útil sobretudo em mobile, onde não há cabeçalhos clicáveis) */}
+        <select value={sort.key} onChange={e => setSort(s => ({ ...s, key: e.target.value as SortKey }))} className={`${filterCls} sm:hidden`}>
+          {SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>Ordenar: {o.label}</option>)}
+        </select>
+        <button onClick={() => setSort(s => ({ ...s, dir: s.dir === 'asc' ? 'desc' : 'asc' }))} className={`${filterCls} sm:hidden inline-flex items-center gap-1`}>
+          {sort.dir === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          {sort.dir === 'asc' ? 'Asc' : 'Desc'}
+        </button>
+        {anyFilter && (
+          <button onClick={clearFilters} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+            <FilterX className="h-3.5 w-3.5" /> Limpar filtros
+          </button>
+        )}
+        <span className="ml-auto text-muted-foreground">{filtered.length} {filtered.length === 1 ? 'retoma' : 'retomas'}</span>
+      </div>
+
       {/* Form modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -239,7 +398,7 @@ export default function RetomaPage() {
               <button onClick={() => setShowForm(false)}><X className="h-4 w-4 text-muted-foreground" /></button>
             </div>
             <div className="p-4 sm:p-5 space-y-5">
-              {/* Identificação */}
+              {/* Viatura */}
               <div>
                 <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Viatura</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -272,6 +431,10 @@ export default function RetomaPage() {
                   <Field label="Data de matrícula">
                     <input type="date" className={inputCls} value={form.data_matricula}
                       onChange={e => setForm(p => ({ ...p, data_matricula: e.target.value }))} />
+                  </Field>
+                  <Field label="Data de entrada em stock">
+                    <input type="date" className={inputCls} value={form.data_entrada_stock}
+                      onChange={e => setForm(p => ({ ...p, data_entrada_stock: e.target.value }))} />
                   </Field>
                   <Field label="Quilometragem">
                     <input type="number" min={0} className={inputCls} value={form.quilometragem} placeholder="km"
@@ -329,42 +492,54 @@ export default function RetomaPage() {
         <div className="py-16 text-center text-sm text-muted-foreground">A carregar...</div>
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border border-border py-10 text-center text-xs text-muted-foreground">
-          {view === 'arquivadas'
-            ? 'Sem retomas arquivadas.'
-            : <>Nenhuma retoma na carteira. {editable && <>Clica em <strong>Nova retoma</strong> para adicionar.</>}</>}
+          {anyFilter
+            ? 'Sem retomas para os filtros aplicados.'
+            : view === 'arquivadas'
+              ? 'Sem retomas arquivadas.'
+              : <>Nenhuma retoma na carteira. {editable && <>Clica em <strong>Nova retoma</strong> para adicionar.</>}</>}
         </div>
       ) : (
         <>
           {/* Mobile: cartões */}
           <div className="space-y-2 sm:hidden">
-            {filtered.map(r => (
-              <div key={r.id} className="rounded-lg border border-border p-3 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-sm leading-tight truncate">{r.marca} {r.modelo}</div>
-                    <div className="font-mono text-xs text-muted-foreground">{r.matricula || '—'}</div>
+            {filtered.map(r => {
+              const age = ageDays(r);
+              const cl = clusterOf(age);
+              return (
+                <div key={r.id} className="rounded-lg border border-border p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-sm leading-tight truncate">{r.marca} {r.modelo}</div>
+                      <div className="font-mono text-xs text-muted-foreground">{r.matricula || '—'}</div>
+                    </div>
+                    <div className="flex flex-shrink-0 flex-col items-end gap-1">
+                      {r.motorizacao && (
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${motCls(r.motorizacao)}`}>{motLabel(r.motorizacao)}</span>
+                      )}
+                      {age !== null && (
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${cl?.cls ?? ''}`}>{age} dias</span>
+                      )}
+                    </div>
                   </div>
-                  {r.motorizacao && (
-                    <span className={`flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${motCls(r.motorizacao)}`}>{motLabel(r.motorizacao)}</span>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                    <div>Entrada: <span className="text-foreground/80">{dateFmt(r.data_entrada_stock)}</span></div>
+                    <div>Data mat.: <span className="text-foreground/80">{dateFmt(r.data_matricula)}</span></div>
+                    <div>Km: <span className="text-foreground/80">{kmFmt(r.quilometragem)}</span></div>
+                    <div>Importado: <span className="text-foreground/80">{r.importado ? 'Sim' : 'Não'}</span></div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <LinkChip url={r.link_caetano} label="Caetano" />
+                    <LinkChip url={r.link_maxterauto} label="Maxter" />
+                    <LinkChip url={r.link_fotos} label="Fotos" />
+                  </div>
+                  {editable && (
+                    <div className="flex items-center justify-end gap-1 border-t border-border/60 pt-2">
+                      <RowActions r={r} busyId={busyId} onToggle={toggleArquivada} onEdit={openEdit} onDelete={setDeleteId} />
+                    </div>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                  <div>Data mat.: <span className="text-foreground/80">{dateFmt(r.data_matricula)}</span></div>
-                  <div>Km: <span className="text-foreground/80">{kmFmt(r.quilometragem)}</span></div>
-                  <div>Importado: <span className="text-foreground/80">{r.importado ? 'Sim' : 'Não'}</span></div>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  <LinkChip url={r.link_caetano} label="Caetano" />
-                  <LinkChip url={r.link_maxterauto} label="Maxter" />
-                  <LinkChip url={r.link_fotos} label="Fotos" />
-                </div>
-                {editable && (
-                  <div className="flex items-center justify-end gap-1 border-t border-border/60 pt-2">
-                    <RowActions r={r} busyId={busyId} onToggle={toggleArquivada} onEdit={openEdit} onDelete={setDeleteId} />
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Desktop: tabela */}
@@ -372,45 +547,92 @@ export default function RetomaPage() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-muted/50">
-                  {['Marca', 'Modelo', 'Motor.', 'Matrícula', 'Data mat.', 'Km', 'Import.', 'Links'].map(h => (
-                    <th key={h} className="px-2 py-2 text-left font-semibold text-muted-foreground whitespace-nowrap border-b border-border">{h}</th>
-                  ))}
+                  <SortableTh label="Marca" k="marca" sort={sort} onSort={toggleSort} />
+                  <SortableTh label="Modelo" k="modelo" sort={sort} onSort={toggleSort} />
+                  <SortableTh label="Motor." k="motorizacao" sort={sort} onSort={toggleSort} />
+                  <SortableTh label="Matrícula" k="matricula" sort={sort} onSort={toggleSort} />
+                  <SortableTh label="Data mat." k="data_matricula" sort={sort} onSort={toggleSort} />
+                  <SortableTh label="Entrada stock" k="data_entrada_stock" sort={sort} onSort={toggleSort} />
+                  <SortableTh label="Antiguidade" k="antiguidade" sort={sort} onSort={toggleSort} />
+                  <SortableTh label="Km" k="quilometragem" sort={sort} onSort={toggleSort} />
+                  <SortableTh label="Import." k="importado" sort={sort} onSort={toggleSort} />
+                  <th className="px-2 py-2 text-left font-semibold text-muted-foreground whitespace-nowrap border-b border-border">Links</th>
                   <th className="px-2 py-2 border-b border-border" />
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(r => (
-                  <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                    <td className="px-2 py-1.5 whitespace-nowrap font-medium">{r.marca}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap">{r.modelo}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap">
-                      {r.motorizacao
-                        ? <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${motCls(r.motorizacao)}`}>{motLabel(r.motorizacao)}</span>
-                        : '—'}
-                    </td>
-                    <td className="px-2 py-1.5 whitespace-nowrap font-mono">{r.matricula || '—'}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap text-foreground/80">{dateFmt(r.data_matricula)}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap text-foreground/80">{kmFmt(r.quilometragem)}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap text-foreground/80">{r.importado ? 'Sim' : 'Não'}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <LinkChip url={r.link_caetano} label="Caetano" />
-                        <LinkChip url={r.link_maxterauto} label="Maxter" />
-                        <LinkChip url={r.link_fotos} label="Fotos" />
-                      </div>
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <RowActions r={r} busyId={busyId} onToggle={toggleArquivada} onEdit={openEdit} onDelete={setDeleteId} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map(r => {
+                  const age = ageDays(r);
+                  const cl = clusterOf(age);
+                  return (
+                    <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                      <td className="px-2 py-1.5 whitespace-nowrap font-medium">{r.marca}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.modelo}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">
+                        {r.motorizacao
+                          ? <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${motCls(r.motorizacao)}`}>{motLabel(r.motorizacao)}</span>
+                          : '—'}
+                      </td>
+                      <td className="px-2 py-1.5 whitespace-nowrap font-mono">{r.matricula || '—'}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap text-foreground/80">{dateFmt(r.data_matricula)}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap text-foreground/80">{dateFmt(r.data_entrada_stock)}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">
+                        {age !== null
+                          ? <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${cl?.cls ?? ''}`}>{age} dias</span>
+                          : '—'}
+                      </td>
+                      <td className="px-2 py-1.5 whitespace-nowrap text-foreground/80">{kmFmt(r.quilometragem)}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap text-foreground/80">{r.importado ? 'Sim' : 'Não'}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <LinkChip url={r.link_caetano} label="Caetano" />
+                          <LinkChip url={r.link_maxterauto} label="Maxter" />
+                          <LinkChip url={r.link_fotos} label="Fotos" />
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <RowActions r={r} busyId={busyId} onToggle={toggleArquivada} onEdit={openEdit} onDelete={setDeleteId} />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+const inputCls = 'w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary';
+const filterCls = 'px-2.5 py-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary';
+
+function SortableTh({
+  label, k, sort, onSort,
+}: {
+  label: string; k: SortKey; sort: { key: SortKey; dir: 'asc' | 'desc' }; onSort: (k: SortKey) => void;
+}) {
+  const active = sort.key === k;
+  return (
+    <th className="px-2 py-2 text-left font-semibold text-muted-foreground whitespace-nowrap border-b border-border">
+      <button onClick={() => onSort(k)} className="inline-flex items-center gap-0.5 hover:text-foreground transition-colors">
+        {label}
+        {active
+          ? (sort.dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
+          : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
+      </button>
+    </th>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-medium text-muted-foreground mb-1">{label}</label>
+      {children}
     </div>
   );
 }
@@ -440,17 +662,6 @@ function RowActions({
         <Trash2 className="h-3.5 w-3.5" />
       </button>
     </>
-  );
-}
-
-const inputCls = 'w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary';
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-[10px] font-medium text-muted-foreground mb-1">{label}</label>
-      {children}
-    </div>
   );
 }
 
