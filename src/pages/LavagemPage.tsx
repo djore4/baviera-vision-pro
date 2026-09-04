@@ -251,6 +251,8 @@ export default function LavagemPage() {
   const canCreate = canReschedule || canStartCycle;                                 // ver formulário
   const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';    // controlo de qualidade
   const canExport = isAdmin;                                                        // exportar Excel
+  // Consultar os registos/auditoria de lavagens: administrador e perfil APV.
+  const canViewRegistos = isAdmin || roleName === 'APV';                            // ver registos de lavagens
   // Remover lavagens: quem pode editar/reagendar as existentes (admin, Preparador e
   // perfis com edição no tab — ex.: APV). Todas as eliminações ficam registadas na
   // auditoria (car_wash_events), acessível ao administrador.
@@ -302,8 +304,8 @@ export default function LavagemPage() {
       ]);
       setCycles(rows);
       setStatsCycles(stats);
-      // Auditoria (só admin): histórico completo de marcações/alterações/eliminações.
-      if (isAdmin) {
+      // Auditoria (admin e APV): histórico completo de marcações/alterações/eliminações.
+      if (canViewRegistos) {
         try { setEvents(await listEvents()); }
         catch (e) { console.error('Falha ao carregar registos de auditoria', e); }
       }
@@ -313,7 +315,7 @@ export default function LavagemPage() {
     } finally {
       setLoading(false);
     }
-  }, [weekStart, weekEnd, statsFrom, isAdmin]);
+  }, [weekStart, weekEnd, statsFrom, canViewRegistos]);
 
   const handleExport = async (from?: string, to?: string) => {
     setExporting(true);
@@ -949,18 +951,19 @@ export default function LavagemPage() {
         </CardContent>
       </Card>
 
-      {/* ── Registos / auditoria (só admin) ─────────────────────────────────────
+      {/* ── Registos / auditoria (admin e APV) ───────────────────────────────────
        * Histórico completo de marcações, alterações e eliminações de lavagens.
        * Colocado aqui, no próprio tab Lavagem, para manter a auditoria junto da
-       * operação; visível apenas ao administrador, com download em CSV. */}
-      {isAdmin && (
+       * operação; disponível para consulta ao administrador e ao perfil APV,
+       * com download em CSV. */}
+      {canViewRegistos && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <History className="h-4 w-4" /> Registos de lavagens
             </CardTitle>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Marcações, alterações e eliminações — auditoria completa (só administrador).
+              Marcações, alterações e eliminações — auditoria completa (administrador e APV).
             </p>
           </CardHeader>
           <CardContent>

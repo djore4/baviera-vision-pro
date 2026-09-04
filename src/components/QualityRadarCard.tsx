@@ -29,6 +29,8 @@ const AVG_COLOR = '#1C69D4';
 const scoresFromRow = (r: QualityRow): QualityScores =>
   QUALITY_METRICS.reduce((acc, m) => { acc[m.key] = Number(r[m.key]) || 0; return acc; }, {} as QualityScores);
 const fmtNum = (n: number) => Number(n.toFixed(2));
+const sumScores = (s: QualityScores) => QUALITY_METRICS.reduce((t, m) => t + s[m.key], 0);
+const MAX_TOTAL = QUALITY_METRICS.length * QUALITY_MAX;
 
 export function QualityRadarCard() {
   const [state, setState] = useState<{ year: number; month: number; rows: QualityRow[] } | null>(null);
@@ -164,34 +166,62 @@ export function QualityRadarCard() {
           Ainda não há notas de qualidade lançadas.
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={300}>
-          <RadarChart data={chartData} outerRadius="70%">
-            <PolarGrid stroke="hsl(var(--border))" />
-            <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: 'hsl(var(--foreground))' }} />
-            {/* Escala fixa 0–10 em ambos os eixos. */}
-            <PolarRadiusAxis
-              domain={[QUALITY_MIN, QUALITY_MAX]}
-              ticks={RADIUS_TICKS}
-              tickCount={RADIUS_TICKS.length}
-              tick={{ fontSize: 9 }}
-              stroke="hsl(var(--border))"
-              axisLine={false}
-            />
+        <>
+          <div className="relative">
+            <ResponsiveContainer width="100%" height={300}>
+              <RadarChart data={chartData} outerRadius="70%">
+                <PolarGrid stroke="hsl(var(--border))" />
+                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: 'hsl(var(--foreground))' }} />
+                {/* Escala fixa 0–10 em ambos os eixos. */}
+                <PolarRadiusAxis
+                  domain={[QUALITY_MIN, QUALITY_MAX]}
+                  ticks={RADIUS_TICKS}
+                  tickCount={RADIUS_TICKS.length}
+                  tick={{ fontSize: 9 }}
+                  stroke="hsl(var(--border))"
+                  axisLine={false}
+                />
+                {series.map(s => (
+                  <Radar
+                    key={s.key} name={s.key} dataKey={s.key}
+                    stroke={s.color} fill={s.color}
+                    fillOpacity={single ? 0.3 : 0.12}
+                    strokeWidth={2}
+                    isAnimationActive={false}
+                  />
+                ))}
+                <Tooltip
+                  contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                  formatter={(v: number, name: string) => [`${v} / ${QUALITY_MAX}`, name]} />
+                {!single && <Legend wrapperStyle={{ fontSize: 10 }} />}
+              </RadarChart>
+            </ResponsiveContainer>
+            {/* Somatório ao centro (só quando há uma única teia), como no tab Dados. */}
+            {single && (
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-[9px] uppercase tracking-wide text-muted-foreground">Total</span>
+                <span className="text-xl font-bold tabular-nums leading-none">{fmtNum(sumScores(series[0].scores))}</span>
+                <span className="text-[9px] text-muted-foreground">/ {MAX_TOTAL}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Somatório de cada teia apresentada (equivalente ao painel da página Dados). */}
+          <div className="mt-2 rounded-md border border-border/70 divide-y divide-border/50">
             {series.map(s => (
-              <Radar
-                key={s.key} name={s.key} dataKey={s.key}
-                stroke={s.color} fill={s.color}
-                fillOpacity={single ? 0.3 : 0.12}
-                strokeWidth={2}
-                isAnimationActive={false}
-              />
+              <div key={s.key} className="flex items-center justify-between gap-2 px-2 py-1">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                  {s.key === 'Média' ? `Média (${rows.length} vend.)` : s.key}
+                </span>
+                <span className="text-[11px] font-semibold tabular-nums">
+                  {fmtNum(sumScores(s.scores))}
+                  <span className="font-normal text-muted-foreground"> / {MAX_TOTAL}</span>
+                </span>
+              </div>
             ))}
-            <Tooltip
-              contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
-              formatter={(v: number, name: string) => [`${v} / ${QUALITY_MAX}`, name]} />
-            {!single && <Legend wrapperStyle={{ fontSize: 10 }} />}
-          </RadarChart>
-        </ResponsiveContainer>
+          </div>
+        </>
       )}
 
       <p className="text-[10px] text-muted-foreground mt-1 px-1">

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeScore, fleetScoreValue, SCORE_WEIGHTS, isOverdue, type Task } from '@/lib/prospec';
+import { computeScore, fleetScoreValue, SCORE_WEIGHTS, isOverdue, isDueToday, type Task } from '@/lib/prospec';
 
 /* O score composto é calculado na BD (coluna GENERATED) e espelhado em computeScore
  * para exibição em tempo real no formulário. A dimensão da frota é um patamar
@@ -59,5 +59,34 @@ describe('isOverdue', () => {
 
   it('não atrasada com prazo futuro', () => {
     expect(isOverdue({ ...base, due_at: new Date(Date.now() + 60000).toISOString() })).toBe(false);
+  });
+});
+
+describe('isDueToday', () => {
+  const base: Task = {
+    id: '1', type: 'todo', account_id: null, owner_email: null, owner_nome: null,
+    descricao: 'x', due_at: null, done: false, done_at: null, created_by: null,
+    created_at: '', updated_at: '',
+  };
+  const atHour = (h: number) => { const d = new Date(); d.setHours(h, 0, 0, 0); return d.toISOString(); };
+
+  it('falso sem prazo', () => {
+    expect(isDueToday({ ...base, due_at: null })).toBe(false);
+  });
+
+  it('verdadeiro com prazo hoje, mesmo que a hora já tenha passado', () => {
+    expect(isDueToday({ ...base, due_at: atHour(0) })).toBe(true);
+    expect(isDueToday({ ...base, due_at: atHour(23) })).toBe(true);
+  });
+
+  it('falso se concluída', () => {
+    expect(isDueToday({ ...base, done: true, due_at: atHour(12) })).toBe(false);
+  });
+
+  it('falso para outro dia', () => {
+    const tomorrow = new Date(Date.now() + 86400000).toISOString();
+    const yesterday = new Date(Date.now() - 86400000).toISOString();
+    expect(isDueToday({ ...base, due_at: tomorrow })).toBe(false);
+    expect(isDueToday({ ...base, due_at: yesterday })).toBe(false);
   });
 });
