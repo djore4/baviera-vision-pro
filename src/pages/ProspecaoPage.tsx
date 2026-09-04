@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Target, Building2, CalendarDays, LineChart, AlertTriangle } from 'lucide-react';
 import { useProspecScope } from '@/hooks/useProspecScope';
@@ -5,6 +6,7 @@ import { useProspec } from '@/contexts/ProspecContext';
 import { AccountsTab } from '@/components/prospecao/AccountsTab';
 import { WorkspaceTab } from '@/components/prospecao/WorkspaceTab';
 import { ManagementTab } from '@/components/prospecao/ManagementTab';
+import { TaskNotifications } from '@/components/prospecao/TaskNotifications';
 
 /* ── Tab Prospeção Comercial (admin) ──────────────────────────────────────────
  * CRM interno para a equipa de vendas: contas empresariais + espaço de trabalho
@@ -13,6 +15,13 @@ import { ManagementTab } from '@/components/prospecao/ManagementTab';
 export default function ProspecaoPage() {
   const { scope, isDirector, myEmail, myNome } = useProspecScope();
   const { overdue, refresh } = useProspec();
+  // Sinal partilhado: ao mexer nas tarefas (concluir/criar) recarrega também as
+  // notificações, além de reavaliar o contador de atrasados.
+  const [reloadKey, setReloadKey] = useState(0);
+  const handleCountsChanged = useCallback(() => {
+    refresh();
+    setReloadKey(k => k + 1);
+  }, [refresh]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-5 animate-fade-in">
@@ -31,6 +40,7 @@ export default function ProspecaoPage() {
             {overdue} em atraso
           </span>
         )}
+        <TaskNotifications scope={scope} reloadKey={reloadKey} />
       </header>
 
       <Tabs defaultValue="contas">
@@ -44,7 +54,7 @@ export default function ProspecaoPage() {
           <AccountsTab scope={scope} isDirector={isDirector} myEmail={myEmail} myNome={myNome} />
         </TabsContent>
         <TabsContent value="dia" className="mt-4">
-          <WorkspaceTab myEmail={myEmail} myNome={myNome} onCountsChanged={refresh} />
+          <WorkspaceTab myEmail={myEmail} myNome={myNome} onCountsChanged={handleCountsChanged} />
         </TabsContent>
         {isDirector && (
           <TabsContent value="gestao" className="mt-4">

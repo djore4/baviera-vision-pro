@@ -344,7 +344,46 @@ export async function countOverdue(scope: Scope): Promise<number> {
   return count ?? 0;
 }
 
+/* Tarefas para notificar: por concluir, com prazo hoje ou em atraso.
+ * "overdue" = prazo anterior a hoje; "today" = prazo dentro do dia de hoje.
+ * Alimenta as notificações da Prospeção (badge + notificação do browser). */
+export interface TaskAlerts { overdue: Task[]; today: Task[]; }
+
+export async function listTaskAlerts(scope: Scope): Promise<TaskAlerts> {
+  const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+  const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
+
+  let q = supabase
+    .from('prospec_tasks')
+    .select('*')
+    .eq('done', false)
+    .not('due_at', 'is', null)
+    .lte('due_at', endToday.toISOString());
+  if (!scope.isDirector && scope.email) q = q.eq('owner_email', scope.email);
+  const { data, error } = await q.order('due_at', { ascending: true });
+  if (error) throw error;
+
+  const rows = (data ?? []) as Task[];
+  const overdue: Task[] = [];
+  const today: Task[] = [];
+  for (const t of rows) {
+    if (!t.due_at) continue;
+    (new Date(t.due_at).getTime() < startToday.getTime() ? overdue : today).push(t);
+  }
+  return { overdue, today };
+}
+
 /* ── Helpers de datas ────────────────────────────────────────────────────────── */
 
 export const isOverdue = (t: Task): boolean =>
   !t.done && !!t.due_at && new Date(t.due_at).getTime() < Date.now();
+
+/* Prazo dentro do dia de hoje (independentemente de a hora já ter passado). */
+export const isDueToday = (t: Task): boolean => {
+  if (t.done || !t.due_at) return false;
+  const d = new Date(t.due_at);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear()
+    && d.getMonth() === now.getMonth()
+    && d.getDate() === now.getDate();
+};

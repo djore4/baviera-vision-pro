@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import {
   UserPlus, Loader2, Trash2, KeyRound, Save, ShieldCheck, Users as UsersIcon, X, Plus,
+  ChevronRight, ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -84,6 +85,14 @@ function UsersSection({
   const [perfil, setPerfil] = useState('');
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | number | null>(null);
+  // Grupos aglutinados (colapsados por defeito): expandir com um clique evidencia
+  // os utilizadores dessa tipologia de conta.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (perfil: string) => setOpenGroups(prev => {
+    const n = new Set(prev);
+    if (n.has(perfil)) n.delete(perfil); else n.add(perfil);
+    return n;
+  });
 
   const resetForm = () => { setNome(''); setEmail(''); setPassword(''); setPerfil(''); };
 
@@ -186,16 +195,22 @@ function UsersSection({
       <CardContent className="space-y-3">
         {!loading && users.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {grouped.map(g => (
-              <span
-                key={g.perfil}
-                className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs"
-                title={`${g.list.length} ${g.list.length === 1 ? 'pessoa' : 'pessoas'} em ${g.perfil}`}
-              >
-                {g.perfil}
-                <span className="rounded-full bg-primary/10 px-1.5 font-semibold text-primary">{g.list.length}</span>
-              </span>
-            ))}
+            {grouped.map(g => {
+              const open = openGroups.has(g.perfil);
+              return (
+                <button
+                  key={g.perfil}
+                  type="button"
+                  onClick={() => toggleGroup(g.perfil)}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors ${open ? 'border-primary/40 bg-primary/5' : 'bg-muted/40 hover:bg-muted/70'}`}
+                  title={`${g.list.length} ${g.list.length === 1 ? 'pessoa' : 'pessoas'} em ${g.perfil} — clique para ${open ? 'recolher' : 'expandir'}`}
+                >
+                  {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  {g.perfil}
+                  <span className="rounded-full bg-primary/10 px-1.5 font-semibold text-primary">{g.list.length}</span>
+                </button>
+              );
+            })}
           </div>
         )}
         {showForm && (
@@ -248,15 +263,20 @@ function UsersSection({
                 </tr>
               </thead>
               <tbody>
-                {grouped.map(g => (
+                {grouped.map(g => {
+                  const open = openGroups.has(g.perfil);
+                  return (
                   <Fragment key={g.perfil}>
-                    <tr className="bg-muted/40 border-b">
-                      <td colSpan={4} className="py-1.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        {g.perfil}
-                        <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 font-semibold text-primary normal-case">{g.list.length}</span>
+                    <tr className="bg-muted/40 border-b cursor-pointer hover:bg-muted/60" onClick={() => toggleGroup(g.perfil)}>
+                      <td colSpan={4} className="py-1.5 pr-3">
+                        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          {g.perfil}
+                          <span className="rounded-full bg-primary/10 px-1.5 font-semibold text-primary normal-case">{g.list.length}</span>
+                        </span>
                       </td>
                     </tr>
-                    {g.list.map(u => (
+                    {open && g.list.map(u => (
                   <tr key={u.id} className="border-b last:border-0">
                     <td className="py-2 pr-3 font-medium">{u.nome || '—'}</td>
                     <td className="py-2 pr-3 text-muted-foreground">{u.email}</td>
@@ -283,7 +303,8 @@ function UsersSection({
                   </tr>
                     ))}
                   </Fragment>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -306,6 +327,10 @@ function RolesMatrix({
   const [newRole, setNewRole] = useState('');
   const [creatingRole, setCreatingRole] = useState(false);
   const [busyRole, setBusyRole] = useState<string | null>(null);
+
+  // A matriz não mostra funções de administrador: têm acesso total a tudo e nenhum
+  // parâmetro é editável, pelo que a coluna seria sempre inerte.
+  const cols = useMemo(() => roles.filter(r => !r.is_admin), [roles]);
 
   useEffect(() => {
     const d: Record<string, Record<string, AccessLevel>> = {};
@@ -414,22 +439,18 @@ function RolesMatrix({
               <thead>
                 <tr className="text-left text-xs text-muted-foreground border-b">
                   <th className="py-2 pr-3 font-medium sticky left-0 bg-card">Tab</th>
-                  {roles.map(r => (
+                  {cols.map(r => (
                     <th key={r.name} className="py-2 px-2 font-medium whitespace-nowrap">
                       <span className="inline-flex items-center gap-1">
                         {r.name}
-                        {r.is_admin
-                          ? <span className="text-[10px] text-emerald-600">(total)</span>
-                          : (
-                            <button
-                              onClick={() => handleDeleteRole(r.name)}
-                              disabled={busyRole === r.name}
-                              className="text-destructive/60 hover:text-destructive"
-                              title="Eliminar função"
-                            >
-                              {busyRole === r.name ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                            </button>
-                          )}
+                        <button
+                          onClick={() => handleDeleteRole(r.name)}
+                          disabled={busyRole === r.name}
+                          className="text-destructive/60 hover:text-destructive"
+                          title="Eliminar função"
+                        >
+                          {busyRole === r.name ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                        </button>
                       </span>
                     </th>
                   ))}
@@ -441,21 +462,17 @@ function RolesMatrix({
                     <td className="py-1.5 pr-3 font-medium sticky left-0 bg-card whitespace-nowrap">
                       {t.label}
                     </td>
-                    {roles.map(r => (
+                    {cols.map(r => (
                       <td key={r.name} className="py-1.5 px-2">
-                        {r.is_admin ? (
-                          <span className="text-xs text-muted-foreground">Edição</span>
-                        ) : (
-                          <Select
-                            value={(draft[r.name]?.[t.key] ?? 'none')}
-                            onValueChange={v => setCell(r.name, t.key, v as AccessLevel)}
-                          >
-                            <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {ACCESS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        )}
+                        <Select
+                          value={(draft[r.name]?.[t.key] ?? 'none')}
+                          onValueChange={v => setCell(r.name, t.key, v as AccessLevel)}
+                        >
+                          <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {ACCESS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
                       </td>
                     ))}
                   </tr>
