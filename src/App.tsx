@@ -30,6 +30,7 @@ import UtilizadoresPage from "./pages/UtilizadoresPage";
 import ArquivoPage from "./pages/ArquivoPage";
 import DefinicoesPage from "./pages/DefinicoesPage";
 import ProspecaoPage from "./pages/ProspecaoPage";
+import RetomaPage from "./pages/RetomaPage";
 import { EasterEggs } from "@/components/EasterEggs";
 import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
 import { ProspecProvider } from "@/contexts/ProspecContext";
@@ -106,6 +107,7 @@ const App = () => (
               <Route path="/objetivos" element={tab('objetivos', <ObjetivosPage />)} />
               <Route path="/vendedores" element={tab('vendedores', <VendedoresPage />)} />
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
+              <Route path="/retoma" element={tab('retoma', <RetomaPage />)} />
               <Route path="/arquivo" element={tab('arquivo', <ArquivoPage />)} />
               <Route path="/prospecao" element={tab('prospecao', <ProspecaoPage />)} />
               <Route path="/utilizadores" element={tab('utilizadores', <UtilizadoresPage />)} />
