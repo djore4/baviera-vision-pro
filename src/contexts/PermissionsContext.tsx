@@ -8,6 +8,13 @@ import {
 /* Email de administrador de fallback (também definido no App e na edge function). */
 const ADMIN_EMAIL = 'joaocarlos.duarte@caetano.pt';
 
+/* Exceções pontuais de acesso por email, fora da matriz de funções.
+ * Concede acesso a tabs específicos a contas individuais sem lhes alterar a
+ * função. Usar com parcimónia — a via normal é a matriz de permissões. */
+const TAB_ACCESS_EXCEPTIONS: Record<string, Record<string, AccessLevel>> = {
+  'tiago.santos@caetano.pt': { retoma: 'edit' },
+};
+
 interface PermissionsValue {
   loading: boolean;
   isAdmin: boolean;
@@ -64,7 +71,15 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
     const access = (tab: string): AccessLevel => {
       if (isAdmin) return 'edit';
-      if (role) return (role.permissions?.[tab] as AccessLevel) ?? 'none';
+      // Exceção pontual por email (tem precedência sobre a função, mas não sobre
+      // o acesso total de admin). Só eleva o acesso, nunca o reduz.
+      const exception = email ? TAB_ACCESS_EXCEPTIONS[email]?.[tab] : undefined;
+      const roleAccess = role ? ((role.permissions?.[tab] as AccessLevel) ?? 'none') : 'none';
+      if (exception) {
+        const rank: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
+        return rank[exception] >= rank[roleAccess] ? exception : roleAccess;
+      }
+      if (role) return roleAccess;
       // Sem perfil nesta plataforma → sem acesso (tem de ser adicionado por um
       // admin no tab Utilizadores). Impede o acesso de contas de outras
       // plataformas que partilham a autenticação.
