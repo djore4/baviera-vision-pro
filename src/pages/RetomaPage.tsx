@@ -5,6 +5,7 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   Plus, Pencil, Trash2, X, Check, Search, Archive, ArchiveRestore, ExternalLink,
   ChevronUp, ChevronDown, ChevronsUpDown, FilterX,
+  Calendar, Gauge, Euro, FileText, Clock, Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -31,6 +32,7 @@ interface Retoma {
   link_caetano: string | null;
   link_maxterauto: string | null;
   link_fotos: string | null;
+  observacoes: string | null;
   arquivada: boolean;
   arquivada_at: string | null;
   created_by: string | null;
@@ -51,6 +53,7 @@ interface RetomaForm {
   link_caetano: string;
   link_maxterauto: string;
   link_fotos: string;
+  observacoes: string;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -58,7 +61,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const EMPTY: RetomaForm = {
   marca: '', modelo: '', motorizacao: '', matricula: '', data_matricula: '',
   data_entrada_stock: '', quilometragem: '', preco: '', importado: false,
-  link_caetano: '', link_maxterauto: '', link_fotos: '',
+  link_caetano: '', link_maxterauto: '', link_fotos: '', observacoes: '',
 };
 
 const MOTORIZACOES: { value: Motorizacao; label: string; cls: string }[] = [
@@ -76,7 +79,7 @@ type ClusterKey = '0-30' | '31-90' | '91-120' | '121+';
 
 const CLUSTERS: { key: ClusterKey; label: string; test: (a: number) => boolean; cls: string; dot: string }[] = [
   { key: '0-30',   label: '0–30 dias',   test: a => a <= 30,             cls: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300',   dot: 'bg-green-500' },
-  { key: '31-90',  label: '31–90 dias',  test: a => a >= 31 && a <= 90,  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',   dot: 'bg-amber-500' },
+  { key: '31-90',  label: '31–90 dias',  test: a => a >= 31 && a <= 90,  cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300', dot: 'bg-yellow-400' },
   { key: '91-120', label: '91–120 dias', test: a => a >= 91 && a <= 120, cls: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300', dot: 'bg-orange-500' },
   { key: '121+',   label: '121+ dias',   test: a => a >= 121,            cls: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',           dot: 'bg-red-500' },
 ];
@@ -170,6 +173,7 @@ export default function RetomaPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -279,6 +283,7 @@ export default function RetomaPage() {
       link_caetano: r.link_caetano ?? '',
       link_maxterauto: r.link_maxterauto ?? '',
       link_fotos: r.link_fotos ?? '',
+      observacoes: r.observacoes ?? '',
     });
     setEditId(r.id);
     setShowForm(true);
@@ -313,6 +318,7 @@ export default function RetomaPage() {
       link_caetano: normalizeUrl(form.link_caetano) || null,
       link_maxterauto: normalizeUrl(form.link_maxterauto) || null,
       link_fotos: normalizeUrl(form.link_fotos) || null,
+      observacoes: form.observacoes.trim() || null,
     };
     const { error } = editId
       ? await supabase.from('retomas').update(payload).eq('id', editId)
@@ -360,7 +366,7 @@ export default function RetomaPage() {
                 title={`Filtrar por ${c.label}`}
               >
                 <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-muted-foreground leading-tight">
-                  <span className={`hidden sm:inline-block h-2 w-2 flex-shrink-0 rounded-full ${c.dot}`} /> {c.label}
+                  <span className={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${c.dot}`} /> {c.label}
                 </div>
                 <div className="mt-1 flex items-baseline gap-1 sm:gap-1.5">
                   <span className="text-lg sm:text-xl font-bold tabular-nums">{c.n}</span>
@@ -553,6 +559,17 @@ export default function RetomaPage() {
                   </Field>
                 </div>
               </div>
+
+              {/* Observações */}
+              <div>
+                <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Observações</h3>
+                <textarea
+                  className={`${inputCls} min-h-[80px] resize-y`}
+                  value={form.observacoes}
+                  placeholder="Notas e outras informações sobre a viatura…"
+                  onChange={e => setForm(p => ({ ...p, observacoes: e.target.value }))}
+                />
+              </div>
             </div>
             <div className="flex justify-end gap-2 px-5 py-3 border-t border-border sticky bottom-0 bg-card">
               <button onClick={() => setShowForm(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">Cancelar</button>
@@ -579,6 +596,23 @@ export default function RetomaPage() {
         </div>
       )}
 
+      {/* Detalhe */}
+      {detailId && (() => {
+        const r = rows.find(x => x.id === detailId);
+        if (!r) return null;
+        return (
+          <RetomaDetail
+            r={r}
+            editable={editable}
+            onClose={() => setDetailId(null)}
+            onEdit={() => { setDetailId(null); openEdit(r); }}
+            onToggle={() => toggleArquivada(r)}
+            onDelete={() => { setDetailId(null); setDeleteId(r.id); }}
+            busy={busyId === r.id}
+          />
+        );
+      })()}
+
       {/* Lista */}
       {loading ? (
         <div className="py-16 text-center text-sm text-muted-foreground">A carregar...</div>
@@ -598,7 +632,8 @@ export default function RetomaPage() {
               const age = ageDays(r);
               const cl = clusterOf(age);
               return (
-                <div key={r.id} className="rounded-lg border border-border p-3 space-y-2">
+                <div key={r.id} onClick={() => setDetailId(r.id)} role="button"
+                  className="rounded-lg border border-border p-3 space-y-2 cursor-pointer hover:border-primary/50 hover:bg-muted/20 transition-colors">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="font-semibold text-sm leading-tight truncate">{r.marca} {r.modelo}</div>
@@ -620,13 +655,13 @@ export default function RetomaPage() {
                     <div>Preço: <span className="font-medium text-foreground/90">{precoFmt(r.preco)}</span></div>
                     <div>Importado: <span className="text-foreground/80">{r.importado ? 'Sim' : 'Não'}</span></div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5" onClick={e => e.stopPropagation()}>
                     <LinkChip url={r.link_caetano} label="Caetano" />
                     <LinkChip url={r.link_maxterauto} label="Maxter" />
                     <LinkChip url={r.link_fotos} label="Fotos" />
                   </div>
                   {editable && (
-                    <div className="flex items-center justify-end gap-1 border-t border-border/60 pt-2">
+                    <div className="flex items-center justify-end gap-1 border-t border-border/60 pt-2" onClick={e => e.stopPropagation()}>
                       <RowActions r={r} busyId={busyId} onToggle={toggleArquivada} onEdit={openEdit} onDelete={setDeleteId} />
                     </div>
                   )}
@@ -659,7 +694,8 @@ export default function RetomaPage() {
                   const age = ageDays(r);
                   const cl = clusterOf(age);
                   return (
-                    <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                    <tr key={r.id} onClick={() => setDetailId(r.id)}
+                      className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer">
                       <td className="px-2 py-1.5 whitespace-nowrap font-medium">{r.marca}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{r.modelo}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">
@@ -678,14 +714,14 @@ export default function RetomaPage() {
                       <td className="px-2 py-1.5 whitespace-nowrap text-foreground/80">{kmFmt(r.quilometragem)}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap font-medium text-foreground/90">{precoFmt(r.preco)}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap text-foreground/80">{r.importado ? 'Sim' : 'Não'}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap">
+                      <td className="px-2 py-1.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5">
                           <LinkChip url={r.link_caetano} label="Caetano" />
                           <LinkChip url={r.link_maxterauto} label="Maxter" />
                           <LinkChip url={r.link_fotos} label="Fotos" />
                         </div>
                       </td>
-                      <td className="px-2 py-1.5">
+                      <td className="px-2 py-1.5" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           <RowActions r={r} busyId={busyId} onToggle={toggleArquivada} onEdit={openEdit} onDelete={setDeleteId} />
                         </div>
@@ -766,6 +802,139 @@ function RowActions({
         <Trash2 className="h-3.5 w-3.5" />
       </button>
     </>
+  );
+}
+
+function RetomaDetail({
+  r, editable, onClose, onEdit, onToggle, onDelete, busy,
+}: {
+  r: Retoma;
+  editable: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+  onToggle: () => void;
+  onDelete: () => void;
+  busy: boolean;
+}) {
+  const age = ageDays(r);
+  const cl = clusterOf(age);
+  const links: { url: string | null; label: string }[] = [
+    { url: r.link_caetano, label: 'Caetano' },
+    { url: r.link_maxterauto, label: 'Maxterauto' },
+    { url: r.link_fotos, label: 'Fotos' },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div
+        className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Cabeçalho */}
+        <div className="relative bg-bmw-navy text-white px-5 py-4 rounded-t-xl">
+          <button onClick={onClose} className="absolute top-3 right-3 text-white/60 hover:text-white">
+            <X className="h-4 w-4" />
+          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${r.arquivada ? 'bg-white/15 text-white/80' : 'bg-green-500/20 text-green-300'}`}>
+              {r.arquivada ? 'Arquivada' : 'Em carteira'}
+            </span>
+            {r.motorizacao && (
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${motCls(r.motorizacao)}`}>{motLabel(r.motorizacao)}</span>
+            )}
+          </div>
+          <h2 className="mt-2 text-lg font-bold leading-tight">{r.marca} {r.modelo}</h2>
+          <div className="mt-0.5 font-mono text-sm text-white/70">{r.matricula || 'Sem matrícula'}</div>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Destaque antiguidade */}
+          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              Antiguidade em stock
+            </div>
+            {age !== null
+              ? (
+                <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-bold ${cl?.cls ?? ''}`}>
+                  <span className={`h-2 w-2 rounded-full ${cl?.dot ?? ''}`} />
+                  {age} dias
+                </span>
+              )
+              : <span className="text-sm text-muted-foreground">—</span>}
+          </div>
+
+          {/* Factos */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <DetailStat icon={Calendar} label="Data de matrícula" value={dateFmt(r.data_matricula)} />
+            <DetailStat icon={Calendar} label="Entrada em stock" value={dateFmt(r.data_entrada_stock)} />
+            <DetailStat icon={Gauge} label="Quilometragem" value={kmFmt(r.quilometragem)} />
+            <DetailStat icon={Euro} label="Preço" value={precoFmt(r.preco)} />
+            <DetailStat icon={FileText} label="Importado" value={r.importado ? 'Sim' : 'Não'} />
+          </div>
+
+          {/* Links */}
+          <div>
+            <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Links</h3>
+            {links.some(l => l.url) ? (
+              <div className="flex flex-wrap gap-2">
+                {links.filter(l => l.url).map(l => (
+                  <a key={l.label} href={l.url!} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:border-primary/60 hover:bg-muted/40 transition-colors">
+                    {l.label} <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                  </a>
+                ))}
+              </div>
+            ) : <p className="text-xs text-muted-foreground">Sem links.</p>}
+          </div>
+
+          {/* Observações */}
+          <div>
+            <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Observações</h3>
+            {r.observacoes
+              ? <p className="whitespace-pre-wrap rounded-lg border border-border bg-muted/20 p-3 text-sm text-foreground/90">{r.observacoes}</p>
+              : <p className="text-xs text-muted-foreground">Sem observações.</p>}
+          </div>
+
+          {/* Meta */}
+          <div className="text-[11px] text-muted-foreground">
+            {r.created_by && <>Inserido por {r.created_by} · </>}
+            Criado em {dateFmt(r.created_at)}
+            {r.arquivada && r.arquivada_at && <> · Arquivada em {dateFmt(r.arquivada_at)}</>}
+          </div>
+        </div>
+
+        {/* Ações */}
+        {editable && (
+          <div className="flex flex-wrap justify-end gap-2 px-5 py-3 border-t border-border sticky bottom-0 bg-card">
+            <button onClick={onToggle} disabled={busy}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors disabled:opacity-50">
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (r.arquivada ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />)}
+              {r.arquivada ? 'Reativar' : 'Arquivar'}
+            </button>
+            <button onClick={onDelete}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-destructive/40 text-destructive rounded hover:bg-destructive/10 transition-colors">
+              <Trash2 className="h-3.5 w-3.5" /> Eliminar
+            </button>
+            <button onClick={onEdit}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">
+              <Pencil className="h-3.5 w-3.5" /> Editar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DetailStat({ icon: Icon, label, value }: { icon: typeof Calendar; label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-2.5">
+      <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <Icon className="h-3 w-3" /> {label}
+      </div>
+      <div className="mt-1 text-sm font-semibold text-foreground/90">{value}</div>
+    </div>
   );
 }
 
