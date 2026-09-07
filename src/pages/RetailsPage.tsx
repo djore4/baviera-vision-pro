@@ -4,6 +4,7 @@ import { useData } from '@/contexts/DataContext';
 import { useRecordEditor } from '@/components/RecordEditor';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
+import { RetomaFilter } from '@/components/RetomaFilter';
 import { formatDate, getDeliveryMonth } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle, Download } from 'lucide-react';
 import {
@@ -141,7 +142,6 @@ export default function RetailsPage() {
 
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
   const bevCount = useMemo(() => filtered.filter(r => r.bev === 1).length, [filtered]);
-  const retCount = useMemo(() => filtered.filter(r => r.ret === 1).length, [filtered]);
   const parkCount = useMemo(() => filtered.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail').length, [filtered]);
 
   const tableData = useMemo(() => {
@@ -211,7 +211,6 @@ export default function RetailsPage() {
   const handleModelClick = useCallback((n: string) => { toggle(setSelectedModel, n, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
-  const handleRetClick = useCallback(() => { setSelectedRet(prev => prev === true ? null : true); }, []);
   const handleStatusClick = useCallback((s: string) => { setSelectedStatus(prev => prev === s ? null : s); }, []);
   const handleLegendClick = (e: any) => { if (e?.value) handleStatusClick(e.value); };
 
@@ -266,7 +265,7 @@ export default function RetailsPage() {
     selectedModel && `Modelo: ${selectedModel}`,
     selectedQor !== null && 'QoR: Sim',
     selectedBev !== null && 'BEV: Sim',
-    selectedRet !== null && 'Retoma: Sim',
+    selectedRet !== null && `Retoma: ${selectedRet ? 'Com' : 'Sem'}`,
     selectedPark && 'Parque',
     selectedStatus && `Status: ${selectedStatus}`,
   ].filter(Boolean) as string[];
@@ -310,6 +309,8 @@ export default function RetailsPage() {
             <Badge variant={selectedPark ? 'default' : 'secondary'} className="text-[10px]">{parkCount}</Badge>
           </button>
 
+          <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
+
           {activeFilters.length > 0 && (
             <div className="flex flex-col gap-1">
               <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
@@ -323,7 +324,7 @@ export default function RetailsPage() {
               {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
               {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
               {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
-              {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma x</Badge>}
+              {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}
               {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('park')}>Parque x</Badge>}
               {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('status')}>Status: {selectedStatus} x</Badge>}
             </div>
@@ -447,7 +448,6 @@ export default function RetailsPage() {
             <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
               <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
               <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
-              <ClickableDonutCard title="Retoma" count={retCount} total={filtered.length} color="#8B5CF6" isActive={selectedRet === true} onClick={handleRetClick} />
             </div>
 
             <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">

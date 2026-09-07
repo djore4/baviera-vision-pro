@@ -9,6 +9,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { RetomaFilter } from '@/components/RetomaFilter';
 
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
@@ -63,13 +64,12 @@ export default function CarteiraPage() {
   }, [filtered, baseRecords]);
 
   const tipoChartData = useMemo(() => {
-    const monthMap: Record<string, { month: string; QoR: number; BEV: number; Retoma: number }> = {};
+    const monthMap: Record<string, { month: string; QoR: number; BEV: number }> = {};
     filtered.forEach(r => {
       if (!r.mes1) return;
-      if (!monthMap[r.mes1]) monthMap[r.mes1] = { month: r.mes1, QoR: 0, BEV: 0, Retoma: 0 };
+      if (!monthMap[r.mes1]) monthMap[r.mes1] = { month: r.mes1, QoR: 0, BEV: 0 };
       if (r.qor === 1) monthMap[r.mes1].QoR++;
       if (r.bev === 1) monthMap[r.mes1].BEV++;
-      if (r.ret === 1) monthMap[r.mes1].Retoma++;
     });
     return Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month));
   }, [filtered]);
@@ -77,7 +77,6 @@ export default function CarteiraPage() {
   const totalCarteira = filtered.length;
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
   const bevCount = useMemo(() => filtered.filter(r => r.bev === 1).length, [filtered]);
-  const retCount = useMemo(() => filtered.filter(r => r.ret === 1).length, [filtered]);
 
   const finData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -158,7 +157,6 @@ export default function CarteiraPage() {
   const handleModelClick = useCallback((name: string) => { toggle(setSelectedModel, name, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
-  const handleRetClick = useCallback(() => { setSelectedRet(prev => prev === true ? null : true); }, []);
 
   const exportCSV = useCallback(() => {
     const headers = ['RESP', 'D.Fecho', 'Mes1', 'Tipo', 'Modelo', 'Versão', 'Cliente', 'Fin', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', '198'];
@@ -229,6 +227,11 @@ export default function CarteiraPage() {
   return (
     <div className="space-y-3 animate-fade-in">
 
+      {/* Filtros — controlo de retoma alinhado à esquerda */}
+      <div className="w-40">
+        <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
+      </div>
+
       {/* Filtros ativos — linha horizontal no topo */}
       {hasFilters && (
         <div className="flex items-center gap-2 flex-wrap">
@@ -238,7 +241,7 @@ export default function CarteiraPage() {
           {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
           {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR x</Badge>}
           {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV x</Badge>}
-          {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('ret')}>Retoma x</Badge>}
+          {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}
         </div>
       )}
 
@@ -282,7 +285,6 @@ export default function CarteiraPage() {
               <div className="flex gap-2 text-[10px]">
                 <span className="font-semibold" style={{ color: '#F59E0B' }}>{qorCount} QoR</span>
                 <span className="font-semibold" style={{ color: '#16A34A' }}>{bevCount} BEV</span>
-                <span className="font-semibold" style={{ color: '#8B5CF6' }}>{retCount} Retoma</span>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -295,27 +297,18 @@ export default function CarteiraPage() {
                   onClick={(e: any) => {
                     if (e?.dataKey === 'QoR' || e?.value === 'QoR') handleQorClick();
                     if (e?.dataKey === 'BEV' || e?.value === 'BEV') handleBevClick();
-                    if (e?.dataKey === 'Retoma' || e?.value === 'Retoma') handleRetClick();
                   }}
-                  formatter={(value: string) => {
-                    const dimmed =
-                      (value === 'QoR' && selectedQor === null && (selectedBev !== null || selectedRet !== null)) ||
-                      (value === 'BEV' && selectedBev === null && (selectedQor !== null || selectedRet !== null)) ||
-                      (value === 'Retoma' && selectedRet === null && (selectedQor !== null || selectedBev !== null));
-                    const bold =
-                      (value === 'QoR' && selectedQor !== null) ||
-                      (value === 'BEV' && selectedBev !== null) ||
-                      (value === 'Retoma' && selectedRet !== null);
-                    return <span style={{ opacity: dimmed ? 0.3 : 1, fontWeight: bold ? 'bold' : 'normal' }}>{value}</span>;
-                  }} />
+                  formatter={(value: string) => (
+                    <span style={{
+                      opacity: (value === 'QoR' && selectedQor === null && selectedBev !== null) || (value === 'BEV' && selectedBev === null && selectedQor !== null) ? 0.3 : 1,
+                      fontWeight: (value === 'QoR' && selectedQor !== null) || (value === 'BEV' && selectedBev !== null) ? 'bold' : 'normal',
+                    }}>{value}</span>
+                  )} />
                 <Bar dataKey="QoR" fill="#F59E0B" stackId="a" cursor="pointer" onClick={handleQorClick} opacity={selectedQor === false ? 0.2 : 1}>
                   <LabelList dataKey="QoR" position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
                 </Bar>
                 <Bar dataKey="BEV" fill="#16A34A" stackId="a" cursor="pointer" onClick={handleBevClick} opacity={selectedBev === false ? 0.2 : 1}>
                   <LabelList dataKey="BEV" position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
-                </Bar>
-                <Bar dataKey="Retoma" fill="#8B5CF6" stackId="a" cursor="pointer" onClick={handleRetClick} opacity={selectedRet === false ? 0.2 : 1}>
-                  <LabelList dataKey="Retoma" position="inside" fontSize={8} fill="white" formatter={(v: number) => v > 0 ? v : ''} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
