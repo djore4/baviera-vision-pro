@@ -22,7 +22,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 p-8 bg-card border border-border rounded-xl shadow-lg">
         <div className="flex flex-col items-center gap-3">
-          <img src={bmwLogo} alt="BMW" className="h-12 w-12" />
+          <img src={bmwLogo} alt="BMW" className="h-12 w-12 dark:rounded-full dark:bg-white dark:p-1" />
           <div className="text-center">
             <h1 className="text-lg font-bold text-foreground">Caetano <span className="text-primary">BMW</span></h1>
             <p className="text-xs text-muted-foreground mt-1">Acesso restrito à equipa de Aveiro</p>

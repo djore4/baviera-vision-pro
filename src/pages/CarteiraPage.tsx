@@ -227,23 +227,22 @@ export default function CarteiraPage() {
   return (
     <div className="space-y-3 animate-fade-in">
 
-      {/* Filtros — controlo de retoma alinhado à esquerda */}
-      <div className="w-40">
-        <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
-      </div>
+      {/* Barra de filtros — retoma + filtros ativos */}
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+        <RetomaFilter value={selectedRet} onChange={setSelectedRet} className="w-40" />
 
-      {/* Filtros ativos — linha horizontal no topo */}
-      {hasFilters && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
-          {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('resp')}>{Array.from(selectedResps).join(', ')} x</Badge>}
-          {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
-          {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
-          {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR x</Badge>}
-          {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV x</Badge>}
-          {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}
-        </div>
-      )}
+        {hasFilters && (
+          <div className="flex items-center gap-2 flex-wrap pb-1">
+            <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
+            {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('resp')}>{Array.from(selectedResps).join(', ')} x</Badge>}
+            {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
+            {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
+            {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR x</Badge>}
+            {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV x</Badge>}
+            {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}
+          </div>
+        )}
+      </div>
 
       {/* Row 1 — Carteira/Tipologia | Método/Distribuição */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">

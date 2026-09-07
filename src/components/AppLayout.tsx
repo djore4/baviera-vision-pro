@@ -164,7 +164,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {sidebarOpen && !isMobile ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </button>
             <button onClick={handleLogoClick} className="relative flex-shrink-0" title="BMW" aria-label="BMW">
-              <img src={bmwLogo} alt="BMW" className={`h-8 w-8 ${vroom ? 'animate-vroom' : ''}`} />
+              <img src={bmwLogo} alt="BMW" className={`h-8 w-8 dark:rounded-full dark:bg-white dark:p-0.5 ${vroom ? 'animate-vroom' : ''}`} />
               {season.xmas && (
                 <span className="absolute -top-2 -right-1 text-[13px] leading-none select-none" aria-hidden>🎅</span>
               )}
