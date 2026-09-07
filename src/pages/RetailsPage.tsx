@@ -564,8 +564,11 @@ function normalizeMonthKey(mes: string): string | null {
 }
 
 function GaugeSimple({ value, retailPct, previsaoPct, size = 'sm' }: { value: number; retailPct?: number; previsaoPct?: number; size?: 'sm' | 'lg' }) {
-  const maxVal = Math.max(100, value, previsaoPct ?? 0);
-  const clamped = Math.min(Math.max(value, 0), maxVal);
+  // Escala fixa a 120% — o arco, as zonas e a marca dos 100% param sempre aqui.
+  const maxVal = 120;
+  // O ponteiro, esse, continua a rodar para lá do fim quando o valor ultrapassa
+  // os 120% (overshoot divertido); limitado a 200% para não dar a volta completa.
+  const needlePct = Math.min(Math.max(value, 0), 200);
   const color = value >= 100 ? '#16A34A' : value >= 80 ? '#F59E0B' : '#DC2626';
   const cx = 60, cy = 60, r = 50;
   const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -575,7 +578,7 @@ function GaugeSimple({ value, retailPct, previsaoPct, size = 'sm' }: { value: nu
     const sweep = ((e - s) / maxVal) * 180;
     return `M ${sp.x} ${sp.y} A ${r} ${r} 0 ${sweep > 180 ? 1 : 0} 1 ${ep.x} ${ep.y}`;
   };
-  const needleAng = -180 + (clamped / maxVal) * 180;
+  const needleAng = -180 + (needlePct / maxVal) * 180;
   const mark100Ang = -180 + (100 / maxVal) * 180;
   const mark100Inner = { x: cx + 43 * Math.cos(toRad(mark100Ang)), y: cy + 43 * Math.sin(toRad(mark100Ang)) };
   const mark100Outer = { x: cx + 57 * Math.cos(toRad(mark100Ang)), y: cy + 57 * Math.sin(toRad(mark100Ang)) };
@@ -589,7 +592,7 @@ function GaugeSimple({ value, retailPct, previsaoPct, size = 'sm' }: { value: nu
   const previsaoClamped = previsaoPct != null ? Math.min(Math.max(previsaoPct, 0), maxVal) : null;
   const previsaoPoint = previsaoClamped != null ? arcPoint(previsaoClamped) : null;
   return (
-    <svg viewBox="0 0 120 70" className={size === 'lg' ? 'w-full max-w-[280px] h-auto' : 'w-28 h-auto'}>
+    <svg viewBox="0 0 120 96" className={size === 'lg' ? 'w-full max-w-[280px] h-auto' : 'w-28 h-auto'}>
       <path d={describeArc(0, maxVal)} fill="none" stroke="hsl(var(--border))" strokeWidth="8" strokeLinecap="round" />
       <path d={describeArc(0, zone80)} fill="none" stroke="#DC262640" strokeWidth="8" strokeLinecap="round" />
       {zone80 < zone100 && <path d={describeArc(zone80, zone100)} fill="none" stroke="#F59E0B40" strokeWidth="8" strokeLinecap="round" />}
