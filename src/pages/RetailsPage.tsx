@@ -88,7 +88,7 @@ export default function RetailsPage() {
   }, [filter]);
 
   const realization = useMemo(() => {
-    const empty = { faturas: 0, retails: 0, previsao: 0, targetCaetano: 0, targetBMW: 0, faturasPct: 0, retailsPct: 0 };
+    const empty = { faturas: 0, retails: 0, previsao: 0, targetCaetano: 0, targetBMW: 0, faturasPct: 0, retailsPct: 0, faturasPrevPct: 0, retailsPrevPct: 0 };
     if (!data) return empty;
     const matchingObj = data.objetivosTotal.filter(o => {
       if (selectedMonthKeys.size === 0) return true;
@@ -120,7 +120,10 @@ export default function RetailsPage() {
     // Faturas vs objetivo Caetano; Retails vs objetivo BMW.
     const faturasPct = targetCaetano ? Math.round((faturas / targetCaetano) * 100) : 0;
     const retailsPct = targetBMW ? Math.round((retails / targetBMW) * 100) : 0;
-    return { faturas, retails, previsao, targetCaetano, targetBMW, faturasPct, retailsPct };
+    // Previsão em % do objetivo de cada gráfico (para o ponto no gauge).
+    const faturasPrevPct = targetCaetano ? Math.round((previsao / targetCaetano) * 100) : 0;
+    const retailsPrevPct = targetBMW ? Math.round((previsao / targetBMW) * 100) : 0;
+    return { faturas, retails, previsao, targetCaetano, targetBMW, faturasPct, retailsPct, faturasPrevPct, retailsPrevPct };
   }, [data, selectedMonthKeys]);
 
   const finData = useMemo(() => {
@@ -371,7 +374,7 @@ export default function RetailsPage() {
                   {/* Faturas vs objetivo Caetano */}
                   <div className="flex flex-col items-center justify-between pr-3 border-r-2 border-dashed border-primary/30">
                     <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16A34A' }}>Faturas</p>
-                    <GaugeSimple value={realization.faturasPct} size="lg" />
+                    <GaugeSimple value={realization.faturasPct} previsaoPct={realization.faturasPrevPct} size="lg" />
                     <div className="grid grid-cols-4 gap-1 w-full text-center mt-1">
                       <div><p className="text-base font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Orçamento</p></div>
                       <div><p className="text-base font-extrabold" style={{ color: '#16A34A' }}>{realization.faturas}</p><p className="text-[9px] text-muted-foreground">Atual</p></div>
@@ -382,7 +385,7 @@ export default function RetailsPage() {
                   {/* Retails vs objetivo BMW */}
                   <div className="flex flex-col items-center justify-between pl-3">
                     <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#1C69D4' }}>Retails</p>
-                    <GaugeSimple value={realization.retailsPct} size="lg" />
+                    <GaugeSimple value={realization.retailsPct} previsaoPct={realization.retailsPrevPct} size="lg" />
                     <div className="grid grid-cols-4 gap-1 w-full text-center mt-1">
                       <div><p className="text-base font-bold text-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">Orçamento</p></div>
                       <div><p className="text-base font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] text-muted-foreground">Atual</p></div>
@@ -561,8 +564,8 @@ function normalizeMonthKey(mes: string): string | null {
   return null;
 }
 
-function GaugeSimple({ value, retailPct, size = 'sm' }: { value: number; retailPct?: number; size?: 'sm' | 'lg' }) {
-  const maxVal = Math.max(100, value);
+function GaugeSimple({ value, retailPct, previsaoPct, size = 'sm' }: { value: number; retailPct?: number; previsaoPct?: number; size?: 'sm' | 'lg' }) {
+  const maxVal = Math.max(100, value, previsaoPct ?? 0);
   const clamped = Math.min(Math.max(value, 0), maxVal);
   const color = value >= 100 ? '#16A34A' : value >= 80 ? '#F59E0B' : '#DC2626';
   const cx = 60, cy = 60, r = 50;
@@ -583,6 +586,9 @@ function GaugeSimple({ value, retailPct, size = 'sm' }: { value: number; retailP
   const retailAng = retailClamped != null ? -180 + (retailClamped / maxVal) * 180 : null;
   const retailInner = retailAng != null ? { x: cx + 42 * Math.cos(toRad(retailAng)), y: cy + 42 * Math.sin(toRad(retailAng)) } : null;
   const retailOuter = retailAng != null ? { x: cx + 58 * Math.cos(toRad(retailAng)), y: cy + 58 * Math.sin(toRad(retailAng)) } : null;
+  // Ponto da previsão sobre o arco, na cor da fonte "Previsão" (muted-foreground).
+  const previsaoClamped = previsaoPct != null ? Math.min(Math.max(previsaoPct, 0), maxVal) : null;
+  const previsaoPoint = previsaoClamped != null ? arcPoint(previsaoClamped) : null;
   return (
     <svg viewBox="0 0 120 70" className={size === 'lg' ? 'w-full max-w-[280px] h-auto' : 'w-28 h-auto'}>
       <path d={describeArc(0, maxVal)} fill="none" stroke="hsl(var(--border))" strokeWidth="8" strokeLinecap="round" />
@@ -591,6 +597,7 @@ function GaugeSimple({ value, retailPct, size = 'sm' }: { value: number; retailP
       {maxVal > 100 && <path d={describeArc(zone100, maxVal)} fill="none" stroke="#16A34A40" strokeWidth="8" strokeLinecap="round" />}
       {maxVal > 100 && <line x1={mark100Inner.x} y1={mark100Inner.y} x2={mark100Outer.x} y2={mark100Outer.y} stroke="hsl(var(--foreground))" strokeWidth="1.5" opacity={0.5} />}
       {retailInner && retailOuter && <line x1={retailInner.x} y1={retailInner.y} x2={retailOuter.x} y2={retailOuter.y} stroke="#1C69D4" strokeWidth="2" strokeLinecap="round" />}
+      {previsaoPoint && <circle cx={previsaoPoint.x} cy={previsaoPoint.y} r="4" fill="hsl(var(--muted-foreground))" stroke="hsl(var(--card))" strokeWidth="1.2" />}
       <line x1={cx} y1={cy} x2={cx + 40 * Math.cos(toRad(needleAng))} y2={cy + 40 * Math.sin(toRad(needleAng))} stroke={color} strokeWidth="2.5" strokeLinecap="round" />
       <circle cx={cx} cy={cy} r="3" fill={color} />
       <text x={cx} y="52" textAnchor="middle" fontSize="11" fontWeight="bold" fill={color}>{value}%</text>
