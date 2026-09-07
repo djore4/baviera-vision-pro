@@ -8,7 +8,7 @@ export interface RecordForm {
   status: string; neg: string | null; mes1: string; resp: string; id_cliente: string;
   type: string; biz: string;
   enc: string; chas: string; mat: string; model: string; version: string; gar: string;
-  qor: number; xev: number; bev: number; m: number; mpa: number; gkl: number;
+  qor: number; xev: number; bev: number; m: number; mpa: number; gkl: number; ret: number;
   csc: number; cme: number | null;
   fin: string; week198: string; dmat: string | null; date298: string | null; app: string | null; obs: string;
 }
@@ -16,7 +16,7 @@ export interface RecordForm {
 const EMPTY: RecordForm = {
   status: '', neg: '', mes1: '', resp: '', id_cliente: '',
   type: '', biz: '', enc: '', chas: '', mat: '',
-  model: '', version: '', gar: '', qor: 0, xev: 0, bev: 0, m: 0, mpa: 0, gkl: 0,
+  model: '', version: '', gar: '', qor: 0, xev: 0, bev: 0, m: 0, mpa: 0, gkl: 0, ret: 0,
   csc: 0, cme: null, fin: '', week198: '', dmat: '', date298: '', app: '', obs: '',
 };
 
@@ -24,8 +24,8 @@ const STATUS_OPTS = ['Frio','Morno','Quente','Carteira','Matricula','Retail','Ad
 const TYPE_OPTS   = ['VN','VD','VP'];
 const GAR_OPTS    = ['GAR','nGAR'];
 const FIN_OPTS    = ['PP','FS','Fint','Fext'];
-const CLASS_FLAGS  = ['qor','xev','bev','m','mpa','gkl'] as const;
-const CLASS_LABELS: Record<string, string> = { qor:'QoR', xev:'xEV', bev:'BEV', m:'M', mpa:'MPA', gkl:'GKL' };
+const CLASS_FLAGS  = ['qor','xev','bev','m','mpa','gkl','ret'] as const;
+const CLASS_LABELS: Record<string, string> = { qor:'QoR', xev:'xEV', bev:'BEV', m:'M', mpa:'MPA', gkl:'GKL', ret:'Retoma' };
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 /** Evento global emitido após criar/editar/eliminar um registo. */
@@ -116,7 +116,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
     const payload = {
       ...form,
       qor: form.qor ? 1 : 0, xev: form.xev ? 1 : 0, bev: form.bev ? 1 : 0,
-      m: form.m ? 1 : 0, mpa: form.mpa ? 1 : 0, gkl: form.gkl ? 1 : 0,
+      m: form.m ? 1 : 0, mpa: form.mpa ? 1 : 0, gkl: form.gkl ? 1 : 0, ret: form.ret ? 1 : 0,
       csc: Number(form.csc) || 0,
       cme: form.cme !== null && String(form.cme) !== '' ? Number(form.cme) : null,
       neg: form.neg || null, dmat: form.dmat || null, date298: form.date298 || null, app: form.app || null,

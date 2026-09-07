@@ -53,6 +53,12 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
     const label = str(h).toUpperCase();
     return label === 'DFAT' || label.includes('DFAT') || label.includes('FATURA');
   });
+  // Deteta a coluna RET (retoma) pelo cabeçalho, para ser robusta à posição.
+  // 1 = processo com retoma; 0/vazio = sem retoma. Se não existir, ret fica 0.
+  const retIdx = headerRow.findIndex((h) => {
+    const label = str(h).toUpperCase();
+    return label === 'RET' || label.includes('RETOMA');
+  });
 
   const control: ControlRecord[] = [];
   for (let i = 1; i < controlRaw.length; i++) {
@@ -79,6 +85,7 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
       mPerf: num(r[17]),
       csc: num(r[18]),
       cme: numOrNull(r[19]),
+      ret: retIdx >= 0 ? num(r[retIdx]) : 0,
       fin: str(r[20]),
       week198: str(r[21]),
       dmat: excelDateToJS(r[22]),
@@ -165,6 +172,10 @@ export function isPipeline(r: ControlRecord): boolean {
 
 export function isPortfolio(r: ControlRecord): boolean {
   return ['Carteira', 'Matricula'].includes(r.status);
+}
+
+export function hasRetoma(r: ControlRecord): boolean {
+  return r.ret === 1;
 }
 
 export function isMissingApping(r: ControlRecord): boolean {
