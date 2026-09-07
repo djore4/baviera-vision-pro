@@ -60,39 +60,47 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
     return label === 'RET' || label.includes('RETOMA');
   });
 
+  // A coluna RET foi inserida a meio do ficheiro (na posição do antigo FIN),
+  // por isso todas as colunas a partir daí deslizaram uma posição à direita.
+  // Em vez de índices fixos — que partem sempre que se insere uma coluna — os
+  // índices-base (layout sem RET) são ajustados a partir da posição real de RET
+  // no cabeçalho: qualquer coluna cujo índice-base seja >= retIdx lê-se +1.
+  // Se RET não existir (ficheiro antigo), col() é a identidade.
+  const col = (base: number) => (retIdx >= 0 && base >= retIdx ? base + 1 : base);
+
   const control: ControlRecord[] = [];
   for (let i = 1; i < controlRaw.length; i++) {
     const r = controlRaw[i] as unknown[];
     if (!r || !r[1]) continue; // skip empty rows (col B = index 1)
 
     control.push({
-      status: str(r[1]),
-      neg: excelDateToJS(r[2]),
-      mes1: str(r[3]),
-      resp: str(r[4]),
-      cliente: str(r[5]),
-      type: str(r[6]),
-      biz: str(r[7]),
-      enc: str(r[8]),
-      chas: str(r[9]),
-      mat: str(r[10]),
-      model: str(r[11]),
-      version: str(r[12]),
-      gar: str(r[13]),
-      qor: num(r[14]),
-      xev: num(r[15]),
-      bev: num(r[16]),
-      mPerf: num(r[17]),
-      csc: num(r[18]),
-      cme: numOrNull(r[19]),
+      status: str(r[col(1)]),
+      neg: excelDateToJS(r[col(2)]),
+      mes1: str(r[col(3)]),
+      resp: str(r[col(4)]),
+      cliente: str(r[col(5)]),
+      type: str(r[col(6)]),
+      biz: str(r[col(7)]),
+      enc: str(r[col(8)]),
+      chas: str(r[col(9)]),
+      mat: str(r[col(10)]),
+      model: str(r[col(11)]),
+      version: str(r[col(12)]),
+      gar: str(r[col(13)]),
+      qor: num(r[col(14)]),
+      xev: num(r[col(15)]),
+      bev: num(r[col(16)]),
+      mPerf: num(r[col(17)]),
+      csc: num(r[col(18)]),
+      cme: numOrNull(r[col(19)]),
       ret: retIdx >= 0 ? num(r[retIdx]) : 0,
-      fin: str(r[20]),
-      week198: str(r[21]),
-      dmat: excelDateToJS(r[22]),
-      date298: excelDateToJS(r[23]),
-      app: excelDateToJS(r[24]),
+      fin: str(r[col(20)]),
+      week198: str(r[col(21)]),
+      dmat: excelDateToJS(r[col(22)]),
+      date298: excelDateToJS(r[col(23)]),
+      app: excelDateToJS(r[col(24)]),
       dfat: dfatIdx >= 0 ? excelDateToJS(r[dfatIdx]) : null,
-      obs: str(r[25]),
+      obs: str(r[col(25)]),
     });
   }
 
