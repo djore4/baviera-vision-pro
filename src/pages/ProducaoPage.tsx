@@ -5,6 +5,7 @@ import { fireConfetti } from '@/lib/confetti';
 import { useData } from '@/contexts/DataContext';
 import { useRecordEditor } from '@/components/RecordEditor';
 import { PeriodFilter } from '@/components/PeriodFilter';
+import { RetomaFilter } from '@/components/RetomaFilter';
 import { formatDate } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -149,7 +150,6 @@ export default function ProducaoPage() {
 
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
   const bevCount = useMemo(() => filtered.filter(r => r.bev === 1).length, [filtered]);
-  const retCount = useMemo(() => filtered.filter(r => r.ret === 1).length, [filtered]);
 
   const tableData = useMemo(() => {
     let rows = [...filtered];
@@ -196,7 +196,6 @@ export default function ProducaoPage() {
   const handleModelClick = useCallback((name: string) => { toggle(setSelectedModel, name, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
-  const handleRetClick = useCallback(() => { setSelectedRet(prev => prev === true ? null : true); }, []);
 
   const exportCSV = useCallback(() => {
     const headers = ['RESP', 'TIPO', 'MODELO', 'VERSÃO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Data Negócio', 'Data Matrícula', 'Data Retail', 'Data Fatura', 'Data Apping'];
@@ -224,7 +223,7 @@ export default function ProducaoPage() {
     selectedModel && `Modelo: ${selectedModel}`,
     selectedQor !== null && 'QoR: Sim',
     selectedBev !== null && 'BEV: Sim',
-    selectedRet !== null && 'Retoma: Sim',
+    selectedRet !== null && `Retoma: ${selectedRet ? 'Com' : 'Sem'}`,
   ].filter(Boolean) as string[];
 
   const clearFilter = (type: string) => {
@@ -278,6 +277,7 @@ export default function ProducaoPage() {
         {/* Left column */}
         <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
           <PeriodFilter />
+          <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
           {activeFilters.length > 0 && (
             <div className="flex flex-col gap-1">
               <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
@@ -286,7 +286,7 @@ export default function ProducaoPage() {
               {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
               {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
               {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
-              {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma x</Badge>}
+              {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}
             </div>
           )}
         </div>
@@ -405,11 +405,10 @@ export default function ProducaoPage() {
               </div>
             </div>
 
-            {/* QoR + BEV + Retoma */}
+            {/* QoR + BEV */}
             <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
               <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
               <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
-              <ClickableDonutCard title="Retoma" count={retCount} total={filtered.length} color="#8B5CF6" isActive={selectedRet === true} onClick={handleRetClick} />
             </div>
 
             {/* Espaco vazio para alinhar */}
