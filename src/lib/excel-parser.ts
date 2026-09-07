@@ -160,14 +160,27 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
   };
 }
 
+/**
+ * Mês em que o negócio é posicionado (mês de entrega provável).
+ *
+ * MÊS1 é a autoridade: define o mês previsto de entrega/retail e manda no
+ * posicionamento, mesmo que a viatura já tenha data de retail (298) noutro mês
+ * — ex.: matrícula pedida em agosto para entrega prevista em setembro.
+ * A data de retail real (298) só é usada como recurso quando MÊS1 não traz um
+ * mês definido (formato AAAA/MM).
+ */
 export function getDeliveryMonth(record: ControlRecord): string {
+  const mes1 = (record.mes1 || '').trim();
+  const m1 = mes1.match(/^(\d{4})\/(\d{1,2})$/);
+  if (m1) return `${m1[1]}/${m1[2].padStart(2, '0')}`;
+
   if (record.date298) {
     const d = record.date298;
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     return `${y}/${m}`;
   }
-  return record.mes1;
+  return mes1;
 }
 
 export function isRetailDelivery(r: ControlRecord): boolean {

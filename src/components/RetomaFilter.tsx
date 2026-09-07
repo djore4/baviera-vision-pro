@@ -1,30 +1,45 @@
 /**
- * Filtro de retoma (tri-estado) para os painéis de filtros.
+ * Filtro de retoma (tri-estado) — controlo segmentado.
+ *   value === null  -> Todos (sem filtro)
  *   value === true  -> apenas processos COM retoma
  *   value === false -> apenas processos SEM retoma
- *   value === null  -> todos (sem filtro)
- * Clicar no botão já ativo desliga o filtro (volta a null).
+ * O segmento ativo fica destacado, por isso o estado (incluindo "Todos") é
+ * sempre explícito, ao contrário de dois botões soltos.
  */
-export function RetomaFilter({ value, onChange }: {
+export function RetomaFilter({ value, onChange, className = '' }: {
   value: boolean | null;
   onChange: (v: boolean | null) => void;
+  className?: string;
 }) {
-  const btn = (active: boolean) =>
-    `flex-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
-      active
-        ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary'
-        : 'border-border bg-background text-muted-foreground hover:bg-accent'
-    }`;
+  const opts: { label: string; v: boolean | null }[] = [
+    { label: 'Todos', v: null },
+    { label: 'Com', v: true },
+    { label: 'Sem', v: false },
+  ];
   return (
-    <div className="w-full rounded-lg border border-border bg-card p-2.5">
-      <span className="text-[11px] font-semibold uppercase text-muted-foreground">Retoma</span>
-      <div className="mt-1.5 flex gap-1">
-        <button type="button" onClick={() => onChange(value === true ? null : true)} className={btn(value === true)}>
-          Com
-        </button>
-        <button type="button" onClick={() => onChange(value === false ? null : false)} className={btn(value === false)}>
-          Sem
-        </button>
+    <div className={className}>
+      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Retoma
+      </span>
+      <div className="grid w-full grid-cols-3 gap-0.5 rounded-lg bg-muted p-0.5">
+        {opts.map((o) => {
+          const active = value === o.v;
+          return (
+            <button
+              key={o.label}
+              type="button"
+              onClick={() => onChange(o.v)}
+              aria-pressed={active}
+              className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                active
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {o.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
