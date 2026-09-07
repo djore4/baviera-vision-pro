@@ -30,6 +30,7 @@ export function controlRecordToRow(r: ControlRecord) {
     m: r.mPerf || 0,
     csc: r.csc || 0,
     cme: r.cme,
+    ret: r.ret || 0,
     fin: r.fin || null,
     week198: r.week198 || null,
     dmat: isoDate(r.dmat),

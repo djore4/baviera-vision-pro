@@ -30,6 +30,7 @@ export default function ProducaoPage() {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
+  const [selectedRet, setSelectedRet] = useState<boolean | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('neg');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,8 +54,9 @@ export default function ProducaoPage() {
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
+    if (selectedRet !== null) result = result.filter(r => (r.ret === 1) === selectedRet);
     return result;
-  }, [baseRecords, selectedResp, selectedFin, selectedModel, selectedQor, selectedBev]);
+  }, [baseRecords, selectedResp, selectedFin, selectedModel, selectedQor, selectedBev, selectedRet]);
 
   const negByResp = useMemo(() => {
     if (!data) return [];
@@ -147,6 +149,7 @@ export default function ProducaoPage() {
 
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
   const bevCount = useMemo(() => filtered.filter(r => r.bev === 1).length, [filtered]);
+  const retCount = useMemo(() => filtered.filter(r => r.ret === 1).length, [filtered]);
 
   const tableData = useMemo(() => {
     let rows = [...filtered];
@@ -193,6 +196,7 @@ export default function ProducaoPage() {
   const handleModelClick = useCallback((name: string) => { toggle(setSelectedModel, name, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
+  const handleRetClick = useCallback(() => { setSelectedRet(prev => prev === true ? null : true); }, []);
 
   const exportCSV = useCallback(() => {
     const headers = ['RESP', 'TIPO', 'MODELO', 'VERSÃO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Data Negócio', 'Data Matrícula', 'Data Retail', 'Data Fatura', 'Data Apping'];
@@ -220,6 +224,7 @@ export default function ProducaoPage() {
     selectedModel && `Modelo: ${selectedModel}`,
     selectedQor !== null && 'QoR: Sim',
     selectedBev !== null && 'BEV: Sim',
+    selectedRet !== null && 'Retoma: Sim',
   ].filter(Boolean) as string[];
 
   const clearFilter = (type: string) => {
@@ -228,6 +233,7 @@ export default function ProducaoPage() {
     if (type === 'model') setSelectedModel(null);
     if (type === 'qor') setSelectedQor(null);
     if (type === 'bev') setSelectedBev(null);
+    if (type === 'ret') setSelectedRet(null);
   };
 
   const HorizontalBarList = ({ data: items, colorMap, selected, onClick }: {
@@ -280,6 +286,7 @@ export default function ProducaoPage() {
               {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
               {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
               {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
+              {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma x</Badge>}
             </div>
           )}
         </div>
@@ -398,10 +405,11 @@ export default function ProducaoPage() {
               </div>
             </div>
 
-            {/* QoR + BEV */}
+            {/* QoR + BEV + Retoma */}
             <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
               <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
               <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
+              <ClickableDonutCard title="Retoma" count={retCount} total={filtered.length} color="#8B5CF6" isActive={selectedRet === true} onClick={handleRetClick} />
             </div>
 
             {/* Espaco vazio para alinhar */}

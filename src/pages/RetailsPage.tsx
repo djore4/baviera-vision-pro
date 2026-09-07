@@ -33,6 +33,7 @@ export default function RetailsPage() {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
+  const [selectedRet, setSelectedRet] = useState<boolean | null>(null);
   const [selectedPark, setSelectedPark] = useState<boolean>(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('date298');
@@ -51,10 +52,11 @@ export default function RetailsPage() {
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
+    if (selectedRet !== null) result = result.filter(r => (r.ret === 1) === selectedRet);
     if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail');
     if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
     return result;
-  }, [baseRecords, selectedResps, selectedGar, selectedFin, selectedModel, selectedQor, selectedBev, selectedPark, selectedStatus]);
+  }, [baseRecords, selectedResps, selectedGar, selectedFin, selectedModel, selectedQor, selectedBev, selectedRet, selectedPark, selectedStatus]);
 
   const statusByResp = useMemo(() => {
     const map: Record<string, { resp: string; Carteira: number; Matricula: number; Retail: number; total: number }> = {};
@@ -139,6 +141,7 @@ export default function RetailsPage() {
 
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
   const bevCount = useMemo(() => filtered.filter(r => r.bev === 1).length, [filtered]);
+  const retCount = useMemo(() => filtered.filter(r => r.ret === 1).length, [filtered]);
   const parkCount = useMemo(() => filtered.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail').length, [filtered]);
 
   const tableData = useMemo(() => {
@@ -208,6 +211,7 @@ export default function RetailsPage() {
   const handleModelClick = useCallback((n: string) => { toggle(setSelectedModel, n, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
+  const handleRetClick = useCallback(() => { setSelectedRet(prev => prev === true ? null : true); }, []);
   const handleStatusClick = useCallback((s: string) => { setSelectedStatus(prev => prev === s ? null : s); }, []);
   const handleLegendClick = (e: any) => { if (e?.value) handleStatusClick(e.value); };
 
@@ -262,6 +266,7 @@ export default function RetailsPage() {
     selectedModel && `Modelo: ${selectedModel}`,
     selectedQor !== null && 'QoR: Sim',
     selectedBev !== null && 'BEV: Sim',
+    selectedRet !== null && 'Retoma: Sim',
     selectedPark && 'Parque',
     selectedStatus && `Status: ${selectedStatus}`,
   ].filter(Boolean) as string[];
@@ -273,6 +278,7 @@ export default function RetailsPage() {
     if (type === 'model') setSelectedModel(null);
     if (type === 'qor') setSelectedQor(null);
     if (type === 'bev') setSelectedBev(null);
+    if (type === 'ret') setSelectedRet(null);
     if (type === 'park') setSelectedPark(false);
     if (type === 'status') setSelectedStatus(null);
   };
@@ -317,6 +323,7 @@ export default function RetailsPage() {
               {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
               {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
               {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
+              {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma x</Badge>}
               {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('park')}>Parque x</Badge>}
               {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('status')}>Status: {selectedStatus} x</Badge>}
             </div>
@@ -440,6 +447,7 @@ export default function RetailsPage() {
             <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
               <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
               <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
+              <ClickableDonutCard title="Retoma" count={retCount} total={filtered.length} color="#8B5CF6" isActive={selectedRet === true} onClick={handleRetClick} />
             </div>
 
             <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">

@@ -30,7 +30,7 @@ interface DbControlRow {
   biz: string | null; enc: string | null;
   chas: string | null; mat: string | null; model: string | null; version: string | null;
   gar: string | null; qor: number | null; xev: number | null; bev: number | null; m: number | null;
-  csc: number | null; cme: number | null; fin: string | null; week198: string | null;
+  csc: number | null; cme: number | null; ret: number | null; fin: string | null; week198: string | null;
   dmat: string | null; date298: string | null; app: string | null; dfat: string | null; obs: string | null;
 }
 
@@ -61,6 +61,7 @@ function mapDbRow(r: DbControlRow): ControlRecord {
     mPerf: nz(r.m),
     csc: nz(r.csc),
     cme: r.cme == null ? null : Number(r.cme),
+    ret: nz(r.ret),
     fin: s(r.fin),
     week198: s(r.week198),
     dmat: dt(r.dmat),
