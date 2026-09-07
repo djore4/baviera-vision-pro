@@ -206,28 +206,26 @@ export function QualityRadarCard() {
             )}
           </div>
 
-          {/* Somatório de cada teia apresentada (equivalente ao painel da página Dados). */}
-          <div className="mt-2 rounded-md border border-border/70 divide-y divide-border/50">
-            {series.map(s => (
-              <div key={s.key} className="flex items-center justify-between gap-2 px-2 py-1">
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium">
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
-                  {s.key === 'Média' ? `Média (${rows.length} vend.)` : s.key}
-                </span>
-                <span className="text-[11px] font-semibold tabular-nums">
-                  {fmtNum(sumScores(s.scores))}
-                  <span className="font-normal text-muted-foreground"> / {MAX_TOTAL}</span>
-                </span>
-              </div>
-            ))}
-          </div>
+          {/* Somatório por vendedor — só ao comparar (com uma única teia o Total
+              já aparece ao centro do radar, tornando esta caixa redundante). */}
+          {!single && (
+            <div className="mt-2 rounded-md border border-border/70 divide-y divide-border/50">
+              {series.map(s => (
+                <div key={s.key} className="flex items-center justify-between gap-2 px-2 py-1">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                    {s.key === 'Média' ? `Média (${rows.length} vend.)` : s.key}
+                  </span>
+                  <span className="text-[11px] font-semibold tabular-nums">
+                    {fmtNum(sumScores(s.scores))}
+                    <span className="font-normal text-muted-foreground"> / {MAX_TOTAL}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
-
-      <p className="text-[10px] text-muted-foreground mt-1 px-1">
-        Notas de qualidade do serviço (escala 0–{QUALITY_MAX}), geridas no tab Dados.
-        Ligue/desligue a <strong>Média</strong> e escolha vendedores para ver a equipa, os vendedores ou ambos.
-      </p>
     </div>
   );
 }

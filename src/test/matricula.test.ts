@@ -31,6 +31,16 @@ describe('buildMatriculaRequest', () => {
     expect(out).toContain('Pagamento: FS');
   });
 
+  it('indica a retoma como S quando ret = 1', () => {
+    const out = buildMatriculaRequest({ ...rec, ret: 1 }, new Date('2026-08-19T10:00:00'));
+    expect(out).toContain('Retoma: S');
+  });
+
+  it('indica a retoma como N quando não há retoma', () => {
+    expect(buildMatriculaRequest({ ...rec, ret: 0 })).toContain('Retoma: N');
+    expect(buildMatriculaRequest(rec)).toContain('Retoma: N');
+  });
+
   it('usa o nome do cliente no assunto', () => {
     const out = buildMatriculaRequest(rec, new Date('2026-08-19T10:00:00'));
     expect(out).toContain('Assunto: *Pedido de matrícula* | *Carlos Ferreira de Melo*');

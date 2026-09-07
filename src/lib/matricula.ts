@@ -7,6 +7,7 @@
  *  - chas     ← chassis / VIN
  *  - biz      ← número Bizagi
  *  - fin      ← método de pagamento (coluna "Pag")
+ *  - ret      ← retoma (coluna "RET": 1 = com retoma) → "S"/"N" no pedido
  */
 
 export interface MatriculaFields {
@@ -15,6 +16,7 @@ export interface MatriculaFields {
   chas?: string | null;
   biz?: string | null;
   fin?: string | null;
+  ret?: number | null;
 }
 
 /** Destinatários e CC fixos do pedido de matrícula. */
@@ -48,5 +50,6 @@ export function buildMatriculaRequest(f: MatriculaFields, now: Date = new Date()
     `Chassis: ${val(f.chas)}`,
     `Bizagi: ${val(f.biz)}`,
     `Pagamento: ${val(f.fin)}`,
+    `Retoma: ${f.ret === 1 ? 'S' : 'N'}`,
   ].join('\n');
 }

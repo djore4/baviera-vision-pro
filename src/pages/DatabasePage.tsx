@@ -12,7 +12,7 @@ interface ControlRecord {
   status: string; neg: string | null; mes1: string; resp: string; id_cliente: string;
   type: string; biz: string;
   enc: string; chas: string; mat: string; model: string; version: string; gar: string;
-  qor: number; xev: number; bev: number; m: number; mpa: number; gkl: number;
+  qor: number; xev: number; bev: number; m: number; mpa: number; gkl: number; ret: number;
   csc: number; cme: number | null;
   fin: string; week198: string; dmat: string | null; date298: string | null; app: string | null; obs: string;
 }
@@ -447,7 +447,7 @@ export default function DatabasePage() {
                   ))}
                   <td className="px-2 py-1.5 whitespace-nowrap">
                     <PedirMatriculaButton
-                      record={{ cliente: r.id_cliente, enc: r.enc, chas: r.chas, biz: r.biz, fin: r.fin }}
+                      record={{ cliente: r.id_cliente, enc: r.enc, chas: r.chas, biz: r.biz, fin: r.fin, ret: r.ret }}
                     />
                   </td>
                 </tr>
