@@ -232,6 +232,24 @@ export default function VendedoresPage() {
     return { total: rank('total'), bev: rank('bev'), qor: rank('qor') };
   }, [retails]);
 
+  // Retomas por comercial — só sobre retails já feitos (a carteira, não
+  // confirmada, não entra). Mostra o número absoluto de retomas e a taxa
+  // (retomas ÷ retails), para expor assimetrias no trabalho das retomas.
+  const retomasByResp = useMemo(() => {
+    const map: Record<string, { resp: string; retails: number; retomas: number }> = {};
+    retails.forEach(r => {
+      const e = (map[r.resp || '—'] ??= { resp: r.resp || '—', retails: 0, retomas: 0 });
+      e.retails++;
+      if (r.ret === 1) e.retomas++;
+    });
+    return Object.values(map)
+      .map(e => ({ ...e, semRetoma: e.retails - e.retomas, taxa: pct(e.retomas, e.retails) }))
+      .sort((a, b) => b.taxa - a.taxa || b.retomas - a.retomas);
+  }, [retails]);
+
+  const teamRetomas = useMemo(() => retails.filter(r => r.ret === 1).length, [retails]);
+  const teamTaxaRetoma = pct(teamRetomas, retails.length);
+
   // Agregação por comercial.
   const rows = useMemo(() => {
     const map: Record<string, {
@@ -527,6 +545,52 @@ export default function VendedoresPage() {
           <div className="lg:w-96 lg:flex-shrink-0">
             <QualityRadarCard />
           </div>
+          </div>
+
+          {/* Retomas por comercial — absoluto + taxa (retomas ÷ retails feitos) */}
+          <div className="bg-card border border-border rounded-lg p-2">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Retomas por Comercial</h3>
+              <span className="text-[10px] text-muted-foreground">
+                Equipa: <strong style={{ color: '#8B5CF6' }}>{teamRetomas}</strong> retomas · {retails.length} retails ·{' '}
+                <strong>{teamTaxaRetoma}%</strong>
+              </span>
+            </div>
+            {retomasByResp.length === 0 ? (
+              <div className="h-[180px] flex items-center justify-center text-[11px] text-muted-foreground">
+                Sem retails no período.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(140, retomasByResp.length * 34 + 24)}>
+                {/* Barra horizontal por comercial: comprimento = retails feitos;
+                    segmento roxo = retomas (absoluto); % no fim = taxa de retoma. */}
+                <BarChart data={retomasByResp} layout="vertical" barCategoryGap="22%"
+                  margin={{ top: 4, right: 44, bottom: 4, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="resp" tick={{ fontSize: 10 }} width={70} />
+                  <Tooltip
+                    contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                    formatter={(value: number, name: string, item: { payload?: { retails?: number; taxa?: number } }) =>
+                      name === 'Retomas'
+                        ? [`${value} de ${item?.payload?.retails ?? 0} (${item?.payload?.taxa ?? 0}%)`, 'Retomas']
+                        : [value, 'Sem retoma']} />
+                  <Bar dataKey="retomas" name="Retomas" stackId="r" fill="#8B5CF6" barSize={22} radius={[3, 0, 0, 3]}>
+                    <LabelList dataKey="retomas" position="center" fontSize={9} fontWeight={700} fill="#fff"
+                      formatter={(v: number) => (v > 0 ? v : '')} />
+                  </Bar>
+                  <Bar dataKey="semRetoma" name="Sem retoma" stackId="r" fill="hsl(var(--muted))" barSize={22} radius={[0, 3, 3, 0]}>
+                    <LabelList dataKey="taxa" position="right" fontSize={10} fontWeight={700}
+                      fill="hsl(var(--foreground))" formatter={(v: number) => `${v}%`} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+            <p className="text-[10px] text-muted-foreground mt-1 px-1">
+              Base: apenas viaturas com <strong>retail feito</strong> (a carteira/matrícula, não confirmada, fica de fora).
+              Comprimento da barra = retails feitos · <span style={{ color: '#8B5CF6' }}>segmento roxo</span> = nº de retomas ·
+              <strong> %</strong> no fim = taxa de retoma (retomas ÷ retails). Ordenado pela taxa, para expor assimetrias.
+            </p>
           </div>
 
           {/* Método de pagamento — mix mensal (barras 100%) */}
