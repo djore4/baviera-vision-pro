@@ -308,12 +308,14 @@ export default function VendedoresPage() {
   }, [rows, sort]);
 
   // Mix de método de pagamento (`fin`) por mês — contagens brutas (normalizadas a
-  // 100% no gráfico via stackOffset="expand"). Base: negócios fechados no período.
+  // 100% no gráfico via stackOffset="expand"). Base: RETAILS já feitos (performance
+  // realizada), posicionados pela data de retail. A carteira (ainda por definir,
+  // muitas sem método) não entra — senão inflava o N/A com negócios não concretizados.
   const finByMonth = useMemo(() => {
     const map: Record<number, Record<string, number>> = {};
-    negocios.forEach(r => {
-      if (!r.neg) return;
-      const k = monthKey(r.neg);
+    retails.forEach(r => {
+      if (!r.date298) return;
+      const k = monthKey(r.date298);
       const method = (FIN_ORDER as readonly string[]).includes(r.fin) ? r.fin : 'N/A';
       (map[k] ??= {})[method] = (map[k][method] ?? 0) + 1;
     });
@@ -324,7 +326,7 @@ export default function VendedoresPage() {
       FIN_ORDER.forEach(m => { row[m] = counts[m] ?? 0; });
       return row;
     });
-  }, [negocios]);
+  }, [retails]);
 
   const renderFinLines = useCallback(
     (props: object) => <FinSeriesLines {...(props as FinSeriesLinesProps)} />,
@@ -597,7 +599,7 @@ export default function VendedoresPage() {
           <div className="bg-card border border-border rounded-lg p-2">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Método de pagamento — mix mensal</h3>
-              <span className="text-[10px] text-muted-foreground">% dos negócios · por mês</span>
+              <span className="text-[10px] text-muted-foreground">% dos retails · por mês de retail</span>
             </div>
             {finByMonth.length === 0 ? (
               <div className="h-[220px] flex items-center justify-center text-[11px] text-muted-foreground">
@@ -630,8 +632,8 @@ export default function VendedoresPage() {
               </ResponsiveContainer>
             )}
             <p className="text-[10px] text-muted-foreground mt-1 px-1">
-              Cada barra soma 100% dos negócios do mês, repartida por método de pagamento
-              (<strong>PP</strong> · <strong>FS</strong> · <strong>Fint</strong> · <strong>Fext</strong> · N/A).
+              Cada barra soma 100% dos <strong>retails do mês</strong> (performance realizada; a carteira não entra),
+              repartida por método de pagamento (<strong>PP</strong> · <strong>FS</strong> · <strong>Fint</strong> · <strong>Fext</strong> · N/A).
               Cada segmento mostra a <strong>% do mês</strong> e o valor absoluto entre parêntesis.
               As linhas ligam cada método entre meses (continuação).
             </p>
