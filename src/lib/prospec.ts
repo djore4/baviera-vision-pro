@@ -373,6 +373,18 @@ export async function listTaskAlerts(scope: Scope): Promise<TaskAlerts> {
   return { overdue, today };
 }
 
+/** Contas criadas a partir de `sinceIso` (mais recentes primeiro). Usada para
+ *  notificar o diretor de novos clientes lançados pelos vendedores. */
+export async function listRecentAccounts(sinceIso: string): Promise<Account[]> {
+  const { data, error } = await supabase
+    .from('prospec_accounts')
+    .select('*')
+    .gte('created_at', sinceIso)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Account[];
+}
+
 /* ── Helpers de datas ────────────────────────────────────────────────────────── */
 
 export const isOverdue = (t: Task): boolean =>
