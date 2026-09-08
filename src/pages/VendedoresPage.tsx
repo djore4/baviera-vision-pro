@@ -588,11 +588,6 @@ export default function VendedoresPage() {
                 </BarChart>
               </ResponsiveContainer>
             )}
-            <p className="text-[10px] text-muted-foreground mt-1 px-1">
-              Base: apenas viaturas com <strong>retail feito</strong> (a carteira/matrícula, não confirmada, fica de fora).
-              Comprimento da barra = retails feitos · <span style={{ color: '#8B5CF6' }}>segmento roxo</span> = nº de retomas ·
-              <strong> %</strong> no fim = taxa de retoma (retomas ÷ retails). Ordenado pela taxa, para expor assimetrias.
-            </p>
           </div>
 
           {/* Método de pagamento — mix mensal (barras 100%) */}
@@ -631,12 +626,6 @@ export default function VendedoresPage() {
                 </BarChart>
               </ResponsiveContainer>
             )}
-            <p className="text-[10px] text-muted-foreground mt-1 px-1">
-              Cada barra soma 100% dos <strong>retails do mês</strong> (performance realizada; a carteira não entra),
-              repartida por método de pagamento (<strong>PP</strong> · <strong>FS</strong> · <strong>Fint</strong> · <strong>Fext</strong> · N/A).
-              Cada segmento mostra a <strong>% do mês</strong> e o valor absoluto entre parêntesis.
-              As linhas ligam cada método entre meses (continuação).
-            </p>
           </div>
 
           {/* Pódios de retail */}
