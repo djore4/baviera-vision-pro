@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { seasonalFlags } from '@/lib/seasonal';
+import { NotificationBell } from '@/components/NotificationBell';
 import bmwLogo from '@/assets/bmw-logo.png';
 
 const NAV_ITEMS = [
@@ -175,7 +176,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 || 'Dashboard'}
             </span>
           </div>
-<div className="flex items-center gap-2">
+<div className="flex items-center gap-2.5">
+            <NotificationBell />
             <div className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
               Semana {week}{season.fridayPM && <span className="hidden sm:inline"> · Bom fim de semana 🎉</span>}
             </div>
