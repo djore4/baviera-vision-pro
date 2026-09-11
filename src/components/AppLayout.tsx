@@ -1,11 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, Droplets, UserCog, Archive, Settings, Target, Car } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, Droplets, UserCog, Archive, Settings, Target, Car, ClipboardList, Handshake, Warehouse, type LucideIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { useProspec } from '@/contexts/ProspecContext';
-import { TABS } from '@/lib/permissions';
+import { AREAS, TABS, ARCHIVED_TAB_KEYS } from '@/lib/permissions';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -13,28 +13,30 @@ import { seasonalFlags } from '@/lib/seasonal';
 import { NotificationBell } from '@/components/NotificationBell';
 import bmwLogo from '@/assets/bmw-logo.png';
 
-const NAV_ITEMS = [
-  { path: '/retails', label: 'RETAILS', icon: BarChart3 },
-  { path: '/funil', label: 'FUNIL', icon: Filter },
-  { path: '/producao', label: 'PRODUÇÃO', icon: TrendingUp },
-  { path: '/carteira', label: 'CARTEIRA', icon: Briefcase },
-  { path: '/ficha-margem', label: 'FICHA MARGEM', icon: Calculator },
-  { path: '/escala', label: 'ESCALA', icon: CalendarDays },
-  { path: '/lavagem', label: 'LAVAGEM', icon: Droplets },
-  // Acessíveis a perfis não-admin (via permissões) → estilo normal, não "admin" (amarelo).
-  { path: '/vendedores', label: 'PERFORMANCE', icon: Users },
-  { path: '/prospecao', label: 'PROSPEÇÃO', icon: Target },
-];
-
-const ADMIN_NAV_ITEMS = [
-  { path: '/retoma', label: 'RETOMA', icon: Car },
-  { path: '/dados', label: 'DADOS', icon: Database },
-  { path: '/arquivo', label: 'ARQUIVO', icon: Archive },
-  { path: '/utilizadores', label: 'UTILIZADORES', icon: UserCog },
-];
+/* Ícone por tab (a camada de dados em permissions.ts mantém-se sem deps de UI). */
+const TAB_ICONS: Record<string, LucideIcon> = {
+  retails: BarChart3,
+  funil: Filter,
+  producao: TrendingUp,
+  carteira: Briefcase,
+  'ficha-margem': Calculator,
+  escala: CalendarDays,
+  vendedores: Users,
+  prospecao: Target,
+  wip: ClipboardList,
+  angariacao: Handshake,
+  stock: Warehouse,
+  lavagem: Droplets,
+  retoma: Car,
+  dados: Database,
+  arquivo: Archive,
+  utilizadores: UserCog,
+};
 
 /* Sempre disponível (área pessoal, fora da matriz de permissões). */
 const SETTINGS_NAV_ITEM = { path: '/definicoes', label: 'DEFINIÇÕES', icon: Settings };
+
+const ARCHIVED = new Set(ARCHIVED_TAB_KEYS);
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -46,8 +48,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const week = getCurrentWeek();
   const season = seasonalFlags();
 
-  const navItems = NAV_ITEMS.filter(item => canView(item.path.slice(1)));
-  const adminNavItems = ADMIN_NAV_ITEMS.filter(item => canView(item.path.slice(1)));
+  // Navegação agrupada por área macro. Exclui os tabs arrumados no Arquivo e os
+  // que o utilizador não pode ver; áreas sem tabs visíveis não são mostradas.
+  const sections = AREAS
+    .map(area => ({
+      area,
+      items: TABS.filter(t => t.area === area.key && !ARCHIVED.has(t.key) && canView(t.key)),
+    }))
+    .filter(s => s.items.length > 0);
 
   // Easter egg: clicar no logo várias vezes seguidas faz "vrum".
   const [vroom, setVroom] = useState(false);
@@ -97,44 +105,39 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           )}
         </div>
         <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {navItems.map(item => {
-            const active = location.pathname === item.path;
-            const badge = item.path === '/prospecao' && prospecOverdue > 0 ? prospecOverdue : null;
+          {sections.map(({ area, items }) => {
+            const isAdminArea = area.style === 'admin';
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-bmw-blue text-white'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-                {badge !== null && (
-                  <span className="ml-auto rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold px-1.5 py-0.5 leading-none" title={`${badge} em atraso`}>
-                    {badge}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-          {adminNavItems.map(item => {
-            const active = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-amber-500 text-black'
-                    : 'text-amber-400/70 hover:text-amber-400 hover:bg-white/5'
-                }`}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
+              <div key={area.key} className="pt-1 first:pt-0">
+                <div className={`px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider ${
+                  isAdminArea ? 'text-amber-400/60' : 'text-white/35'
+                }`}>
+                  {area.label}
+                </div>
+                {items.map(item => {
+                  const active = location.pathname === item.path;
+                  const Icon = TAB_ICONS[item.key];
+                  const badge = item.key === 'prospecao' && prospecOverdue > 0 ? prospecOverdue : null;
+                  const cls = isAdminArea
+                    ? (active ? 'bg-amber-500 text-black' : 'text-amber-400/70 hover:text-amber-400 hover:bg-white/5')
+                    : (active ? 'bg-bmw-blue text-white' : 'text-white/60 hover:text-white hover:bg-white/5');
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${cls}`}
+                    >
+                      {Icon && <Icon className="h-4 w-4" />}
+                      {item.label.toUpperCase()}
+                      {badge !== null && (
+                        <span className="ml-auto rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold px-1.5 py-0.5 leading-none" title={`${badge} em atraso`}>
+                          {badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
             );
           })}
 
@@ -171,7 +174,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               )}
             </button>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {[...NAV_ITEMS, ...ADMIN_NAV_ITEMS, SETTINGS_NAV_ITEM].find(n => n.path === location.pathname)?.label
+              {(location.pathname === SETTINGS_NAV_ITEM.path ? SETTINGS_NAV_ITEM.label : null)
                 || TABS.find(t => t.path === location.pathname)?.label
                 || 'Dashboard'}
             </span>
