@@ -219,6 +219,37 @@ function StatBlock({ title, stat }: { title: string; stat: PeriodStat }) {
   );
 }
 
+/* ── Slots de capacidade reservada (viaturas de serviço e stock) ───────────────
+ * Placeholders visuais nas primeiras horas de cada dia útil: 4 VN + 3 VU, todos
+ * do tipo Parque (7 min). NÃO são gravados na base de dados — servem apenas de
+ * reserva de capacidade. Uma slot desaparece quando um agendamento real se
+ * sobrepõe à sua posição (o agendamento tem prioridade); ao clicar, abre-se o
+ * formulário pré-preenchido para a ocupar. O espaçamento (pitch) existe só para
+ * legibilidade na agenda — a duração real de cada slot é a do tipo Parque.
+ * ──────────────────────────────────────────────────────────────────────────── */
+const RESERVED_WASH_TYPE: WashTypeId = 'parque';
+const RESERVED_PITCH_MIN = 25;
+const RESERVED_SLOTS: { brand: 'VN' | 'VU' }[] = [
+  { brand: 'VN' }, { brand: 'VN' }, { brand: 'VN' }, { brand: 'VN' },
+  { brand: 'VU' }, { brand: 'VU' }, { brand: 'VU' },
+];
+
+/* Slots reservados visíveis num dia: os que não colidem, no tempo, com nenhum
+ * agendamento real desse dia. */
+function reservedSlotsFor(dayItems: CarWashCycle[]): { brand: 'VN' | 'VU'; startMin: number }[] {
+  const dur = WASH_TYPE_MAP[RESERVED_WASH_TYPE].duration;
+  return RESERVED_SLOTS
+    .map((s, i) => ({ brand: s.brand, startMin: DEFAULT_START_MIN + i * RESERVED_PITCH_MIN }))
+    .filter(slot => {
+      const s = slot.startMin, e = s + dur;
+      return !dayItems.some(c => {
+        const cs = minutesOfDay(effectiveAt(c));
+        const ce = cs + Math.max(c.duration_min, 5);
+        return cs < e && s < ce;   // sobreposição temporal
+      });
+    });
+}
+
 /* Distribui os ciclos de um dia por "faixas" para evitar sobreposição visual. */
 function layoutDay(items: CarWashCycle[]): { placed: PlacedCycle[]; lanes: number } {
   const evs = items
@@ -394,6 +425,27 @@ export default function LavagemPage() {
 
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); submit('schedule'); };
 
+  // "Ocupar" uma slot reservada: pré-preenche o formulário (Parque, hora da slot
+  // e a marca VN/VU na nota) e leva o utilizador à matrícula. Não grava nada — o
+  // agendamento só é criado quando o formulário é submetido.
+  const claimReservedSlot = useCallback((date: Date, startMin: number, brand: 'VN' | 'VU') => {
+    if (!canCreate) { toast.error('Sem permissão para agendar lavagens.'); return; }
+    const d = new Date(date);
+    d.setHours(Math.floor(startMin / 60), startMin % 60, 0, 0);
+    const p2 = (n: number) => String(n).padStart(2, '0');
+    const local = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    setPlate('');
+    setModel('');
+    setWashType(RESERVED_WASH_TYPE);
+    setSchedAt(local);
+    setNotes(`Reserva ${brand} · serviço/stock`);
+    requestAnimationFrame(() => {
+      const el = document.getElementById('plate');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      (el as HTMLInputElement | null)?.focus();
+    });
+  }, [canCreate]);
+
   // Remoção — pede sempre confirmação antes de apagar. Qualquer origem (slot da
   // agenda, fila ou controlo de qualidade) passa pelo mesmo diálogo.
   const [deleteTarget, setDeleteTarget] = useState<CarWashCycle | null>(null);
@@ -557,6 +609,10 @@ export default function LavagemPage() {
     });
     return base;
   }, [cycles, weekStart]);
+
+  // Início do dia de hoje (ms) — as slots reservadas só aparecem em dias de hoje
+  // em diante (não poluem o histórico de dias passados).
+  const todayMidMs = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }, []);
 
   // Janela horária da agenda: horário de funcionamento por defeito, expandida
   // (arredondada à meia-hora) para caber lavagens fora de horas.
@@ -822,6 +878,9 @@ export default function LavagemPage() {
               {days.map((day, i) => {
                 const { placed, lanes } = layoutDay(day.items);
                 const isToday = isCurrentWeek && i === todayIdx;
+                // Slots reservadas (serviço/stock) — só hoje/futuro e nas posições livres.
+                const dayMid = new Date(day.date); dayMid.setHours(0, 0, 0, 0);
+                const reserved = dayMid.getTime() >= todayMidMs ? reservedSlotsFor(day.items) : [];
                 const bandTop = (from: number, to: number) => ({
                   top: (Math.max(from, windowStartMin) - windowStartMin) * PX_PER_MIN,
                   height: (Math.min(to, windowEndMin) - Math.max(from, windowStartMin)) * PX_PER_MIN,
@@ -859,6 +918,26 @@ export default function LavagemPage() {
                         <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
                       </div>
                     )}
+                    {/* Slots reservadas (serviço/stock) — placeholders das primeiras horas */}
+                    {reserved.map(slot => {
+                      const dur = WASH_TYPE_MAP[RESERVED_WASH_TYPE].duration;
+                      const top = (slot.startMin - windowStartMin) * PX_PER_MIN;
+                      const height = Math.max(dur * PX_PER_MIN, MIN_SLOT_PX);
+                      return (
+                        <div
+                          key={`res-${slot.brand}-${slot.startMin}`}
+                          onClick={canCreate ? () => claimReservedSlot(day.date, slot.startMin, slot.brand) : undefined}
+                          className={`absolute inset-x-0.5 rounded border border-dashed px-1.5 py-0.5 overflow-hidden text-[11px] leading-tight bg-slate-100/70 text-slate-600 border-slate-300 dark:bg-slate-500/10 dark:text-slate-300 dark:border-slate-500/40 ${canCreate ? 'cursor-pointer hover:bg-slate-200/80 dark:hover:bg-slate-500/20' : 'cursor-default'}`}
+                          style={{ top, height }}
+                          title={`Reservado ${slot.brand} (serviço/stock) · Parque ${dur} min · ${fmtMin(slot.startMin)}${canCreate ? ' · clique para ocupar' : ''}`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-semibold truncate">{slot.brand} · Parque</span>
+                            <span className="text-[9px] uppercase tracking-wide opacity-70 flex-shrink-0">reserva</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                     {/* Eventos (altura proporcional à duração) */}
                     {placed.map(p => {
                       const t = WASH_TYPE_MAP[p.c.wash_type];
