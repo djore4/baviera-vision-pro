@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, Droplets, UserCog, Archive, Settings, Target, Car, ClipboardList, Handshake, LineChart, PieChart, Coins, Wrench, type LucideIcon } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, Droplets, UserCog, Archive, Settings, Target, Car, ClipboardList, Handshake, LineChart, PieChart, Coins, Wrench, ChevronDown, type LucideIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
@@ -61,6 +61,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }))
     .filter(s => s.items.length > 0);
 
+  // Secções de área colapsáveis. O estado (áreas recolhidas) é uma conveniência
+  // por utilizador — guardado em localStorage, tolerante a falhas. A área que
+  // contém a rota ativa é sempre mostrada expandida, para o tab atual não ficar
+  // escondido.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('nav.collapsedAreas');
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch { return new Set(); }
+  });
+  const toggleArea = (key: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      try { localStorage.setItem('nav.collapsedAreas', JSON.stringify([...next])); } catch { /* ignora */ }
+      return next;
+    });
+  };
+  const activeArea = TABS.find(t => t.path === location.pathname)?.area ?? null;
+
   // Easter egg: clicar no logo várias vezes seguidas faz "vrum".
   const [vroom, setVroom] = useState(false);
   const logoClicks = useRef(0);
@@ -112,14 +132,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2 py-3 space-y-0.5">
           {sections.map(({ area, items }) => {
             const isAdminArea = area.style === 'admin';
+            // A área da rota ativa fica sempre expandida (não esconde o tab atual).
+            const isOpen = !collapsed.has(area.key) || activeArea === area.key;
             return (
               <div key={area.key} className="pt-1 first:pt-0">
-                <div className={`px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider ${
-                  isAdminArea ? 'text-amber-400/60' : 'text-white/35'
-                }`}>
+                <button
+                  type="button"
+                  onClick={() => toggleArea(area.key)}
+                  className={`w-full flex items-center gap-1.5 px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                    isAdminArea ? 'text-amber-400/60 hover:text-amber-400' : 'text-white/35 hover:text-white/70'
+                  }`}
+                  aria-expanded={isOpen}
+                  title={isOpen ? 'Recolher' : 'Expandir'}
+                >
+                  <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? '' : '-rotate-90'}`} />
                   {area.label}
-                </div>
-                {items.map(item => {
+                </button>
+                {isOpen && items.map(item => {
                   const active = location.pathname === item.path;
                   const Icon = TAB_ICONS[item.key];
                   const badge = item.key === 'prospecao' && prospecOverdue > 0 ? prospecOverdue : null;
