@@ -34,6 +34,10 @@ import WipPage from "./pages/WipPage";
 import AngariacaoPage from "./pages/AngariacaoPage";
 import StockPage from "./pages/StockPage";
 import EscalaVuPage from "./pages/EscalaVuPage";
+import ResultadosVnPage from "./pages/ResultadosVnPage";
+import ResultadosVuPage from "./pages/ResultadosVuPage";
+import ResultadosFinancePage from "./pages/ResultadosFinancePage";
+import ResultadosApvPage from "./pages/ResultadosApvPage";
 import { EasterEggs } from "@/components/EasterEggs";
 import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
 import { ProspecProvider } from "@/contexts/ProspecContext";
@@ -114,6 +118,10 @@ const App = () => (
               <Route path="/angariacao" element={tab('angariacao', <AngariacaoPage />)} />
               <Route path="/stock" element={tab('stock', <StockPage />)} />
               <Route path="/escala-vu" element={tab('escala-vu', <EscalaVuPage />)} />
+              <Route path="/resultados-vn" element={tab('resultados-vn', <ResultadosVnPage />)} />
+              <Route path="/resultados-vu" element={tab('resultados-vu', <ResultadosVuPage />)} />
+              <Route path="/resultados-finance" element={tab('resultados-finance', <ResultadosFinancePage />)} />
+              <Route path="/resultados-apv" element={tab('resultados-apv', <ResultadosApvPage />)} />
               <Route path="/arquivo" element={tab('arquivo', <ArquivoPage />)} />
               <Route path="/prospecao" element={tab('prospecao', <ProspecaoPage />)} />
               <Route path="/utilizadores" element={tab('utilizadores', <UtilizadoresPage />)} />

@@ -6,8 +6,8 @@ import { Construction, type LucideIcon } from 'lucide-react';
  * funcionalidade real substitui este componente tab a tab.
  * ──────────────────────────────────────────────────────────────────────────── */
 export function PlaceholderPage({
-  title, icon: Icon, description,
-}: { title: string; icon: LucideIcon; description?: string }) {
+  title, icon: Icon, description, subtitle = 'Vendas VU · em desenvolvimento',
+}: { title: string; icon: LucideIcon; description?: string; subtitle?: string }) {
   return (
     <div className="max-w-6xl mx-auto space-y-5 animate-fade-in">
       <header className="flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 shadow-sm">
@@ -16,7 +16,7 @@ export function PlaceholderPage({
         </span>
         <div>
           <h1 className="text-base font-semibold leading-tight">{title}</h1>
-          <p className="text-xs text-muted-foreground">Vendas VU · em desenvolvimento</p>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
       </header>
 

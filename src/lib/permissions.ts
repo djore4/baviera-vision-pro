@@ -15,7 +15,7 @@ export type AccessLevel = 'none' | 'view' | 'edit';
  * deva ser visível a VN e VU é-o simplesmente porque as funções de VN e VU têm
  * `lavagem` a view/edit — não por pertencer a várias áreas.
  * ──────────────────────────────────────────────────────────────────────────── */
-export type AreaKey = 'vn' | 'vu' | 'apv' | 'admin';
+export type AreaKey = 'vn' | 'vu' | 'apv' | 'resultados' | 'admin';
 
 export interface AreaDef {
   key: AreaKey;
@@ -28,6 +28,7 @@ export const AREAS: AreaDef[] = [
   { key: 'vn', label: 'Vendas VN', style: 'normal' },
   { key: 'vu', label: 'Vendas VU', style: 'normal' },
   { key: 'apv', label: 'Após-Venda', style: 'normal' },
+  { key: 'resultados', label: 'Resultados', style: 'normal' },
   { key: 'admin', label: 'Administração', style: 'admin' },
 ];
 
@@ -60,6 +61,11 @@ export const TABS: TabDef[] = [
   { key: 'escala-vu', label: 'Escala', path: '/escala-vu', area: 'vu' },
   // ── Após-Venda ──────────────────────────────────────────────────────────────
   { key: 'lavagem', label: 'Lavagem', path: '/lavagem', area: 'apv' },
+  // ── Resultados (em desenvolvimento) ─────────────────────────────────────────
+  { key: 'resultados-vn', label: 'Vendas VN', path: '/resultados-vn', area: 'resultados' },
+  { key: 'resultados-vu', label: 'Vendas VU', path: '/resultados-vu', area: 'resultados' },
+  { key: 'resultados-finance', label: 'Finance', path: '/resultados-finance', area: 'resultados' },
+  { key: 'resultados-apv', label: 'Após-Venda', path: '/resultados-apv', area: 'resultados' },
   // ── Administração ───────────────────────────────────────────────────────────
   { key: 'dados', label: 'Dados', path: '/dados', area: 'admin' },
   { key: 'arquivo', label: 'Arquivo', path: '/arquivo', area: 'admin' },
