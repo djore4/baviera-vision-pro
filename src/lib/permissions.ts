@@ -8,35 +8,70 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type AccessLevel = 'none' | 'view' | 'edit';
 
+/* ── Áreas macro ──────────────────────────────────────────────────────────────
+ * Camada de organização (navegação e admin), NÃO de permissão. As áreas apenas
+ * agrupam os tabs em secções; o acesso continua a ser resolvido tab a tab pela
+ * matriz de funções (app_roles.permissions). Um tab do APV (ex.: Lavagem) que
+ * deva ser visível a VN e VU é-o simplesmente porque as funções de VN e VU têm
+ * `lavagem` a view/edit — não por pertencer a várias áreas.
+ * ──────────────────────────────────────────────────────────────────────────── */
+export type AreaKey = 'vn' | 'vu' | 'apv' | 'admin';
+
+export interface AreaDef {
+  key: AreaKey;
+  label: string;                 // cabeçalho da secção na sidebar
+  style: 'normal' | 'admin';     // tratamento visual (admin = destaque âmbar)
+}
+
+/* Ordem de apresentação das áreas na navegação e na matriz. */
+export const AREAS: AreaDef[] = [
+  { key: 'vn', label: 'Vendas VN', style: 'normal' },
+  { key: 'vu', label: 'Vendas VU', style: 'normal' },
+  { key: 'apv', label: 'Após-Venda', style: 'normal' },
+  { key: 'admin', label: 'Administração', style: 'admin' },
+];
+
+export const AREA_BY_KEY: Record<AreaKey, AreaDef> =
+  AREAS.reduce((acc, a) => { acc[a.key] = a; return acc; }, {} as Record<AreaKey, AreaDef>);
+
 export interface TabDef {
   key: string;
   label: string;
   path: string;
-  group: 'geral' | 'admin';
+  area: AreaKey;
 }
 
-/* Registo único de todos os tabs (fonte de verdade para nav e matriz). */
+/* Registo único de todos os tabs (fonte de verdade para nav e matriz).
+ * A ordem dentro de cada área define a ordem dos itens na sidebar. */
 export const TABS: TabDef[] = [
-  { key: 'retails', label: 'Retails', path: '/retails', group: 'geral' },
-  { key: 'funil', label: 'Funil', path: '/funil', group: 'geral' },
-  { key: 'producao', label: 'Produção', path: '/producao', group: 'geral' },
-  { key: 'carteira', label: 'Carteira', path: '/carteira', group: 'geral' },
-  { key: 'pendentes', label: 'Pendentes', path: '/pendentes', group: 'admin' },
-  { key: 'ficha-margem', label: 'Ficha Margem', path: '/ficha-margem', group: 'geral' },
-  { key: 'escala', label: 'Escala', path: '/escala', group: 'geral' },
-  { key: 'lavagem', label: 'Lavagem', path: '/lavagem', group: 'geral' },
-  { key: 'retoma', label: 'Retoma', path: '/retoma', group: 'admin' },
-  { key: 'escala-repsol', label: 'Escala Repsol', path: '/escala-repsol', group: 'admin' },
-  { key: 'prospecao', label: 'Prospeção', path: '/prospecao', group: 'admin' },
-  { key: 'vendedores', label: 'Performance', path: '/vendedores', group: 'admin' },
-  { key: 'emprestimos', label: 'Empréstimos', path: '/emprestimos', group: 'admin' },
-  { key: 'multas', label: 'Multas', path: '/multas', group: 'admin' },
-  { key: 'dados', label: 'Dados', path: '/dados', group: 'admin' },
-  { key: 'database', label: 'Database', path: '/database', group: 'admin' },
-  { key: 'demos', label: 'Demos', path: '/demos', group: 'admin' },
-  { key: 'objetivos', label: 'Objetivos', path: '/objetivos', group: 'admin' },
-  { key: 'arquivo', label: 'Arquivo', path: '/arquivo', group: 'admin' },
-  { key: 'utilizadores', label: 'Utilizadores', path: '/utilizadores', group: 'admin' },
+  // ── Vendas VN ──────────────────────────────────────────────────────────────
+  { key: 'retails', label: 'Retails', path: '/retails', area: 'vn' },
+  { key: 'funil', label: 'Funil', path: '/funil', area: 'vn' },
+  { key: 'producao', label: 'Produção', path: '/producao', area: 'vn' },
+  { key: 'carteira', label: 'Carteira', path: '/carteira', area: 'vn' },
+  { key: 'ficha-margem', label: 'Ficha Margem', path: '/ficha-margem', area: 'vn' },
+  { key: 'escala', label: 'Escala', path: '/escala', area: 'vn' },
+  { key: 'vendedores', label: 'Performance', path: '/vendedores', area: 'vn' },
+  { key: 'prospecao', label: 'Prospeção', path: '/prospecao', area: 'vn' },
+  // ── Vendas VU (em desenvolvimento) ──────────────────────────────────────────
+  { key: 'wip', label: 'WIP', path: '/wip', area: 'vu' },
+  { key: 'angariacao', label: 'Angariação', path: '/angariacao', area: 'vu' },
+  { key: 'stock', label: 'Stock', path: '/stock', area: 'vu' },
+  // ── Após-Venda ──────────────────────────────────────────────────────────────
+  { key: 'lavagem', label: 'Lavagem', path: '/lavagem', area: 'apv' },
+  // ── Administração ───────────────────────────────────────────────────────────
+  { key: 'retoma', label: 'Retoma', path: '/retoma', area: 'admin' },
+  { key: 'dados', label: 'Dados', path: '/dados', area: 'admin' },
+  { key: 'arquivo', label: 'Arquivo', path: '/arquivo', area: 'admin' },
+  { key: 'utilizadores', label: 'Utilizadores', path: '/utilizadores', area: 'admin' },
+  // Arrumados dentro do Arquivo (fora da sidebar, ver ARCHIVED_TAB_KEYS).
+  { key: 'pendentes', label: 'Pendentes', path: '/pendentes', area: 'admin' },
+  { key: 'escala-repsol', label: 'Escala Repsol', path: '/escala-repsol', area: 'admin' },
+  { key: 'emprestimos', label: 'Empréstimos', path: '/emprestimos', area: 'admin' },
+  { key: 'multas', label: 'Multas', path: '/multas', area: 'admin' },
+  { key: 'database', label: 'Database', path: '/database', area: 'admin' },
+  { key: 'demos', label: 'Demos', path: '/demos', area: 'admin' },
+  { key: 'objetivos', label: 'Objetivos', path: '/objetivos', area: 'admin' },
 ];
 
 /* Tabs "arrumados" dentro do Arquivo (não aparecem diretamente na barra lateral). */

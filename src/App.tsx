@@ -31,6 +31,9 @@ import ArquivoPage from "./pages/ArquivoPage";
 import DefinicoesPage from "./pages/DefinicoesPage";
 import ProspecaoPage from "./pages/ProspecaoPage";
 import RetomaPage from "./pages/RetomaPage";
+import WipPage from "./pages/WipPage";
+import AngariacaoPage from "./pages/AngariacaoPage";
+import StockPage from "./pages/StockPage";
 import { EasterEggs } from "@/components/EasterEggs";
 import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
 import { ProspecProvider } from "@/contexts/ProspecContext";
@@ -107,6 +110,9 @@ const App = () => (
               <Route path="/objetivos" element={tab('objetivos', <ObjetivosPage />)} />
               <Route path="/vendedores" element={tab('vendedores', <VendedoresPage />)} />
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
+              <Route path="/wip" element={tab('wip', <WipPage />)} />
+              <Route path="/angariacao" element={tab('angariacao', <AngariacaoPage />)} />
+              <Route path="/stock" element={tab('stock', <StockPage />)} />
               <Route path="/retoma" element={tab('retoma', <RetomaPage />)} />
               <Route path="/arquivo" element={tab('arquivo', <ArquivoPage />)} />
               <Route path="/prospecao" element={tab('prospecao', <ProspecaoPage />)} />
