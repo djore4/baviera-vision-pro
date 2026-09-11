@@ -57,10 +57,10 @@ export const TABS: TabDef[] = [
   { key: 'wip', label: 'WIP', path: '/wip', area: 'vu' },
   { key: 'angariacao', label: 'Angariação', path: '/angariacao', area: 'vu' },
   { key: 'stock', label: 'Stock', path: '/stock', area: 'vu' },
+  { key: 'escala-vu', label: 'Escala', path: '/escala-vu', area: 'vu' },
   // ── Após-Venda ──────────────────────────────────────────────────────────────
   { key: 'lavagem', label: 'Lavagem', path: '/lavagem', area: 'apv' },
   // ── Administração ───────────────────────────────────────────────────────────
-  { key: 'retoma', label: 'Retoma', path: '/retoma', area: 'admin' },
   { key: 'dados', label: 'Dados', path: '/dados', area: 'admin' },
   { key: 'arquivo', label: 'Arquivo', path: '/arquivo', area: 'admin' },
   { key: 'utilizadores', label: 'Utilizadores', path: '/utilizadores', area: 'admin' },

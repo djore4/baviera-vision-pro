@@ -50,43 +50,62 @@ export default function DadosPage() {
         <p className="text-sm text-muted-foreground">Carregue e mantenha os dados que alimentam o dashboard.</p>
       </div>
 
-      {/* Excel */}
-      <div className="max-w-lg mx-auto bg-card border border-border rounded-lg p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Dados de Negócio</h2>
-        <p className="text-xs text-muted-foreground">
-          Os dados vivem no Supabase: o tab <strong>database</strong> (registos) e o tab <strong>Objetivos</strong> (metas).
-          O upload de Excel é apenas um <strong>recurso</strong> — importa a sheet <strong>CONTROL</strong> e os <strong>objetivos</strong>,
-          gravando por cima dos dados atuais.
-        </p>
-        <Button size="lg" className="w-full gap-2" onClick={() => inputRef.current?.click()} disabled={loading || importing}>
-          {importing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
-          {importing ? 'A importar...' : 'Carregar Excel'}
-        </Button>
-        <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleChange} />
+      {/* Upload de dados — VN (funcional) à esquerda, VU (em desenvolvimento) à direita */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Gestão de Dados VN */}
+        <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Gestão de Dados VN</h2>
+          <p className="text-xs text-muted-foreground">
+            Os dados vivem no Supabase: o tab <strong>database</strong> (registos) e o tab <strong>Objetivos</strong> (metas).
+            O upload de Excel é apenas um <strong>recurso</strong> — importa a sheet <strong>CONTROL</strong> e os <strong>objetivos</strong>,
+            gravando por cima dos dados atuais.
+          </p>
+          <Button size="lg" className="w-full gap-2" onClick={() => inputRef.current?.click()} disabled={loading || importing}>
+            {importing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
+            {importing ? 'A importar...' : 'Carregar Excel VN'}
+          </Button>
+          <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleChange} />
 
-        {importError && (
-          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <p className="text-xs text-destructive">{importError}</p>
-          </div>
-        )}
-        {importCount !== null && (
-          <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-            <Database className="h-5 w-5 text-primary flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-foreground">{importCount} registos importados para o tab database</p>
-              <p className="text-xs text-muted-foreground">Podes agora consultar e editar em database.</p>
+          {importError && (
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <p className="text-xs text-destructive">{importError}</p>
             </div>
-          </div>
-        )}
-        {data && importCount === null && (
-          <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-            <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-foreground">{data.control.length} registos carregados</p>
-              <p className="text-xs text-muted-foreground">Última atualização: {data.lastUpdated}</p>
+          )}
+          {importCount !== null && (
+            <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+              <Database className="h-5 w-5 text-primary flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">{importCount} registos importados para o tab database</p>
+                <p className="text-xs text-muted-foreground">Podes agora consultar e editar em database.</p>
+              </div>
             </div>
+          )}
+          {data && importCount === null && (
+            <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+              <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">{data.control.length} registos carregados</p>
+                <p className="text-xs text-muted-foreground">Última atualização: {data.lastUpdated}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Gestão de Dados VU — local preparado (upload a desenvolver) */}
+        <div className="bg-card border border-dashed border-border rounded-lg p-6 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Gestão de Dados VU</h2>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded">Em desenvolvimento</span>
           </div>
-        )}
+          <p className="text-xs text-muted-foreground">
+            Local reservado para carregar o ficheiro de <strong>Viaturas Usadas</strong>. O formato e o
+            processamento serão definidos oportunamente — por agora, só o acesso está preparado.
+          </p>
+          <Button size="lg" variant="outline" className="w-full gap-2" disabled>
+            <Upload className="h-5 w-5" />
+            Carregar Excel VU
+          </Button>
+        </div>
       </div>
 
       {/* Qualidade do Serviço — entrada de dados (migrado do antigo tab Qualidade). */}
