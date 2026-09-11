@@ -99,8 +99,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         `}
       >
         <div className="px-4 py-5 border-b border-white/10 flex items-center justify-between">
-          <h1 className="text-lg font-bold tracking-tight text-white whitespace-nowrap">
-            Caetano<span className="text-bmw-blue ml-1">BMW</span>
+          <h1 className="text-lg font-bold tracking-tight text-white whitespace-nowrap flex items-center">
+            Caetano
+            <img src={bmwLogo} alt="BMW" className="h-5 w-5 ml-1.5 dark:rounded-full dark:bg-white dark:p-0.5" />
           </h1>
           {isMobile && (
             <button onClick={() => setSidebarOpen(false)} className="text-white/60 hover:text-white">
@@ -108,7 +109,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </button>
           )}
         </div>
-        <nav className="flex-1 px-2 py-3 space-y-0.5">
+        <nav className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2 py-3 space-y-0.5">
           {sections.map(({ area, items }) => {
             const isAdminArea = area.style === 'admin';
             return (
