@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, Droplets, UserCog, Archive, Settings, Target, Car, ClipboardList, Handshake, Warehouse, type LucideIcon } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, Filter, LogOut, Calculator, Users, Droplets, UserCog, Archive, Settings, Target, Car, ClipboardList, Handshake, type LucideIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
@@ -25,9 +25,9 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   prospecao: Target,
   wip: ClipboardList,
   angariacao: Handshake,
-  stock: Warehouse,
+  stock: Car,
+  'escala-vu': CalendarDays,
   lavagem: Droplets,
-  retoma: Car,
   dados: Database,
   arquivo: Archive,
   utilizadores: UserCog,

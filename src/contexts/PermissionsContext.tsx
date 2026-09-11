@@ -12,7 +12,7 @@ const ADMIN_EMAIL = 'joaocarlos.duarte@caetano.pt';
  * Concede acesso a tabs específicos a contas individuais sem lhes alterar a
  * função. Usar com parcimónia — a via normal é a matriz de permissões. */
 const TAB_ACCESS_EXCEPTIONS: Record<string, Record<string, AccessLevel>> = {
-  'tiago.santos@caetano.pt': { retoma: 'edit' },
+  'tiago.santos@caetano.pt': { stock: 'edit' },
 };
 
 interface PermissionsValue {
