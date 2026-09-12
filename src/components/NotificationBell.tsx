@@ -3,6 +3,7 @@ import {
   Bell, BellRing, Megaphone, Send, Trash2, PartyPopper,
   AlertTriangle, CalendarClock, Building2, UserPlus, ClipboardList,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/App';
@@ -44,6 +45,8 @@ const fmtTime = (iso: string | null) =>
 const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' }) : '';
 const audienceLabel = (a: string) => a === 'all' ? 'Todos' : (TABS.find(t => t.key === a)?.label ?? a);
+/** Caminho da rota associada a uma tab key (para navegar ao clicar na notificação). */
+const tabPath = (key: string) => TABS.find(t => t.key === key)?.path ?? null;
 
 function loadIdSet(key: string): Set<string> {
   try { const raw = localStorage.getItem(key); return new Set(raw ? JSON.parse(raw) as string[] : []); }
@@ -54,6 +57,7 @@ function saveIdSet(key: string, ids: Set<string>) {
 }
 
 export function NotificationBell() {
+  const navigate = useNavigate();
   const { session } = useAuth();
   const { canView, isAdmin, me } = usePermissions();
   const { scope } = useProspecScope();
@@ -217,6 +221,14 @@ export function NotificationBell() {
     }
   };
 
+  // Navega para a página da notificação e fecha o painel. As do Diário de Bordo
+  // vão para /prospecao; as mensagens dirigidas a uma área vão para essa área.
+  const goTo = useCallback((path: string | null) => {
+    if (!path) return;
+    setOpen(false);
+    navigate(path);
+  }, [navigate]);
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
@@ -324,8 +336,9 @@ export function NotificationBell() {
                   {prospecItems.overdue.map(({ id, task }) => {
                     const isNew = !prospecSeen.has(id);
                     return (
-                      <div key={id} className={cn(
-                        'rounded-md border px-2.5 py-1.5',
+                      <div key={id} onClick={() => goTo('/prospecao')} title="Abrir Diário"
+                        className={cn(
+                        'rounded-md border px-2.5 py-1.5 cursor-pointer transition-colors hover:border-primary/60',
                         isNew ? 'border-primary/40 bg-primary/5' : 'border-destructive/30 bg-destructive/5',
                       )}>
                         <div className="flex items-start gap-1.5">
@@ -356,8 +369,9 @@ export function NotificationBell() {
                   {prospecItems.today.map(({ id, task }) => {
                     const isNew = !prospecSeen.has(id);
                     return (
-                      <div key={id} className={cn(
-                        'rounded-md border px-2.5 py-1.5',
+                      <div key={id} onClick={() => goTo('/prospecao')} title="Abrir Diário"
+                        className={cn(
+                        'rounded-md border px-2.5 py-1.5 cursor-pointer transition-colors hover:border-primary/60',
                         isNew ? 'border-primary/40 bg-primary/5' : 'border-border bg-card',
                       )}>
                         <div className="flex items-start gap-1.5">
@@ -386,8 +400,9 @@ export function NotificationBell() {
                   {prospecItems.accounts.map(({ id, account }) => {
                     const isNew = !prospecSeen.has(id);
                     return (
-                      <div key={id} className={cn(
-                        'rounded-md border px-2.5 py-1.5',
+                      <div key={id} onClick={() => goTo('/prospecao')} title="Abrir Diário"
+                        className={cn(
+                        'rounded-md border px-2.5 py-1.5 cursor-pointer transition-colors hover:border-primary/60',
                         isNew ? 'border-primary/40 bg-primary/5' : 'border-border bg-card',
                       )}>
                         <div className="flex items-center gap-1.5">
@@ -420,9 +435,16 @@ export function NotificationBell() {
               )}
               {visible.map(n => {
                 const isUnread = !readIds.has(n.id);
+                // Mensagens dirigidas a uma área abrem essa área; as gerais ('all')
+                // não têm página específica.
+                const target = n.audience === 'all' ? null : tabPath(n.audience);
                 return (
-                  <div key={n.id} className={cn(
-                    'rounded-md border px-2.5 py-1.5',
+                  <div key={n.id}
+                    onClick={target ? () => goTo(target) : undefined}
+                    title={target ? `Abrir ${audienceLabel(n.audience)}` : undefined}
+                    className={cn(
+                    'rounded-md border px-2.5 py-1.5 transition-colors',
+                    target && 'cursor-pointer hover:border-primary/60',
                     isUnread ? 'border-primary/40 bg-primary/5' : 'border-border bg-card',
                   )}>
                     <div className="flex items-start gap-1.5">
@@ -440,7 +462,7 @@ export function NotificationBell() {
                         </div>
                       </div>
                       {isAdmin && (
-                        <button onClick={() => remove(n.id)} title="Eliminar" className="text-muted-foreground hover:text-destructive flex-shrink-0">
+                        <button onClick={(e) => { e.stopPropagation(); remove(n.id); }} title="Eliminar" className="text-muted-foreground hover:text-destructive flex-shrink-0">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
