@@ -90,7 +90,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-muted-foreground hover:text-foreground">
               {sidebarOpen && !isMobile ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </button>
-            <img src={bmwLogo} alt="BMW" className="h-8 w-8 dark:rounded-full dark:bg-white dark:p-0.5" />
+            <img src={bmwLogo} alt="BMW" className="h-8 w-8" />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               {currentLabel}
             </span>
