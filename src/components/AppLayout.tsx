@@ -122,7 +122,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="px-4 py-5 border-b border-white/10 flex items-center justify-between">
           <h1 className="text-lg font-bold tracking-tight text-white whitespace-nowrap flex items-center">
             Caetano
-            <img src={bmwLogo} alt="BMW" className="h-5 w-5 ml-1.5 dark:rounded-full dark:bg-white dark:p-0.5" />
+            <img src={bmwLogo} alt="BMW" className="h-5 w-5 ml-1.5" />
           </h1>
           {isMobile && (
             <button onClick={() => setSidebarOpen(false)} className="text-white/60 hover:text-white">
@@ -203,7 +203,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {sidebarOpen && !isMobile ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </button>
             <button onClick={handleLogoClick} className="relative flex-shrink-0" title="BMW" aria-label="BMW">
-              <img src={bmwLogo} alt="BMW" className={`h-8 w-8 dark:rounded-full dark:bg-white dark:p-0.5 ${vroom ? 'animate-vroom' : ''}`} />
+              <img src={bmwLogo} alt="BMW" className={`h-8 w-8 ${vroom ? 'animate-vroom' : ''}`} />
               {season.xmas && (
                 <span className="absolute -top-2 -right-1 text-[13px] leading-none select-none" aria-hidden>🎅</span>
               )}
