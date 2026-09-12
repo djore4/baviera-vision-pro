@@ -31,7 +31,7 @@ export default function ProspecaoPage() {
           <Target className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="text-base sm:text-lg font-bold tracking-tight leading-tight truncate">Prospeção Comercial</h1>
+          <h1 className="text-base sm:text-lg font-bold tracking-tight leading-tight truncate">Diário de Bordo</h1>
           <p className="text-xs text-muted-foreground leading-snug line-clamp-1">Contas, agenda e pipeline da equipa de vendas.</p>
         </div>
         {overdue > 0 && (

@@ -303,7 +303,7 @@ export default function ProducaoPage() {
                 <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalNeg}</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={negByResp} barSize={20}>
+                <BarChart data={negByResp} barSize={40}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
                   <YAxis tick={{ fontSize: 10 }} />

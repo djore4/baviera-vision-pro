@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, BellRing, Megaphone, Send, Trash2, PartyPopper } from 'lucide-react';
+import {
+  Bell, BellRing, Megaphone, Send, Trash2, PartyPopper,
+  AlertTriangle, CalendarClock, Building2, UserPlus, ClipboardList,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { useProspecScope } from '@/hooks/useProspecScope';
 import { TABS } from '@/lib/permissions';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -11,6 +15,9 @@ import {
   listNotifications, listReadIds, markRead, createNotification, deleteNotification,
   type Notification,
 } from '@/lib/notifications';
+import {
+  listTaskAlerts, listRecentAccounts, type Account, type Task, type TaskAlerts,
+} from '@/lib/prospec';
 
 /* ── Centro de notificações global (todas as áreas) ───────────────────────────
  * Sino no topo, visível em todos os perfis. Mostra as notificações destinadas a
@@ -22,12 +29,20 @@ import {
 const REFRESH_MS = 5 * 60 * 1000;
 const ENABLED_KEY = 'notif:enabled';
 const NOTIFIED_KEY = 'notif:notified';
+/** Janela de "clientes recentes" do Diário de Bordo mostrada no painel (dias). */
+const NEW_ACCT_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+/** Itens do Diário de Bordo já reconhecidos (para o contador do sino). */
+const PROSPEC_SEEN_KEY = 'notif:prospec:seen';
 const notifSupported = typeof window !== 'undefined' && 'Notification' in window;
 
 const fmtWhen = (iso: string) => {
   const d = new Date(iso);
   return `${d.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' })} · ${d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}`;
 };
+const fmtTime = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '';
+const fmtDate = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' }) : '';
 const audienceLabel = (a: string) => a === 'all' ? 'Todos' : (TABS.find(t => t.key === a)?.label ?? a);
 
 function loadIdSet(key: string): Set<string> {
@@ -41,11 +56,18 @@ function saveIdSet(key: string, ids: Set<string>) {
 export function NotificationBell() {
   const { session } = useAuth();
   const { canView, isAdmin, me } = usePermissions();
+  const { scope } = useProspecScope();
   const email = session?.user.email ?? null;
   const myNome = me?.nome ?? email ?? null;
+  // Os alertas do Diário de Bordo (Prospeção) surgem também aqui, no centro de
+  // notificações, para quem tem acesso a essa área (mesmo gating por permissões).
+  const hasProspec = canView('prospecao');
 
   const [items, setItems] = useState<Notification[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [prospecAlerts, setProspecAlerts] = useState<TaskAlerts>({ overdue: [], today: [] });
+  const [prospecAccounts, setProspecAccounts] = useState<Account[]>([]);
+  const [prospecSeen, setProspecSeen] = useState<Set<string>>(() => loadIdSet(PROSPEC_SEEN_KEY));
   const [open, setOpen] = useState(false);
   const [composing, setComposing] = useState(false);
   const [enabled, setEnabled] = useState<boolean>(() => {
@@ -65,7 +87,21 @@ export function NotificationBell() {
     () => items.filter(n => n.audience === 'all' || canView(n.audience)),
     [items, canView]);
   const unread = useMemo(() => visible.filter(n => !readIds.has(n.id)), [visible, readIds]);
-  const unreadCount = unread.length;
+
+  // Itens do Diário de Bordo com id estável (para contador/realce "novo").
+  const prospecItems = useMemo(() => {
+    if (!hasProspec) return { overdue: [], today: [], accounts: [], ids: [] as string[] };
+    const overdue = prospecAlerts.overdue.map(t => ({ id: `task:${t.id}`, task: t }));
+    const today = prospecAlerts.today.map(t => ({ id: `task:${t.id}`, task: t }));
+    const accounts = prospecAccounts.map(a => ({ id: `acct:${a.id}`, account: a }));
+    return { overdue, today, accounts, ids: [...overdue, ...today, ...accounts].map(x => x.id) };
+  }, [hasProspec, prospecAlerts, prospecAccounts]);
+  const prospecTotal = prospecItems.ids.length;
+  const unseenProspec = useMemo(
+    () => prospecItems.ids.filter(id => !prospecSeen.has(id)),
+    [prospecItems, prospecSeen]);
+
+  const unreadCount = unread.length + unseenProspec.length;
 
   const maybeNotify = useCallback((unreadItems: Notification[]) => {
     if (!notifSupported || !enabledRef.current || Notification.permission !== 'granted') return;
@@ -91,7 +127,22 @@ export function NotificationBell() {
       const vis = list.filter(n => n.audience === 'all' || canView(n.audience));
       maybeNotify(vis.filter(n => !reads.has(n.id)));
     } catch { /* silencioso */ }
-  }, [email, canView, maybeNotify]);
+    // Alertas do Diário de Bordo (Prospeção), só para quem tem acesso.
+    if (hasProspec) {
+      try { setProspecAlerts(await listTaskAlerts(scope)); } catch { /* silencioso */ }
+      // Novos clientes lançados por vendedores — só o diretor, nunca as suas.
+      if (scope.isDirector) {
+        try {
+          const since = new Date(Date.now() - NEW_ACCT_WINDOW_MS).toISOString();
+          const accts = (await listRecentAccounts(since)).filter(a => a.created_by !== scope.email);
+          setProspecAccounts(accts);
+        } catch { /* silencioso */ }
+      }
+    } else {
+      setProspecAlerts({ overdue: [], today: [] });
+      setProspecAccounts([]);
+    }
+  }, [email, canView, maybeNotify, hasProspec, scope]);
 
   useEffect(() => {
     load();
@@ -109,8 +160,17 @@ export function NotificationBell() {
       setReadIds(prev => { const next = new Set(prev); ids.forEach(i => next.add(i)); return next; });
       markRead(ids, email).catch(() => { /* ignora */ });
     }
+    // Reconhece os alertas do Diário de Bordo (baixa o contador; ficam na lista).
+    if (o && unseenProspec.length > 0) {
+      setProspecSeen(prev => {
+        const next = new Set(prev);
+        unseenProspec.forEach(i => next.add(i));
+        saveIdSet(PROSPEC_SEEN_KEY, next);
+        return next;
+      });
+    }
     if (!o) setComposing(false);
-  }, [email, unread]);
+  }, [email, unread, unseenProspec]);
 
   const toggleBrowser = async () => {
     if (enabled) {
@@ -238,8 +298,8 @@ export function NotificationBell() {
           </div>
         )}
 
-        <div className="max-h-[22rem] overflow-auto p-2 space-y-1.5">
-          {visible.length === 0 ? (
+        <div className="max-h-[22rem] overflow-auto p-2 space-y-2">
+          {visible.length === 0 && prospecTotal === 0 ? (
             <div className="flex flex-col items-center justify-center gap-1.5 py-8 text-center">
               <span className="grid place-items-center h-10 w-10 rounded-full bg-muted text-muted-foreground">
                 <PartyPopper className="h-5 w-5" />
@@ -247,36 +307,150 @@ export function NotificationBell() {
               <p className="text-sm font-medium">Sem notificações</p>
               <p className="text-xs text-muted-foreground">Não há mensagens para ti.</p>
             </div>
-          ) : visible.map(n => {
-            const isUnread = !readIds.has(n.id);
-            return (
-              <div key={n.id} className={cn(
-                'rounded-md border px-2.5 py-1.5',
-                isUnread ? 'border-primary/40 bg-primary/5' : 'border-border bg-card',
-              )}>
-                <div className="flex items-start gap-1.5">
-                  {isUnread && <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium leading-snug">{n.title}</div>
-                    {n.body && <div className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{n.body}</div>}
-                    <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground mt-0.5">
-                      <span>{n.created_by_nome || 'Administração'}</span>
-                      <span>·</span>
-                      <span>{fmtWhen(n.created_at)}</span>
-                      {n.audience !== 'all' && (
-                        <span className="rounded bg-muted px-1 py-0.5 text-[10px]">{audienceLabel(n.audience)}</span>
+          ) : (<>
+
+          {/* Diário de Bordo — tarefas em atraso / para hoje e novos clientes. */}
+          {prospecTotal > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                <ClipboardList className="h-3.5 w-3.5" /> Diário de Bordo
+              </div>
+
+              {prospecItems.overdue.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-destructive">
+                    <AlertTriangle className="h-3.5 w-3.5" /> Em atraso <span className="tabular-nums">({prospecItems.overdue.length})</span>
+                  </div>
+                  {prospecItems.overdue.map(({ id, task }) => {
+                    const isNew = !prospecSeen.has(id);
+                    return (
+                      <div key={id} className={cn(
+                        'rounded-md border px-2.5 py-1.5',
+                        isNew ? 'border-primary/40 bg-primary/5' : 'border-destructive/30 bg-destructive/5',
+                      )}>
+                        <div className="flex items-start gap-1.5">
+                          {isNew && <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium leading-snug">{task.descricao}</div>
+                            <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground mt-0.5">
+                              <span className="inline-flex items-center gap-1 text-destructive font-medium">
+                                <CalendarClock className="h-3 w-3" />{fmtDate(task.due_at)} · {fmtTime(task.due_at)}
+                              </span>
+                              {scope.isDirector && task.owner_nome && (
+                                <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" />{task.owner_nome}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {prospecItems.today.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <CalendarClock className="h-3.5 w-3.5" /> Para hoje <span className="tabular-nums">({prospecItems.today.length})</span>
+                  </div>
+                  {prospecItems.today.map(({ id, task }) => {
+                    const isNew = !prospecSeen.has(id);
+                    return (
+                      <div key={id} className={cn(
+                        'rounded-md border px-2.5 py-1.5',
+                        isNew ? 'border-primary/40 bg-primary/5' : 'border-border bg-card',
+                      )}>
+                        <div className="flex items-start gap-1.5">
+                          {isNew && <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium leading-snug">{task.descricao}</div>
+                            <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground mt-0.5">
+                              <span className="inline-flex items-center gap-1"><CalendarClock className="h-3 w-3" />{fmtTime(task.due_at)}</span>
+                              {scope.isDirector && task.owner_nome && (
+                                <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" />{task.owner_nome}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {prospecItems.accounts.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                    <UserPlus className="h-3.5 w-3.5" /> Novos clientes <span className="tabular-nums">({prospecItems.accounts.length})</span>
+                  </div>
+                  {prospecItems.accounts.map(({ id, account }) => {
+                    const isNew = !prospecSeen.has(id);
+                    return (
+                      <div key={id} className={cn(
+                        'rounded-md border px-2.5 py-1.5',
+                        isNew ? 'border-primary/40 bg-primary/5' : 'border-border bg-card',
+                      )}>
+                        <div className="flex items-center gap-1.5">
+                          {isNew && <span className="h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />}
+                          <span className="text-sm font-medium leading-snug">{account.nome}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
+                          {account.owner_nome && (
+                            <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" />{account.owner_nome}</span>
+                          )}
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarClock className="h-3 w-3" />{fmtDate(account.created_at)} · {fmtTime(account.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Mensagens da plataforma. */}
+          {visible.length > 0 && (
+            <div className="space-y-1.5">
+              {prospecTotal > 0 && (
+                <div className="flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Megaphone className="h-3.5 w-3.5" /> Mensagens
+                </div>
+              )}
+              {visible.map(n => {
+                const isUnread = !readIds.has(n.id);
+                return (
+                  <div key={n.id} className={cn(
+                    'rounded-md border px-2.5 py-1.5',
+                    isUnread ? 'border-primary/40 bg-primary/5' : 'border-border bg-card',
+                  )}>
+                    <div className="flex items-start gap-1.5">
+                      {isUnread && <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />}
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium leading-snug">{n.title}</div>
+                        {n.body && <div className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{n.body}</div>}
+                        <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground mt-0.5">
+                          <span>{n.created_by_nome || 'Administração'}</span>
+                          <span>·</span>
+                          <span>{fmtWhen(n.created_at)}</span>
+                          {n.audience !== 'all' && (
+                            <span className="rounded bg-muted px-1 py-0.5 text-[10px]">{audienceLabel(n.audience)}</span>
+                          )}
+                        </div>
+                      </div>
+                      {isAdmin && (
+                        <button onClick={() => remove(n.id)} title="Eliminar" className="text-muted-foreground hover:text-destructive flex-shrink-0">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       )}
                     </div>
                   </div>
-                  {isAdmin && (
-                    <button onClick={() => remove(n.id)} title="Eliminar" className="text-muted-foreground hover:text-destructive flex-shrink-0">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
+          </>)}
         </div>
       </PopoverContent>
     </Popover>

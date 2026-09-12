@@ -255,7 +255,7 @@ export default function CarteiraPage() {
               <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalCarteira}</span>
             </div>
             <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-              <BarChart data={respChartData} barSize={32} barCategoryGap="20%">
+              <BarChart data={respChartData} barSize={64} barCategoryGap="20%">
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="month" tick={{ fontSize: 9 }} />
                 <YAxis tick={{ fontSize: 10 }} />
@@ -287,7 +287,7 @@ export default function CarteiraPage() {
               </div>
             </div>
             <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-              <BarChart data={tipoChartData} barSize={32} barCategoryGap="20%">
+              <BarChart data={tipoChartData} barSize={64} barCategoryGap="20%">
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="month" tick={{ fontSize: 9 }} />
                 <YAxis tick={{ fontSize: 10 }} />
