@@ -20,6 +20,7 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   producao: TrendingUp,
   carteira: Briefcase,
   'ficha-margem': Calculator,
+  'ficha-margem-vu': Calculator,
   escala: CalendarDays,
   vendedores: Users,
   prospecao: Target,

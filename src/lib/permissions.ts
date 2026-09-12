@@ -46,16 +46,17 @@ export interface TabDef {
  * A ordem dentro de cada área define a ordem dos itens na sidebar. */
 export const TABS: TabDef[] = [
   // ── Vendas VN ──────────────────────────────────────────────────────────────
-  { key: 'retails', label: 'Retails', path: '/retails', area: 'vn' },
+  { key: 'retails', label: 'WIP', path: '/retails', area: 'vn' },
   { key: 'funil', label: 'Funil', path: '/funil', area: 'vn' },
   { key: 'producao', label: 'Produção', path: '/producao', area: 'vn' },
   { key: 'carteira', label: 'Carteira', path: '/carteira', area: 'vn' },
   { key: 'ficha-margem', label: 'Ficha Margem', path: '/ficha-margem', area: 'vn' },
   { key: 'escala', label: 'Escala', path: '/escala', area: 'vn' },
   { key: 'vendedores', label: 'Performance', path: '/vendedores', area: 'vn' },
-  { key: 'prospecao', label: 'Prospeção', path: '/prospecao', area: 'vn' },
+  { key: 'prospecao', label: 'Diário de Bordo', path: '/prospecao', area: 'vn' },
   // ── Vendas VU (em desenvolvimento) ──────────────────────────────────────────
   { key: 'wip', label: 'WIP', path: '/wip', area: 'vu' },
+  { key: 'ficha-margem-vu', label: 'Ficha de Margem', path: '/ficha-margem-vu', area: 'vu' },
   { key: 'angariacao', label: 'Angariação', path: '/angariacao', area: 'vu' },
   { key: 'stock', label: 'Stock', path: '/stock', area: 'vu' },
   { key: 'escala-vu', label: 'Escala', path: '/escala-vu', area: 'vu' },

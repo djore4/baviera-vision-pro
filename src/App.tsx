@@ -21,6 +21,7 @@ import FunilPage from "./pages/FunilPage";
 import LoginPage from "./pages/LoginPage";
 import DatabasePage from "./pages/DatabasePage";
 import FichaMargemPage from "./pages/FichaMargemPage";
+import FichaMargemVuPage from "./pages/FichaMargemVuPage";
 import DemosPage from "./pages/DemosPage";
 import EmprestimosPage from "./pages/EmprestimosPage";
 import ObjetivosPage from "./pages/ObjetivosPage";
@@ -115,6 +116,7 @@ const App = () => (
               <Route path="/vendedores" element={tab('vendedores', <VendedoresPage />)} />
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
               <Route path="/wip" element={tab('wip', <WipPage />)} />
+              <Route path="/ficha-margem-vu" element={tab('ficha-margem-vu', <FichaMargemVuPage />)} />
               <Route path="/angariacao" element={tab('angariacao', <AngariacaoPage />)} />
               <Route path="/stock" element={tab('stock', <StockPage />)} />
               <Route path="/escala-vu" element={tab('escala-vu', <EscalaVuPage />)} />
