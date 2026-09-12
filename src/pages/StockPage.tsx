@@ -8,6 +8,7 @@ import {
   Calendar, Gauge, Euro, FileText, Clock, Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
 /* ── Tab Stock (Vendas VU) ─────────────────────────────────────────────────────
  * Repositório e stock de viaturas de retoma/usadas. Permite inserir/consultar
@@ -87,6 +88,11 @@ const CLUSTERS: { key: ClusterKey; label: string; test: (a: number) => boolean; 
 
 const clusterOf = (age: number | null) =>
   age === null ? null : (CLUSTERS.find(c => c.test(age)) ?? null);
+
+/* Cores (hex) dos clusters para o gráfico circular de antiguidade. */
+const CLUSTER_HEX: Record<ClusterKey, string> = {
+  '0-30': '#22C55E', '31-90': '#EAB308', '91-120': '#F97316', '121+': '#EF4444',
+};
 
 /* Antiguidade em dias: entrada em stock → hoje (ativa) ou → data de arquivo
  * (arquivada, para não continuar a "envelhecer" depois de sair da carteira). */
@@ -221,6 +227,11 @@ export default function StockPage() {
     });
   }, [rows]);
 
+  // Fatias com viaturas (o gráfico circular só desenha clusters não vazios) e
+  // total de viaturas com antiguidade conhecida (centro/legenda do gráfico).
+  const agePie = useMemo(() => clusterStats.filter(c => c.n > 0), [clusterStats]);
+  const stockTotal = useMemo(() => clusterStats.reduce((a, c) => a + c.n, 0), [clusterStats]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const kMin = kmMin.trim() === '' ? null : Number(kmMin);
@@ -352,32 +363,10 @@ export default function StockPage() {
 
   return (
     <div className="space-y-3">
-      {/* KPI: clusters de antiguidade (só na carteira ativa) */}
-      {view === 'ativas' && (
-        <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-          {clusterStats.map(c => {
-            const active = clusterFilter === c.key;
-            return (
-              <button
-                key={c.key}
-                onClick={() => setClusterFilter(active ? null : c.key)}
-                className={`rounded-lg border p-2 sm:p-2.5 text-left transition-colors ${
-                  active ? 'border-primary ring-1 ring-primary bg-primary/5' : 'border-border hover:bg-muted/40'
-                }`}
-                title={`Filtrar por ${c.label}`}
-              >
-                <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-muted-foreground leading-tight">
-                  <span className={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${c.dot}`} /> {c.label}
-                </div>
-                <div className="mt-1 flex items-baseline gap-1 sm:gap-1.5">
-                  <span className="text-lg sm:text-xl font-bold tabular-nums">{c.n}</span>
-                  <span className="text-[11px] sm:text-xs text-muted-foreground">{c.pct}%</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Topo: controlos + filtros à esquerda; distribuição de antiguidade em
+          stock (gráfico circular) no canto direito — abaixo, em mobile. */}
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+        <div className="flex-1 min-w-0 space-y-3">
 
       {/* Toggle Ativas / Arquivadas + pesquisa + inserir */}
       <div className="flex flex-wrap gap-2 items-center">
@@ -482,6 +471,55 @@ export default function StockPage() {
           )}
           <span className="ml-auto text-muted-foreground">{filtered.length} {filtered.length === 1 ? 'retoma' : 'retomas'}</span>
         </div>
+      </div>
+
+        </div>{/* fim coluna esquerda */}
+
+        {/* Distribuição de antiguidade em stock — só na carteira ativa. */}
+        {view === 'ativas' && (
+          <div className="sm:w-56 shrink-0 rounded-lg border border-border p-2.5">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Antiguidade em stock</h3>
+              <span className="text-sm font-bold text-primary tabular-nums">{stockTotal}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ResponsiveContainer width="45%" height={112}>
+                <PieChart>
+                  <Tooltip
+                    contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                    formatter={(value: number, _n, p: { payload?: { label?: string; pct?: number } }) =>
+                      [`${value} (${p?.payload?.pct ?? 0}%)`, p?.payload?.label ?? '']} />
+                  <Pie data={agePie} dataKey="n" nameKey="label" innerRadius={26} outerRadius={46} paddingAngle={2}
+                    stroke="hsl(var(--background))" strokeWidth={1.5}
+                    onClick={(entry: { key?: ClusterKey }) => entry?.key && setClusterFilter(clusterFilter === entry.key ? null : entry.key)}>
+                    {agePie.map(c => (
+                      <Cell key={c.key} fill={CLUSTER_HEX[c.key]} cursor="pointer"
+                        opacity={clusterFilter && clusterFilter !== c.key ? 0.3 : 1} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex-1 min-w-0 space-y-0.5">
+                {clusterStats.map(c => {
+                  const active = clusterFilter === c.key;
+                  return (
+                    <button key={c.key} onClick={() => setClusterFilter(active ? null : c.key)}
+                      title={`Filtrar por ${c.label}`}
+                      className={`w-full flex items-center gap-1.5 rounded px-1 py-0.5 text-left transition-colors ${
+                        active ? 'bg-primary/10' : 'hover:bg-muted/50'
+                      } ${clusterFilter && !active ? 'opacity-40' : ''}`}
+                    >
+                      <span className={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${c.dot}`} />
+                      <span className="text-[10px] text-muted-foreground truncate flex-1">{c.label}</span>
+                      <span className="text-[10px] font-semibold tabular-nums">{c.n}</span>
+                      <span className="text-[9px] text-muted-foreground tabular-nums w-7 text-right">{c.pct}%</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Form modal */}
