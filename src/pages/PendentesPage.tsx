@@ -123,7 +123,7 @@ export default function PendentesPage() {
         </div>
         <div className="bg-card border border-border rounded-lg p-2">
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={appingByResp} barSize={32} barCategoryGap="25%"
+            <BarChart data={appingByResp} barSize={64} barCategoryGap="25%"
               onClick={(d: any) => { const resp = d?.activePayload?.[0]?.payload?.resp; if (resp) setAppingResp(prev => prev === resp ? null : resp); }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="resp" tick={{ fontSize: 10 }} />
@@ -181,7 +181,7 @@ export default function PendentesPage() {
         </div>
         <div className="bg-card border border-border rounded-lg p-2">
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={bizagiByResp} barSize={32} barCategoryGap="25%"
+            <BarChart data={bizagiByResp} barSize={64} barCategoryGap="25%"
               onClick={(d: any) => { const resp = d?.activePayload?.[0]?.payload?.resp; if (resp) setBizagiResp(prev => prev === resp ? null : resp); }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="resp" tick={{ fontSize: 10 }} />
@@ -241,7 +241,7 @@ export default function PendentesPage() {
         </div>
         <div className="bg-card border border-border rounded-lg p-2">
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={cmeByResp} barSize={32} barCategoryGap="25%"
+            <BarChart data={cmeByResp} barSize={64} barCategoryGap="25%"
               onClick={(d: any) => { const resp = d?.activePayload?.[0]?.payload?.resp; if (resp) setCmeResp(prev => prev === resp ? null : resp); }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="resp" tick={{ fontSize: 10 }} />

@@ -345,7 +345,7 @@ export default function RetailsPage() {
                 <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalStatusSum}</span>
               </div>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={statusByResp} barSize={28}
+                <BarChart data={statusByResp} barSize={56}
                   onClick={(chartData: any, _: any, event: any) => {
                     const resp = chartData?.activePayload?.[0]?.payload?.resp;
                     if (resp) handleRespClick(resp, event?.ctrlKey || event?.metaKey);

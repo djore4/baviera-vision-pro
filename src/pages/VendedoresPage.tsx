@@ -457,12 +457,12 @@ export default function VendedoresPage() {
                   <ReferenceLine yAxisId="flow" y={0} stroke="hsl(var(--foreground))" strokeOpacity={0.4} />
                   <ReferenceLine yAxisId="right" y={1} stroke="#1C69D4" strokeDasharray="4 4" strokeOpacity={0.5} />
                   <Bar yAxisId="flow" dataKey="neg" name="Negócios" stackId="fluxo" fill="#16A34A"
-                    radius={[3, 3, 0, 0]} barSize={26} stroke="hsl(var(--card))" strokeWidth={1}>
+                    radius={[3, 3, 0, 0]} barSize={52} stroke="hsl(var(--card))" strokeWidth={1}>
                     <LabelList dataKey="neg" position="top" fontSize={9} fill="hsl(var(--foreground))"
                       formatter={(v: number) => (v > 0 ? v : '')} />
                   </Bar>
                   <Bar yAxisId="flow" dataKey="retNeg" name="Retails" stackId="fluxo" fill="#DC2626"
-                    radius={[0, 0, 3, 3]} barSize={26} stroke="hsl(var(--card))" strokeWidth={1}>
+                    radius={[0, 0, 3, 3]} barSize={52} stroke="hsl(var(--card))" strokeWidth={1}>
                     <LabelList dataKey="retNeg" position="bottom" fontSize={9} fill="hsl(var(--foreground))"
                       formatter={(v: number) => (v < 0 ? Math.abs(v) : '')} />
                   </Bar>
