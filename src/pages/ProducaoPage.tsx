@@ -396,10 +396,10 @@ export default function ProducaoPage() {
           )}
 
           {/* Row 2 */}
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-2 xl:items-stretch">
 
             {/* Análise — dropdown */}
-            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
+            <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Mix Modelos</h3>
               </div>
@@ -409,7 +409,7 @@ export default function ProducaoPage() {
             </div>
 
             {/* Método de Pagamento */}
-            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
+            <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
               <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
               <div className="flex items-center gap-2">
                 <ResponsiveContainer width="50%" height={Math.max(100, finData.length * 28 + 20)}>
@@ -445,7 +445,7 @@ export default function ProducaoPage() {
             </div>
 
             {/* QoR + BEV + M */}
-            <div className="xl:col-span-4 grid grid-cols-3 gap-2">
+            <div className="xl:col-span-2 grid grid-cols-3 gap-2 xl:flex xl:flex-col">
               <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
               <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
               <ClickableDonutCard title="M" count={mCount} total={filtered.length} color="#8B5CF6" isActive={selectedM === true} onClick={handleMClick} />
@@ -537,7 +537,7 @@ function ClickableDonutCard({ title, count, total, color, isActive, onClick }: {
   const pct = total ? Math.round((count / total) * 100) : 0;
   const pieData = [{ name: title, value: count }, { name: 'Outros', value: Math.max(0, total - count) }];
   return (
-    <div className={`bg-card border rounded-lg p-2 cursor-pointer transition-all ${isActive ? 'border-primary ring-1 ring-primary' : 'border-border'}`} onClick={onClick}>
+    <div className={`bg-card border rounded-lg p-2 cursor-pointer transition-all flex flex-col justify-center xl:flex-1 xl:min-h-0 ${isActive ? 'border-primary ring-1 ring-primary' : 'border-border'}`} onClick={onClick}>
       <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-0.5">{title}</h3>
       <div className="flex items-center gap-2">
         <ResponsiveContainer width={50} height={50}>
