@@ -29,11 +29,11 @@ export default function RetailsPage() {
   const { openEditor } = useRecordEditor();
   const isMobile = useIsMobile();
   const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
-  const [selectedGar, setSelectedGar] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
+  const [selectedM, setSelectedM] = useState<boolean | null>(null);
   const [selectedRet, setSelectedRet] = useState<boolean | null>(null);
   const [selectedPark, setSelectedPark] = useState<boolean>(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
@@ -48,16 +48,16 @@ export default function RetailsPage() {
   const filtered = useMemo(() => {
     let result = baseRecords;
     if (selectedResps.size > 0) result = result.filter(r => selectedResps.has(r.resp));
-    if (selectedGar) result = result.filter(r => (r.status === 'Carteira' || r.status === 'Matricula') && (r.gar === 'GAR' ? 'Certo' : 'Incerto') === selectedGar);
-    if (selectedFin) result = result.filter(r => r.fin === selectedFin);
+    if (selectedFin) result = result.filter(r => selectedFin === 'N/A' ? !r.fin : r.fin === selectedFin);
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
+    if (selectedM !== null) result = result.filter(r => (r.mPerf === 1) === selectedM);
     if (selectedRet !== null) result = result.filter(r => (r.ret === 1) === selectedRet);
     if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail');
     if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
     return result;
-  }, [baseRecords, selectedResps, selectedGar, selectedFin, selectedModel, selectedQor, selectedBev, selectedRet, selectedPark, selectedStatus]);
+  }, [baseRecords, selectedResps, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedPark, selectedStatus]);
 
   const statusByResp = useMemo(() => {
     const map: Record<string, { resp: string; Carteira: number; Matricula: number; Retail: number; total: number }> = {};
@@ -72,13 +72,6 @@ export default function RetailsPage() {
   }, [filtered]);
 
   const totalStatusSum = useMemo(() => statusByResp.reduce((s, r) => s + r.total, 0), [statusByResp]);
-
-  const garData = useMemo(() => {
-    const pipeline = filtered.filter(r => r.status === 'Carteira' || r.status === 'Matricula');
-    const certo = pipeline.filter(r => r.gar === 'GAR').length;
-    const incerto = pipeline.length - certo;
-    return [{ name: 'Certo', size: certo, total: pipeline.length }, { name: 'Incerto', size: incerto, total: pipeline.length }].filter(d => d.size > 0);
-  }, [filtered]);
 
   const selectedMonthKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -145,6 +138,7 @@ export default function RetailsPage() {
 
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
   const bevCount = useMemo(() => filtered.filter(r => r.bev === 1).length, [filtered]);
+  const mCount = useMemo(() => filtered.filter(r => r.mPerf === 1).length, [filtered]);
   const parkCount = useMemo(() => filtered.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail').length, [filtered]);
 
   const tableData = useMemo(() => {
@@ -209,11 +203,11 @@ export default function RetailsPage() {
     });
   }, []);
 
-  const handleGarClick = useCallback((g: string) => { toggle(setSelectedGar, g, null as string | null); }, []);
   const handleFinClick = useCallback((f: string) => { toggle(setSelectedFin, f, null as string | null); }, []);
   const handleModelClick = useCallback((n: string) => { toggle(setSelectedModel, n, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
+  const handleMClick = useCallback(() => { setSelectedM(prev => prev === true ? null : true); }, []);
   const handleStatusClick = useCallback((s: string) => { setSelectedStatus(prev => prev === s ? null : s); }, []);
   const handleLegendClick = (e: any) => { if (e?.value) handleStatusClick(e.value); };
 
@@ -263,11 +257,11 @@ export default function RetailsPage() {
 
   const activeFilters = [
     selectedResps.size > 0 && `Resp: ${Array.from(selectedResps).join(', ')}`,
-    selectedGar && `Garantia: ${selectedGar}`,
     selectedFin && `Fin: ${selectedFin}`,
     selectedModel && `Modelo: ${selectedModel}`,
     selectedQor !== null && 'QoR: Sim',
     selectedBev !== null && 'BEV: Sim',
+    selectedM !== null && 'M: Sim',
     selectedRet !== null && `Retoma: ${selectedRet ? 'Com' : 'Sem'}`,
     selectedPark && 'Parque',
     selectedStatus && `Status: ${selectedStatus}`,
@@ -275,11 +269,11 @@ export default function RetailsPage() {
 
   const clearFilter = (type: string) => {
     if (type === 'resp') setSelectedResps(new Set());
-    if (type === 'gar') setSelectedGar(null);
     if (type === 'fin') setSelectedFin(null);
     if (type === 'model') setSelectedModel(null);
     if (type === 'qor') setSelectedQor(null);
     if (type === 'bev') setSelectedBev(null);
+    if (type === 'm') setSelectedM(null);
     if (type === 'ret') setSelectedRet(null);
     if (type === 'park') setSelectedPark(false);
     if (type === 'status') setSelectedStatus(null);
@@ -300,19 +294,22 @@ export default function RetailsPage() {
 
         {/* Left column */}
         <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
-          <PeriodFilter />
-          <button
-            onClick={() => setSelectedPark(prev => !prev)}
-            className={`w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 transition-all ${selectedPark ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-card hover:bg-accent'}`}
-          >
-            <div className="flex items-center gap-2">
-              <ParkingCircle className={`h-4 w-4 ${selectedPark ? 'text-primary' : 'text-muted-foreground'}`} />
-              <span className="text-[11px] font-semibold uppercase">Em Parque</span>
-            </div>
-            <Badge variant={selectedPark ? 'default' : 'secondary'} className="text-[10px]">{parkCount}</Badge>
-          </button>
+          <PeriodFilter>
+            <div className="space-y-2 border-t border-border pt-3">
+              <button
+                onClick={() => setSelectedPark(prev => !prev)}
+                className={`w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 transition-all ${selectedPark ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-background hover:bg-accent'}`}
+              >
+                <div className="flex items-center gap-2">
+                  <ParkingCircle className={`h-4 w-4 ${selectedPark ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className="text-[11px] font-semibold uppercase">Em Parque</span>
+                </div>
+                <Badge variant={selectedPark ? 'default' : 'secondary'} className="text-[10px]">{parkCount}</Badge>
+              </button>
 
-          <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
+              <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
+            </div>
+          </PeriodFilter>
 
           {activeFilters.length > 0 && (
             <div className="flex flex-col gap-1">
@@ -322,11 +319,11 @@ export default function RetailsPage() {
                   {Array.from(selectedResps).join(', ')} x
                 </Badge>
               )}
-              {selectedGar && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('gar')}>{selectedGar} x</Badge>}
               {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
               {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
               {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
               {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
+              {selectedM !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('m')}>M x</Badge>}
               {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}
               {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('park')}>Parque x</Badge>}
               {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('status')}>Status: {selectedStatus} x</Badge>}
@@ -447,29 +444,10 @@ export default function RetailsPage() {
               </div>
             </div>
 
-            <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
+            <div className="xl:col-span-4 grid grid-cols-3 gap-2">
               <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
               <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
-            </div>
-
-            <div className="xl:col-span-2 bg-card border border-border rounded-lg p-2">
-              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Garantia</h3>
-              <div className="flex flex-col gap-1.5 mt-1">
-                {garData.map(d => {
-                  const isDimmed = selectedGar && selectedGar !== d.name;
-                  const color = d.name === 'Certo' ? '#16A34A' : '#94A3B8';
-                  const pct = d.total ? Math.round((d.size / d.total) * 100) : 0;
-                  return (
-                    <div key={d.name} className="flex-1 rounded-md p-2 text-center cursor-pointer transition-opacity"
-                      style={{ backgroundColor: color, opacity: isDimmed ? 0.3 : 1 }}
-                      onClick={() => handleGarClick(d.name)}>
-                      <p className="text-white text-[10px] font-medium">{d.name}</p>
-                      <p className="text-white text-lg font-bold">{d.size}</p>
-                      <p className="text-white/80 text-[9px]">{pct}%</p>
-                    </div>
-                  );
-                })}
-              </div>
+              <ClickableDonutCard title="M" count={mCount} total={filtered.length} color="#8B5CF6" isActive={selectedM === true} onClick={handleMClick} />
             </div>
           </div>
 
