@@ -48,10 +48,10 @@ export default function FunilPage() {
   }, []);
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="flex flex-col gap-4 animate-fade-in">
 
       {/* Filtro RESP */}
-      <div className="bg-card border border-border rounded-lg p-3">
+      <div className="order-1 bg-card border border-border rounded-lg p-3">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Responsável</p>
         <div className="flex flex-wrap gap-1.5">
           <button
@@ -76,13 +76,14 @@ export default function FunilPage() {
         </div>
       </div>
 
-      {/* Tabelas */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      {/* Tabelas — em mobile empilham por ordem Quente > Morno > Frio; em desktop mantêm Frio > Morno > Quente */}
+      <div className="order-3 xl:order-2 grid grid-cols-1 xl:grid-cols-3 gap-4">
         {(['Frio', 'Morno', 'Quente'] as FunilStatus[]).map(status => {
           const cfg = STATUS_CONFIG[status];
           const rows = byStatus[status];
+          const orderClass = status === 'Frio' ? 'order-3 xl:order-1' : status === 'Quente' ? 'order-1 xl:order-3' : 'order-2';
           return (
-            <div key={status} className={`bg-card border ${cfg.border} rounded-lg overflow-hidden`}>
+            <div key={status} className={`${orderClass} bg-card border ${cfg.border} rounded-lg overflow-hidden`}>
               <div className={`${cfg.header} px-3 py-2 flex items-center justify-between`}>
                 <span className="text-white font-bold text-sm uppercase tracking-wide">{status}</span>
                 <span className="text-white/80 text-xs font-semibold">{rows.length} negócios</span>
@@ -123,7 +124,7 @@ export default function FunilPage() {
       </div>
 
       {/* Funil visual */}
-      <div className="bg-card border border-border rounded-lg p-4">
+      <div className="order-2 xl:order-3 bg-card border border-border rounded-lg p-4">
         <div className="grid grid-cols-3 gap-0 items-end">
           {(['Frio', 'Morno', 'Quente'] as FunilStatus[]).map((status, idx) => {
             const cfg = STATUS_CONFIG[status];

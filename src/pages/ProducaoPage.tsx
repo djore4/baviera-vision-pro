@@ -31,6 +31,7 @@ export default function ProducaoPage() {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
+  const [selectedM, setSelectedM] = useState<boolean | null>(null);
   const [selectedRet, setSelectedRet] = useState<boolean | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('neg');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -51,13 +52,14 @@ export default function ProducaoPage() {
   const filtered = useMemo(() => {
     let result = baseRecords;
     if (selectedResp) result = result.filter(r => r.resp === selectedResp);
-    if (selectedFin) result = result.filter(r => r.fin === selectedFin);
+    if (selectedFin) result = result.filter(r => selectedFin === 'N/A' ? !r.fin : r.fin === selectedFin);
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
+    if (selectedM !== null) result = result.filter(r => (r.mPerf === 1) === selectedM);
     if (selectedRet !== null) result = result.filter(r => (r.ret === 1) === selectedRet);
     return result;
-  }, [baseRecords, selectedResp, selectedFin, selectedModel, selectedQor, selectedBev, selectedRet]);
+  }, [baseRecords, selectedResp, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet]);
 
   const negByResp = useMemo(() => {
     if (!data) return [];
@@ -150,6 +152,7 @@ export default function ProducaoPage() {
 
   const qorCount = useMemo(() => filtered.filter(r => r.qor === 1).length, [filtered]);
   const bevCount = useMemo(() => filtered.filter(r => r.bev === 1).length, [filtered]);
+  const mCount = useMemo(() => filtered.filter(r => r.mPerf === 1).length, [filtered]);
 
   const tableData = useMemo(() => {
     let rows = [...filtered];
@@ -196,6 +199,7 @@ export default function ProducaoPage() {
   const handleModelClick = useCallback((name: string) => { toggle(setSelectedModel, name, null as string | null); }, []);
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
+  const handleMClick = useCallback(() => { setSelectedM(prev => prev === true ? null : true); }, []);
 
   const exportCSV = useCallback(() => {
     const headers = ['RESP', 'TIPO', 'MODELO', 'VERSÃO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Data Negócio', 'Data Matrícula', 'Data Retail', 'Data Fatura', 'Data Apping'];
@@ -223,6 +227,7 @@ export default function ProducaoPage() {
     selectedModel && `Modelo: ${selectedModel}`,
     selectedQor !== null && 'QoR: Sim',
     selectedBev !== null && 'BEV: Sim',
+    selectedM !== null && 'M: Sim',
     selectedRet !== null && `Retoma: ${selectedRet ? 'Com' : 'Sem'}`,
   ].filter(Boolean) as string[];
 
@@ -232,6 +237,7 @@ export default function ProducaoPage() {
     if (type === 'model') setSelectedModel(null);
     if (type === 'qor') setSelectedQor(null);
     if (type === 'bev') setSelectedBev(null);
+    if (type === 'm') setSelectedM(null);
     if (type === 'ret') setSelectedRet(null);
   };
 
@@ -276,8 +282,11 @@ export default function ProducaoPage() {
 
         {/* Left column */}
         <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
-          <PeriodFilter />
-          <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
+          <PeriodFilter>
+            <div className="border-t border-border pt-3">
+              <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
+            </div>
+          </PeriodFilter>
           {activeFilters.length > 0 && (
             <div className="flex flex-col gap-1">
               <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
@@ -286,6 +295,7 @@ export default function ProducaoPage() {
               {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
               {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
               {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
+              {selectedM !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('m')}>M x</Badge>}
               {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}
             </div>
           )}
@@ -297,7 +307,7 @@ export default function ProducaoPage() {
           {/* Row 1 */}
           <div className="grid grid-cols-1 xl:grid-cols-8 gap-2">
             {/* Negócios por Responsável */}
-            <div className="xl:col-span-5 bg-card border border-border rounded-lg p-2">
+            <div className="order-2 xl:order-1 xl:col-span-5 bg-card border border-border rounded-lg p-2">
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Negócios por Responsável</h3>
                 <span className="text-sm font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{totalNeg}</span>
@@ -320,39 +330,68 @@ export default function ProducaoPage() {
             </div>
 
             {/* Realização vs Objetivo */}
-            <div className="xl:col-span-3">
-              <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-3 h-full flex flex-col">
-                <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide">Realização vs Objetivo</p>
-                <div className="flex-1">
-                  <ResponsiveContainer width="100%" height={130}>
-                    <BarChart data={[{ name: 'Total', fechados: realization.actual, objetivo: realization.targetBMW }]} barSize={40} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 10 }} />
-                      <YAxis type="category" dataKey="name" hide />
-                      <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                      <Legend wrapperStyle={{ fontSize: 10 }} />
-                      <Bar dataKey="fechados" name="Fechados" fill="#1C69D4">
-                        <LabelList dataKey="fechados" position="insideRight" fontSize={11} fontWeight="bold" fill="white" />
-                      </Bar>
-                      <Bar dataKey="objetivo" name="Objetivo" fill="#334155">
-                        <LabelList dataKey="objetivo" position="insideRight" fontSize={11} fontWeight="bold" fill="white" />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="text-center mt-2">
-                  <p className="text-2xl font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>
-                    {realization.pct}%
-                  </p>
-                  <p className="text-[9px] text-muted-foreground">{realization.actual} fechados / {realization.targetBMW} objetivo</p>
-                </div>
+            <div className="order-1 xl:order-2 xl:col-span-3">
+              <div className="bg-gradient-to-br from-primary/5 to-primary/15 border-2 border-primary/30 rounded-lg p-2 xl:p-3 h-full flex flex-col">
+                <p className="text-xs font-bold text-primary uppercase mb-1 xl:mb-2 tracking-wide">Realização vs Objetivo</p>
+                {isMobile ? (
+                  /* Versão condensada (mobile): barra + percentagem lado a lado */
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <ResponsiveContainer width="100%" height={70}>
+                        <BarChart data={[{ name: 'Total', fechados: realization.actual, objetivo: realization.targetBMW }]} barSize={22} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
+                          <XAxis type="number" tick={{ fontSize: 9 }} hide />
+                          <YAxis type="category" dataKey="name" hide />
+                          <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                          <Bar dataKey="fechados" name="Fechados" fill="#1C69D4">
+                            <LabelList dataKey="fechados" position="insideRight" fontSize={10} fontWeight="bold" fill="white" />
+                          </Bar>
+                          <Bar dataKey="objetivo" name="Objetivo" fill="#334155">
+                            <LabelList dataKey="objetivo" position="insideRight" fontSize={10} fontWeight="bold" fill="white" />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="text-center flex-shrink-0">
+                      <p className="text-xl font-extrabold leading-none" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>
+                        {realization.pct}%
+                      </p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">{realization.actual}/{realization.targetBMW}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex-1">
+                      <ResponsiveContainer width="100%" height={130}>
+                        <BarChart data={[{ name: 'Total', fechados: realization.actual, objetivo: realization.targetBMW }]} barSize={40} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                          <XAxis type="number" tick={{ fontSize: 10 }} />
+                          <YAxis type="category" dataKey="name" hide />
+                          <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                          <Legend wrapperStyle={{ fontSize: 10 }} />
+                          <Bar dataKey="fechados" name="Fechados" fill="#1C69D4">
+                            <LabelList dataKey="fechados" position="insideRight" fontSize={11} fontWeight="bold" fill="white" />
+                          </Bar>
+                          <Bar dataKey="objetivo" name="Objetivo" fill="#334155">
+                            <LabelList dataKey="objetivo" position="insideRight" fontSize={11} fontWeight="bold" fill="white" />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="text-center mt-2">
+                      <p className="text-2xl font-extrabold" style={{ color: realization.pct >= 100 ? '#16A34A' : realization.pct >= 80 ? '#F59E0B' : '#DC2626' }}>
+                        {realization.pct}%
+                      </p>
+                      <p className="text-[9px] text-muted-foreground">{realization.actual} fechados / {realization.targetBMW} objetivo</p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
           {isMobile && (
             <div className="order-4 xl:order-none">
-              <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />
+              <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={openEditor} />
             </div>
           )}
 
@@ -405,18 +444,16 @@ export default function ProducaoPage() {
               </div>
             </div>
 
-            {/* QoR + BEV */}
-            <div className="xl:col-span-2 grid grid-cols-2 xl:grid-cols-1 gap-2">
+            {/* QoR + BEV + M */}
+            <div className="xl:col-span-4 grid grid-cols-3 gap-2">
               <ClickableDonutCard title="QoR" count={qorCount} total={filtered.length} color="#F59E0B" isActive={selectedQor === true} onClick={handleQorClick} />
               <ClickableDonutCard title="BEV" count={bevCount} total={filtered.length} color="#16A34A" isActive={selectedBev === true} onClick={handleBevClick} />
+              <ClickableDonutCard title="M" count={mCount} total={filtered.length} color="#8B5CF6" isActive={selectedM === true} onClick={handleMClick} />
             </div>
-
-            {/* Espaco vazio para alinhar */}
-            <div className="xl:col-span-2" />
           </div>
 
           {!isMobile && (
-            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} />
+            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={openEditor} />
           )}
         </div>
       </div>
@@ -424,9 +461,10 @@ export default function ProducaoPage() {
   );
 }
 
-function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, toggleSort, SortIcon, exportCSV }: {
+function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, toggleSort, SortIcon, exportCSV, openEditor }: {
   tableData: any[]; tableColumns: [SortKey, string][]; searchTerm: string; setSearchTerm: (v: string) => void;
   toggleSort: (k: SortKey) => void; SortIcon: React.FC<{ col: SortKey }>; exportCSV: () => void;
+  openEditor: (id: string) => void;
 }) {
   return (
     <div className="bg-card border border-border rounded-lg">
