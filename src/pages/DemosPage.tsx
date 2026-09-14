@@ -1,6 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, X, MapPin, Gauge, Calendar, ExternalLink } from 'lucide-react';
+import {
+  Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
+  ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, ImageOff,
+} from 'lucide-react';
+import bmwLogo from '@/assets/bmw-logo.png';
 
 /* ── Parque de demonstradores (VN · Demos) ────────────────────────────────────
  * Consulta, apenas leitura, do parque de viaturas partilhado com a plataforma
@@ -118,10 +123,40 @@ function isReservado(v: Viatura): boolean {
 
 const eur = (n: number | null | undefined) =>
   (n || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const eur0 = (n: number | null | undefined) =>
+  (n || 0).toLocaleString('pt-PT', { maximumFractionDigits: 0 }) + ' €';
 const perc = (n: number | null | undefined) =>
   ((n || 0) * 100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %';
 
 interface Row extends Viatura { _stats: Stats; _local: string; _tipologia: string[] }
+
+/* ── Ordenação ─────────────────────────────────────────────────────────────── */
+type SortKey = 'local' | 'modelo' | 'versao' | 'encomenda' | 'chassis' | 'matricula'
+  | 'data_matricula' | 'idade' | 'pvp_bruto' | 'pvp_final';
+
+const COLS: { key: SortKey; label: string; num?: boolean; align?: 'right' | 'center' }[] = [
+  { key: 'local', label: 'Local', align: 'center' },
+  { key: 'modelo', label: 'Modelo' },
+  { key: 'versao', label: 'Versão' },
+  { key: 'encomenda', label: 'Enc' },
+  { key: 'chassis', label: 'Chassis' },
+  { key: 'matricula', label: 'Matrícula' },
+  { key: 'data_matricula', label: 'Data', align: 'center' },
+  { key: 'idade', label: 'Idade', num: true, align: 'center' },
+  { key: 'pvp_bruto', label: 'PVP Base', num: true, align: 'right' },
+  { key: 'pvp_final', label: 'PVP Final', num: true, align: 'right' },
+];
+
+function sortValue(r: Row, key: SortKey): string | number {
+  switch (key) {
+    case 'local': return r._local.toLowerCase();
+    case 'data_matricula': return r.data_matricula ? new Date(r.data_matricula).getTime() : 0;
+    case 'idade': return r._stats.idade_dias;
+    case 'pvp_bruto': return r._stats.pvp_bruto;
+    case 'pvp_final': return r._stats.pvp_final;
+    default: return (r[key] ?? '').toString().toLowerCase();
+  }
+}
 
 function AgeBadge({ dias }: { dias: number }) {
   const cls = dias <= 90
@@ -143,7 +178,9 @@ export default function DemosPage() {
   const [search, setSearch] = useState('');
   const [fModelo, setFModelo] = useState('Todos');
   const [fLocal, setFLocal] = useState('Todas');
-  const [fTipologia, setFTipologia] = useState('Todas');
+  const [fTipologia, setFTipologia] = useState<Set<string>>(new Set());
+  const [pvp, setPvp] = useState<[number, number] | null>(null);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
   const [selected, setSelected] = useState<Row | null>(null);
 
   useEffect(() => {
@@ -165,45 +202,70 @@ export default function DemosPage() {
     return () => { alive = false; };
   }, []);
 
-  const modelos = useMemo(() => ['Todos', ...[...new Set(rows.map(r => r.modelo).filter(Boolean) as string[])].sort()], [rows]);
+  const modelos = useMemo(() => ['Todos', ...[...new Set(rows.map(r => (r.modelo ?? '').trim()).filter(Boolean))].sort()], [rows]);
   const locais = useMemo(() => ['Todas', ...[...new Set(rows.flatMap(r => getArr(r.local)))].sort()], [rows]);
-  const tipologias = useMemo(() => ['Todas', ...[...new Set(rows.flatMap(r => r._tipologia))].sort()], [rows]);
+  const tipologias = useMemo(() => [...new Set(rows.flatMap(r => r._tipologia))].sort(), [rows]);
+
+  // Domínio do PVP (a partir dos valores > 0), arredondado a 500 €.
+  const pvpDomain = useMemo<[number, number]>(() => {
+    const vals = rows.map(r => r._stats.pvp_final).filter(v => v > 0);
+    if (!vals.length) return [0, 0];
+    const lo = Math.floor(Math.min(...vals) / 500) * 500;
+    const hi = Math.ceil(Math.max(...vals) / 500) * 500;
+    return [lo, hi];
+  }, [rows]);
+  useEffect(() => { if (pvpDomain[1] > 0) setPvp([pvpDomain[0], pvpDomain[1]]); }, [pvpDomain]);
+
+  const pvpActive = !!pvp && (pvp[0] > pvpDomain[0] || pvp[1] < pvpDomain[1]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter(r => {
-      if (fModelo !== 'Todos' && r.modelo !== fModelo) return false;
+    const list = rows.filter(r => {
+      if (fModelo !== 'Todos' && (r.modelo ?? '').trim() !== fModelo) return false;
       if (fLocal !== 'Todas' && !getArr(r.local).includes(fLocal)) return false;
-      if (fTipologia !== 'Todas' && !r._tipologia.includes(fTipologia)) return false;
+      if (fTipologia.size && !r._tipologia.some(t => fTipologia.has(t))) return false;
+      if (pvpActive && pvp) {
+        const p = r._stats.pvp_final;
+        if (p <= 0 || p < pvp[0] || p > pvp[1]) return false;
+      }
       if (!q) return true;
       return [r.modelo, r.versao, r.chassis, r.matricula, r.encomenda, r._local]
         .some(v => (v ?? '').toString().toLowerCase().includes(q));
-    }).sort((a, b) => {
-      // Reservados primeiro (em negociação), depois por idade descendente.
-      const rr = (isReservado(b) ? 1 : 0) - (isReservado(a) ? 1 : 0);
-      if (rr !== 0) return rr;
-      return b._stats.idade_dias - a._stats.idade_dias;
     });
-  }, [rows, search, fModelo, fLocal, fTipologia]);
 
-  const chipRow = (label: string, options: string[], value: string, onChange: (v: string) => void) => (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-1">{label}</span>
-      {options.map(o => (
-        <button
-          key={o}
-          onClick={() => onChange(o)}
-          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-colors ${
-            value === o
-              ? 'bg-bmw-blue text-white border-bmw-blue'
-              : 'bg-background text-muted-foreground border-border hover:text-foreground hover:border-bmw-blue/50'
-          }`}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  );
+    if (sort) {
+      const dir = sort.dir === 'asc' ? 1 : -1;
+      list.sort((a, b) => {
+        const va = sortValue(a, sort.key); const vb = sortValue(b, sort.key);
+        if (va < vb) return -1 * dir;
+        if (va > vb) return 1 * dir;
+        return 0;
+      });
+    } else {
+      // Ordenação por defeito: reservados primeiro, depois idade descendente.
+      list.sort((a, b) => {
+        const rr = (isReservado(b) ? 1 : 0) - (isReservado(a) ? 1 : 0);
+        return rr !== 0 ? rr : b._stats.idade_dias - a._stats.idade_dias;
+      });
+    }
+    return list;
+  }, [rows, search, fModelo, fLocal, fTipologia, pvp, pvpActive, sort]);
+
+  const toggleTip = (t: string) =>
+    setFTipologia(prev => { const n = new Set(prev); if (n.has(t)) n.delete(t); else n.add(t); return n; });
+
+  const toggleSort = (key: SortKey) =>
+    setSort(prev => {
+      if (!prev || prev.key !== key) return { key, dir: key === 'pvp_final' || key === 'pvp_bruto' || key === 'idade' ? 'desc' : 'asc' };
+      if (prev.dir === 'asc') return { key, dir: 'desc' };
+      return null; // terceiro clique limpa
+    });
+
+  const filtersActive = !!search || fModelo !== 'Todos' || fLocal !== 'Todas' || fTipologia.size > 0 || pvpActive;
+  const resetFilters = () => {
+    setSearch(''); setFModelo('Todos'); setFLocal('Todas'); setFTipologia(new Set());
+    setPvp([pvpDomain[0], pvpDomain[1]]);
+  };
 
   return (
     <div className="space-y-3">
@@ -221,13 +283,74 @@ export default function DemosPage() {
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {filtered.length} de {rows.length} viaturas
         </span>
+        {filtersActive && (
+          <button
+            onClick={resetFilters}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground border border-border rounded-md hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <RotateCcw className="h-3 w-3" /> Limpar
+          </button>
+        )}
       </div>
 
       {/* Filtros */}
-      <div className="space-y-2 bg-card border border-border rounded-lg p-3">
-        {chipRow('Modelo', modelos, fModelo, setFModelo)}
-        {chipRow('Local', locais, fLocal, setFLocal)}
-        {chipRow('Tipologia', tipologias, fTipologia, setFTipologia)}
+      <div className="bg-card border border-border rounded-lg p-3 grid gap-3 md:grid-cols-2 xl:grid-cols-[repeat(2,minmax(0,1fr))_1.4fr]">
+        {/* Local */}
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Local</span>
+          <select
+            value={fLocal}
+            onChange={e => setFLocal(e.target.value)}
+            className="w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            {locais.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </label>
+
+        {/* Modelo */}
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Modelo</span>
+          <select
+            value={fModelo}
+            onChange={e => setFModelo(e.target.value)}
+            className="w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            {modelos.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </label>
+
+        {/* PVP */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <Gauge className="h-3 w-3" /> PVP Final
+            {pvp && <span className="ml-auto normal-case tracking-normal text-foreground font-bold">{eur0(pvp[0])} — {eur0(pvp[1])}</span>}
+          </span>
+          {pvp && <PriceRange domain={pvpDomain} value={pvp} onChange={setPvp} />}
+        </div>
+
+        {/* Tipologia */}
+        {tipologias.length > 0 && (
+          <div className="flex flex-col gap-1.5 md:col-span-2 xl:col-span-3">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Tipologia</span>
+            <div className="flex flex-wrap gap-1.5">
+              {tipologias.map(t => {
+                const on = fTipologia.has(t);
+                return (
+                  <button
+                    key={t}
+                    onClick={() => toggleTip(t)}
+                    aria-pressed={on}
+                    className={`px-3 py-1 text-[11px] font-semibold rounded-md border transition-colors ${
+                      on ? 'bg-bmw-blue text-white border-bmw-blue' : 'bg-background text-muted-foreground border-border hover:text-foreground hover:border-bmw-blue/50'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -244,9 +367,25 @@ export default function DemosPage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-muted/50">
-                {['Local', 'Modelo', 'Versão', 'Enc', 'Chassis', 'Matrícula', 'Data', 'Idade', 'PVP Base', 'PVP Final'].map(h => (
-                  <th key={h} className="px-2.5 py-2 text-left font-semibold text-muted-foreground whitespace-nowrap border-b border-border">{h}</th>
-                ))}
+                {COLS.map(c => {
+                  const active = sort?.key === c.key;
+                  return (
+                    <th
+                      key={c.key}
+                      onClick={() => toggleSort(c.key)}
+                      className={`px-2.5 py-2 font-semibold text-muted-foreground whitespace-nowrap border-b border-border cursor-pointer select-none hover:text-foreground transition-colors ${
+                        c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'
+                      }`}
+                    >
+                      <span className={`inline-flex items-center gap-1 ${c.align === 'right' ? 'flex-row-reverse' : ''}`}>
+                        {c.label}
+                        {active
+                          ? (sort!.dir === 'asc' ? <ChevronUp className="h-3 w-3 text-bmw-blue" /> : <ChevronDown className="h-3 w-3 text-bmw-blue" />)
+                          : <ChevronsUpDown className="h-3 w-3 opacity-30" />}
+                      </span>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -258,7 +397,7 @@ export default function DemosPage() {
                     onClick={() => setSelected(r)}
                     className={`border-b border-border/50 cursor-pointer transition-colors ${reservado ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : 'hover:bg-muted/30'}`}
                   >
-                    <td className="px-2.5 py-1.5 whitespace-nowrap">
+                    <td className="px-2.5 py-1.5 text-center whitespace-nowrap">
                       <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-semibold border border-border">{r._local}</span>
                     </td>
                     <td className="px-2.5 py-1.5 font-semibold text-foreground whitespace-nowrap">
@@ -271,10 +410,10 @@ export default function DemosPage() {
                     <td className="px-2.5 py-1.5 text-muted-foreground font-mono">{r.encomenda || '—'}</td>
                     <td className="px-2.5 py-1.5 text-muted-foreground font-mono uppercase">{r.chassis || '—'}</td>
                     <td className="px-2.5 py-1.5 text-foreground/80 font-mono uppercase font-medium">{r.matricula || '—'}</td>
-                    <td className="px-2.5 py-1.5 text-muted-foreground whitespace-nowrap">
+                    <td className="px-2.5 py-1.5 text-center text-muted-foreground whitespace-nowrap">
                       {r.data_matricula ? new Date(r.data_matricula).toLocaleDateString('pt-PT') : '—'}
                     </td>
-                    <td className="px-2.5 py-1.5 whitespace-nowrap"><AgeBadge dias={r._stats.idade_dias} /></td>
+                    <td className="px-2.5 py-1.5 text-center whitespace-nowrap"><AgeBadge dias={r._stats.idade_dias} /></td>
                     <td className="px-2.5 py-1.5 text-right text-muted-foreground line-through whitespace-nowrap">
                       {r._stats.pvp_bruto > 0 ? eur(r._stats.pvp_bruto) : '—'}
                     </td>
@@ -292,15 +431,94 @@ export default function DemosPage() {
         </div>
       )}
 
-      {selected && <DetailModal row={selected} onClose={() => setSelected(null)} />}
+      {selected && <ShareCard row={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }
 
-function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
+/* ── Slider de intervalo de preço (dois cursores) ─────────────────────────────*/
+function PriceRange({ domain, value, onChange }: {
+  domain: [number, number]; value: [number, number]; onChange: (v: [number, number]) => void;
+}) {
+  const [min, max] = domain;
+  const span = Math.max(1, max - min);
+  const pct = (v: number) => ((v - min) / span) * 100;
+  if (max <= min) return <div className="h-6" />;
+
+  return (
+    <div className="relative h-6 flex items-center">
+      <div className="absolute left-0 right-0 h-1 rounded-full bg-muted" />
+      <div
+        className="absolute h-1 rounded-full bg-bmw-blue"
+        style={{ left: `${pct(value[0])}%`, right: `${100 - pct(value[1])}%` }}
+      />
+      <input
+        type="range" min={min} max={max} step={500} value={value[0]}
+        onChange={e => onChange([Math.min(Number(e.target.value), value[1] - 500), value[1]])}
+        className="range-thumb absolute w-full appearance-none bg-transparent pointer-events-none"
+        aria-label="PVP mínimo"
+      />
+      <input
+        type="range" min={min} max={max} step={500} value={value[1]}
+        onChange={e => onChange([value[0], Math.max(Number(e.target.value), value[0] + 500)])}
+        className="range-thumb absolute w-full appearance-none bg-transparent pointer-events-none"
+        aria-label="PVP máximo"
+      />
+    </div>
+  );
+}
+
+/* ── Cartão de partilha / detalhe ─────────────────────────────────────────────*/
+function shareText(r: Row): string {
+  const L: string[] = [];
+  L.push(`🚗 ${[r.modelo, r.versao].filter(Boolean).join(' ')}`.trim());
+  const meta = [r._local !== '—' ? `📍 ${r._local}` : '', r._tipologia.join('/')].filter(Boolean).join(' · ');
+  if (meta) L.push(meta);
+  if (r.matricula) L.push(`Matrícula: ${r.matricula}`);
+  L.push(`Kms: ${(r.kms ?? 0).toLocaleString('pt-PT')} · ${r._stats.idade_dias} dias`);
+  if (r._stats.pvp_bruto > 0) L.push(`PVP: ${eur(r._stats.pvp_bruto)}`);
+  if (r._stats.desc_eur > 0) L.push(`Desconto: ${eur(r._stats.desc_eur)} (${perc(r._stats.desc_perc)})`);
+  if (r._stats.pvp_final > 0) L.push(`💰 PVP Final: ${eur(r._stats.pvp_final)}`);
+  if (r.link_fotos && r.link_fotos.trim() !== '') L.push(`📷 Fotos: ${r.link_fotos}`);
+  return L.join('\n');
+}
+
+function ShareCard({ row, onClose }: { row: Row; onClose: () => void }) {
   const inps = getInps(row.inputs);
   const s = row._stats;
   const reservado = isReservado(row);
+  // undefined = a carregar; null = sem foto (placeholder); string = url da imagem
+  const [photo, setPhoto] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let alive = true;
+    setPhoto(undefined);
+    const link = row.link_fotos?.trim();
+    if (!link) { setPhoto(null); return; }
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('foto-preview', { body: { url: link } });
+        if (!alive) return;
+        setPhoto(error ? null : ((data as { image?: string | null })?.image ?? null));
+      } catch { if (alive) setPhoto(null); }
+    })();
+    return () => { alive = false; };
+  }, [row.link_fotos]);
+
+  async function partilhar() {
+    const text = shareText(row);
+    try {
+      if (navigator.share) { await navigator.share({ title: [row.modelo, row.versao].filter(Boolean).join(' '), text }); return; }
+    } catch { return; /* utilizador cancelou */ }
+    try { await navigator.clipboard.writeText(text); toast.success('Resumo copiado para a área de transferência.'); }
+    catch { toast.error('Não foi possível copiar.'); }
+  }
+
+  async function copiar() {
+    try { await navigator.clipboard.writeText(shareText(row)); toast.success('Resumo copiado.'); }
+    catch { toast.error('Não foi possível copiar.'); }
+  }
+
   const line = (label: string, value: string, opts?: { strong?: boolean; className?: string }) => (
     <div className="flex justify-between items-center py-1">
       <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">{label}</span>
@@ -311,24 +529,61 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-start justify-between px-5 py-4 border-b border-border sticky top-0 bg-card z-10">
-          <div>
-            <h2 className="text-base font-bold text-foreground">{row.modelo || '—'} {row.versao || ''}</h2>
-            <p className="text-xs text-muted-foreground font-mono uppercase mt-0.5">{row.matricula || row.chassis}</p>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><MapPin className="h-3 w-3" />{row._local}</span>
-              {row._tipologia.map(t => (
-                <span key={t} className="px-1.5 py-0.5 rounded bg-bmw-blue/10 text-bmw-blue text-[10px] font-semibold">{t}</span>
-              ))}
-              {reservado
-                ? <span className="px-1.5 py-0.5 rounded bg-yellow-400/90 text-yellow-950 text-[10px] font-bold uppercase tracking-wider">Em negociação</span>
-                : <span className="px-1.5 py-0.5 rounded bg-green-500/15 text-green-600 text-[10px] font-bold uppercase tracking-wider">Disponível</span>}
-            </div>
+        {/* Hero / foto */}
+        <div className="relative">
+          <div className="aspect-[16/9] w-full bg-gradient-to-br from-bmw-navy to-bmw-blue overflow-hidden flex items-center justify-center">
+            {photo === undefined ? (
+              <div className="animate-pulse text-white/70 text-xs">A obter foto...</div>
+            ) : photo ? (
+              <img
+                src={photo}
+                alt={`${row.modelo ?? ''} ${row.versao ?? ''}`}
+                className="w-full h-full object-cover"
+                onError={() => setPhoto(null)}
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-2 text-white/90">
+                <img src={bmwLogo} alt="BMW" className="h-12 w-12 opacity-90" />
+                <span className="text-lg font-black tracking-tight text-center px-4">{[row.modelo, row.versao].filter(Boolean).join(' ')}</span>
+                {row.link_fotos && (
+                  <span className="flex items-center gap-1 text-[10px] text-white/60"><ImageOff className="h-3 w-3" /> pré-visualização indisponível</span>
+                )}
+              </div>
+            )}
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="absolute top-2 right-2 bg-black/40 hover:bg-black/60 text-white rounded-full p-1.5 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+          <div className="absolute bottom-2 left-2 flex items-center gap-1.5 flex-wrap">
+            {reservado
+              ? <span className="px-2 py-0.5 rounded bg-yellow-400 text-yellow-950 text-[10px] font-bold uppercase tracking-wider shadow">Em negociação</span>
+              : <span className="px-2 py-0.5 rounded bg-green-500 text-white text-[10px] font-bold uppercase tracking-wider shadow">Disponível</span>}
+            {row._tipologia.map(t => (
+              <span key={t} className="px-2 py-0.5 rounded bg-white/90 text-bmw-navy text-[10px] font-bold uppercase tracking-wider shadow">{t}</span>
+            ))}
+          </div>
         </div>
 
         <div className="p-5 space-y-4">
+          {/* Cabeçalho */}
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-foreground leading-tight">{[row.modelo, row.versao].filter(Boolean).join(' ') || '—'}</h2>
+              <p className="text-xs text-muted-foreground font-mono uppercase mt-0.5 flex items-center gap-2 flex-wrap">
+                {row.matricula || row.chassis}
+                <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{row._local}</span>
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <div className={`text-xl font-black ${reservado ? 'text-red-600' : 'text-bmw-blue'}`}>
+                {s.pvp_final > 0 ? eur0(s.pvp_final) : 'N/A'}
+              </div>
+              {s.pvp_bruto > 0 && s.pvp_bruto > s.pvp_final && (
+                <div className="text-[11px] text-muted-foreground line-through">{eur0(s.pvp_bruto)}</div>
+              )}
+            </div>
+          </div>
+
           {/* Meta */}
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="bg-muted/40 rounded-lg p-2">
@@ -388,16 +643,32 @@ function DetailModal({ row, onClose }: { row: Row; onClose: () => void }) {
             </div>
           )}
 
-          {row.link_fotos && row.link_fotos.trim() !== '' && (
-            <a
-              href={row.link_fotos}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-bmw-blue hover:underline"
+          {/* Ações */}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              onClick={partilhar}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold bg-bmw-blue text-white rounded-lg hover:bg-bmw-blue/90 transition-colors"
             >
-              <ExternalLink className="h-3.5 w-3.5" /> Ver fotos
-            </a>
-          )}
+              <Share2 className="h-3.5 w-3.5" /> Partilhar
+            </button>
+            <button
+              onClick={copiar}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-muted transition-colors"
+            >
+              <Copy className="h-3.5 w-3.5" /> Copiar resumo
+            </button>
+            {row.link_fotos && row.link_fotos.trim() !== '' && (
+              <a
+                href={row.link_fotos}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-muted transition-colors"
+                title="Abrir álbum de fotos"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Fotos
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>

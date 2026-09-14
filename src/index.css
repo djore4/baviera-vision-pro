@@ -145,3 +145,35 @@ html, body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Slider de intervalo (PVP) — dois cursores sobrepostos. O input tem
+   pointer-events:none (ver .range-thumb no JSX) para não bloquear o outro
+   cursor; só o thumb reativa os eventos. */
+.range-thumb {
+  height: 1.5rem;
+}
+.range-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  height: 14px;
+  width: 14px;
+  border-radius: 9999px;
+  background: #1C69D4;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.range-thumb::-moz-range-thumb {
+  pointer-events: auto;
+  height: 14px;
+  width: 14px;
+  border-radius: 9999px;
+  background: #1C69D4;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.range-thumb::-moz-range-track {
+  background: transparent;
+}
