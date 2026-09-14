@@ -1,42 +1,31 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Bell, BellRing, AlertTriangle, CalendarClock, Building2, PartyPopper, UserPlus,
+  Bell, BellRing, AlertTriangle, CalendarClock, Building2, PartyPopper, UserPlus, Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { listTaskAlerts, listRecentAccounts, type Account, type Scope, type Task, type TaskAlerts } from '@/lib/prospec';
+import { pushSupported, subscribeToPush, unsubscribeFromPush, sendTestPush } from '@/lib/prospecPush';
 
 /* ── Notificações de tarefas (Prospeção) ──────────────────────────────────────
  * Avisa o utilizador das tarefas com prazo para hoje e/ou em atraso. Combina:
  *  - um sino com contador (notificações "na app", sempre visível), que abre um
  *    painel com a lista;
- *  - notificações do browser (opt-in): quando ligadas e com permissão, dispara
- *    um aviso do sistema quando surgem tarefas novas para hoje / em atraso.
- * A lista atualiza-se periodicamente e ao voltar o foco à janela (os prazos
- * passam sozinhos). Cada tarefa só gera uma notificação do sistema por dia.
+ *  - Web Push (opt-in por dispositivo): ao ativar, subscreve este dispositivo
+ *    (service worker /sw.js) e o envio é feito server-side pela edge function
+ *    `prospec-push` (pg_cron, 15m), pelo que os avisos chegam mesmo com o site
+ *    fechado. Ver src/lib/prospecPush.ts. Cada tarefa gera um push por dia.
+ * A lista atualiza-se periodicamente e ao voltar o foco à janela.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const REFRESH_MS = 5 * 60 * 1000;
 const ENABLED_KEY = 'prospec:notify:enabled';
 /** Janela de "clientes recentes" mostrada no painel (dias). */
 const NEW_ACCT_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
-/** Contas já reconhecidas (contador) e já avisadas no browser (dedup). */
+/** Contas já reconhecidas no painel (baixam o contador). */
 const ACCT_SEEN_KEY = 'prospec:newacct:seen';
-const ACCT_NOTIFIED_KEY = 'prospec:newacct:notified';
-const notifSupported = typeof window !== 'undefined' && 'Notification' in window;
-
-const dayKey = () => new Date().toISOString().slice(0, 10);
-const sentKey = () => `prospec:notify:sent:${dayKey()}`;
-
-function loadSent(): Set<string> {
-  try { const raw = localStorage.getItem(sentKey()); return new Set(raw ? JSON.parse(raw) as string[] : []); }
-  catch { return new Set(); }
-}
-function saveSent(ids: Set<string>) {
-  try { localStorage.setItem(sentKey(), JSON.stringify([...ids])); } catch { /* ignora */ }
-}
 
 /** Conjuntos persistentes de ids (limitados para não crescerem sem fim). */
 function loadIdSet(key: string): Set<string> {
@@ -69,72 +58,28 @@ export function TaskNotifications({ scope, accountName, reloadKey }: Props) {
     try { return localStorage.getItem(ENABLED_KEY) === '1'; } catch { return false; }
   });
   const [open, setOpen] = useState(false);
-  const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
+  const [busy, setBusy] = useState(false);
+  const supported = pushSupported();
 
   const unseenAccounts = useMemo(
     () => newAccounts.filter(a => !seenAccts.has(a.id)),
     [newAccounts, seenAccts]);
   const total = alerts.overdue.length + alerts.today.length + unseenAccounts.length;
 
-  // Dispara uma notificação do sistema (resumo) para tarefas ainda não avisadas hoje.
-  const maybeNotify = useCallback((data: TaskAlerts) => {
-    if (!notifSupported || !enabledRef.current || Notification.permission !== 'granted') return;
-    const current = [...data.overdue, ...data.today].map(t => t.id);
-    if (current.length === 0) return;
-    const sent = loadSent();
-    const fresh = current.filter(id => !sent.has(id));
-    if (fresh.length === 0) return;
-
-    const parts: string[] = [];
-    if (data.today.length) parts.push(`${data.today.length} para hoje`);
-    if (data.overdue.length) parts.push(`${data.overdue.length} em atraso`);
-    try {
-      const n = new Notification('Prospeção — tarefas', {
-        body: parts.join(' · '),
-        tag: 'prospec-tasks',
-        icon: '/favicon.ico',
-      });
-      n.onclick = () => { window.focus(); n.close(); };
-    } catch { /* alguns browsers exigem service worker; ignora em silêncio */ }
-    current.forEach(id => sent.add(id));
-    saveSent(sent);
-  }, []);
-
-  // Aviso do sistema para novos clientes lançados por vendedores (uma vez por conta).
-  const maybeNotifyAccounts = useCallback((accts: Account[]) => {
-    if (!notifSupported || !enabledRef.current || Notification.permission !== 'granted') return;
-    if (accts.length === 0) return;
-    const notified = loadIdSet(ACCT_NOTIFIED_KEY);
-    const fresh = accts.filter(a => !notified.has(a.id));
-    if (fresh.length === 0) return;
-    const body = fresh.length === 1
-      ? `${fresh[0].owner_nome || 'Um vendedor'} lançou: ${fresh[0].nome}`
-      : `${fresh.length} novos clientes lançados na Prospeção`;
-    try {
-      const n = new Notification('Prospeção — novo cliente', { body, tag: 'prospec-new-account', icon: '/favicon.ico' });
-      n.onclick = () => { window.focus(); n.close(); };
-    } catch { /* alguns browsers exigem service worker; ignora */ }
-    fresh.forEach(a => notified.add(a.id));
-    saveIdSet(ACCT_NOTIFIED_KEY, notified);
-  }, []);
-
   const load = useCallback(async () => {
     try {
       const data = await listTaskAlerts(scope);
       setAlerts(data);
-      maybeNotify(data);
     } catch { /* silencioso — não estorva a página */ }
-    // Novos clientes — só o diretor é notificado, e nunca das suas próprias contas.
+    // Novos clientes — só o diretor os vê no painel; nunca das suas próprias contas.
     if (scope.isDirector) {
       try {
         const since = new Date(Date.now() - NEW_ACCT_WINDOW_MS).toISOString();
         const accts = (await listRecentAccounts(since)).filter(a => a.created_by !== scope.email);
         setNewAccounts(accts);
-        maybeNotifyAccounts(accts);
       } catch { /* silencioso */ }
     }
-  }, [scope, maybeNotify, maybeNotifyAccounts]);
+  }, [scope]);
 
   useEffect(() => {
     load();
@@ -145,20 +90,34 @@ export function TaskNotifications({ scope, accountName, reloadKey }: Props) {
   }, [load, reloadKey]);
 
   const toggleEnabled = async () => {
+    if (busy) return;
+    // Desligar: remove a subscrição deste dispositivo.
     if (enabled) {
+      setBusy(true);
+      try { await unsubscribeFromPush(); } catch { /* ignora */ }
       setEnabled(false);
       try { localStorage.setItem(ENABLED_KEY, '0'); } catch { /* ignora */ }
+      setBusy(false);
+      toast.success('Notificações do browser desligadas neste dispositivo.');
       return;
     }
-    if (!notifSupported) { toast.error('Este browser não suporta notificações.'); return; }
+    // Ligar: pede permissão e subscreve (o envio é server-side, via pg_cron).
+    if (!supported) { toast.error('Este browser não suporta notificações push.'); return; }
     let perm = Notification.permission;
     if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch { /* ignora */ } }
     if (perm !== 'granted') { toast.error('Permissão de notificações negada pelo browser.'); return; }
-    setEnabled(true);
-    try { localStorage.setItem(ENABLED_KEY, '1'); } catch { /* ignora */ }
-    toast.success('Notificações de tarefas ativadas.');
-    // Ao ligar, avisa já se houver algo pendente.
-    maybeNotify(alerts);
+    setBusy(true);
+    try {
+      await subscribeToPush(scope.email);
+      setEnabled(true);
+      try { localStorage.setItem(ENABLED_KEY, '1'); } catch { /* ignora */ }
+      await sendTestPush();
+      toast.success('Notificações ativadas neste dispositivo — deves receber já um aviso de teste.');
+    } catch (e) {
+      toast.error('Não foi possível ativar as notificações: ' + ((e as Error)?.message || e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   // Ao abrir o painel: destaca os clientes ainda não vistos e marca-os como
@@ -210,14 +169,15 @@ export function TaskNotifications({ scope, accountName, reloadKey }: Props) {
           <button
             type="button"
             onClick={toggleEnabled}
+            disabled={busy || !supported}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors',
+              'inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
               enabled ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-accent',
             )}
             title={enabled ? 'Desligar notificações do browser' : 'Ligar notificações do browser'}
           >
-            {enabled ? <BellRing className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
-            {enabled ? 'Ativas' : 'Ativar no browser'}
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : enabled ? <BellRing className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
+            {busy ? 'A processar…' : enabled ? 'Ativas' : 'Ativar no browser'}
           </button>
         </div>
 
@@ -294,15 +254,15 @@ export function TaskNotifications({ scope, accountName, reloadKey }: Props) {
           </>)}
         </div>
 
-        {notifSupported ? (
+        {supported ? (
           <p className="px-3 py-2 text-[10px] text-muted-foreground border-t leading-snug">
             {enabled
-              ? 'Recebe um aviso do sistema quando surgem tarefas para hoje / em atraso ou um vendedor lança um novo cliente.'
-              : 'Ative as notificações do browser para receber avisos mesmo com o separador em segundo plano.'}
+              ? 'Recebe um aviso no sistema quando há tarefas para hoje / em atraso ou um novo cliente — mesmo com o site fechado. Ativa em cada dispositivo onde queiras receber.'
+              : 'Ativa as notificações do browser para receberes avisos das tuas tarefas mesmo com o site fechado.'}
           </p>
         ) : (
           <p className="px-3 py-2 text-[10px] text-muted-foreground border-t">
-            Este browser não suporta notificações do sistema — consulte a lista aqui.
+            Este browser não suporta notificações push — consulta a lista aqui.
           </p>
         )}
       </PopoverContent>
