@@ -40,6 +40,9 @@ export interface TabDef {
   label: string;
   path: string;
   area: AreaKey;
+  /* Tab de acesso restrito: visível/acessível apenas a administradores,
+   * independentemente da matriz de funções. Ver PermissionsContext.access(). */
+  adminOnly?: boolean;
 }
 
 /* Registo único de todos os tabs (fonte de verdade para nav e matriz).
@@ -54,6 +57,9 @@ export const TABS: TabDef[] = [
   { key: 'ficha-margem', label: 'Ficha Margem', path: '/ficha-margem', area: 'vn' },
   { key: 'escala', label: 'Escala', path: '/escala', area: 'vn' },
   { key: 'vendedores', label: 'Performance', path: '/vendedores', area: 'vn' },
+  // Parque de demonstradores (dados partilhados com a plataforma Caetano —
+  // tabela `viaturas`). Restrito a admin por agora (adminOnly).
+  { key: 'demos', label: 'Demos', path: '/demos', area: 'vn', adminOnly: true },
   // ── Vendas VU (em desenvolvimento) ──────────────────────────────────────────
   { key: 'wip', label: 'WIP', path: '/wip', area: 'vu' },
   { key: 'ficha-margem-vu', label: 'Ficha de Margem', path: '/ficha-margem-vu', area: 'vu' },
@@ -77,12 +83,14 @@ export const TABS: TabDef[] = [
   { key: 'emprestimos', label: 'Empréstimos', path: '/emprestimos', area: 'admin' },
   { key: 'multas', label: 'Multas', path: '/multas', area: 'admin' },
   { key: 'database', label: 'Database', path: '/database', area: 'admin' },
-  { key: 'demos', label: 'Demos', path: '/demos', area: 'admin' },
   { key: 'objetivos', label: 'Objetivos', path: '/objetivos', area: 'admin' },
 ];
 
 /* Tabs "arrumados" dentro do Arquivo (não aparecem diretamente na barra lateral). */
-export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'multas', 'database', 'demos', 'objetivos'];
+export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'multas', 'database', 'objetivos'];
+
+/* Tabs de acesso restrito a administradores (deriva de TabDef.adminOnly). */
+export const ADMIN_ONLY_TAB_KEYS: string[] = TABS.filter(t => t.adminOnly).map(t => t.key);
 
 export const TAB_BY_PATH: Record<string, TabDef> =
   TABS.reduce((acc, t) => { acc[t.path] = t; return acc; }, {} as Record<string, TabDef>);

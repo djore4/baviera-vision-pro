@@ -2,8 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/App';
 import {
-  listRoles, listUsers, TABS, type AccessLevel, type AppRole, type AppUser,
+  listRoles, listUsers, TABS, ADMIN_ONLY_TAB_KEYS,
+  type AccessLevel, type AppRole, type AppUser,
 } from '@/lib/permissions';
+
+/* Tabs restritos a administradores (fora da matriz de funções). */
+const ADMIN_ONLY_TABS = new Set(ADMIN_ONLY_TAB_KEYS);
 
 /* Email de administrador de fallback (também definido no App e na edge function). */
 const ADMIN_EMAIL = 'joaocarlos.duarte@caetano.pt';
@@ -71,6 +75,9 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
     const access = (tab: string): AccessLevel => {
       if (isAdmin) return 'edit';
+      // Tabs restritos a admin não são acessíveis a mais ninguém, mesmo que a
+      // função os inclua na matriz (bloqueio "para já", ver TabDef.adminOnly).
+      if (ADMIN_ONLY_TABS.has(tab)) return 'none';
       // Exceção pontual por email (tem precedência sobre a função, mas não sobre
       // o acesso total de admin). Só eleva o acesso, nunca o reduz.
       const exception = email ? TAB_ACCESS_EXCEPTIONS[email]?.[tab] : undefined;
