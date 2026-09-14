@@ -289,7 +289,7 @@ export default function DemosPage() {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 min-w-0 overflow-x-clip">
       {/* Toolbar */}
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-[220px]">
@@ -315,7 +315,7 @@ export default function DemosPage() {
       </div>
 
       {/* Filtros */}
-      <div className="bg-card border border-border rounded-lg p-3 grid gap-3 md:grid-cols-2 xl:grid-cols-[repeat(2,minmax(0,1fr))_1.4fr]">
+      <div className="bg-card border border-border rounded-lg p-3 grid gap-3 md:grid-cols-2">
         {/* Local */}
         <label className="flex flex-col gap-1">
           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Local</span>
@@ -340,24 +340,9 @@ export default function DemosPage() {
           </select>
         </label>
 
-        {/* PVP */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between gap-2 min-h-[16px] leading-normal">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-              <Gauge className="h-3 w-3" /> PVP Final
-            </span>
-            {pvp && (
-              <span className="text-[11px] font-bold text-foreground whitespace-nowrap tabular-nums leading-normal">
-                {eur0(pvp[0])} — {eur0(pvp[1])}
-              </span>
-            )}
-          </div>
-          {pvp && <PriceRange domain={pvpDomain} value={pvp} onChange={setPvp} />}
-        </div>
-
         {/* Tipologia */}
         {tipologias.length > 0 && (
-          <div className="flex flex-col gap-1.5 md:col-span-2 xl:col-span-3">
+          <div className="flex flex-col gap-1.5 md:col-span-2">
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Tipologia</span>
             <div className="flex flex-wrap gap-1.5">
               {tipologias.map(t => {
@@ -378,6 +363,21 @@ export default function DemosPage() {
             </div>
           </div>
         )}
+
+        {/* PVP Final — largura total, por baixo da tipologia (evita o corte do valor) */}
+        <div className="flex flex-col gap-1.5 md:col-span-2 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 leading-normal">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <Gauge className="h-3 w-3" /> PVP Final
+            </span>
+            {pvp && (
+              <span className="text-[11px] font-bold text-foreground tabular-nums leading-normal">
+                {eur0(pvp[0])} — {eur0(pvp[1])}
+              </span>
+            )}
+          </div>
+          {pvp && <PriceRange domain={pvpDomain} value={pvp} onChange={setPvp} />}
+        </div>
       </div>
 
       {error && (
