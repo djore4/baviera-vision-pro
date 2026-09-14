@@ -32,7 +32,7 @@ export default function ProspecaoPage() {
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="text-base sm:text-lg font-bold tracking-tight leading-tight truncate">Diário de Bordo</h1>
-          <p className="text-xs text-muted-foreground leading-snug line-clamp-1">Contas, agenda e pipeline da equipa de vendas.</p>
+          <p className="text-xs text-muted-foreground leading-snug line-clamp-1">Clientes, agenda e pipeline da equipa de vendas.</p>
         </div>
         {overdue > 0 && (
           <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-destructive/10 text-destructive text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 whitespace-nowrap">
@@ -43,18 +43,18 @@ export default function ProspecaoPage() {
         <TaskNotifications scope={scope} reloadKey={reloadKey} />
       </header>
 
-      <Tabs defaultValue="contas">
+      <Tabs defaultValue="dia">
         <TabsList className="h-10 p-1 bg-muted/60 w-full sm:w-auto">
-          <TabsTrigger value="contas" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm"><Building2 className="h-4 w-4" />Contas</TabsTrigger>
           <TabsTrigger value="dia" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm"><CalendarDays className="h-4 w-4" /><span className="whitespace-nowrap">O meu dia</span></TabsTrigger>
+          <TabsTrigger value="contas" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm"><Building2 className="h-4 w-4" />Clientes</TabsTrigger>
           {isDirector && <TabsTrigger value="gestao" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm"><LineChart className="h-4 w-4" />Gestão</TabsTrigger>}
         </TabsList>
 
-        <TabsContent value="contas" className="mt-4">
-          <AccountsTab scope={scope} isDirector={isDirector} myEmail={myEmail} myNome={myNome} />
-        </TabsContent>
         <TabsContent value="dia" className="mt-4">
           <WorkspaceTab myEmail={myEmail} myNome={myNome} onCountsChanged={handleCountsChanged} />
+        </TabsContent>
+        <TabsContent value="contas" className="mt-4">
+          <AccountsTab scope={scope} isDirector={isDirector} myEmail={myEmail} myNome={myNome} />
         </TabsContent>
         {isDirector && (
           <TabsContent value="gestao" className="mt-4">
