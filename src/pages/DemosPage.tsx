@@ -1,9 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/App';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
   ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, ImageOff,
+  Camera, Trash2, Loader2,
 } from 'lucide-react';
 import bmwLogo from '@/assets/bmw-logo.png';
 
@@ -172,7 +175,10 @@ function AgeBadge({ dias }: { dias: number }) {
 }
 
 export default function DemosPage() {
+  const { session } = useAuth();
+  const { canEdit } = usePermissions();
   const [rows, setRows] = useState<Row[]>([]);
+  const [capas, setCapas] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -187,20 +193,35 @@ export default function DemosPage() {
     let alive = true;
     (async () => {
       setLoading(true);
-      const { data, error } = await supabase.from('viaturas').select('*');
+      const [viaturasRes, capasRes] = await Promise.all([
+        supabase.from('viaturas').select('*'),
+        supabase.from('demo_capas').select('chassis, url'),
+      ]);
       if (!alive) return;
-      if (error) { setError(error.message); setRows([]); setLoading(false); return; }
-      const mapped: Row[] = ((data as Viatura[]) ?? []).map(v => ({
+      if (viaturasRes.error) { setError(viaturasRes.error.message); setRows([]); setLoading(false); return; }
+      const mapped: Row[] = ((viaturasRes.data as Viatura[]) ?? []).map(v => ({
         ...v,
         _stats: resolveStats(v),
         _local: getArr(v.local).join(', ') || '—',
         _tipologia: getArr(v.tipologia),
       }));
+      const capaMap: Record<string, string> = {};
+      for (const c of (capasRes.data as { chassis: string; url: string }[]) ?? []) {
+        if (c.chassis && c.url) capaMap[c.chassis] = c.url;
+      }
       setRows(mapped);
+      setCapas(capaMap);
       setLoading(false);
     })();
     return () => { alive = false; };
   }, []);
+
+  const handleCapaChange = (chassis: string, url: string | null) =>
+    setCapas(prev => {
+      const next = { ...prev };
+      if (url) next[chassis] = url; else delete next[chassis];
+      return next;
+    });
 
   const modelos = useMemo(() => ['Todos', ...[...new Set(rows.map(r => (r.modelo ?? '').trim()).filter(Boolean))].sort()], [rows]);
   const locais = useMemo(() => ['Todas', ...[...new Set(rows.flatMap(r => getArr(r.local)))].sort()], [rows]);
@@ -407,7 +428,12 @@ export default function DemosPage() {
                       <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-semibold border border-border">{r._local}</span>
                     </td>
                     <td className="px-2.5 py-1.5 font-semibold text-foreground whitespace-nowrap">
-                      {r.modelo || '—'}
+                      <span className="inline-flex items-center gap-1.5">
+                        {capas[r.chassis] && (
+                          <img src={capas[r.chassis]} alt="" className="h-5 w-7 rounded object-cover border border-border shrink-0" loading="lazy" />
+                        )}
+                        {r.modelo || '—'}
+                      </span>
                       {reservado && (
                         <span className="ml-1.5 bg-yellow-400/90 text-yellow-950 text-[8px] font-bold px-1 py-0.5 rounded uppercase tracking-wider">Negociação</span>
                       )}
@@ -437,7 +463,16 @@ export default function DemosPage() {
         </div>
       )}
 
-      {selected && <ShareCard row={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <ShareCard
+          row={selected}
+          capa={capas[selected.chassis]}
+          canEdit={canEdit('demos')}
+          email={session?.user.email ?? null}
+          onCapaChange={handleCapaChange}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }
@@ -489,27 +524,85 @@ function shareText(r: Row): string {
   return L.join('\n');
 }
 
-function ShareCard({ row, onClose }: { row: Row; onClose: () => void }) {
+function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
+  row: Row;
+  capa?: string;
+  canEdit: boolean;
+  email: string | null;
+  onCapaChange: (chassis: string, url: string | null) => void;
+  onClose: () => void;
+}) {
   const inps = getInps(row.inputs);
   const s = row._stats;
   const reservado = isReservado(row);
-  // undefined = a carregar; null = sem foto (placeholder); string = url da imagem
-  const [photo, setPhoto] = useState<string | null | undefined>(undefined);
+  // Foto automática (og:image do link). undefined = a carregar; null = indisponível.
+  const [autoPhoto, setAutoPhoto] = useState<string | null | undefined>(undefined);
+  const [imgError, setImgError] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
+  // A capa manual (upload) tem prioridade; só se procura a automática sem capa.
   useEffect(() => {
     let alive = true;
-    setPhoto(undefined);
+    setImgError(false);
+    if (capa) { setAutoPhoto(undefined); return; }
     const link = row.link_fotos?.trim();
-    if (!link) { setPhoto(null); return; }
+    if (!link) { setAutoPhoto(null); return; }
+    setAutoPhoto(undefined);
     (async () => {
       try {
         const { data, error } = await supabase.functions.invoke('foto-preview', { body: { url: link } });
         if (!alive) return;
-        setPhoto(error ? null : ((data as { image?: string | null })?.image ?? null));
-      } catch { if (alive) setPhoto(null); }
+        setAutoPhoto(error ? null : ((data as { image?: string | null })?.image ?? null));
+      } catch { if (alive) setAutoPhoto(null); }
     })();
     return () => { alive = false; };
-  }, [row.link_fotos]);
+  }, [row.link_fotos, capa]);
+
+  const finalUrl = capa ?? (typeof autoPhoto === 'string' ? autoPhoto : null);
+  const photoLoading = !capa && autoPhoto === undefined && !!row.link_fotos?.trim();
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (fileRef.current) fileRef.current.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Escolhe um ficheiro de imagem.'); return; }
+    if (file.size > 8 * 1024 * 1024) { toast.error('Imagem demasiado grande (máx. 8 MB).'); return; }
+    setUploading(true);
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+      const safe = row.chassis.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const key = `${safe}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('demo-capas').upload(key, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('demo-capas').getPublicUrl(key);
+      const url = pub.publicUrl;
+      const { error: dbErr } = await supabase.from('demo_capas')
+        .upsert({ chassis: row.chassis, url, updated_by: email, updated_at: new Date().toISOString() });
+      if (dbErr) throw dbErr;
+      onCapaChange(row.chassis, url);
+      setImgError(false);
+      toast.success('Foto de capa atualizada.');
+    } catch (err) {
+      toast.error('Falha ao carregar a foto: ' + (err as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removerCapa() {
+    setUploading(true);
+    try {
+      const { error } = await supabase.from('demo_capas').delete().eq('chassis', row.chassis);
+      if (error) throw error;
+      onCapaChange(row.chassis, null);
+      toast.success('Foto removida.');
+    } catch (err) {
+      toast.error('Falha ao remover: ' + (err as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function partilhar() {
     const text = shareText(row);
@@ -538,28 +631,53 @@ function ShareCard({ row, onClose }: { row: Row; onClose: () => void }) {
         {/* Hero / foto */}
         <div className="relative">
           <div className="aspect-[16/9] w-full bg-gradient-to-br from-bmw-navy to-bmw-blue overflow-hidden flex items-center justify-center">
-            {photo === undefined ? (
+            {photoLoading ? (
               <div className="animate-pulse text-white/70 text-xs">A obter foto...</div>
-            ) : photo ? (
+            ) : finalUrl && !imgError ? (
               <img
-                src={photo}
+                src={finalUrl}
                 alt={`${row.modelo ?? ''} ${row.versao ?? ''}`}
                 className="w-full h-full object-cover"
-                onError={() => setPhoto(null)}
+                onError={() => setImgError(true)}
               />
             ) : (
               <div className="flex flex-col items-center gap-2 text-white/90">
                 <img src={bmwLogo} alt="BMW" className="h-12 w-12 opacity-90" />
                 <span className="text-lg font-black tracking-tight text-center px-4">{[row.modelo, row.versao].filter(Boolean).join(' ')}</span>
-                {row.link_fotos && (
-                  <span className="flex items-center gap-1 text-[10px] text-white/60"><ImageOff className="h-3 w-3" /> pré-visualização indisponível</span>
-                )}
+                {canEdit
+                  ? <span className="flex items-center gap-1 text-[10px] text-white/70"><Camera className="h-3 w-3" /> define uma foto de capa</span>
+                  : row.link_fotos && <span className="flex items-center gap-1 text-[10px] text-white/60"><ImageOff className="h-3 w-3" /> sem foto de capa</span>}
               </div>
             )}
           </div>
           <button onClick={onClose} className="absolute top-2 right-2 bg-black/40 hover:bg-black/60 text-white rounded-full p-1.5 transition-colors">
             <X className="h-4 w-4" />
           </button>
+
+          {/* Controlo de capa (admin/edição) */}
+          {canEdit && (
+            <div className="absolute top-2 left-2 flex items-center gap-1.5">
+              <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-1 bg-black/45 hover:bg-black/65 text-white text-[11px] font-semibold rounded-full px-2.5 py-1 transition-colors disabled:opacity-60"
+                title="Carregar foto de capa"
+              >
+                {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                {capa ? 'Alterar foto' : 'Definir foto'}
+              </button>
+              {capa && !uploading && (
+                <button
+                  onClick={removerCapa}
+                  className="bg-black/45 hover:bg-red-600/80 text-white rounded-full p-1.5 transition-colors"
+                  title="Remover foto de capa"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
           <div className="absolute bottom-2 left-2 flex items-center gap-1.5 flex-wrap">
             {reservado
               ? <span className="px-2 py-0.5 rounded bg-yellow-400 text-yellow-950 text-[10px] font-bold uppercase tracking-wider shadow">Em negociação</span>
