@@ -28,7 +28,10 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 async function ensureRegistration(): Promise<ServiceWorkerRegistration> {
-  const reg = await navigator.serviceWorker.register('/sw.js');
+  // A app é servida numa subpasta em produção (ex.: /baviera-vision-pro/),
+  // por isso o SW tem de ser registado a partir do BASE_URL, não da raiz.
+  const base = import.meta.env.BASE_URL || '/';
+  const reg = await navigator.serviceWorker.register(`${base}sw.js`, { scope: base });
   await navigator.serviceWorker.ready;
   return reg;
 }
