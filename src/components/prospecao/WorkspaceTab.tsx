@@ -135,28 +135,31 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* ── Atrasados (destaque sempre visível) ── */}
-      <SectionCard icon={AlertTriangle} title="Atrasados" count={groups.overdue.length} tone="danger">
-        {groups.overdue.length === 0
-          ? <EmptyState icon={PartyPopper} title="Nada em atraso" hint="Estás em dia com tudo. Bom trabalho!" />
-          : <div className="space-y-2">{groups.overdue.map(t => <TaskItem key={t.id} t={t} />)}</div>}
-      </SectionCard>
+      {/* ── Atrasados (esquerda) e As minhas tarefas (direita), lado a lado ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        {/* ── Atrasados (destaque sempre visível) ── */}
+        <SectionCard icon={AlertTriangle} title="Atrasados" count={groups.overdue.length} tone="danger">
+          {groups.overdue.length === 0
+            ? <EmptyState icon={PartyPopper} title="Nada em atraso" hint="Estás em dia com tudo. Bom trabalho!" />
+            : <div className="space-y-2">{groups.overdue.map(t => <TaskItem key={t.id} t={t} />)}</div>}
+        </SectionCard>
 
-      {/* ── As minhas tarefas ── */}
-      <SectionCard icon={ListChecks} title="As minhas tarefas" count={groups.openList.length}>
-        <div className="flex flex-wrap gap-2 mb-3">
-          <Input value={descricao} onChange={e => setDescricao(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} placeholder="Nova tarefa…" className="w-full sm:flex-1 sm:min-w-[12rem]" />
-          <Input type="datetime-local" value={quando} onChange={e => setQuando(e.target.value)} className="w-full sm:w-52" title="Lembrete / prazo (opcional)" />
-          <select value={contaId} onChange={e => setContaId(e.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm w-full sm:w-auto">
-            <option value="">Sem conta</option>
-            {accounts.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
-          </select>
-          <Button onClick={add} className="shadow-sm"><Plus className="h-4 w-4 mr-1" />Adicionar</Button>
-        </div>
-        {groups.openList.length === 0
-          ? <EmptyState icon={CalendarCheck} title="Sem tarefas abertas" hint="Adiciona uma tarefa acima — com data, viras um lembrete." />
-          : <div className="space-y-2">{groups.openList.map(t => <TaskItem key={t.id} t={t} />)}</div>}
-      </SectionCard>
+        {/* ── As minhas tarefas ── */}
+        <SectionCard icon={ListChecks} title="As minhas tarefas" count={groups.openList.length}>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <Input value={descricao} onChange={e => setDescricao(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} placeholder="Nova tarefa…" className="w-full sm:flex-1 sm:min-w-[12rem]" />
+            <Input type="datetime-local" value={quando} onChange={e => setQuando(e.target.value)} className="w-full sm:w-52" title="Lembrete / prazo (opcional)" />
+            <select value={contaId} onChange={e => setContaId(e.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm w-full sm:w-auto">
+              <option value="">Sem cliente</option>
+              {accounts.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+            </select>
+            <Button onClick={add} className="shadow-sm"><Plus className="h-4 w-4 mr-1" />Adicionar</Button>
+          </div>
+          {groups.openList.length === 0
+            ? <EmptyState icon={CalendarCheck} title="Sem tarefas abertas" hint="Adiciona uma tarefa acima — com data, viras um lembrete." />
+            : <div className="space-y-2">{groups.openList.map(t => <TaskItem key={t.id} t={t} />)}</div>}
+        </SectionCard>
+      </div>
 
       {/* ── Agenda semanal ── */}
       <SectionCard icon={CalendarDays} title="Agenda semanal">

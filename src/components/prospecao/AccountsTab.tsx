@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Loader2, AlertTriangle, ArrowUpDown, Search, Building2, CheckCircle2 } from 'lucide-react';
+import { Plus, Loader2, AlertTriangle, Search, Building2, CheckCircle2, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   FASES, faseLabel, faseCls,
   listAccounts, listTasks,
@@ -21,7 +22,12 @@ interface Props {
   myNome: string | null;
 }
 
-type SortKey = 'score' | 'nome' | 'fase';
+type SortKey = 'score' | 'nome' | 'fase' | 'owner' | 'estado';
+type SortDir = 'asc' | 'desc';
+/** Direção "natural" (1.ª vez que se clica numa coluna). */
+const DEFAULT_DIR: Record<SortKey, SortDir> = {
+  nome: 'asc', score: 'desc', fase: 'asc', owner: 'asc', estado: 'desc',
+};
 
 export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
   const [accounts, setAccounts] = useState<Account[] | null>(null);
@@ -34,6 +40,13 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
   const [fOwner, setFOwner] = useState<string>('all');
   const [fLate, setFLate] = useState<'all' | 'late' | 'ontime'>('all');
   const [sort, setSort] = useState<SortKey>('score');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const toggleSort = (key: SortKey) => {
+    if (key === sort) { setSortDir(d => (d === 'asc' ? 'desc' : 'asc')); return; }
+    setSort(key);
+    setSortDir(DEFAULT_DIR[key]);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -72,13 +85,23 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
     if (fLate === 'late') r = r.filter(a => overdueIds.has(a.id));
     if (fLate === 'ontime') r = r.filter(a => !overdueIds.has(a.id));
     const arr = [...r];
+    const ownerLabel = (a: Account) => (a.owner_nome ?? a.owner_email ?? '').toLowerCase();
+    const dir = sortDir === 'asc' ? 1 : -1;
     arr.sort((a, b) => {
-      if (sort === 'nome') return a.nome.localeCompare(b.nome);
-      if (sort === 'fase') return FASES.findIndex(f => f.value === a.fase) - FASES.findIndex(f => f.value === b.fase);
-      return (b.score ?? 0) - (a.score ?? 0);
+      let cmp: number;
+      switch (sort) {
+        case 'nome': cmp = a.nome.localeCompare(b.nome); break;
+        case 'fase': cmp = FASES.findIndex(f => f.value === a.fase) - FASES.findIndex(f => f.value === b.fase); break;
+        case 'owner': cmp = ownerLabel(a).localeCompare(ownerLabel(b)); break;
+        case 'estado': cmp = Number(overdueIds.has(a.id)) - Number(overdueIds.has(b.id)); break;
+        default: cmp = (a.score ?? 0) - (b.score ?? 0); break;
+      }
+      // Desempate estável por nome, para uma ordenação previsível.
+      if (cmp === 0) return a.nome.localeCompare(b.nome);
+      return cmp * dir;
     });
     return arr;
-  }, [accounts, q, fFase, fOwner, fLate, sort, overdueIds]);
+  }, [accounts, q, fFase, fOwner, fLate, sort, sortDir, overdueIds]);
 
   const openNew = () => { setSelected(null); setDialogOpen(true); };
   const openEdit = (a: Account) => { setSelected(a); setDialogOpen(true); };
@@ -119,19 +142,11 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
             <SelectItem value="ontime">Sem atraso</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={sort} onValueChange={v => setSort(v as SortKey)}>
-          <SelectTrigger className="w-36"><ArrowUpDown className="h-3.5 w-3.5 mr-1" /><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="score">Score</SelectItem>
-            <SelectItem value="nome">Nome</SelectItem>
-            <SelectItem value="fase">Fase</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button className="ml-auto shadow-sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nova conta</Button>
+        <Button className="ml-auto shadow-sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Novo cliente</Button>
       </div>
 
       <div className="flex items-center justify-between px-1">
-        <span className="text-xs text-muted-foreground">{rows.length} {rows.length === 1 ? 'conta' : 'contas'}</span>
+        <span className="text-xs text-muted-foreground">{rows.length} {rows.length === 1 ? 'cliente' : 'clientes'}</span>
       </div>
 
       {/* Tabela */}
@@ -139,16 +154,16 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
             <tr>
-              <th className="text-left font-semibold px-4 py-2.5">Empresa</th>
-              <th className="text-center font-semibold px-3 py-2.5">Score</th>
-              <th className="text-left font-semibold px-3 py-2.5">Fase</th>
-              <th className="text-left font-semibold px-3 py-2.5">Responsável</th>
-              <th className="text-center font-semibold px-3 py-2.5">Estado</th>
+              <SortHeader label="Empresa" sortKey="nome" align="left" className="px-4" active={sort} dir={sortDir} onSort={toggleSort} />
+              <SortHeader label="Score" sortKey="score" align="center" active={sort} dir={sortDir} onSort={toggleSort} />
+              <SortHeader label="Fase" sortKey="fase" align="left" active={sort} dir={sortDir} onSort={toggleSort} />
+              <SortHeader label="Responsável" sortKey="owner" align="left" active={sort} dir={sortDir} onSort={toggleSort} />
+              <SortHeader label="Estado" sortKey="estado" align="center" active={sort} dir={sortDir} onSort={toggleSort} />
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={5}><EmptyState icon={Building2} title="Sem contas para mostrar" hint="Ajusta os filtros ou cria uma nova conta para começares a prospetar." /></td></tr>
+              <tr><td colSpan={5}><EmptyState icon={Building2} title="Sem clientes para mostrar" hint="Ajusta os filtros ou cria um novo cliente para começares a prospetar." /></td></tr>
             )}
             {rows.map(a => (
               <tr key={a.id} onClick={() => openEdit(a)} className="border-t border-border/70 hover:bg-primary/[0.04] cursor-pointer transition-colors">
@@ -188,5 +203,39 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
         onChanged={load}
       />
     </div>
+  );
+}
+
+/* ── Cabeçalho de coluna ordenável ─────────────────────────────────────────── */
+function SortHeader({
+  label, sortKey, align, active, dir, onSort, className,
+}: {
+  label: string;
+  sortKey: SortKey;
+  align: 'left' | 'center';
+  active: SortKey;
+  dir: SortDir;
+  onSort: (k: SortKey) => void;
+  className?: string;
+}) {
+  const isActive = active === sortKey;
+  const Icon = !isActive ? ChevronsUpDown : dir === 'asc' ? ArrowUp : ArrowDown;
+  return (
+    <th className={cn('font-semibold px-3 py-2.5', align === 'center' ? 'text-center' : 'text-left', className)}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        aria-sort={isActive ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+        className={cn(
+          'inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-foreground',
+          align === 'center' ? 'justify-center' : '',
+          isActive ? 'text-foreground' : 'text-muted-foreground',
+        )}
+        title={`Ordenar por ${label}`}
+      >
+        {label}
+        <Icon className={cn('h-3 w-3 shrink-0', isActive ? 'opacity-100' : 'opacity-40')} />
+      </button>
+    </th>
   );
 }
