@@ -320,11 +320,17 @@ export default function DemosPage() {
         </label>
 
         {/* PVP */}
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-            <Gauge className="h-3 w-3" /> PVP Final
-            {pvp && <span className="ml-auto normal-case tracking-normal text-foreground font-bold">{eur0(pvp[0])} — {eur0(pvp[1])}</span>}
-          </span>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2 min-h-[16px] leading-normal">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <Gauge className="h-3 w-3" /> PVP Final
+            </span>
+            {pvp && (
+              <span className="text-[11px] font-bold text-foreground whitespace-nowrap tabular-nums leading-normal">
+                {eur0(pvp[0])} — {eur0(pvp[1])}
+              </span>
+            )}
+          </div>
           {pvp && <PriceRange domain={pvpDomain} value={pvp} onChange={setPvp} />}
         </div>
 
