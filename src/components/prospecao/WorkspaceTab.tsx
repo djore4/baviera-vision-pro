@@ -8,13 +8,13 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
-  listTasks, listAccounts, createTask, setTaskDone, deleteTask, isOverdue,
-  type Task, type Account, type Scope,
+  listTasks, listAccounts, listProspecOwners, createTask, setTaskDone, deleteTask, isOverdue,
+  type Task, type Account, type Scope, type ProspecOwner,
 } from '@/lib/prospec';
 import { SectionCard, EmptyState, relativeLabel } from './ui';
 import { TaskDialog } from './TaskDialog';
 
-interface Props { myEmail: string | null; myNome: string | null; onCountsChanged: () => void; }
+interface Props { myEmail: string | null; myNome: string | null; isDirector?: boolean; onCountsChanged: () => void; }
 
 const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
@@ -25,15 +25,19 @@ const typeMeta: Record<Task['type'], { label: string; icon: typeof CircleDot }> 
   next_action: { label: 'Próxima ação', icon: Target },
 };
 
-export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
+export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: Props) {
+  // "O meu dia" é pessoal (as minhas tarefas). O admin pode lançar tarefas em
+  // nome de um vendedor — vão para o dia DELE, não para aqui.
   const scope: Scope = useMemo(() => ({ isDirector: false, email: myEmail }), [myEmail]);
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [sellers, setSellers] = useState<ProspecOwner[]>([]);
 
   // formulário: tarefa versátil (texto + data/lembrete + conta, todos opcionais menos o texto)
   const [descricao, setDescricao] = useState('');
   const [quando, setQuando] = useState('');
   const [contaId, setContaId] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');   // '' → o próprio (admin escolhe vendedor)
 
   // diálogo de edição de tarefa
   const [taskOpen, setTaskOpen] = useState(false);
@@ -47,8 +51,11 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
         listAccounts(scope),
       ]);
       setTasks(t); setAccounts(a);
+      if (isDirector) {
+        try { setSellers(await listProspecOwners()); } catch { /* ignora */ }
+      }
     } catch (e) { toast.error((e as Error).message); setTasks([]); }
-  }, [scope]);
+  }, [scope, isDirector]);
   useEffect(() => { load(); }, [load]);
 
   const accountName = (id: string | null) => id ? accounts.find(a => a.id === id)?.nome ?? null : null;
@@ -57,12 +64,14 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
   const add = async () => {
     if (!descricao.trim()) { toast.error('Descreve a tarefa.'); return; }
     try {
+      const oe = (isDirector && ownerEmail) ? ownerEmail : myEmail;
+      const on = oe === myEmail ? myNome : (sellers.find(s => s.email === oe)?.nome ?? null);
       await createTask({
         type: 'todo',
         descricao: descricao.trim(),
         due_at: quando ? new Date(quando).toISOString() : null,
         account_id: contaId || null,
-        owner_email: myEmail, owner_nome: myNome, created_by: myEmail,
+        owner_email: oe, owner_nome: on, created_by: myEmail,
       });
       setDescricao(''); setQuando(''); setContaId('');
       refresh();
@@ -153,6 +162,19 @@ export function WorkspaceTab({ myEmail, myNome, onCountsChanged }: Props) {
               <option value="">Sem cliente</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
             </select>
+            {isDirector && (
+              <select
+                value={ownerEmail || (myEmail ?? '')}
+                onChange={e => setOwnerEmail(e.target.value)}
+                title="Lançar em nome de…"
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm w-full sm:w-auto"
+              >
+                {myEmail && <option value={myEmail}>Eu — {myNome ?? myEmail}</option>}
+                {sellers.filter(s => s.email !== myEmail).map(s => (
+                  <option key={s.email} value={s.email}>{s.nome}</option>
+                ))}
+              </select>
+            )}
             <Button onClick={add} className="shadow-sm"><Plus className="h-4 w-4 mr-1" />Adicionar</Button>
           </div>
           {groups.openList.length === 0

@@ -51,7 +51,7 @@ export default function ProspecaoPage() {
         </TabsList>
 
         <TabsContent value="dia" className="mt-4">
-          <WorkspaceTab myEmail={myEmail} myNome={myNome} onCountsChanged={handleCountsChanged} />
+          <WorkspaceTab myEmail={myEmail} myNome={myNome} isDirector={isDirector} onCountsChanged={handleCountsChanged} />
         </TabsContent>
         <TabsContent value="contas" className="mt-4">
           <AccountsTab scope={scope} isDirector={isDirector} myEmail={myEmail} myNome={myNome} />

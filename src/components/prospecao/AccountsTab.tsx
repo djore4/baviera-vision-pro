@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
   FASES, faseLabel, faseCls,
-  listAccounts, listTasks,
-  type Account, type Fase, type Scope,
+  listAccounts, listTasks, listProspecOwners,
+  type Account, type Fase, type Scope, type ProspecOwner,
 } from '@/lib/prospec';
 import { Avatar, ScoreBadge, EmptyState } from './ui';
 import { AccountDialog } from './AccountDialog';
@@ -31,6 +31,7 @@ const DEFAULT_DIR: Record<SortKey, SortDir> = {
 
 export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
   const [accounts, setAccounts] = useState<Account[] | null>(null);
+  const [sellers, setSellers] = useState<ProspecOwner[]>([]);
   const [overdueIds, setOverdueIds] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selected, setSelected] = useState<Account | null>(null);
@@ -55,6 +56,10 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
         listTasks(scope, { types: ['next_action', 'todo'], done: false }),
       ]);
       setAccounts(acc);
+      // Vendedores (para o admin atribuir clientes). Falha silenciosa se sem acesso.
+      if (isDirector) {
+        try { setSellers(await listProspecOwners()); } catch { /* ignora */ }
+      }
       const now = Date.now();
       const late = new Set<string>();
       for (const t of openTasks) {
@@ -65,7 +70,7 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
       toast.error((e as Error).message);
       setAccounts([]);
     }
-  }, [scope]);
+  }, [scope, isDirector]);
   useEffect(() => { load(); }, [load]);
 
   const owners = useMemo(() => {
@@ -200,6 +205,7 @@ export function AccountsTab({ scope, isDirector, myEmail, myNome }: Props) {
       <AccountDialog
         open={dialogOpen} onOpenChange={setDialogOpen}
         account={selected} myEmail={myEmail} myNome={myNome}
+        isDirector={isDirector} sellers={sellers}
         onChanged={load}
       />
     </div>

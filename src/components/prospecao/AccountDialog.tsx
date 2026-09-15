@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Plus, Trash2, Phone, Mail, Building2, Check, CalendarClock } from 'lucide-react';
 import {
@@ -21,6 +21,7 @@ import {
   listContacts, createContact, deleteContact,
   listInteractions, createInteraction, deleteInteraction,
   listTasks, createTask, setTaskDone, deleteTask,
+  type ProspecOwner,
 } from '@/lib/prospec';
 
 /* Seletor 1–5 (potencial / relação). */
@@ -69,10 +70,12 @@ interface Props {
   account: Account | null;               // null → criar nova
   myEmail: string | null;
   myNome: string | null;
+  isDirector?: boolean;                  // admin pode atribuir a um vendedor
+  sellers?: ProspecOwner[];              // vendedores com acesso ao Diário
   onChanged: () => void;                 // pai recarrega listas
 }
 
-export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, onChanged }: Props) {
+export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, isDirector, sellers, onChanged }: Props) {
   const isNew = !account;
 
   const [nome, setNome] = useState('');
@@ -82,6 +85,7 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
   const [relacao, setRelacao] = useState<number | null>(null);
   const [fase, setFase] = useState<Fase>('novo');
   const [fonte, setFonte] = useState<Fonte | ''>('');
+  const [ownerEmail, setOwnerEmail] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -93,7 +97,22 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
     setRelacao(account?.relacao ?? null);
     setFase(account?.fase ?? 'novo');
     setFonte((account?.fonte ?? '') as Fonte | '');
-  }, [open, account]);
+    setOwnerEmail(account?.owner_email ?? myEmail ?? '');
+  }, [open, account, myEmail]);
+
+  // Responsável (só o admin escolhe): eu + vendedores com acesso ao Diário.
+  const ownerOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    (sellers ?? []).forEach(s => m.set(s.email, s.nome));
+    if (myEmail) m.set(myEmail, `Eu — ${myNome ?? myEmail}`);
+    if (account?.owner_email && !m.has(account.owner_email)) {
+      m.set(account.owner_email, account.owner_nome ?? account.owner_email);
+    }
+    return [...m.entries()].map(([email, label]) => ({ email, label }));
+  }, [sellers, myEmail, myNome, account]);
+  const ownerNome = ownerEmail === myEmail
+    ? myNome
+    : ((sellers ?? []).find(s => s.email === ownerEmail)?.nome ?? account?.owner_nome ?? null);
 
   const liveScore = computeScore(potencial, frota, relacao);
 
@@ -106,17 +125,21 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
         potencial, dimensao_frota: frota, relacao,
         fase, fonte: (fonte || null) as Fonte | null,
       };
+      // O admin pode atribuir o cliente a um vendedor; caso contrário fica com o próprio.
+      if (isDirector) { patch.owner_email = ownerEmail || myEmail; patch.owner_nome = ownerNome; }
       if (isNew) {
         await createAccount({
           ...patch, nome: nome.trim(),
-          owner_email: myEmail, owner_nome: myNome, created_by: myEmail,
+          owner_email: isDirector ? (ownerEmail || myEmail) : myEmail,
+          owner_nome: isDirector ? ownerNome : myNome,
+          created_by: myEmail,
         });
-        toast.success('Conta criada.');
+        toast.success('Cliente criado.');
         onChanged();
         onOpenChange(false);
       } else {
         await updateAccount(account!.id, patch);
-        toast.success('Conta atualizada.');
+        toast.success('Cliente atualizado.');
         onChanged();
       }
     } catch (e) {
@@ -128,10 +151,10 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
 
   const removeAccount = async () => {
     if (!account) return;
-    if (!confirm(`Eliminar a conta "${account.nome}" e todos os dados associados?`)) return;
+    if (!confirm(`Eliminar o cliente "${account.nome}" e todos os dados associados?`)) return;
     try {
       await deleteAccount(account.id);
-      toast.success('Conta eliminada.');
+      toast.success('Cliente eliminado.');
       onChanged();
       onOpenChange(false);
     } catch (e) {
@@ -145,7 +168,7 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2.5">
             <span className="grid place-items-center h-9 w-9 rounded-lg bg-primary/10 text-primary shrink-0"><Building2 className="h-4 w-4" /></span>
-            <span className="truncate">{isNew ? 'Nova conta' : account!.nome}</span>
+            <span className="truncate">{isNew ? 'Novo cliente' : account!.nome}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -222,6 +245,21 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
             </div>
           </div>
 
+          {isDirector && (
+            <div className="space-y-1">
+              <Label>Responsável (vendedor)</Label>
+              <Select value={ownerEmail || undefined} onValueChange={setOwnerEmail}>
+                <SelectTrigger><SelectValue placeholder="Selecionar responsável…" /></SelectTrigger>
+                <SelectContent>
+                  {ownerOptions.map(o => <SelectItem key={o.email} value={o.email}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Atribui este cliente a um vendedor para que apareça no “O meu dia” dele.
+              </p>
+            </div>
+          )}
+
           <div className="flex items-center justify-between pt-1">
             {!isNew && (
               <Button variant="ghost" size="sm" className="text-destructive" onClick={removeAccount}>
@@ -231,7 +269,7 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
             <div className="ml-auto">
               <Button onClick={saveAccount} disabled={saving}>
                 {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                {isNew ? 'Criar conta' : 'Guardar'}
+                {isNew ? 'Criar cliente' : 'Guardar'}
               </Button>
             </div>
           </div>
@@ -248,7 +286,12 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, on
             <TabsContent value="contactos"><ContactsSection accountId={account!.id} /></TabsContent>
             <TabsContent value="historico"><InteractionsSection accountId={account!.id} autor={myNome ?? myEmail} /></TabsContent>
             <TabsContent value="proxima">
-              <NextActionsSection accountId={account!.id} myEmail={myEmail} myNome={myNome} onChanged={onChanged} />
+              <NextActionsSection
+                accountId={account!.id} myEmail={myEmail}
+                ownerEmail={account!.owner_email ?? myEmail}
+                ownerNome={account!.owner_nome ?? myNome}
+                onChanged={onChanged}
+              />
             </TabsContent>
           </Tabs>
         )}
@@ -370,8 +413,9 @@ function InteractionsSection({ accountId, autor }: { accountId: string; autor: s
 }
 
 /* ── Próxima ação (tarefas type=next_action ligadas à conta) ─────────────────── */
-function NextActionsSection({ accountId, myEmail, myNome, onChanged }: {
-  accountId: string; myEmail: string | null; myNome: string | null; onChanged: () => void;
+function NextActionsSection({ accountId, myEmail, ownerEmail, ownerNome, onChanged }: {
+  accountId: string; myEmail: string | null;
+  ownerEmail: string | null; ownerNome: string | null; onChanged: () => void;
 }) {
   const [rows, setRows] = useState<Task[]>([]);
   const [descricao, setDescricao] = useState('');
@@ -388,7 +432,7 @@ function NextActionsSection({ accountId, myEmail, myNome, onChanged }: {
   const add = async () => {
     if (!descricao.trim()) { toast.error('Descreve a próxima ação.'); return; }
     try {
-      await createTask({ type: 'next_action', account_id: accountId, descricao: descricao.trim(), due_at: quando ? new Date(quando).toISOString() : null, owner_email: myEmail, owner_nome: myNome, created_by: myEmail });
+      await createTask({ type: 'next_action', account_id: accountId, descricao: descricao.trim(), due_at: quando ? new Date(quando).toISOString() : null, owner_email: ownerEmail, owner_nome: ownerNome, created_by: myEmail });
       setDescricao(''); setQuando('');
       load(); onChanged();
     } catch (e) { toast.error((e as Error).message); }
