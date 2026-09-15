@@ -385,6 +385,32 @@ export async function listRecentAccounts(sinceIso: string): Promise<Account[]> {
   return (data ?? []) as Account[];
 }
 
+/* Vendedores a quem o admin pode atribuir clientes/tarefas: utilizadores cujo
+ * perfil (app_roles) tem acesso ao Diário (permissão 'prospecao'). São os que
+ * conseguem cumprir as tarefas. Ordenados por nome. */
+export interface ProspecOwner { email: string; nome: string; perfil: string | null; }
+
+export async function listProspecOwners(): Promise<ProspecOwner[]> {
+  const [rolesRes, usersRes] = await Promise.all([
+    supabase.from('app_roles').select('name, permissions'),
+    supabase.from('app_users').select('nome, email, perfil'),
+  ]);
+  if (rolesRes.error) throw rolesRes.error;
+  if (usersRes.error) throw usersRes.error;
+  const okRoles = new Set(
+    (rolesRes.data ?? [])
+      .filter((r: { permissions: Record<string, unknown> | null }) =>
+        r.permissions && Object.prototype.hasOwnProperty.call(r.permissions, 'prospecao'))
+      .map((r: { name: string }) => r.name),
+  );
+  return (usersRes.data ?? [])
+    .filter((u: { email: string | null; perfil: string | null }) => u.email && u.perfil && okRoles.has(u.perfil))
+    .map((u: { email: string; nome: string | null; perfil: string | null }) => ({
+      email: u.email, nome: u.nome || u.email, perfil: u.perfil,
+    }))
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+}
+
 /* ── Helpers de datas ────────────────────────────────────────────────────────── */
 
 export const isOverdue = (t: Task): boolean =>
