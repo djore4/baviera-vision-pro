@@ -1,20 +1,30 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { LineChart, Info } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
-import { PeriodFilter } from '@/components/PeriodFilter';
 import type { ControlRecord } from '@/types/data';
 
 /* ── Resultados · Vendas VN ────────────────────────────────────────────────────
- * DRAFT. Estrutura de resultados de Viaturas Novas. Preenche o que é calculável
- * a partir do control_records; o que exige dados financeiros (faturação, LB1,
- * RAI) fica marcado como "—" até termos a fonte. As definições de cada métrica
- * estão explícitas em nota de rodapé — para afinar com o negócio.
+ * DRAFT. Tabela de resultados de Viaturas Novas com resolução mensal e vistas
+ * mensal / trimestral / anual / YTD. Preenche o que é calculável do
+ * control_records; o financeiro (faturação, LB1, RAI) fica "—" até termos fonte.
  * ──────────────────────────────────────────────────────────────────────────── */
 
+const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const isVNVD = (r: ControlRecord) => r.type === 'VN' || r.type === 'VD';
+const monthKeyOf = (d: Date | null) => (d ? d.getFullYear() * 100 + d.getMonth() + 1 : null);
 
-/** Total + subdivisões BEV / QoR / M de um conjunto de registos. */
-function breakdown(rows: ControlRecord[]) {
+type Mode = 'mensal' | 'trimestral' | 'anual' | 'ytd';
+const MODES: { key: Mode; label: string }[] = [
+  { key: 'mensal', label: 'Mensal' },
+  { key: 'trimestral', label: 'Trimestral' },
+  { key: 'anual', label: 'Anual' },
+  { key: 'ytd', label: 'YTD' },
+];
+
+interface Bd { total: number; bev: number; qor: number; m: number }
+interface Row { label: string; total?: boolean; retails: Bd; faturas: Bd; producao: Bd; r: number | null }
+
+function breakdown(rows: ControlRecord[]): Bd {
   return {
     total: rows.length,
     bev: rows.filter(r => r.bev === 1).length,
@@ -24,43 +34,51 @@ function breakdown(rows: ControlRecord[]) {
 }
 
 export default function ResultadosVnPage() {
-  const { data, filter } = useData();
+  const { data, availablePeriods } = useData();
+  const now = new Date();
+  const currentYear = now.getFullYear();
 
-  // Chaves de mês (ano/MM) do período selecionado; vazio = tudo.
-  const monthKeys = useMemo(() => {
-    const keys = new Set<string>();
-    if (filter.months.length > 0) filter.months.forEach(fm => keys.add(`${Math.floor(fm / 100)}/${String(fm % 100).padStart(2, '0')}`));
-    else if (filter.years.length > 0) filter.years.forEach(y => { for (let m = 1; m <= 12; m++) keys.add(`${y}/${String(m).padStart(2, '0')}`); });
-    return keys;
-  }, [filter]);
+  const years = useMemo(() => {
+    const ys = availablePeriods.years.length ? [...availablePeriods.years] : [currentYear];
+    return ys.sort((a, b) => b - a);
+  }, [availablePeriods.years, currentYear]);
 
-  const inPeriod = (d: Date | null) => {
-    if (!d) return false;
-    if (monthKeys.size === 0) return true;
-    return monthKeys.has(`${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`);
-  };
+  const [year, setYear] = useState<number>(years[0] ?? currentYear);
+  const [mode, setMode] = useState<Mode>('mensal');
+  const activeYear = years.includes(year) ? year : (years[0] ?? currentYear);
 
-  const metrics = useMemo(() => {
+  // Blocos temporais (cada um: rótulo + conjunto de chaves ano/MM).
+  const buckets = useMemo(() => {
+    const set = (ms: number[]) => new Set(ms.map(m => activeYear * 100 + m));
+    const all = Array.from({ length: 12 }, (_, i) => i + 1);
+    if (mode === 'mensal') return all.map(m => ({ label: MONTHS[m - 1], set: set([m]) }));
+    if (mode === 'trimestral') return [1, 2, 3, 4].map(q => ({ label: `T${q}`, set: set([1, 2, 3].map(i => (q - 1) * 3 + i)) }));
+    if (mode === 'anual') return [{ label: String(activeYear), set: set(all) }];
+    // YTD: Jan → mês atual (ano corrente) ou ano completo (anos passados).
+    const last = activeYear === currentYear ? now.getMonth() + 1 : 12;
+    return [{ label: `YTD (Jan–${MONTHS[last - 1]})`, set: set(all.slice(0, last)) }];
+  }, [mode, activeYear, currentYear, now]);
+
+  const rows = useMemo<Row[]>(() => {
     const control = data?.control ?? [];
-    // Retails — VN/VD com data de retail (date298) no período.
-    const retails = breakdown(control.filter(r => isVNVD(r) && inPeriod(r.date298)));
-    // Faturas — registos faturados (dfat) no período. (Inclui VP — VP conta faturas.)
-    const faturas = breakdown(control.filter(r => inPeriod(r.dfat)));
-    // Produção — VN/VD com data de negócio (neg) no período.
-    const producao = breakdown(control.filter(r => isVNVD(r) && inPeriod(r.neg)));
-    // R (Produção/Retail) — rácio de conversão produção → retail.
-    const rProdRetail = producao.total > 0 ? retails.total / producao.total : null;
-    return { retails, faturas, producao, rProdRetail };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, monthKeys]);
+    const computeRow = (label: string, keys: Set<number>, total = false): Row => {
+      const inSet = (d: Date | null) => { const k = monthKeyOf(d); return k !== null && keys.has(k); };
+      const retails = breakdown(control.filter(r => isVNVD(r) && inSet(r.date298)));
+      const faturas = breakdown(control.filter(r => inSet(r.dfat)));
+      const producao = breakdown(control.filter(r => isVNVD(r) && inSet(r.neg)));
+      const r = producao.total > 0 ? retails.total / producao.total : null;
+      return { label, total, retails, faturas, producao, r };
+    };
+    const out = buckets.map(b => computeRow(b.label, b.set));
+    // Linha de total (= ano completo) nas vistas mensal/trimestral.
+    if (mode === 'mensal' || mode === 'trimestral') {
+      const allYear = new Set(Array.from({ length: 12 }, (_, i) => activeYear * 100 + i + 1));
+      out.push(computeRow('Total', allYear, true));
+    }
+    return out;
+  }, [data, buckets, mode, activeYear]);
 
-  const volumeRows: { label: string; b: ReturnType<typeof breakdown>; tone?: string }[] = [
-    { label: 'Retails', b: metrics.retails, tone: '#1C69D4' },
-    { label: 'Faturas', b: metrics.faturas, tone: '#16A34A' },
-    { label: 'Produção', b: metrics.producao, tone: '#8B5CF6' },
-  ];
-
-  const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : '—');
+  const cell = (n: number) => <td className="px-2 py-1.5 text-center tabular-nums">{n}</td>;
 
   return (
     <div className="space-y-4 min-w-0 overflow-x-clip">
@@ -70,81 +88,91 @@ export default function ResultadosVnPage() {
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="text-base sm:text-lg font-bold tracking-tight leading-tight truncate">Resultados · Vendas VN</h1>
-          <p className="text-xs text-muted-foreground leading-snug line-clamp-1">Volume, produção e resultado financeiro de Viaturas Novas.</p>
+          <p className="text-xs text-muted-foreground leading-snug line-clamp-1">Retails, faturas e produção de Viaturas Novas.</p>
         </div>
         <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-500/10 text-amber-600 text-[11px] font-semibold px-2.5 py-1">Draft</span>
       </header>
 
-      <PeriodFilter />
+      {/* Controlo: ano + ótica de análise */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2.5 shadow-sm">
+        <select
+          value={activeYear}
+          onChange={e => setYear(Number(e.target.value))}
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm font-medium"
+        >
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <div className="inline-flex rounded-md border border-border p-0.5 bg-muted/50">
+          {MODES.map(mo => (
+            <button
+              key={mo.key}
+              onClick={() => setMode(mo.key)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
+                mode === mo.key ? 'bg-bmw-blue text-white' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {mo.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {!data ? (
         <div className="py-16 text-center text-sm text-muted-foreground">A carregar dados…</div>
       ) : (
-        <>
-          {/* ── Volume: Retails / Faturas / Produção (Total · BEV · QoR · M) ── */}
-          <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="text-left font-semibold px-4 py-2.5">Métrica</th>
-                  <th className="text-center font-semibold px-3 py-2.5">Total</th>
-                  <th className="text-center font-semibold px-3 py-2.5">BEV</th>
-                  <th className="text-center font-semibold px-3 py-2.5">QoR</th>
-                  <th className="text-center font-semibold px-3 py-2.5">M</th>
-                </tr>
-              </thead>
-              <tbody>
-                {volumeRows.map(({ label, b, tone }) => (
-                  <tr key={label} className="border-t border-border/70">
-                    <td className="px-4 py-2.5">
-                      <span className="inline-flex items-center gap-2 font-medium">
-                        <span className="h-2 w-2 rounded-full" style={{ background: tone }} />
-                        {label}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-center font-bold tabular-nums">{b.total}</td>
-                    <td className="px-3 py-2.5 text-center tabular-nums">{b.bev}<span className="text-[10px] text-muted-foreground ml-1">{pct(b.bev, b.total)}</span></td>
-                    <td className="px-3 py-2.5 text-center tabular-nums">{b.qor}<span className="text-[10px] text-muted-foreground ml-1">{pct(b.qor, b.total)}</span></td>
-                    <td className="px-3 py-2.5 text-center tabular-nums">{b.m}<span className="text-[10px] text-muted-foreground ml-1">{pct(b.m, b.total)}</span></td>
-                  </tr>
+        <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+          <table className="w-full text-sm border-collapse">
+            <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              <tr className="bg-muted/40">
+                <th rowSpan={2} className="text-left font-semibold px-3 py-2 sticky left-0 bg-muted/40 z-10">Período</th>
+                <th colSpan={4} className="text-center font-semibold px-2 py-1.5 border-l border-border" style={{ color: '#1C69D4' }}>Retails</th>
+                <th colSpan={4} className="text-center font-semibold px-2 py-1.5 border-l border-border" style={{ color: '#16A34A' }}>Faturas</th>
+                <th colSpan={4} className="text-center font-semibold px-2 py-1.5 border-l border-border" style={{ color: '#8B5CF6' }}>Produção</th>
+                <th rowSpan={2} className="text-center font-semibold px-2 py-2 border-l border-border" title="Retails ÷ Produção">R</th>
+                <th rowSpan={2} className="text-center font-semibold px-2 py-2 border-l border-border">Faturação</th>
+                <th colSpan={2} className="text-center font-semibold px-2 py-1.5 border-l border-border">LB1</th>
+                <th colSpan={2} className="text-center font-semibold px-2 py-1.5 border-l border-border">RAI</th>
+              </tr>
+              <tr className="bg-muted/40 text-[10px]">
+                {['Total', 'BEV', 'QoR', 'M', 'Total', 'BEV', 'QoR', 'M', 'Total', 'BEV', 'QoR', 'M'].map((h, i) => (
+                  <th key={i} className={`text-center font-medium px-2 py-1 ${i % 4 === 0 ? 'border-l border-border' : ''}`}>{h}</th>
                 ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* ── Rácios e financeiro ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KpiTile
-              label="R (Produção/Retail)"
-              value={metrics.rProdRetail !== null ? `${(metrics.rProdRetail * 100).toFixed(0)}%` : '—'}
-              hint={`${metrics.retails.total} retail / ${metrics.producao.total} produção`}
-            />
-            <KpiTile label="Faturação" value="—" hint="sem dados de valor (€)" />
-            <KpiTile label="LB1" value="— / —" hint="$ / % — sem dados" />
-            <KpiTile label="RAI" value="— / —" hint="$ / % — sem dados" />
-          </div>
-
-          {/* ── Nota das definições (draft) ── */}
-          <div className="flex gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground leading-relaxed">
-            <Info className="h-4 w-4 shrink-0 mt-0.5" />
-            <div className="space-y-0.5">
-              <p><strong className="text-foreground">Definições (a confirmar):</strong> valores no período selecionado acima.</p>
-              <p><strong>Retails</strong>: VN/VD com data de retail no período. <strong>Faturas</strong>: registos faturados no período (inclui VP). <strong>Produção</strong>: VN/VD com data de negócio no período. BEV/QoR/M são subconjuntos de cada um.</p>
-              <p><strong>R (Produção/Retail)</strong>: retails ÷ produção (conversão). <strong>Faturação</strong>, <strong>LB1</strong> e <strong>RAI</strong> exigem dados financeiros (valor/margem) que ainda não existem na fonte — ficam por preencher.</p>
-            </div>
-          </div>
-        </>
+                <th className="text-center font-medium px-2 py-1 border-l border-border">€</th>
+                <th className="text-center font-medium px-2 py-1">%</th>
+                <th className="text-center font-medium px-2 py-1 border-l border-border">€</th>
+                <th className="text-center font-medium px-2 py-1">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, ri) => (
+                <tr key={ri} className={`border-t border-border/70 ${row.total ? 'bg-muted/30 font-bold' : 'hover:bg-primary/[0.03]'}`}>
+                  <td className="text-left px-3 py-1.5 font-medium whitespace-nowrap sticky left-0 z-10" style={{ background: row.total ? 'hsl(var(--muted))' : 'hsl(var(--card))' }}>{row.label}</td>
+                  <td className="px-2 py-1.5 text-center tabular-nums font-semibold border-l border-border/70">{row.retails.total}</td>
+                  {cell(row.retails.bev)}{cell(row.retails.qor)}{cell(row.retails.m)}
+                  <td className="px-2 py-1.5 text-center tabular-nums font-semibold border-l border-border/70">{row.faturas.total}</td>
+                  {cell(row.faturas.bev)}{cell(row.faturas.qor)}{cell(row.faturas.m)}
+                  <td className="px-2 py-1.5 text-center tabular-nums font-semibold border-l border-border/70">{row.producao.total}</td>
+                  {cell(row.producao.bev)}{cell(row.producao.qor)}{cell(row.producao.m)}
+                  <td className="px-2 py-1.5 text-center tabular-nums border-l border-border/70">{row.r !== null ? `${Math.round(row.r * 100)}%` : '—'}</td>
+                  <td className="px-2 py-1.5 text-center text-muted-foreground border-l border-border/70">—</td>
+                  <td className="px-2 py-1.5 text-center text-muted-foreground border-l border-border/70">—</td>
+                  <td className="px-2 py-1.5 text-center text-muted-foreground">—</td>
+                  <td className="px-2 py-1.5 text-center text-muted-foreground border-l border-border/70">—</td>
+                  <td className="px-2 py-1.5 text-center text-muted-foreground">—</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-    </div>
-  );
-}
 
-function KpiTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-3 shadow-sm flex flex-col gap-1">
-      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</span>
-      <span className="text-2xl font-bold tabular-nums leading-none">{value}</span>
-      {hint && <span className="text-[10px] text-muted-foreground">{hint}</span>}
+      <div className="flex gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground leading-relaxed">
+        <Info className="h-4 w-4 shrink-0 mt-0.5" />
+        <div className="space-y-0.5">
+          <p><strong className="text-foreground">Definições (a confirmar):</strong> <strong>Retails</strong> = VN/VD com data de retail no mês; <strong>Faturas</strong> = faturados no mês (inclui VP); <strong>Produção</strong> = VN/VD com data de negócio no mês. BEV/QoR/M são subconjuntos. <strong>R</strong> = retails ÷ produção.</p>
+          <p><strong>Faturação</strong>, <strong>LB1</strong> e <strong>RAI</strong> exigem dados financeiros (valor/margem) que ainda não existem na fonte — ficam por preencher.</p>
+        </div>
+      </div>
     </div>
   );
 }

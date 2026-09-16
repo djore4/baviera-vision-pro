@@ -58,8 +58,8 @@ export const TABS: TabDef[] = [
   { key: 'escala', label: 'Escala', path: '/escala', area: 'vn' },
   { key: 'vendedores', label: 'Performance', path: '/vendedores', area: 'vn' },
   // Parque de demonstradores (dados partilhados com a plataforma Caetano —
-  // tabela `viaturas`). Restrito a admin por agora (adminOnly).
-  { key: 'demos', label: 'Demos', path: '/demos', area: 'vn', adminOnly: true },
+  // tabela `viaturas`). Acesso pela matriz de funções (ex.: perfil genius).
+  { key: 'demos', label: 'Demos', path: '/demos', area: 'vn' },
   // ── Vendas VU (em desenvolvimento) ──────────────────────────────────────────
   { key: 'wip', label: 'WIP', path: '/wip', area: 'vu' },
   { key: 'ficha-margem-vu', label: 'Ficha de Margem', path: '/ficha-margem-vu', area: 'vu' },
