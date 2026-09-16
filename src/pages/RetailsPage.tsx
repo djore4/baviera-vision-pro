@@ -81,7 +81,7 @@ export default function RetailsPage() {
   }, [filter]);
 
   const realization = useMemo(() => {
-    const empty = { faturas: 0, retails: 0, previsao: 0, targetCaetano: 0, targetBMW: 0, faturasPct: 0, retailsPct: 0, faturasPrevPct: 0, retailsPrevPct: 0 };
+    const empty = { faturas: 0, retails: 0, faturasPrevisao: 0, retailsPrevisao: 0, targetCaetano: 0, targetBMW: 0, faturasPct: 0, retailsPct: 0, faturasPrevPct: 0, retailsPrevPct: 0 };
     if (!data) return empty;
     const matchingObj = data.objetivosTotal.filter(o => {
       if (selectedMonthKeys.size === 0) return true;
@@ -99,24 +99,29 @@ export default function RetailsPage() {
       return selectedMonthKeys.has(`${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`);
     };
     const monthInPeriod = (key: string) => selectedMonthKeys.size === 0 || selectedMonthKeys.has(key);
-    const faturas = data.control.filter(r => inPeriod(r.dfat)).length;
-    const retails = data.control.filter(r => inPeriod(r.date298)).length;
-
-    // Previsão = retails já realizados no período (date298) + carteira/matrícula
-    // com mês de entrega previsto no período. Igual para Faturas e Retails.
-    const previsao = data.control.filter(r => {
+    // Regra de negócio: os VP contam para FATURAS mas NÃO para RETAILS. Os
+    // retails são apenas VN/VD (igual ao resto da página — baseRecords/tabela).
+    const isRetailType = (t: string) => t === 'VN' || t === 'VD';
+    // Faz parte da previsão: já realizado (date298 no período) ou carteira/
+    // matrícula com mês de entrega previsto para o período.
+    const inPrevisao = (r: typeof data.control[number]) => {
       if (inPeriod(r.date298)) return true;
       if (r.status === 'Carteira' || r.status === 'Matricula') return monthInPeriod(getDeliveryMonth(r));
       return false;
-    }).length;
+    };
+
+    const faturas = data.control.filter(r => inPeriod(r.dfat)).length;                                  // todos (inclui VP)
+    const retails = data.control.filter(r => isRetailType(r.type) && inPeriod(r.date298)).length;       // só VN/VD
+    const faturasPrevisao = data.control.filter(inPrevisao).length;                                     // todos (inclui VP)
+    const retailsPrevisao = data.control.filter(r => isRetailType(r.type) && inPrevisao(r)).length;     // só VN/VD
 
     // Faturas vs objetivo Caetano; Retails vs objetivo BMW.
     const faturasPct = targetCaetano ? Math.round((faturas / targetCaetano) * 100) : 0;
     const retailsPct = targetBMW ? Math.round((retails / targetBMW) * 100) : 0;
     // Previsão em % do objetivo de cada gráfico (para o ponto no gauge).
-    const faturasPrevPct = targetCaetano ? Math.round((previsao / targetCaetano) * 100) : 0;
-    const retailsPrevPct = targetBMW ? Math.round((previsao / targetBMW) * 100) : 0;
-    return { faturas, retails, previsao, targetCaetano, targetBMW, faturasPct, retailsPct, faturasPrevPct, retailsPrevPct };
+    const faturasPrevPct = targetCaetano ? Math.round((faturasPrevisao / targetCaetano) * 100) : 0;
+    const retailsPrevPct = targetBMW ? Math.round((retailsPrevisao / targetBMW) * 100) : 0;
+    return { faturas, retails, faturasPrevisao, retailsPrevisao, targetCaetano, targetBMW, faturasPct, retailsPct, faturasPrevPct, retailsPrevPct };
   }, [data, selectedMonthKeys]);
 
   const finData = useMemo(() => {
@@ -375,7 +380,7 @@ export default function RetailsPage() {
                     <div className="grid grid-cols-3 gap-1 w-full text-center mt-1">
                       <div><p className="text-base font-bold text-foreground">{realization.targetCaetano}</p><p className="text-[9px] text-muted-foreground">Orçamento</p></div>
                       <div><p className="text-base font-extrabold" style={{ color: '#16A34A' }}>{realization.faturas}</p><p className="text-[9px] text-muted-foreground">Atual</p></div>
-                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsão</p></div>
+                      <div><p className="text-base font-bold text-muted-foreground">{realization.faturasPrevisao}</p><p className="text-[9px] text-muted-foreground">Previsão</p></div>
                     </div>
                   </div>
                   {/* Retails vs objetivo BMW */}
@@ -385,7 +390,7 @@ export default function RetailsPage() {
                     <div className="grid grid-cols-4 gap-1 w-full text-center mt-1">
                       <div><p className="text-base font-bold text-foreground">{realization.targetBMW}</p><p className="text-[9px] text-muted-foreground">BMW</p></div>
                       <div><p className="text-base font-extrabold" style={{ color: '#1C69D4' }}>{realization.retails}</p><p className="text-[9px] text-muted-foreground">Atual</p></div>
-                      <div><p className="text-base font-bold text-muted-foreground">{realization.previsao}</p><p className="text-[9px] text-muted-foreground">Previsão</p></div>
+                      <div><p className="text-base font-bold text-muted-foreground">{realization.retailsPrevisao}</p><p className="text-[9px] text-muted-foreground">Previsão</p></div>
                       <div><p className="text-base font-bold text-foreground">{Math.ceil(realization.targetBMW * 1.1)}</p><p className="text-[9px] text-muted-foreground">110%</p></div>
                     </div>
                   </div>
