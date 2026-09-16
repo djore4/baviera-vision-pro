@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   AlertTriangle, Plus, Check, Trash2, CalendarDays, ListChecks, Loader2, Building2,
-  Bell, CircleDot, Target, PartyPopper, CalendarCheck,
+  Bell, CircleDot, Target, PartyPopper, CalendarCheck, Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -26,18 +26,21 @@ const typeMeta: Record<Task['type'], { label: string; icon: typeof CircleDot }> 
 };
 
 export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: Props) {
-  // "O meu dia" é pessoal (as minhas tarefas). O admin pode lançar tarefas em
-  // nome de um vendedor — vão para o dia DELE, não para aqui.
-  const scope: Scope = useMemo(() => ({ isDirector: false, email: myEmail }), [myEmail]);
+  const [sellers, setSellers] = useState<ProspecOwner[]>([]);
+  // O admin pode ver o dia de um vendedor à escolha (por defeito, o seu). Para
+  // um vendedor normal fica sempre o próprio. As tarefas mostradas — e as novas
+  // que criar — são as do dia que está a ver.
+  const [viewEmail, setViewEmail] = useState<string>(myEmail ?? '');
+  useEffect(() => { if (!viewEmail && myEmail) setViewEmail(myEmail); }, [myEmail, viewEmail]);
+  const viewNome = viewEmail === myEmail ? myNome : (sellers.find(s => s.email === viewEmail)?.nome ?? viewEmail);
+  const scope: Scope = useMemo(() => ({ isDirector: false, email: viewEmail || myEmail }), [viewEmail, myEmail]);
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [sellers, setSellers] = useState<ProspecOwner[]>([]);
 
   // formulário: tarefa versátil (texto + data/lembrete + conta, todos opcionais menos o texto)
   const [descricao, setDescricao] = useState('');
   const [quando, setQuando] = useState('');
   const [contaId, setContaId] = useState('');
-  const [ownerEmail, setOwnerEmail] = useState('');   // '' → o próprio (admin escolhe vendedor)
 
   // diálogo de edição de tarefa
   const [taskOpen, setTaskOpen] = useState(false);
@@ -64,7 +67,7 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
   const add = async () => {
     if (!descricao.trim()) { toast.error('Descreve a tarefa.'); return; }
     try {
-      const oe = (isDirector && ownerEmail) ? ownerEmail : myEmail;
+      const oe = viewEmail || myEmail;
       const on = oe === myEmail ? myNome : (sellers.find(s => s.email === oe)?.nome ?? null);
       await createTask({
         type: 'todo',
@@ -141,9 +144,33 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
   };
 
   const today0 = startOfDay(new Date());
+  const viewingOther = isDirector && !!viewEmail && viewEmail !== myEmail;
 
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* ── Vista (admin): ver o dia de um vendedor à escolha ── */}
+      {isDirector && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-sm">
+          <Eye className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="text-xs font-medium text-muted-foreground">A ver o dia de</span>
+          <select
+            value={viewEmail}
+            onChange={e => setViewEmail(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm font-medium"
+          >
+            {myEmail && <option value={myEmail}>Eu — {myNome ?? myEmail}</option>}
+            {sellers.filter(s => s.email !== myEmail).map(s => (
+              <option key={s.email} value={s.email}>{s.nome}</option>
+            ))}
+          </select>
+          {viewingOther && (
+            <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold px-2.5 py-1">
+              A ver como {viewNome} · novas tarefas ficam para {viewNome}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* ── Atrasados (esquerda) e As minhas tarefas (direita), lado a lado ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         {/* ── Atrasados (destaque sempre visível) ── */}
@@ -153,8 +180,8 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
             : <div className="space-y-2">{groups.overdue.map(t => <TaskItem key={t.id} t={t} />)}</div>}
         </SectionCard>
 
-        {/* ── As minhas tarefas ── */}
-        <SectionCard icon={ListChecks} title="As minhas tarefas" count={groups.openList.length}>
+        {/* ── As minhas tarefas (ou as do vendedor em vista) ── */}
+        <SectionCard icon={ListChecks} title={viewingOther ? `Tarefas de ${viewNome}` : 'As minhas tarefas'} count={groups.openList.length}>
           <div className="flex flex-wrap gap-2 mb-3">
             <Input value={descricao} onChange={e => setDescricao(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} placeholder="Nova tarefa…" className="w-full sm:flex-1 sm:min-w-[12rem]" />
             <Input type="datetime-local" value={quando} onChange={e => setQuando(e.target.value)} className="w-full sm:w-52" title="Lembrete / prazo (opcional)" />
@@ -162,19 +189,6 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
               <option value="">Sem cliente</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
             </select>
-            {isDirector && (
-              <select
-                value={ownerEmail || (myEmail ?? '')}
-                onChange={e => setOwnerEmail(e.target.value)}
-                title="Lançar em nome de…"
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm w-full sm:w-auto"
-              >
-                {myEmail && <option value={myEmail}>Eu — {myNome ?? myEmail}</option>}
-                {sellers.filter(s => s.email !== myEmail).map(s => (
-                  <option key={s.email} value={s.email}>{s.nome}</option>
-                ))}
-              </select>
-            )}
             <Button onClick={add} className="shadow-sm"><Plus className="h-4 w-4 mr-1" />Adicionar</Button>
           </div>
           {groups.openList.length === 0
