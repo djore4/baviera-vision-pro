@@ -3,8 +3,7 @@ import { Upload, Loader2, FileSpreadsheet, CheckCircle2, Database, AlertTriangle
 import { Button } from '@/components/ui/button';
 import { useData } from '@/contexts/DataContext';
 import { QualityManager } from '@/components/QualityManager';
-import { parseExcel } from '@/lib/excel-parser';
-import { replaceControlRecordsVu } from '@/lib/control-records-vu';
+import { parseVuControl, replaceControlRecordsVu } from '@/lib/control-records-vu';
 
 export default function DadosPage() {
   const { uploadFile, loading, data } = useData();
@@ -40,8 +39,8 @@ export default function DadosPage() {
     setImportErrorVu(null);
     setImportCountVu(null);
     try {
-      const parsed = parseExcel(await file.arrayBuffer());
-      const n = await replaceControlRecordsVu(parsed.control);
+      const records = parseVuControl(await file.arrayBuffer());
+      const n = await replaceControlRecordsVu(records);
       setImportCountVu(n);
     } catch (err) {
       setImportErrorVu(err instanceof Error ? err.message : 'Erro ao importar dados VU');
