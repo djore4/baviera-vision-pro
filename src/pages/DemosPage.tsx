@@ -6,10 +6,14 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
   ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, ImageOff,
-  Camera, Trash2, Loader2, Users,
+  Camera, Trash2, Loader2, Check, UserPlus,
 } from 'lucide-react';
 import bmwLogo from '@/assets/bmw-logo.png';
-import { listDemoUsers, groupByChassis, initials, type DemoUser } from '@/lib/demoUsers';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  listDemoPeople, listAfetacoes, setAfetacao, afetacoesByChassis, initials,
+  type DemoPerson,
+} from '@/lib/demoUsers';
 
 /* ── Parque de demonstradores (VN · Demos) ────────────────────────────────────
  * Consulta, apenas leitura, do parque de viaturas partilhado com a plataforma
@@ -177,12 +181,73 @@ function AgeBadge({ dias }: { dias: number }) {
   );
 }
 
+/* Célula "Utiliz." — mostra as iniciais das pessoas afetadas e, com permissão de
+ * edição, permite afetar/desafetar diretamente na tabela (popover com o roster). */
+function AfetacaoCell({ people, affectedIds, canEdit, onToggle }: {
+  people: DemoPerson[];
+  affectedIds: string[];
+  canEdit: boolean;
+  onToggle: (pessoaId: string, on: boolean) => void;
+}) {
+  const affected = new Set(affectedIds);
+  const affectedPeople = people.filter(p => affected.has(p.id));
+  const badges = affectedPeople.length === 0
+    ? <span className="text-muted-foreground/40">—</span>
+    : (
+      <span className="inline-flex items-center gap-0.5 flex-wrap justify-center">
+        {affectedPeople.map(p => (
+          <span key={p.id} title={p.nome} className="inline-grid place-items-center h-5 min-w-[1.25rem] px-1 rounded bg-bmw-blue/10 text-bmw-blue text-[10px] font-bold">
+            {initials(p.nome)}
+          </span>
+        ))}
+      </span>
+    );
+
+  if (!canEdit) return <td className="px-2.5 py-1.5 text-center whitespace-nowrap">{badges}</td>;
+
+  return (
+    <td className="px-2.5 py-1.5 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-0.5 min-h-[1.5rem] hover:bg-muted/60 transition-colors" title="Afetar utilizadores">
+            {affectedPeople.length === 0
+              ? <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+              : badges}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="center" className="w-56 p-1.5" onClick={e => e.stopPropagation()}>
+          <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Afetar utilizadores</p>
+          {people.length === 0 ? (
+            <p className="px-2 py-2 text-xs text-muted-foreground">Sem utilizadores. Lança-os no tab Utilizadores.</p>
+          ) : (
+            <div className="max-h-64 overflow-auto">
+              {people.map(p => {
+                const on = affected.has(p.id);
+                return (
+                  <button key={p.id} onClick={() => onToggle(p.id, !on)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted text-left">
+                    <span className={`inline-grid place-items-center h-5 w-5 rounded border shrink-0 ${on ? 'bg-bmw-blue border-bmw-blue text-white' : 'border-border'}`}>
+                      {on && <Check className="h-3 w-3" />}
+                    </span>
+                    <span className="inline-grid place-items-center h-5 min-w-[1.25rem] px-1 rounded bg-bmw-blue/10 text-bmw-blue text-[10px] font-bold shrink-0">{initials(p.nome)}</span>
+                    <span className="text-sm truncate">{p.nome}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    </td>
+  );
+}
+
 export default function DemosPage() {
   const { session } = useAuth();
   const { canEdit } = usePermissions();
   const [rows, setRows] = useState<Row[]>([]);
   const [capas, setCapas] = useState<Record<string, string>>({});
-  const [demoUsers, setDemoUsers] = useState<Record<string, DemoUser[]>>({});
+  const [people, setPeople] = useState<DemoPerson[]>([]);
+  const [afetacoes, setAfetacoes] = useState<Record<string, string[]>>({}); // chassis → pessoa_ids
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -199,10 +264,11 @@ export default function DemosPage() {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [viaturasRes, capasRes, usersRes] = await Promise.all([
+      const [viaturasRes, capasRes, peopleRes, afetRes] = await Promise.all([
         supabase.from('viaturas').select('*'),
         supabase.from('demo_capas').select('chassis, url'),
-        listDemoUsers().catch(() => [] as DemoUser[]),
+        listDemoPeople().catch(() => [] as DemoPerson[]),
+        listAfetacoes().catch(() => []),
       ]);
       if (!alive) return;
       if (viaturasRes.error) { setError(viaturasRes.error.message); setRows([]); setLoading(false); return; }
@@ -218,7 +284,8 @@ export default function DemosPage() {
       }
       setRows(mapped);
       setCapas(capaMap);
-      setDemoUsers(groupByChassis(usersRes));
+      setPeople(peopleRes);
+      setAfetacoes(afetacoesByChassis(afetRes));
       setLoading(false);
     })();
     return () => { alive = false; };
@@ -230,6 +297,24 @@ export default function DemosPage() {
       if (url) next[chassis] = url; else delete next[chassis];
       return next;
     });
+
+  const canEditDemos = canEdit('demos');
+
+  // Afeta/desafeta uma pessoa a uma viatura, diretamente na tabela (otimista).
+  const toggleAfetacao = async (chassis: string, pessoaId: string, on: boolean) => {
+    const apply = (add: boolean) => setAfetacoes(prev => {
+      const cur = new Set(prev[chassis] ?? []);
+      if (add) cur.add(pessoaId); else cur.delete(pessoaId);
+      return { ...prev, [chassis]: [...cur] };
+    });
+    apply(on);
+    try {
+      await setAfetacao(chassis, pessoaId, on);
+    } catch (e) {
+      apply(!on); // reverte
+      toast.error('Falha ao afetar: ' + (e as Error).message);
+    }
+  };
 
   const modelos = useMemo(() => ['Todos', ...[...new Set(rows.map(r => (r.modelo ?? '').trim()).filter(Boolean))].sort()], [rows]);
   const locais = useMemo(() => ['Todas', ...[...new Set(rows.flatMap(r => getArr(r.local)))].sort()], [rows]);
@@ -457,23 +542,12 @@ export default function DemosPage() {
                     <td className="px-2.5 py-1.5 text-muted-foreground whitespace-nowrap">{r.versao || '—'}</td>
                     <td className="px-2.5 py-1.5 text-muted-foreground font-mono">{r.encomenda || '—'}</td>
                     <td className="px-2.5 py-1.5 text-muted-foreground font-mono uppercase">{r.chassis || '—'}</td>
-                    <td className="px-2.5 py-1.5 text-center whitespace-nowrap">
-                      {(demoUsers[r.chassis] ?? []).length === 0 ? (
-                        <span className="text-muted-foreground/40">—</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-0.5 flex-wrap justify-center">
-                          {(demoUsers[r.chassis] ?? []).map(u => (
-                            <span
-                              key={u.id}
-                              title={u.nome}
-                              className="inline-grid place-items-center h-5 min-w-[1.25rem] px-1 rounded bg-bmw-blue/10 text-bmw-blue text-[10px] font-bold"
-                            >
-                              {initials(u.nome)}
-                            </span>
-                          ))}
-                        </span>
-                      )}
-                    </td>
+                    <AfetacaoCell
+                      people={people}
+                      affectedIds={afetacoes[r.chassis] ?? []}
+                      canEdit={canEditDemos}
+                      onToggle={(pid, on) => toggleAfetacao(r.chassis, pid, on)}
+                    />
                     <td className="px-2.5 py-1.5 text-foreground/80 font-mono uppercase font-medium">{r.matricula || '—'}</td>
                     <td className="px-2.5 py-1.5 text-center text-muted-foreground whitespace-nowrap">
                       {r.data_matricula ? new Date(r.data_matricula).toLocaleDateString('pt-PT') : '—'}
