@@ -316,6 +316,15 @@ export default function CarteiraPage() {
 
         {/* Coluna direita */}
         <div className="space-y-2">
+          {/* Mix Modelos + Método de Pagamento lado a lado */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="bg-card border border-border rounded-lg p-2">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mix Modelos</h3>
+            <div className="overflow-y-auto pr-1" style={{ maxHeight: CHART_HEIGHT }}>
+              <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
+            </div>
+          </div>
+
           <div className="bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Método de Pagamento</h3>
             <div className="flex items-center gap-2">
@@ -350,10 +359,11 @@ export default function CarteiraPage() {
               </div>
             </div>
           </div>
+          </div>
 
           <div className="bg-card border border-border rounded-lg p-2">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Distribuição Carteira</h3>
-            <ResponsiveContainer width="100%" height={CHART_HEIGHT + 60}>
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
               <PieChart>
                 <Tooltip formatter={(value: number, name: string) => [`${value} (${Math.round((value / (totalCarteira || 1)) * 100)}%)`, name]}
                   contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
@@ -373,16 +383,6 @@ export default function CarteiraPage() {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      </div>
-
-      {/* Row 2 — Análise full width */}
-      <div className="bg-card border border-border rounded-lg p-2">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Mix Modelos</h3>
-        </div>
-        <div className="max-h-44 overflow-y-auto pr-1">
-          <HorizontalBarList data={modelData} selected={selectedModel} onClick={handleModelClick} />
         </div>
       </div>
 
