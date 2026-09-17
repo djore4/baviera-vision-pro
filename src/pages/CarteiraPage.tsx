@@ -314,8 +314,8 @@ export default function CarteiraPage() {
           </div>
         </div>
 
-        {/* Coluna direita */}
-        <div className="space-y-2">
+        {/* Coluna direita — flex-col para preencher a altura e alinhar com a esquerda (sem espaços vazios) */}
+        <div className="flex flex-col gap-2">
           {/* Mix Modelos + Método de Pagamento lado a lado */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="bg-card border border-border rounded-lg p-2">
@@ -361,9 +361,10 @@ export default function CarteiraPage() {
           </div>
           </div>
 
-          <div className="bg-card border border-border rounded-lg p-2">
+          <div className="bg-card border border-border rounded-lg p-2 flex-1 flex flex-col min-h-0">
             <h3 className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Distribuição Carteira</h3>
-            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+            <div className="flex-1 min-h-0" style={{ minHeight: CHART_HEIGHT }}>
+            <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Tooltip formatter={(value: number, name: string) => [`${value} (${Math.round((value / (totalCarteira || 1)) * 100)}%)`, name]}
                   contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
@@ -382,6 +383,7 @@ export default function CarteiraPage() {
                   }} />
               </PieChart>
             </ResponsiveContainer>
+            </div>
           </div>
         </div>
       </div>
