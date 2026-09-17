@@ -256,7 +256,6 @@ export default function DemosPage() {
   const [fLocal, setFLocal] = useState('Aveiro');
   const localInit = useRef(false);
   const [fTipologia, setFTipologia] = useState<Set<string>>(new Set());
-  const [pvp, setPvp] = useState<[number, number] | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
   const [selected, setSelected] = useState<Row | null>(null);
 
@@ -328,28 +327,12 @@ export default function DemosPage() {
     if (fLocal === 'Aveiro' && !locais.includes('Aveiro')) setFLocal('Todas');
   }, [rows, locais, fLocal]);
 
-  // Domínio do PVP (a partir dos valores > 0), arredondado a 500 €.
-  const pvpDomain = useMemo<[number, number]>(() => {
-    const vals = rows.map(r => r._stats.pvp_final).filter(v => v > 0);
-    if (!vals.length) return [0, 0];
-    const lo = Math.floor(Math.min(...vals) / 500) * 500;
-    const hi = Math.ceil(Math.max(...vals) / 500) * 500;
-    return [lo, hi];
-  }, [rows]);
-  useEffect(() => { if (pvpDomain[1] > 0) setPvp([pvpDomain[0], pvpDomain[1]]); }, [pvpDomain]);
-
-  const pvpActive = !!pvp && (pvp[0] > pvpDomain[0] || pvp[1] < pvpDomain[1]);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = rows.filter(r => {
       if (fModelo !== 'Todos' && (r.modelo ?? '').trim() !== fModelo) return false;
       if (fLocal !== 'Todas' && !getArr(r.local).includes(fLocal)) return false;
       if (fTipologia.size && !r._tipologia.some(t => fTipologia.has(t))) return false;
-      if (pvpActive && pvp) {
-        const p = r._stats.pvp_final;
-        if (p <= 0 || p < pvp[0] || p > pvp[1]) return false;
-      }
       if (!q) return true;
       return [r.modelo, r.versao, r.chassis, r.matricula, r.encomenda, r._local]
         .some(v => (v ?? '').toString().toLowerCase().includes(q));
@@ -371,7 +354,7 @@ export default function DemosPage() {
       });
     }
     return list;
-  }, [rows, search, fModelo, fLocal, fTipologia, pvp, pvpActive, sort]);
+  }, [rows, search, fModelo, fLocal, fTipologia, sort]);
 
   const toggleTip = (t: string) =>
     setFTipologia(prev => { const n = new Set(prev); if (n.has(t)) n.delete(t); else n.add(t); return n; });
@@ -383,10 +366,9 @@ export default function DemosPage() {
       return null; // terceiro clique limpa
     });
 
-  const filtersActive = !!search || fModelo !== 'Todos' || fLocal !== 'Todas' || fTipologia.size > 0 || pvpActive;
+  const filtersActive = !!search || fModelo !== 'Todos' || fLocal !== 'Todas' || fTipologia.size > 0;
   const resetFilters = () => {
     setSearch(''); setFModelo('Todos'); setFLocal('Todas'); setFTipologia(new Set());
-    setPvp([pvpDomain[0], pvpDomain[1]]);
   };
 
   return (
@@ -465,20 +447,6 @@ export default function DemosPage() {
           </div>
         )}
 
-        {/* PVP Final — largura total, por baixo da tipologia. Rótulo e valor em
-            linhas separadas (o valor arranca da esquerda com o cartão inteiro
-            disponível), pelo que nunca fica cortado nem encostado à margem. */}
-        <div className="flex flex-col gap-1.5 md:col-span-2 min-w-0">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-            <Gauge className="h-3 w-3" /> PVP Final
-          </span>
-          {pvp && (
-            <span className="text-sm font-bold text-foreground tabular-nums break-words">
-              {eur0(pvp[0])} — {eur0(pvp[1])}
-            </span>
-          )}
-          {pvp && <PriceRange domain={pvpDomain} value={pvp} onChange={setPvp} />}
-        </div>
       </div>
 
       {error && (
@@ -580,38 +548,6 @@ export default function DemosPage() {
           onClose={() => setSelected(null)}
         />
       )}
-    </div>
-  );
-}
-
-/* ── Slider de intervalo de preço (dois cursores) ─────────────────────────────*/
-function PriceRange({ domain, value, onChange }: {
-  domain: [number, number]; value: [number, number]; onChange: (v: [number, number]) => void;
-}) {
-  const [min, max] = domain;
-  const span = Math.max(1, max - min);
-  const pct = (v: number) => ((v - min) / span) * 100;
-  if (max <= min) return <div className="h-6" />;
-
-  return (
-    <div className="relative h-6 flex items-center">
-      <div className="absolute left-0 right-0 h-1 rounded-full bg-muted" />
-      <div
-        className="absolute h-1 rounded-full bg-bmw-blue"
-        style={{ left: `${pct(value[0])}%`, right: `${100 - pct(value[1])}%` }}
-      />
-      <input
-        type="range" min={min} max={max} step={500} value={value[0]}
-        onChange={e => onChange([Math.min(Number(e.target.value), value[1] - 500), value[1]])}
-        className="range-thumb absolute w-full appearance-none bg-transparent pointer-events-none"
-        aria-label="PVP mínimo"
-      />
-      <input
-        type="range" min={min} max={max} step={500} value={value[1]}
-        onChange={e => onChange([value[0], Math.max(Number(e.target.value), value[0] + 500)])}
-        className="range-thumb absolute w-full appearance-none bg-transparent pointer-events-none"
-        aria-label="PVP máximo"
-      />
     </div>
   );
 }
