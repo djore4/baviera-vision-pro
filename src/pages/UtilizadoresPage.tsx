@@ -1,14 +1,18 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import {
   UserPlus, Loader2, Trash2, KeyRound, Save, ShieldCheck, Users as UsersIcon, X, Plus,
-  ChevronRight, ChevronDown,
+  ChevronRight, ChevronDown, Car, Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { supabase } from '@/integrations/supabase/client';
 import {
   TABS, type AccessLevel, type AppRole, type AppUser,
   listRoles, listUsers, createUser, updateUser, deleteUser, saveRole, deleteRole,
 } from '@/lib/permissions';
+import {
+  listDemoUsers, addDemoUser, removeDemoUser, groupByChassis, initials, type DemoUser,
+} from '@/lib/demoUsers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,7 +71,144 @@ export default function UtilizadoresPage() {
         loading={loading}
         onSaved={async () => { await load(); reloadPerms(); }}
       />
+
+      <DemoUsersSection />
     </div>
+  );
+}
+
+/* ── Secção: utilizadores dos demonstradores ───────────────────────────────────
+ * Gere quem está a utilizar cada viatura demonstradora (mostra as iniciais no
+ * tab Demos). Sem pesquisa, lista só as viaturas que já têm utilizadores; ao
+ * pesquisar, mostra as viaturas correspondentes para atribuir. */
+interface DemoVehicle { chassis: string; matricula: string | null; modelo: string | null }
+
+function DemoUsersSection() {
+  const [vehicles, setVehicles] = useState<DemoVehicle[]>([]);
+  const [users, setUsers] = useState<DemoUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [vres, us] = await Promise.all([
+        supabase.from('viaturas').select('chassis, matricula, modelo'),
+        listDemoUsers(),
+      ]);
+      if (vres.error) throw vres.error;
+      setVehicles((vres.data as DemoVehicle[]) ?? []);
+      setUsers(us);
+    } catch (e) {
+      toast.error('Não foi possível carregar os demonstradores.');
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const byChassis = useMemo(() => groupByChassis(users), [users]);
+
+  const list = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return vehicles
+      .filter(v => {
+        const hasUsers = (byChassis[v.chassis]?.length ?? 0) > 0;
+        if (!term) return hasUsers;
+        return [v.matricula, v.modelo, v.chassis].some(x => (x ?? '').toLowerCase().includes(term));
+      })
+      .sort((a, b) => (a.modelo || a.chassis).localeCompare(b.modelo || b.chassis, 'pt'));
+  }, [vehicles, byChassis, q]);
+
+  const add = async (chassis: string) => {
+    const nome = (draft[chassis] ?? '').trim();
+    if (!nome) return;
+    setBusy(chassis);
+    try {
+      const u = await addDemoUser(chassis, nome);
+      setUsers(prev => [...prev, u]);
+      setDraft(prev => ({ ...prev, [chassis]: '' }));
+    } catch (e) { toast.error('Falha ao adicionar: ' + (e as Error).message); }
+    finally { setBusy(null); }
+  };
+  const remove = async (id: string) => {
+    setBusy(id);
+    try {
+      await removeDemoUser(id);
+      setUsers(prev => prev.filter(u => u.id !== id));
+    } catch (e) { toast.error('Falha ao remover: ' + (e as Error).message); }
+    finally { setBusy(null); }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Car className="h-4 w-4 text-bmw-blue" /> Utilizadores dos demonstradores
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Procurar viatura (matrícula, modelo, chassis) para atribuir…"
+            className="pl-8"
+          />
+        </div>
+
+        {loading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline mr-2" />A carregar…</div>
+        ) : list.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-4 text-center">
+            {q.trim() ? 'Nenhuma viatura encontrada.' : 'Sem utilizadores atribuídos. Pesquisa uma viatura para começar.'}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {list.map(v => {
+              const us = byChassis[v.chassis] ?? [];
+              return (
+                <div key={v.chassis} className="rounded-lg border border-border p-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold truncate">{v.modelo || '—'}</div>
+                      <div className="text-[11px] text-muted-foreground font-mono uppercase">{v.matricula || v.chassis}</div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-wrap justify-end">
+                      {us.map(u => (
+                        <span key={u.id} className="inline-flex items-center gap-1 rounded-full bg-bmw-blue/10 text-bmw-blue text-[11px] font-medium pl-2 pr-1 py-0.5" title={u.nome}>
+                          <span className="font-bold">{initials(u.nome)}</span>
+                          <span className="max-w-[8rem] truncate">{u.nome}</span>
+                          <button onClick={() => remove(u.id)} disabled={busy === u.id} className="grid place-items-center h-4 w-4 rounded-full hover:bg-destructive/15 hover:text-destructive disabled:opacity-50" title="Remover">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5 mt-2">
+                    <Input
+                      value={draft[v.chassis] ?? ''}
+                      onChange={e => setDraft(prev => ({ ...prev, [v.chassis]: e.target.value }))}
+                      onKeyDown={e => e.key === 'Enter' && add(v.chassis)}
+                      placeholder="Nome da pessoa…"
+                      className="h-8 text-xs"
+                    />
+                    <Button size="sm" variant="secondary" className="h-8" disabled={busy === v.chassis || !(draft[v.chassis] ?? '').trim()} onClick={() => add(v.chassis)}>
+                      {busy === v.chassis ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

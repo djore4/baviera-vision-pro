@@ -6,9 +6,10 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
   ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, ImageOff,
-  Camera, Trash2, Loader2,
+  Camera, Trash2, Loader2, Users,
 } from 'lucide-react';
 import bmwLogo from '@/assets/bmw-logo.png';
+import { listDemoUsers, groupByChassis, initials, type DemoUser } from '@/lib/demoUsers';
 
 /* ── Parque de demonstradores (VN · Demos) ────────────────────────────────────
  * Consulta, apenas leitura, do parque de viaturas partilhado com a plataforma
@@ -134,15 +135,16 @@ const perc = (n: number | null | undefined) =>
 interface Row extends Viatura { _stats: Stats; _local: string; _tipologia: string[] }
 
 /* ── Ordenação ─────────────────────────────────────────────────────────────── */
-type SortKey = 'local' | 'modelo' | 'versao' | 'encomenda' | 'chassis' | 'matricula'
+type SortKey = 'local' | 'modelo' | 'versao' | 'encomenda' | 'chassis' | 'users' | 'matricula'
   | 'data_matricula' | 'idade' | 'pvp_bruto' | 'pvp_final';
 
-const COLS: { key: SortKey; label: string; num?: boolean; align?: 'right' | 'center' }[] = [
+const COLS: { key: SortKey; label: string; num?: boolean; align?: 'right' | 'center'; noSort?: boolean }[] = [
   { key: 'local', label: 'Local', align: 'center' },
   { key: 'modelo', label: 'Modelo' },
   { key: 'versao', label: 'Versão' },
   { key: 'encomenda', label: 'Enc' },
   { key: 'chassis', label: 'Chassis' },
+  { key: 'users', label: 'Utiliz.', align: 'center', noSort: true },
   { key: 'matricula', label: 'Matrícula' },
   { key: 'data_matricula', label: 'Data', align: 'center' },
   { key: 'idade', label: 'Idade', num: true, align: 'center' },
@@ -153,6 +155,7 @@ const COLS: { key: SortKey; label: string; num?: boolean; align?: 'right' | 'cen
 function sortValue(r: Row, key: SortKey): string | number {
   switch (key) {
     case 'local': return r._local.toLowerCase();
+    case 'users': return '';
     case 'data_matricula': return r.data_matricula ? new Date(r.data_matricula).getTime() : 0;
     case 'idade': return r._stats.idade_dias;
     case 'pvp_bruto': return r._stats.pvp_bruto;
@@ -179,11 +182,14 @@ export default function DemosPage() {
   const { canEdit } = usePermissions();
   const [rows, setRows] = useState<Row[]>([]);
   const [capas, setCapas] = useState<Record<string, string>>({});
+  const [demoUsers, setDemoUsers] = useState<Record<string, DemoUser[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [fModelo, setFModelo] = useState('Todos');
-  const [fLocal, setFLocal] = useState('Todas');
+  // Por defeito, o parque abre filtrado por Aveiro.
+  const [fLocal, setFLocal] = useState('Aveiro');
+  const localInit = useRef(false);
   const [fTipologia, setFTipologia] = useState<Set<string>>(new Set());
   const [pvp, setPvp] = useState<[number, number] | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
@@ -193,9 +199,10 @@ export default function DemosPage() {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [viaturasRes, capasRes] = await Promise.all([
+      const [viaturasRes, capasRes, usersRes] = await Promise.all([
         supabase.from('viaturas').select('*'),
         supabase.from('demo_capas').select('chassis, url'),
+        listDemoUsers().catch(() => [] as DemoUser[]),
       ]);
       if (!alive) return;
       if (viaturasRes.error) { setError(viaturasRes.error.message); setRows([]); setLoading(false); return; }
@@ -211,6 +218,7 @@ export default function DemosPage() {
       }
       setRows(mapped);
       setCapas(capaMap);
+      setDemoUsers(groupByChassis(usersRes));
       setLoading(false);
     })();
     return () => { alive = false; };
@@ -226,6 +234,14 @@ export default function DemosPage() {
   const modelos = useMemo(() => ['Todos', ...[...new Set(rows.map(r => (r.modelo ?? '').trim()).filter(Boolean))].sort()], [rows]);
   const locais = useMemo(() => ['Todas', ...[...new Set(rows.flatMap(r => getArr(r.local)))].sort()], [rows]);
   const tipologias = useMemo(() => [...new Set(rows.flatMap(r => r._tipologia))].sort(), [rows]);
+
+  // Se o parque não tiver "Aveiro" (default), reverte para "Todas" — só uma vez,
+  // para não mostrar uma tabela vazia por causa do filtro inicial.
+  useEffect(() => {
+    if (localInit.current || rows.length === 0) return;
+    localInit.current = true;
+    if (fLocal === 'Aveiro' && !locais.includes('Aveiro')) setFLocal('Todas');
+  }, [rows, locais, fLocal]);
 
   // Domínio do PVP (a partir dos valores > 0), arredondado a 500 €.
   const pvpDomain = useMemo<[number, number]>(() => {
@@ -399,16 +415,16 @@ export default function DemosPage() {
                   return (
                     <th
                       key={c.key}
-                      onClick={() => toggleSort(c.key)}
-                      className={`px-2.5 py-2 font-semibold text-muted-foreground whitespace-nowrap border-b border-border cursor-pointer select-none hover:text-foreground transition-colors ${
-                        c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'
-                      }`}
+                      onClick={c.noSort ? undefined : () => toggleSort(c.key)}
+                      className={`px-2.5 py-2 font-semibold text-muted-foreground whitespace-nowrap border-b border-border transition-colors ${
+                        c.noSort ? '' : 'cursor-pointer select-none hover:text-foreground'
+                      } ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'}`}
                     >
                       <span className={`inline-flex items-center gap-1 ${c.align === 'right' ? 'flex-row-reverse' : ''}`}>
                         {c.label}
-                        {active
+                        {!c.noSort && (active
                           ? (sort!.dir === 'asc' ? <ChevronUp className="h-3 w-3 text-bmw-blue" /> : <ChevronDown className="h-3 w-3 text-bmw-blue" />)
-                          : <ChevronsUpDown className="h-3 w-3 opacity-30" />}
+                          : <ChevronsUpDown className="h-3 w-3 opacity-30" />)}
                       </span>
                     </th>
                   );
@@ -441,6 +457,23 @@ export default function DemosPage() {
                     <td className="px-2.5 py-1.5 text-muted-foreground whitespace-nowrap">{r.versao || '—'}</td>
                     <td className="px-2.5 py-1.5 text-muted-foreground font-mono">{r.encomenda || '—'}</td>
                     <td className="px-2.5 py-1.5 text-muted-foreground font-mono uppercase">{r.chassis || '—'}</td>
+                    <td className="px-2.5 py-1.5 text-center whitespace-nowrap">
+                      {(demoUsers[r.chassis] ?? []).length === 0 ? (
+                        <span className="text-muted-foreground/40">—</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5 flex-wrap justify-center">
+                          {(demoUsers[r.chassis] ?? []).map(u => (
+                            <span
+                              key={u.id}
+                              title={u.nome}
+                              className="inline-grid place-items-center h-5 min-w-[1.25rem] px-1 rounded bg-bmw-blue/10 text-bmw-blue text-[10px] font-bold"
+                            >
+                              {initials(u.nome)}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-2.5 py-1.5 text-foreground/80 font-mono uppercase font-medium">{r.matricula || '—'}</td>
                     <td className="px-2.5 py-1.5 text-center text-muted-foreground whitespace-nowrap">
                       {r.data_matricula ? new Date(r.data_matricula).toLocaleDateString('pt-PT') : '—'}
