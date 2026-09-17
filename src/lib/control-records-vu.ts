@@ -37,10 +37,28 @@ function mapDbRow(r: DbRow): ControlRecord {
   };
 }
 
+/** Carrega apenas os registos VU (type = 'VU'). O ficheiro importado pode conter
+ *  registos de outros tipos (VN/VD/VP) — o dashboard VU só usa os de usados. */
 export async function loadControlVuFromDb(): Promise<ControlRecord[]> {
-  const { data, error } = await supabase.from(TABLE).select('*');
+  const { data, error } = await supabase.from(TABLE).select('*').eq('type', 'VU');
   if (error || !data) return [];
   return (data as unknown as DbRow[]).map(mapDbRow);
+}
+
+/* ── Objetivos de faturas VU (por mês) ── */
+export interface VuObjetivo { mes: string; faturas: number; }
+
+export async function listVuObjetivos(): Promise<VuObjetivo[]> {
+  const { data, error } = await supabase.from('vu_objetivos').select('mes, faturas');
+  if (error || !data) return [];
+  return (data as { mes: string; faturas: number }[]).map(o => ({ mes: o.mes, faturas: Number(o.faturas) || 0 }));
+}
+
+export async function setVuObjetivo(mes: string, faturas: number): Promise<void> {
+  const { error } = await supabase
+    .from('vu_objetivos')
+    .upsert({ mes, faturas, updated_at: new Date().toISOString() }, { onConflict: 'mes' });
+  if (error) throw error;
 }
 
 /** Substitui todos os registos VU pelos fornecidos (snapshot da sheet CONTROL). */
