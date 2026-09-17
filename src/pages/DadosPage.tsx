@@ -3,6 +3,8 @@ import { Upload, Loader2, FileSpreadsheet, CheckCircle2, Database, AlertTriangle
 import { Button } from '@/components/ui/button';
 import { useData } from '@/contexts/DataContext';
 import { QualityManager } from '@/components/QualityManager';
+import { parseExcel } from '@/lib/excel-parser';
+import { replaceControlRecordsVu } from '@/lib/control-records-vu';
 
 export default function DadosPage() {
   const { uploadFile, loading, data } = useData();
@@ -13,6 +15,40 @@ export default function DadosPage() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importCount, setImportCount] = useState<number | null>(null);
+
+  // Importação do Excel VU -> tabela control_records_vu (sheet CONTROL)
+  const inputRefVu = useRef<HTMLInputElement>(null);
+  const [pendingFileVu, setPendingFileVu] = useState<File | null>(null);
+  const [importingVu, setImportingVu] = useState(false);
+  const [importErrorVu, setImportErrorVu] = useState<string | null>(null);
+  const [importCountVu, setImportCountVu] = useState<number | null>(null);
+
+  const handleChangeVu = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (inputRefVu.current) inputRefVu.current.value = '';
+    if (!file) return;
+    setImportErrorVu(null);
+    setImportCountVu(null);
+    setPendingFileVu(file);
+  };
+
+  const confirmImportVu = async () => {
+    if (!pendingFileVu) return;
+    const file = pendingFileVu;
+    setPendingFileVu(null);
+    setImportingVu(true);
+    setImportErrorVu(null);
+    setImportCountVu(null);
+    try {
+      const parsed = parseExcel(await file.arrayBuffer());
+      const n = await replaceControlRecordsVu(parsed.control);
+      setImportCountVu(n);
+    } catch (err) {
+      setImportErrorVu(err instanceof Error ? err.message : 'Erro ao importar dados VU');
+    } finally {
+      setImportingVu(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -91,20 +127,33 @@ export default function DadosPage() {
           )}
         </div>
 
-        {/* Gestão de Dados VU — local preparado (upload a desenvolver) */}
-        <div className="bg-card border border-dashed border-border rounded-lg p-6 space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Gestão de Dados VU</h2>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded">Em desenvolvimento</span>
-          </div>
+        {/* Gestão de Dados VU */}
+        <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Gestão de Dados VU</h2>
           <p className="text-xs text-muted-foreground">
-            Local reservado para carregar o ficheiro de <strong>Viaturas Usadas</strong>. O formato e o
-            processamento serão definidos oportunamente — por agora, só o acesso está preparado.
+            Carrega o ficheiro de <strong>Viaturas Usadas</strong>. Importa a sheet <strong>CONTROL</strong>,
+            gravando por cima dos dados VU atuais. Alimenta o dashboard <strong>WIP</strong> da secção VU.
           </p>
-          <Button size="lg" variant="outline" className="w-full gap-2" disabled>
-            <Upload className="h-5 w-5" />
-            Carregar Excel VU
+          <Button size="lg" className="w-full gap-2" onClick={() => inputRefVu.current?.click()} disabled={loading || importingVu}>
+            {importingVu ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
+            {importingVu ? 'A importar...' : 'Carregar Excel VU'}
           </Button>
+          <input ref={inputRefVu} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleChangeVu} />
+
+          {importErrorVu && (
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <p className="text-xs text-destructive">{importErrorVu}</p>
+            </div>
+          )}
+          {importCountVu !== null && (
+            <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+              <Database className="h-5 w-5 text-primary flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">{importCountVu} registos VU importados</p>
+                <p className="text-xs text-muted-foreground">Já podes consultar o WIP da secção VU.</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -131,6 +180,28 @@ export default function DadosPage() {
             <div className="flex justify-end gap-2">
               <button onClick={() => setPendingFile(null)} className="px-4 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">Cancelar</button>
               <button onClick={confirmImport} className="px-4 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">Importar e substituir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmação da importação VU */}
+      {pendingFileVu && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-card border border-border rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">Importar dados VU?</p>
+                <p className="text-xs text-muted-foreground">
+                  Vais importar de <span className="font-medium">{pendingFileVu.name}</span> a sheet <strong>CONTROL</strong>, que
+                  <strong> grava por cima</strong> dos dados VU atuais. Não afeta os dados VN. Esta ação não pode ser anulada.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPendingFileVu(null)} className="px-4 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">Cancelar</button>
+              <button onClick={confirmImportVu} className="px-4 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">Importar e substituir</button>
             </div>
           </div>
         </div>
