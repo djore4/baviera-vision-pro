@@ -1,17 +1,16 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import {
   UserPlus, Loader2, Trash2, KeyRound, Save, ShieldCheck, Users as UsersIcon, X, Plus,
-  ChevronRight, ChevronDown, Car, Search,
+  ChevronRight, ChevronDown, Car,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { supabase } from '@/integrations/supabase/client';
 import {
   TABS, type AccessLevel, type AppRole, type AppUser,
   listRoles, listUsers, createUser, updateUser, deleteUser, saveRole, deleteRole,
 } from '@/lib/permissions';
 import {
-  listDemoUsers, addDemoUser, removeDemoUser, groupByChassis, initials, type DemoUser,
+  listDemoPeople, addDemoPerson, removeDemoPerson, initials, type DemoPerson,
 } from '@/lib/demoUsers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -77,32 +76,22 @@ export default function UtilizadoresPage() {
   );
 }
 
-/* ── Secção: utilizadores dos demonstradores ───────────────────────────────────
- * Gere quem está a utilizar cada viatura demonstradora (mostra as iniciais no
- * tab Demos). Sem pesquisa, lista só as viaturas que já têm utilizadores; ao
- * pesquisar, mostra as viaturas correspondentes para atribuir. */
-interface DemoVehicle { chassis: string; matricula: string | null; modelo: string | null }
-
+/* ── Secção: utilizadores dos demonstradores (roster) ──────────────────────────
+ * Lança as pessoas que podem usar os demonstradores. A afetação a cada viatura
+ * é feita depois no tab Demos, diretamente na tabela. */
 function DemoUsersSection() {
-  const [vehicles, setVehicles] = useState<DemoVehicle[]>([]);
-  const [users, setUsers] = useState<DemoUser[]>([]);
+  const [people, setPeople] = useState<DemoPerson[]>([]);
   const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState('');
-  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [nome, setNome] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [vres, us] = await Promise.all([
-        supabase.from('viaturas').select('chassis, matricula, modelo'),
-        listDemoUsers(),
-      ]);
-      if (vres.error) throw vres.error;
-      setVehicles((vres.data as DemoVehicle[]) ?? []);
-      setUsers(us);
+      setPeople(await listDemoPeople());
     } catch (e) {
-      toast.error('Não foi possível carregar os demonstradores.');
+      toast.error('Não foi possível carregar os utilizadores dos demonstradores.');
       console.error(e);
     } finally {
       setLoading(false);
@@ -110,35 +99,23 @@ function DemoUsersSection() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const byChassis = useMemo(() => groupByChassis(users), [users]);
-
-  const list = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    return vehicles
-      .filter(v => {
-        const hasUsers = (byChassis[v.chassis]?.length ?? 0) > 0;
-        if (!term) return hasUsers;
-        return [v.matricula, v.modelo, v.chassis].some(x => (x ?? '').toLowerCase().includes(term));
-      })
-      .sort((a, b) => (a.modelo || a.chassis).localeCompare(b.modelo || b.chassis, 'pt'));
-  }, [vehicles, byChassis, q]);
-
-  const add = async (chassis: string) => {
-    const nome = (draft[chassis] ?? '').trim();
-    if (!nome) return;
-    setBusy(chassis);
+  const add = async () => {
+    const n = nome.trim();
+    if (!n) return;
+    setAdding(true);
     try {
-      const u = await addDemoUser(chassis, nome);
-      setUsers(prev => [...prev, u]);
-      setDraft(prev => ({ ...prev, [chassis]: '' }));
+      const p = await addDemoPerson(n);
+      setPeople(prev => [...prev, p].sort((a, b) => a.nome.localeCompare(b.nome, 'pt')));
+      setNome('');
     } catch (e) { toast.error('Falha ao adicionar: ' + (e as Error).message); }
-    finally { setBusy(null); }
+    finally { setAdding(false); }
   };
-  const remove = async (id: string) => {
-    setBusy(id);
+  const remove = async (p: DemoPerson) => {
+    if (!confirm(`Remover "${p.nome}"? Fica também desafetado de qualquer viatura.`)) return;
+    setBusy(p.id);
     try {
-      await removeDemoUser(id);
-      setUsers(prev => prev.filter(u => u.id !== id));
+      await removeDemoPerson(p.id);
+      setPeople(prev => prev.filter(x => x.id !== p.id));
     } catch (e) { toast.error('Falha ao remover: ' + (e as Error).message); }
     finally { setBusy(null); }
   };
@@ -151,60 +128,36 @@ function DemoUsersSection() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <p className="text-xs text-muted-foreground">
+          Lança aqui as pessoas. A afetação de cada pessoa a uma viatura faz-se no tab <strong>Demos</strong>, na coluna “Utiliz.” da tabela.
+        </p>
+        <div className="flex gap-1.5">
           <Input
-            value={q}
-            onChange={e => setQ(e.target.value)}
-            placeholder="Procurar viatura (matrícula, modelo, chassis) para atribuir…"
-            className="pl-8"
+            value={nome}
+            onChange={e => setNome(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && add()}
+            placeholder="Nome da pessoa…"
           />
+          <Button onClick={add} disabled={adding || !nome.trim()}>
+            {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <><UserPlus className="h-4 w-4 mr-1" />Adicionar</>}
+          </Button>
         </div>
 
         {loading ? (
-          <div className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline mr-2" />A carregar…</div>
-        ) : list.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-4 text-center">
-            {q.trim() ? 'Nenhuma viatura encontrada.' : 'Sem utilizadores atribuídos. Pesquisa uma viatura para começar.'}
-          </p>
+          <div className="py-6 text-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline mr-2" />A carregar…</div>
+        ) : people.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-3 text-center">Ainda não há utilizadores. Adiciona o primeiro acima.</p>
         ) : (
-          <div className="space-y-2">
-            {list.map(v => {
-              const us = byChassis[v.chassis] ?? [];
-              return (
-                <div key={v.chassis} className="rounded-lg border border-border p-2.5">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold truncate">{v.modelo || '—'}</div>
-                      <div className="text-[11px] text-muted-foreground font-mono uppercase">{v.matricula || v.chassis}</div>
-                    </div>
-                    <div className="flex items-center gap-1 flex-wrap justify-end">
-                      {us.map(u => (
-                        <span key={u.id} className="inline-flex items-center gap-1 rounded-full bg-bmw-blue/10 text-bmw-blue text-[11px] font-medium pl-2 pr-1 py-0.5" title={u.nome}>
-                          <span className="font-bold">{initials(u.nome)}</span>
-                          <span className="max-w-[8rem] truncate">{u.nome}</span>
-                          <button onClick={() => remove(u.id)} disabled={busy === u.id} className="grid place-items-center h-4 w-4 rounded-full hover:bg-destructive/15 hover:text-destructive disabled:opacity-50" title="Remover">
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex gap-1.5 mt-2">
-                    <Input
-                      value={draft[v.chassis] ?? ''}
-                      onChange={e => setDraft(prev => ({ ...prev, [v.chassis]: e.target.value }))}
-                      onKeyDown={e => e.key === 'Enter' && add(v.chassis)}
-                      placeholder="Nome da pessoa…"
-                      className="h-8 text-xs"
-                    />
-                    <Button size="sm" variant="secondary" className="h-8" disabled={busy === v.chassis || !(draft[v.chassis] ?? '').trim()} onClick={() => add(v.chassis)}>
-                      {busy === v.chassis ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="flex flex-wrap gap-1.5">
+            {people.map(p => (
+              <span key={p.id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card pl-1 pr-1 py-0.5 text-sm">
+                <span className="inline-grid place-items-center h-6 w-6 rounded-full bg-bmw-blue/10 text-bmw-blue text-[11px] font-bold">{initials(p.nome)}</span>
+                <span className="font-medium">{p.nome}</span>
+                <button onClick={() => remove(p)} disabled={busy === p.id} className="grid place-items-center h-5 w-5 rounded-full text-muted-foreground hover:bg-destructive/15 hover:text-destructive disabled:opacity-50" title="Remover">
+                  {busy === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                </button>
+              </span>
+            ))}
           </div>
         )}
       </CardContent>
