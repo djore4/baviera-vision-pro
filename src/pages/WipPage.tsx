@@ -6,19 +6,31 @@ import {
 } from 'recharts';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
-  loadControlVuFromDb, listVuObjetivos, setVuObjetivo,
+  loadControlVuFromDb, listVuObjetivos, setVuObjetivo, type VuRecord,
 } from '@/lib/control-records-vu';
-import type { ControlRecord } from '@/types/data';
 
 /* ── WIP · Viaturas Usadas ─────────────────────────────────────────────────────
- * Dashboard da secção VU, alimentado pela tabela control_records_vu (registos
- * type='VU' do ficheiro VU carregado em Dados). Inclui o gauge de Realização vs
- * Objetivo apenas na ótica das FATURAS (objetivo mensal editável).
+ * Dashboard da secção VU, alimentado pela tabela control_records_vu (ficheiro VU
+ * carregado em Dados). Os registos têm STATUS = FATURA | CARTEIRA. O gauge de
+ * Realização vs Objetivo é apenas na ótica das FATURAS (objetivo mensal editável).
+ * O período é o mês da fatura (DFAT).
  * ──────────────────────────────────────────────────────────────────────────── */
 
-const STATUS_COLORS: Record<string, string> = { Retail: '#1C69D4', Matricula: '#06B6D4', Carteira: '#F59E0B' };
-const STATUS_LABELS: Record<string, string> = { Retail: 'Retail', Matricula: 'Matrícula', Carteira: 'Carteira' };
 const FATURA_COLOR = '#16A34A';
+const CARTEIRA_COLOR = '#F59E0B';
+
+const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+/** Chave do período (mês da fatura): 'AAAA/MM'. */
+function periodKey(d: Date | null): string | null {
+  if (!d) return null;
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function periodLabel(key: string): string {
+  const [y, m] = key.split('/');
+  const mi = Number(m) - 1;
+  return `${MESES_PT[mi] ?? m} ${y}`;
+}
 
 function Kpi({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
@@ -44,7 +56,7 @@ function Gauge({ pct, prevPct }: { pct: number; prevPct: number }) {
       <path d={arc} fill="none" stroke="hsl(var(--muted))" strokeWidth={16} strokeLinecap="round" />
       <path d={arc} fill="none" stroke={FATURA_COLOR} strokeWidth={16} strokeLinecap="round"
         pathLength={len} strokeDasharray={`${valLen} ${len}`} />
-      {/* marca da previsão */}
+      {/* marca da previsão (faturas + carteira) */}
       <circle cx={mx} cy={my} r={5} fill="hsl(var(--foreground))" stroke="hsl(var(--card))" strokeWidth={2} />
       <text x={CX} y={CY - 8} textAnchor="middle" className="fill-foreground" style={{ fontSize: 30, fontWeight: 800 }}>
         {Math.round(pct)}%
@@ -57,7 +69,7 @@ function Gauge({ pct, prevPct }: { pct: number; prevPct: number }) {
 export default function WipPage() {
   const { canEdit } = usePermissions();
   const canEditWip = canEdit('wip');
-  const [records, setRecords] = useState<ControlRecord[] | null>(null);
+  const [records, setRecords] = useState<VuRecord[] | null>(null);
   const [objMap, setObjMap] = useState<Record<string, number>>({});
   const [fMes, setFMes] = useState<string>('Todos');
   const [objDraft, setObjDraft] = useState<string>('');
@@ -76,43 +88,41 @@ export default function WipPage() {
 
   const meses = useMemo(() => {
     const set = new Set<string>();
-    (records ?? []).forEach(r => { if (r.mes1) set.add(r.mes1); });
+    (records ?? []).forEach(r => { const k = periodKey(r.dfat); if (k) set.add(k); });
     return ['Todos', ...[...set].sort().reverse()];
   }, [records]);
 
   const filtered = useMemo(() => {
     const all = records ?? [];
-    return fMes === 'Todos' ? all : all.filter(r => r.mes1 === fMes);
+    return fMes === 'Todos' ? all : all.filter(r => periodKey(r.dfat) === fMes);
   }, [records, fMes]);
 
   const statusByResp = useMemo(() => {
-    const map: Record<string, { resp: string; Retail: number; Matricula: number; Carteira: number; total: number }> = {};
+    const map: Record<string, { resp: string; Fatura: number; Carteira: number; total: number }> = {};
     filtered.forEach(r => {
       const resp = r.resp || '—';
-      if (!map[resp]) map[resp] = { resp, Retail: 0, Matricula: 0, Carteira: 0, total: 0 };
-      if (r.status === 'Retail') { map[resp].Retail++; map[resp].total++; }
-      else if (r.status === 'Matricula') { map[resp].Matricula++; map[resp].total++; }
-      else if (r.status === 'Carteira') { map[resp].Carteira++; map[resp].total++; }
+      if (!map[resp]) map[resp] = { resp, Fatura: 0, Carteira: 0, total: 0 };
+      if (r.status === 'FATURA') { map[resp].Fatura++; map[resp].total++; }
+      else if (r.status === 'CARTEIRA') { map[resp].Carteira++; map[resp].total++; }
     });
     return Object.values(map).sort((a, b) => b.total - a.total);
   }, [filtered]);
 
   const kpis = useMemo(() => {
-    let retails = 0, matriculas = 0, carteira = 0, faturas = 0;
+    let faturas = 0, carteira = 0, retails = 0;
     for (const r of filtered) {
-      if (r.status === 'Retail') retails++;
-      else if (r.status === 'Matricula') matriculas++;
-      else if (r.status === 'Carteira') carteira++;
-      if (r.dfat) faturas++;
+      if (r.status === 'FATURA') faturas++;
+      else if (r.status === 'CARTEIRA') carteira++;
+      if (r.ret > 0) retails++;
     }
-    return { retails, matriculas, carteira, faturas };
+    return { faturas, carteira, retails, total: faturas + carteira };
   }, [filtered]);
 
-  // Gauge de faturas: atual = registos VU faturados no período; previsão = todos
-  // os registos VU do período (esperam faturar); objetivo = meta do mês (ou soma).
+  // Gauge — só ótica da fatura: atual = faturas do período; previsão = faturas +
+  // carteira (esperadas); objetivo = meta do mês (ou soma de todos os meses).
   const gauge = useMemo(() => {
-    const atual = filtered.filter(r => r.dfat).length;
-    const previsao = filtered.filter(r => r.status !== 'Perdido').length;
+    const atual = filtered.filter(r => r.status === 'FATURA').length;
+    const previsao = filtered.length; // FATURA + CARTEIRA no período
     const objetivo = fMes === 'Todos'
       ? Object.values(objMap).reduce((s, v) => s + v, 0)
       : (objMap[fMes] ?? 0);
@@ -162,7 +172,7 @@ export default function WipPage() {
           <p className="text-xs text-muted-foreground leading-snug line-clamp-1">{filtered.length} de {records.length} registos VU.</p>
         </div>
         <select value={fMes} onChange={e => { setFMes(e.target.value); setObjDraft(''); }} className="h-9 rounded-md border border-input bg-background px-2 text-sm font-medium">
-          {meses.map(m => <option key={m} value={m}>{m === 'Todos' ? 'Todos os meses' : m}</option>)}
+          {meses.map(m => <option key={m} value={m}>{m === 'Todos' ? 'Todos os meses' : periodLabel(m)}</option>)}
         </select>
       </header>
 
@@ -170,15 +180,15 @@ export default function WipPage() {
         {/* KPIs + status por responsável */}
         <div className="lg:col-span-2 space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Kpi label="Retails" value={kpis.retails} color={STATUS_COLORS.Retail} />
             <Kpi label="Faturas" value={kpis.faturas} color={FATURA_COLOR} />
-            <Kpi label="Matrículas" value={kpis.matriculas} color={STATUS_COLORS.Matricula} />
-            <Kpi label="Carteira" value={kpis.carteira} color={STATUS_COLORS.Carteira} />
+            <Kpi label="Carteira" value={kpis.carteira} color={CARTEIRA_COLOR} />
+            <Kpi label="Total" value={kpis.total} />
+            <Kpi label="Retail" value={kpis.retails} />
           </div>
 
           <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Status por responsável</h2>
+              <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Faturas / Carteira por responsável</h2>
               <span className="text-sm font-bold text-primary tabular-nums">{statusByResp.reduce((s, r) => s + r.total, 0)}</span>
             </div>
             {statusByResp.length === 0 ? (
@@ -191,10 +201,9 @@ export default function WipPage() {
                     <XAxis dataKey="resp" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                     <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                    <Legend wrapperStyle={{ fontSize: 10 }} formatter={(v: string) => STATUS_LABELS[v] ?? v} />
-                    <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} />
-                    <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} />
-                    <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira}>
+                    <Legend wrapperStyle={{ fontSize: 10 }} />
+                    <Bar dataKey="Fatura" stackId="a" fill={FATURA_COLOR} />
+                    <Bar dataKey="Carteira" stackId="a" fill={CARTEIRA_COLOR}>
                       <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                     </Bar>
                   </BarChart>
@@ -217,10 +226,10 @@ export default function WipPage() {
             </div>
             <div>
               <p className="text-base font-extrabold tabular-nums" style={{ color: FATURA_COLOR }}>{gauge.atual}</p>
-              <p className="text-[9px] text-muted-foreground">Atual</p>
+              <p className="text-[9px] text-muted-foreground">Faturas</p>
             </div>
             <div>
-              <p className="text-base font-bold text-muted-foreground tabular-nums">{gauge.previsao}</p>
+              <p className="text-base font-bold tabular-nums" style={{ color: CARTEIRA_COLOR }}>{gauge.previsao}</p>
               <p className="text-[9px] text-muted-foreground">Previsão</p>
             </div>
           </div>
@@ -234,7 +243,7 @@ export default function WipPage() {
                 value={objDraft}
                 onChange={e => setObjDraft(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && saveObjetivo()}
-                placeholder={`Objetivo ${fMes}…`}
+                placeholder={`Objetivo ${periodLabel(fMes)}…`}
                 className="h-8 flex-1 min-w-0 rounded-md border border-input bg-background px-2 text-xs"
               />
               <button onClick={saveObjetivo} disabled={objDraft === ''} className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50">Guardar</button>
@@ -252,35 +261,42 @@ export default function WipPage() {
             <tr>
               <th className="text-left font-semibold px-2.5 py-2">Resp</th>
               <th className="text-left font-semibold px-2.5 py-2">Status</th>
+              <th className="text-left font-semibold px-2.5 py-2">Tipo</th>
               <th className="text-left font-semibold px-2.5 py-2">Modelo</th>
               <th className="text-left font-semibold px-2.5 py-2">Versão</th>
               <th className="text-left font-semibold px-2.5 py-2">Cliente</th>
               <th className="text-left font-semibold px-2.5 py-2">Matrícula</th>
-              <th className="text-center font-semibold px-2.5 py-2">Retail (298)</th>
+              <th className="text-left font-semibold px-2.5 py-2">Proveniência</th>
+              <th className="text-center font-semibold px-2.5 py-2">Retail</th>
               <th className="text-center font-semibold px-2.5 py-2">Fatura</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">Sem registos no período.</td></tr>
+              <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">Sem registos no período.</td></tr>
             )}
-            {filtered.map(r => (
-              <tr key={r.id ?? r.chas} className="border-t border-border/70 hover:bg-primary/[0.03]">
-                <td className="px-2.5 py-1.5 font-semibold">{r.resp || '—'}</td>
-                <td className="px-2.5 py-1.5">
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: STATUS_COLORS[r.status] ?? 'hsl(var(--muted-foreground))' }} />
-                    {STATUS_LABELS[r.status] ?? (r.status || '—')}
-                  </span>
-                </td>
-                <td className="px-2.5 py-1.5 font-medium">{r.model || '—'}</td>
-                <td className="px-2.5 py-1.5 text-muted-foreground">{r.version || '—'}</td>
-                <td className="px-2.5 py-1.5 text-muted-foreground truncate max-w-[14rem]">{r.cliente || '—'}</td>
-                <td className="px-2.5 py-1.5 font-mono uppercase">{r.mat || '—'}</td>
-                <td className="px-2.5 py-1.5 text-center tabular-nums">{fmtD(r.date298)}</td>
-                <td className="px-2.5 py-1.5 text-center tabular-nums">{fmtD(r.dfat)}</td>
-              </tr>
-            ))}
+            {filtered.map((r, i) => {
+              const isFatura = r.status === 'FATURA';
+              return (
+                <tr key={r.id ?? `${r.chassis}-${i}`} className="border-t border-border/70 hover:bg-primary/[0.03]">
+                  <td className="px-2.5 py-1.5 font-semibold">{r.resp || '—'}</td>
+                  <td className="px-2.5 py-1.5">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: isFatura ? FATURA_COLOR : CARTEIRA_COLOR }} />
+                      {isFatura ? 'Fatura' : 'Carteira'}
+                    </span>
+                  </td>
+                  <td className="px-2.5 py-1.5 text-muted-foreground">{r.type || '—'}</td>
+                  <td className="px-2.5 py-1.5 font-medium">{r.model || '—'}</td>
+                  <td className="px-2.5 py-1.5 text-muted-foreground">{r.version || '—'}</td>
+                  <td className="px-2.5 py-1.5 text-muted-foreground truncate max-w-[14rem]">{r.cliente || '—'}</td>
+                  <td className="px-2.5 py-1.5 font-mono uppercase">{r.mat || '—'}</td>
+                  <td className="px-2.5 py-1.5 text-muted-foreground">{r.prov || '—'}</td>
+                  <td className="px-2.5 py-1.5 text-center tabular-nums">{r.ret > 0 ? '✓' : '—'}</td>
+                  <td className="px-2.5 py-1.5 text-center tabular-nums">{fmtD(r.dfat)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
