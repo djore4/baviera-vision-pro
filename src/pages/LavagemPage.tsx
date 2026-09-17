@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Car, Loader2, CheckCircle2, CalendarDays, Trash2, ChevronLeft, ChevronRight,
-  BarChart3, FileSpreadsheet, Star, Info, User, PlayCircle, History, Download,
+  BarChart3, FileSpreadsheet, Star, User, PlayCircle, History, Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
@@ -737,12 +737,6 @@ export default function LavagemPage() {
                   rows={2}
                 />
               </div>
-
-              {/* Aviso de antecedência mínima para agendamentos futuros. */}
-              <p className="flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
-                <Info className="h-3.5 w-3.5 flex-shrink-0" />
-                Realizar agendamento com, pelo menos, 48h de antecedência.
-              </p>
 
               <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-2">
                 {canStartCycle && (

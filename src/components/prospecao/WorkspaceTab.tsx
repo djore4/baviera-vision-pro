@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   AlertTriangle, Plus, Check, Trash2, CalendarDays, ListChecks, Loader2, Building2,
-  Bell, CircleDot, Target, PartyPopper, CalendarCheck, Eye,
+  Bell, CircleDot, Target, PartyPopper, CalendarCheck, Users, User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -27,13 +27,10 @@ const typeMeta: Record<Task['type'], { label: string; icon: typeof CircleDot }> 
 
 export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: Props) {
   const [sellers, setSellers] = useState<ProspecOwner[]>([]);
-  // O admin pode ver o dia de um vendedor à escolha (por defeito, o seu). Para
-  // um vendedor normal fica sempre o próprio. As tarefas mostradas — e as novas
-  // que criar — são as do dia que está a ver.
-  const [viewEmail, setViewEmail] = useState<string>(myEmail ?? '');
-  useEffect(() => { if (!viewEmail && myEmail) setViewEmail(myEmail); }, [myEmail, viewEmail]);
-  const viewNome = viewEmail === myEmail ? myNome : (sellers.find(s => s.email === viewEmail)?.nome ?? viewEmail);
-  const scope: Scope = useMemo(() => ({ isDirector: false, email: viewEmail || myEmail }), [viewEmail, myEmail]);
+  // O admin vê nativamente as tarefas (agendadas e atrasadas) de toda a equipa e
+  // pode filtrar por responsável ('' = todos). O vendedor normal vê só as suas.
+  const [filterEmail, setFilterEmail] = useState<string>('');
+  const scope: Scope = useMemo(() => ({ isDirector: !!isDirector, email: myEmail }), [isDirector, myEmail]);
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
 
@@ -41,6 +38,14 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
   const [descricao, setDescricao] = useState('');
   const [quando, setQuando] = useState('');
   const [contaId, setContaId] = useState('');
+  // dono da nova tarefa (só admin); por defeito o responsável filtrado ou o próprio
+  const [newOwner, setNewOwner] = useState<string>('');
+
+  const ownerName = useCallback((email: string | null) => {
+    if (!email) return null;
+    if (email === myEmail) return myNome ?? myEmail;
+    return sellers.find(s => s.email === email)?.nome ?? email;
+  }, [myEmail, myNome, sellers]);
 
   // diálogo de edição de tarefa
   const [taskOpen, setTaskOpen] = useState(false);
@@ -67,8 +72,8 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
   const add = async () => {
     if (!descricao.trim()) { toast.error('Descreve a tarefa.'); return; }
     try {
-      const oe = viewEmail || myEmail;
-      const on = oe === myEmail ? myNome : (sellers.find(s => s.email === oe)?.nome ?? null);
+      const oe = isDirector ? (newOwner || filterEmail || myEmail) : myEmail;
+      const on = ownerName(oe);
       await createTask({
         type: 'todo',
         descricao: descricao.trim(),
@@ -76,7 +81,7 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
         account_id: contaId || null,
         owner_email: oe, owner_nome: on, created_by: myEmail,
       });
-      setDescricao(''); setQuando(''); setContaId('');
+      setDescricao(''); setQuando(''); setContaId(''); setNewOwner('');
       refresh();
     } catch (e) { toast.error((e as Error).message); }
   };
@@ -84,7 +89,8 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
   const remove = async (id: string) => { try { await deleteTask(id); refresh(); } catch (e) { toast.error((e as Error).message); } };
 
   const groups = useMemo(() => {
-    const all = tasks ?? [];
+    const base = tasks ?? [];
+    const all = isDirector && filterEmail ? base.filter(t => t.owner_email === filterEmail) : base;
     const overdue = all.filter(isOverdue).sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime());
     const openList = all.filter(t => !isOverdue(t))
       .sort((a, b) => {
@@ -99,7 +105,7 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
     const dated = all.filter(t => t.due_at);
     return { overdue, openList, weekDays, dated };
-  }, [tasks]);
+  }, [tasks, isDirector, filterEmail]);
 
   if (tasks === null) {
     return <div className="flex items-center justify-center py-20 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" />A carregar…</div>;
@@ -133,6 +139,7 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
               </span>
             )}
             {accountName(t.account_id) && <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" />{accountName(t.account_id)}</span>}
+            {isDirector && ownerName(t.owner_email) && <span className="inline-flex items-center gap-1 font-medium text-foreground/70"><User className="h-3 w-3" />{ownerName(t.owner_email)}</span>}
           </div>
         </div>
         <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -144,30 +151,29 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
   };
 
   const today0 = startOfDay(new Date());
-  const viewingOther = isDirector && !!viewEmail && viewEmail !== myEmail;
+  const filterNome = filterEmail ? ownerName(filterEmail) : null;
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* ── Vista (admin): ver o dia de um vendedor à escolha ── */}
+      {/* ── Filtro por responsável (admin): vê toda a equipa e pode filtrar ── */}
       {isDirector && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-sm">
-          <Eye className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="text-xs font-medium text-muted-foreground">A ver o dia de</span>
+          <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="text-xs font-medium text-muted-foreground">Responsável</span>
           <select
-            value={viewEmail}
-            onChange={e => setViewEmail(e.target.value)}
+            value={filterEmail}
+            onChange={e => setFilterEmail(e.target.value)}
             className="h-9 rounded-md border border-input bg-background px-2 text-sm font-medium"
           >
+            <option value="">Toda a equipa</option>
             {myEmail && <option value={myEmail}>Eu — {myNome ?? myEmail}</option>}
             {sellers.filter(s => s.email !== myEmail).map(s => (
               <option key={s.email} value={s.email}>{s.nome}</option>
             ))}
           </select>
-          {viewingOther && (
-            <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold px-2.5 py-1">
-              A ver como {viewNome} · novas tarefas ficam para {viewNome}
-            </span>
-          )}
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold px-2.5 py-1">
+            {filterNome ? `A ver ${filterNome}` : 'A ver toda a equipa'}
+          </span>
         </div>
       )}
 
@@ -180,11 +186,17 @@ export function WorkspaceTab({ myEmail, myNome, isDirector, onCountsChanged }: P
             : <div className="space-y-2">{groups.overdue.map(t => <TaskItem key={t.id} t={t} />)}</div>}
         </SectionCard>
 
-        {/* ── As minhas tarefas (ou as do vendedor em vista) ── */}
-        <SectionCard icon={ListChecks} title={viewingOther ? `Tarefas de ${viewNome}` : 'As minhas tarefas'} count={groups.openList.length}>
+        {/* ── Tarefas (da equipa, do responsável filtrado, ou as minhas) ── */}
+        <SectionCard icon={ListChecks} title={isDirector ? (filterEmail ? `Tarefas de ${filterNome}` : 'Tarefas da equipa') : 'As minhas tarefas'} count={groups.openList.length}>
           <div className="flex flex-wrap gap-2 mb-3">
             <Input value={descricao} onChange={e => setDescricao(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} placeholder="Nova tarefa…" className="w-full sm:flex-1 sm:min-w-[12rem]" />
             <Input type="datetime-local" value={quando} onChange={e => setQuando(e.target.value)} className="w-full sm:w-52" title="Lembrete / prazo (opcional)" />
+            {isDirector && (
+              <select value={newOwner || filterEmail || myEmail || ''} onChange={e => setNewOwner(e.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm w-full sm:w-auto" title="Responsável pela tarefa">
+                {myEmail && <option value={myEmail}>Eu — {myNome ?? myEmail}</option>}
+                {sellers.filter(s => s.email !== myEmail).map(s => <option key={s.email} value={s.email}>{s.nome}</option>)}
+              </select>
+            )}
             <select value={contaId} onChange={e => setContaId(e.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm w-full sm:w-auto">
               <option value="">Sem cliente</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
