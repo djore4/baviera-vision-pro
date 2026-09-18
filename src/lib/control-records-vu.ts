@@ -60,6 +60,16 @@ function toNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Normaliza uma data de garantia (DGARANT / GARANT 3S) para ISO 'AAAA-MM-DD'
+ *  quando o valor é reconhecível como data (célula de data do Excel, serial ou
+ *  string parseável). Caso contrário devolve a string original — assim, enquanto
+ *  o ficheiro ainda não estiver no formato data, mostra-se o valor tal como está
+ *  e, depois de corrigido, passa automaticamente a data. */
+export function garantiaToIso(v: unknown): string {
+  const d = toDate(v);
+  return d ? d.toISOString().slice(0, 10) : str(v);
+}
+
 /** Lê a sheet CONTROL do ficheiro VU e devolve os registos (FATURA/CARTEIRA). */
 export function parseVuControl(buffer: ArrayBuffer): VuRecord[] {
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
@@ -112,8 +122,8 @@ export function parseVuControl(buffer: ArrayBuffer): VuRecord[] {
       a360: toNum(at(row, '360º', '360')),
       recond: toNum(at(row, 'RECOND')),
       dfat: toDate(at(row, 'DFAT')),
-      dgarant: str(at(row, 'DGARANT')),
-      garant3s: str(at(row, 'GARANT 3S', 'GARANT3S')),
+      dgarant: garantiaToIso(at(row, 'DGARANT')),
+      garant3s: garantiaToIso(at(row, 'GARANT 3S', 'GARANT3S')),
       obs: str(at(row, 'OBS')),
     });
   }

@@ -3,8 +3,10 @@ import { ClipboardList, Loader2, Database, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
+  PieChart, Pie, Cell,
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
+import { RetomaFilter } from '@/components/RetomaFilter';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   loadControlVuFromDb, listVuObjetivos, setVuObjetivo, type VuRecord,
@@ -20,6 +22,21 @@ import {
 
 const FATURA_COLOR = '#16A34A';
 const CARTEIRA_COLOR = '#F59E0B';
+
+/* Método de pagamento (mesma paleta e formato da WIP VN). */
+const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', EXT: '#F59E0B', FEXT: '#F59E0B', FINT: '#8B5CF6' };
+const FIN_FALLBACK = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
+const finColor = (name: string, i: number) =>
+  name === 'N/A' ? '#94A3B8' : (FIN_COLORS[name.trim().toUpperCase()] ?? FIN_FALLBACK[i % FIN_FALLBACK.length]);
+
+/* Datas de garantia (DGARANT / GARANT 3S): o parser normaliza para ISO quando o
+ * valor é uma data reconhecível; aqui formatamos dd/mm/aa. Enquanto o ficheiro
+ * não estiver no formato data, mostra-se o valor tal como veio. */
+const fmtGarantia = (v: string) => {
+  if (!v) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+  return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : v;
+};
 
 /* Código de cores por proveniência (glance rápido na tabela). */
 const PROV_COLORS: Record<string, string> = {
@@ -78,6 +95,8 @@ export default function WipPage() {
   const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null); // FATURA | CARTEIRA
   const [selectedProv, setSelectedProv] = useState<string | null>(null);
+  const [selectedRet, setSelectedRet] = useState<boolean | null>(null); // retoma: null=todos, true=com, false=sem
+  const [selectedFin, setSelectedFin] = useState<string | null>(null); // método de pagamento (PP | FS | EXT | N/A)
   const [objDraft, setObjDraft] = useState<string>('');
 
   useEffect(() => {
@@ -125,9 +144,11 @@ export default function WipPage() {
     if (selectedResps.size > 0) result = result.filter(r => selectedResps.has(r.resp || '—'));
     if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
     if (selectedProv) result = result.filter(r => (r.prov || '').trim().toUpperCase() === selectedProv);
+    if (selectedRet !== null) result = result.filter(r => (r.ret > 0) === selectedRet);
+    if (selectedFin) result = result.filter(r => selectedFin === 'N/A' ? !r.fin : (r.fin || '').trim().toUpperCase() === selectedFin);
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [records, selectedMonthKeys, selectedResps, selectedStatus, selectedProv]);
+  }, [records, selectedMonthKeys, selectedResps, selectedStatus, selectedProv, selectedRet, selectedFin]);
 
   const resps = useMemo(() => {
     const set = new Set<string>();
@@ -160,6 +181,20 @@ export default function WipPage() {
       if (r.ret > 0) retails++;
     }
     return { faturas, carteira, retails, total: faturas + carteira };
+  }, [filtered]);
+
+  // Método de pagamento (FIN) — distribuição para o gráfico circular. Registos
+  // sem FIN entram como "N/A", à imagem da WIP VN.
+  const finData = useMemo(() => {
+    const map: Record<string, number> = {};
+    filtered.forEach(r => { const f = (r.fin || '').trim().toUpperCase(); if (f) map[f] = (map[f] || 0) + 1; });
+    const totalWithFin = Object.values(map).reduce((s, v) => s + v, 0);
+    const diff = filtered.length - totalWithFin;
+    const entries = Object.entries(map)
+      .map(([name, value]) => ({ name, value, pct: Math.round((value / (filtered.length || 1)) * 100) }))
+      .sort((a, b) => b.value - a.value);
+    if (diff > 0) entries.push({ name: 'N/A', value: diff, pct: Math.round((diff / (filtered.length || 1)) * 100) });
+    return entries;
   }, [filtered]);
 
   // Gauge — só ótica da fatura: atual = faturas do período; previsão = faturas +
@@ -209,7 +244,8 @@ export default function WipPage() {
   const fmtD = (d: Date | null) => d ? new Date(d).toLocaleDateString('pt-PT') : '—';
 
   const activeFilters =
-    selectedResps.size + (selectedStatus ? 1 : 0) + (selectedProv ? 1 : 0) + fYears.length + fMonths.length;
+    selectedResps.size + (selectedStatus ? 1 : 0) + (selectedProv ? 1 : 0)
+    + (selectedRet !== null ? 1 : 0) + (selectedFin ? 1 : 0) + fYears.length + fMonths.length;
 
   if (records === null) {
     return <div className="py-20 text-center text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline mr-2" />A carregar dados VU…</div>;
@@ -324,6 +360,11 @@ export default function WipPage() {
             </div>
           </div>
 
+          {/* Retoma (tri-estado, como na WIP VN) */}
+          <div className="bg-card border border-border rounded-lg p-3">
+            <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
+          </div>
+
           {/* Proveniência */}
           {provs.length > 0 && (
             <div className="bg-card border border-border rounded-lg p-3 space-y-2">
@@ -354,6 +395,8 @@ export default function WipPage() {
               )}
               {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => setSelectedStatus(null)}>{selectedStatus === 'FATURA' ? 'Fatura' : 'Carteira'} ✕</Badge>}
               {selectedProv && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => setSelectedProv(null)}>{selectedProv} ✕</Badge>}
+              {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => setSelectedRet(null)}>Retoma: {selectedRet ? 'Com' : 'Sem'} ✕</Badge>}
+              {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => setSelectedFin(null)}>FIN: {selectedFin} ✕</Badge>}
               {(fYears.length > 0 || fMonths.length > 0) && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={clearPeriod}>Período ✕</Badge>}
             </div>
           )}
@@ -378,7 +421,7 @@ export default function WipPage() {
                 <Kpi label="Faturas" value={kpis.faturas} color={FATURA_COLOR} />
                 <Kpi label="Carteira" value={kpis.carteira} color={CARTEIRA_COLOR} />
                 <Kpi label="Total" value={kpis.total} />
-                <Kpi label="Retail" value={kpis.retails} />
+                <Kpi label="Retomas" value={kpis.retails} />
               </div>
 
               <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
@@ -403,6 +446,48 @@ export default function WipPage() {
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* Método de Pagamento (FIN) — mesmo formato da WIP VN, clicável para filtrar */}
+              <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+                <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">Método de Pagamento</h2>
+                {finData.length === 0 ? (
+                  <p className="py-8 text-center text-xs text-muted-foreground">Sem registos no período.</p>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <ResponsiveContainer width="50%" height={Math.max(110, finData.length * 28 + 20)}>
+                      <PieChart>
+                        <Tooltip formatter={(value: number, name) => [`${value} (${Math.round((Number(value) / (filtered.length || 1)) * 100)}%)`, name]}
+                          contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                        <Pie data={finData} dataKey="value" nameKey="name" outerRadius={48} stroke="hsl(var(--background))" strokeWidth={1.5}
+                          onClick={(entry: { name?: string }) => entry?.name && setSelectedFin(prev => prev === entry.name ? null : entry.name!)} cursor="pointer">
+                          {finData.map((entry, i) => {
+                            const isDimmed = selectedFin && selectedFin !== entry.name;
+                            return <Cell key={entry.name} fill={finColor(entry.name, i)} opacity={isDimmed ? 0.35 : 1} />;
+                          })}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="space-y-1 flex-1">
+                      {finData.map((entry, i) => {
+                        const isDimmed = selectedFin && selectedFin !== entry.name;
+                        return (
+                          <div key={entry.name} className="flex items-center gap-2 cursor-pointer" style={{ opacity: isDimmed ? 0.3 : 1 }}
+                            onClick={() => setSelectedFin(prev => prev === entry.name ? null : entry.name)}>
+                            <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: finColor(entry.name, i) }} />
+                            <span className="text-[10px] font-medium w-9">{entry.name}</span>
+                            <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
+                            <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
+                          </div>
+                        );
+                      })}
+                      <div className="border-t border-border pt-1 mt-1 flex items-center justify-between">
+                        <span className="text-[10px] font-semibold">Total</span>
+                        <span className="text-[10px] font-bold">{filtered.length}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -462,13 +547,17 @@ export default function WipPage() {
                   <th className="text-left font-semibold px-2.5 py-2">Cliente</th>
                   <th className="text-left font-semibold px-2.5 py-2">Matrícula</th>
                   <th className="text-left font-semibold px-2.5 py-2">Proveniência</th>
-                  <th className="text-center font-semibold px-2.5 py-2">Retail</th>
+                  <th className="text-center font-semibold px-2.5 py-2">RET</th>
+                  <th className="text-center font-semibold px-2.5 py-2">FIN</th>
+                  <th className="text-center font-semibold px-2.5 py-2">360º</th>
                   <th className="text-center font-semibold px-2.5 py-2">Fatura</th>
+                  <th className="text-center font-semibold px-2.5 py-2">DGarant</th>
+                  <th className="text-center font-semibold px-2.5 py-2">Garant 3S</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && (
-                  <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">Sem registos no período.</td></tr>
+                  <tr><td colSpan={14} className="py-8 text-center text-muted-foreground">Sem registos no período.</td></tr>
                 )}
                 {filtered.map((r, i) => {
                   const isFatura = r.status === 'FATURA';
@@ -497,7 +586,11 @@ export default function WipPage() {
                         ) : '—'}
                       </td>
                       <td className="px-2.5 py-1.5 text-center tabular-nums">{r.ret > 0 ? '✓' : '—'}</td>
+                      <td className="px-2.5 py-1.5 text-center uppercase">{r.fin || '—'}</td>
+                      <td className="px-2.5 py-1.5 text-center tabular-nums">{r.a360 > 0 ? '✓' : '—'}</td>
                       <td className="px-2.5 py-1.5 text-center tabular-nums">{fmtD(r.dfat)}</td>
+                      <td className="px-2.5 py-1.5 text-center tabular-nums">{fmtGarantia(r.dgarant)}</td>
+                      <td className="px-2.5 py-1.5 text-center tabular-nums">{fmtGarantia(r.garant3s)}</td>
                     </tr>
                   );
                 })}
