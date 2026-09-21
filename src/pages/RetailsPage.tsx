@@ -110,10 +110,22 @@ export default function RetailsPage() {
       return false;
     };
 
+    // Retails realizados: viaturas com retail feito (estado "Retail") posicionadas
+    // no mês pela mesma regra do gráfico de barras — getDeliveryMonth (MÊS1 é a
+    // autoridade, 298 é o recurso). Assim o "Atual" bate certo com o segmento
+    // "Retail" das barras (baseRecords), em vez de contar por mês de data 298.
+    const isRetailNoPeriodo = (r: typeof data.control[number]) =>
+      isRetailType(r.type) && r.status === 'Retail' && monthInPeriod(getDeliveryMonth(r));
+    // Previsão de retails = total posicionado no mês (Retail já feito + Carteira/
+    // Matrícula previstas) — igual ao total das barras do gráfico.
+    const isRetailPrevisto = (r: typeof data.control[number]) =>
+      isRetailType(r.type) && ['Retail', 'Carteira', 'Matricula'].includes(r.status)
+      && monthInPeriod(getDeliveryMonth(r));
+
     const faturas = data.control.filter(r => inPeriod(r.dfat)).length;                                  // todos (inclui VP)
-    const retails = data.control.filter(r => isRetailType(r.type) && inPeriod(r.date298)).length;       // só VN/VD
+    const retails = data.control.filter(isRetailNoPeriodo).length;                                      // só VN/VD, estado Retail
     const faturasPrevisao = data.control.filter(inPrevisao).length;                                     // todos (inclui VP)
-    const retailsPrevisao = data.control.filter(r => isRetailType(r.type) && inPrevisao(r)).length;     // só VN/VD
+    const retailsPrevisao = data.control.filter(isRetailPrevisto).length;                               // só VN/VD
 
     // Faturas vs objetivo Caetano; Retails vs objetivo BMW.
     const faturasPct = targetCaetano ? Math.round((faturas / targetCaetano) * 100) : 0;
