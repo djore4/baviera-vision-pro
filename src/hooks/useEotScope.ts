@@ -3,17 +3,24 @@ import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import type { Scope } from '@/lib/eot';
 
-/* Escopo de acesso ao End-of-Term: o chefe de vendas (admin) vê e controla tudo;
- * o vendedor vê apenas os contratos de que é responsável (owner_email). O código
- * já está preparado para vendedores, embora o tab comece restrito a admin. */
+/* Perfis com visibilidade total no End-of-Term (veem e controlam todos os
+ * contratos, como o administrador). Os restantes perfis com acesso ao tab
+ * (ex.: vendedores) veem apenas os contratos que lhes estão afetos (owner_email). */
+const EOT_FULL_ACCESS_ROLES = new Set(['Finance']);
+
+/* Escopo de acesso ao End-of-Term:
+ *  - administrador e perfis de gestão (Finance) → veem tudo;
+ *  - vendedores → apenas os contratos de que são responsáveis (owner_email). */
 export function useEotScope() {
   const { session } = useAuth();
-  const { isAdmin, me } = usePermissions();
+  const { isAdmin, roleName, me } = usePermissions();
 
   const email = session?.user.email ?? null;
   const nome = me?.nome ?? session?.user.email ?? null;
 
-  const scope = useMemo<Scope>(() => ({ isDirector: isAdmin, email }), [isAdmin, email]);
+  const isDirector = isAdmin || (!!roleName && EOT_FULL_ACCESS_ROLES.has(roleName));
 
-  return { scope, isDirector: isAdmin, myEmail: email, myNome: nome };
+  const scope = useMemo<Scope>(() => ({ isDirector, email }), [isDirector, email]);
+
+  return { scope, isDirector, myEmail: email, myNome: nome };
 }
