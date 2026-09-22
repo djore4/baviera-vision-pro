@@ -306,17 +306,21 @@ export async function listEotVendedores(scope: Scope): Promise<string[]> {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
-/* ── Responsáveis (utilizadores a quem o chefe pode atribuir contratos) ───────── */
+/* ── Responsáveis (vendedores a quem o chefe pode atribuir contratos) ─────────── */
 export interface EotOwner { email: string; nome: string; }
 
-/** Utilizadores da plataforma a quem se pode atribuir um contrato para follow-up.
- *  Lista todas as contas com email; o chefe de vendas escolhe. O contrato passa a
- *  aparecer no "mapa" do vendedor (filtro por owner_email). */
+/* Perfis de vendedor — os mesmos que trabalham o tab WIP. São estas as contas a
+ * quem se pode atribuir um contrato para follow-up. */
+export const EOT_SELLER_ROLES = ['Vendedor VN', 'Vendedor VU'];
+
+/** Vendedores da plataforma (contas com perfil de vendedor). O contrato atribuído
+ *  passa a aparecer no "mapa" do vendedor (filtro por owner_email). */
 export async function listEotOwners(): Promise<EotOwner[]> {
-  const { data, error } = await supabase.from('app_users').select('nome, email');
+  const { data, error } = await supabase.from('app_users').select('nome, email, perfil');
   if (error || !data) return [];
-  return (data as { nome: string | null; email: string | null }[])
-    .filter(u => u.email)
+  const roles = new Set(EOT_SELLER_ROLES);
+  return (data as { nome: string | null; email: string | null; perfil: string | null }[])
+    .filter(u => u.email && u.perfil && roles.has(u.perfil))
     .map(u => ({ email: u.email as string, nome: u.nome || (u.email as string) }))
     .sort((a, b) => a.nome.localeCompare(b.nome));
 }
