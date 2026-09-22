@@ -54,6 +54,7 @@ export const TABS: TabDef[] = [
   { key: 'funil', label: 'Funil', path: '/funil', area: 'vn' },
   { key: 'producao', label: 'Produção', path: '/producao', area: 'vn' },
   { key: 'carteira', label: 'Carteira', path: '/carteira', area: 'vn' },
+  { key: 'end-of-term', label: 'End-of-Term', path: '/end-of-term', area: 'vn' },
   { key: 'ficha-margem', label: 'Ficha Margem', path: '/ficha-margem', area: 'vn' },
   { key: 'escala', label: 'Escala', path: '/escala', area: 'vn' },
   { key: 'vendedores', label: 'Performance', path: '/vendedores', area: 'vn' },

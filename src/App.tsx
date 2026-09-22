@@ -39,6 +39,7 @@ import ResultadosVnPage from "./pages/ResultadosVnPage";
 import ResultadosVuPage from "./pages/ResultadosVuPage";
 import ResultadosFinancePage from "./pages/ResultadosFinancePage";
 import ResultadosApvPage from "./pages/ResultadosApvPage";
+import EndOfTermPage from "./pages/EndOfTermPage";
 import { EasterEggs } from "@/components/EasterEggs";
 import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
 import { ProspecProvider } from "@/contexts/ProspecContext";
@@ -102,6 +103,7 @@ const App = () => (
               <Route path="/retails" element={tab('retails', <RetailsPage />)} />
               <Route path="/producao" element={tab('producao', <ProducaoPage />)} />
               <Route path="/carteira" element={tab('carteira', <CarteiraPage />)} />
+              <Route path="/end-of-term" element={tab('end-of-term', <EndOfTermPage />)} />
               <Route path="/pendentes" element={tab('pendentes', <PendentesPage />)} />
               <Route path="/escala" element={tab('escala', <EscalaPage />)} />
               <Route path="/escala-repsol" element={tab('escala-repsol', <EscalaRepsolPage />)} />
