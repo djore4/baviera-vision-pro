@@ -153,11 +153,11 @@ export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirect
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 flex-wrap">
-            <span className="truncate">{contract.cliente || 'Cliente sem nome'}</span>
-            <span className={cn('rounded-full text-[11px] font-semibold px-2 py-0.5', faseCls(contract.fase))}>
+          <DialogTitle className="flex items-start gap-2 flex-wrap pr-6 text-base sm:text-lg text-left">
+            <span className="min-w-0 break-words">{contract.cliente || 'Cliente sem nome'}</span>
+            <span className={cn('shrink-0 rounded-full text-[11px] font-semibold px-2 py-0.5 self-center', faseCls(contract.fase))}>
               {faseLabel(contract.fase)}
             </span>
           </DialogTitle>

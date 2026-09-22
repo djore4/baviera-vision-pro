@@ -119,7 +119,6 @@ export default function EndOfTermPage() {
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="text-base sm:text-lg font-bold tracking-tight leading-tight truncate">End-of-Term</h1>
-          <p className="text-xs text-muted-foreground leading-snug line-clamp-1">Controlo das terminações de contrato BMW FS e follow-up da equipa.</p>
         </div>
         {kpis.overdueFollow > 0 && (
           <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-destructive/10 text-destructive text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 whitespace-nowrap">
