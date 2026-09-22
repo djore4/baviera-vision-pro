@@ -306,6 +306,29 @@ export async function listEotVendedores(scope: Scope): Promise<string[]> {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
+/* ── Responsáveis (utilizadores a quem o chefe pode atribuir contratos) ───────── */
+export interface EotOwner { email: string; nome: string; }
+
+/** Utilizadores da plataforma a quem se pode atribuir um contrato para follow-up.
+ *  Lista todas as contas com email; o chefe de vendas escolhe. O contrato passa a
+ *  aparecer no "mapa" do vendedor (filtro por owner_email). */
+export async function listEotOwners(): Promise<EotOwner[]> {
+  const { data, error } = await supabase.from('app_users').select('nome, email');
+  if (error || !data) return [];
+  return (data as { nome: string | null; email: string | null }[])
+    .filter(u => u.email)
+    .map(u => ({ email: u.email as string, nome: u.nome || (u.email as string) }))
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+}
+
+/** Atribui (ou remove) o responsável de follow-up de um contrato. */
+export async function assignEotOwner(contrato: string, owner: EotOwner | null): Promise<EotContract> {
+  return updateEotContract(contrato, {
+    owner_email: owner?.email ?? null,
+    owner_nome: owner?.nome ?? null,
+  });
+}
+
 /* ── Atividades (agendamentos + histórico) ───────────────────────────────────── */
 
 export type NewActivity =

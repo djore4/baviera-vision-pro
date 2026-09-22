@@ -16,9 +16,9 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import {
-  updateEotContract, listActivities, createActivity, setActivityDone, deleteActivity,
+  updateEotContract, assignEotOwner, listActivities, createActivity, setActivityDone, deleteActivity,
   FASES, faseLabel, faseCls, ACT_TIPOS, actTipoLabel, isOverdue, daysToEnd, eur,
-  type EotContract, type EotActivity, type Fase, type ActTipo,
+  type EotContract, type EotActivity, type EotOwner, type Fase, type ActTipo,
 } from '@/lib/eot';
 import { relativeLabel } from '@/components/prospecao/ui';
 
@@ -38,15 +38,20 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   contract: EotContract | null;
   canEdit: boolean;
+  isDirector: boolean;
+  owners: EotOwner[];
   autor: string | null;
   ownerEmail: string | null;
   onChanged: () => void;
 }
 
-export function ContractDialog({ open, onOpenChange, contract, canEdit, autor, ownerEmail, onChanged }: Props) {
+const UNASSIGNED = '__none__';
+
+export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirector, owners, autor, ownerEmail, onChanged }: Props) {
   const [fase, setFase] = useState<Fase>('pendente');
   const [obs, setObs] = useState('');
   const [savingState, setSavingState] = useState(false);
+  const [assigning, setAssigning] = useState(false);
 
   const [activities, setActivities] = useState<EotActivity[]>([]);
   const [loadingActs, setLoadingActs] = useState(false);
@@ -92,6 +97,17 @@ export function ContractDialog({ open, onOpenChange, contract, canEdit, autor, o
     finally { setSavingState(false); }
   };
 
+  const changeOwner = async (value: string) => {
+    setAssigning(true);
+    try {
+      const owner = value === UNASSIGNED ? null : owners.find(o => o.email === value) ?? null;
+      await assignEotOwner(contract.contrato, owner);
+      toast.success(owner ? `Atribuído a ${owner.nome}.` : 'Atribuição removida.');
+      onChanged();
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setAssigning(false); }
+  };
+
   const addActivity = async () => {
     if (!novoDone && !novoQuando) {
       toast.error('Agende uma data ou marque como já realizada.');
@@ -106,7 +122,9 @@ export function ContractDialog({ open, onOpenChange, contract, canEdit, autor, o
         due_at: novoQuando ? new Date(novoQuando).toISOString() : null,
         done: novoDone,
         autor,
-        owner_email: ownerEmail,
+        // A atividade pertence ao responsável do contrato (para entrar na agenda
+        // do vendedor); se não houver responsável, fica com o autor.
+        owner_email: contract.owner_email ?? ownerEmail,
         created_by: autor,
       });
       toast.success(novoDone ? 'Atividade registada.' : 'Atividade agendada.');
@@ -161,6 +179,29 @@ export function ContractDialog({ open, onOpenChange, contract, canEdit, autor, o
           {contract.contacto && <Info icon={User} label="Contacto" value={contract.contacto} />}
           {contract.morada && <Info icon={MapPin} label="Morada" value={[contract.morada, contract.codigo_postal].filter(Boolean).join(', ')} className="col-span-2 sm:col-span-3" />}
         </div>
+
+        {/* Atribuição a um vendedor (só o chefe de vendas). O contrato passa a
+            aparecer no "mapa" do vendedor e o follow-up é feito na vista dele. */}
+        {isDirector && (
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Responsável de follow-up</Label>
+            <Select value={contract.owner_email ?? UNASSIGNED} onValueChange={changeOwner} disabled={assigning}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Sem responsável" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={UNASSIGNED}>Sem responsável</SelectItem>
+                {owners.map(o => <SelectItem key={o.email} value={o.email}>{o.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Atribuir faz o contrato aparecer no mapa do vendedor. O vendedor precisa de acesso ao tab End-of-Term (tab Utilizadores).
+            </p>
+          </div>
+        )}
+        {!isDirector && contract.owner_nome && (
+          <p className="text-xs text-muted-foreground">Responsável: <span className="font-medium text-foreground">{contract.owner_nome}</span></p>
+        )}
 
         {/* Estado de acompanhamento */}
         <div className="space-y-2">
