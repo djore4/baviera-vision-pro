@@ -9,6 +9,7 @@ import {
   Camera, Trash2, Loader2,
 } from 'lucide-react';
 import bmwLogo from '@/assets/bmw-logo.png';
+import { chassisCurto, formatMatricula } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 
 /* ── Parque de demonstradores (VN · Demos) ────────────────────────────────────
@@ -134,8 +135,8 @@ const COLS: Col[] = [
   { key: 'modelo', label: 'Modelo', group: 'id', ...text(r => r.modelo), cell: () => null /* render dedicado */ },
   { key: 'versao', label: 'Versão', group: 'id', ...text(r => r.versao), cls: 'text-muted-foreground' },
   { key: 'encomenda', label: 'Enc', group: 'id', ...text(r => r.encomenda), cls: 'text-muted-foreground font-mono' },
-  { key: 'chassis', label: 'Chassis', group: 'id', ...text(r => r.chassis), cls: 'text-muted-foreground font-mono uppercase' },
-  { key: 'matricula', label: 'Matrícula', group: 'id', ...text(r => r.matricula), cls: 'text-foreground/80 font-mono uppercase font-medium' },
+  { key: 'chassis', label: 'Chassis', title: 'Últimos 7 caracteres', group: 'id', ...text(r => chassisCurto(r.chassis)), cls: 'text-muted-foreground font-mono uppercase' },
+  { key: 'matricula', label: 'Matrícula', group: 'id', ...text(r => formatMatricula(r.matricula)), cls: 'text-foreground/80 font-mono uppercase font-medium' },
   {
     key: 'data_matricula', label: 'Data', group: 'id', align: 'center', cls: 'text-muted-foreground',
     sort: r => r.data_matricula ? new Date(r.data_matricula).getTime() : 0,
@@ -306,7 +307,7 @@ export default function DemosPage() {
       if (fLocal !== 'Todas' && !getArr(r.local).includes(fLocal)) return false;
       if (fTipologia.size && !r._tipologia.some(t => fTipologia.has(t))) return false;
       if (!q) return true;
-      return [r.modelo, r.versao, r.chassis, r.matricula, r.encomenda, r._local]
+      return [r.modelo, r.versao, r.chassis, r.matricula, formatMatricula(r.matricula), r.encomenda, r._local]
         .some(v => (v ?? '').toString().toLowerCase().includes(q));
     });
 
@@ -553,7 +554,7 @@ function shareText(r: Row): string {
   L.push(`🚗 ${[r.modelo, r.versao].filter(Boolean).join(' ')}`.trim());
   const meta = [r._local !== '—' ? `📍 ${r._local}` : '', r._tipologia.join('/')].filter(Boolean).join(' · ');
   if (meta) L.push(meta);
-  if (r.matricula) L.push(`Matrícula: ${r.matricula}`);
+  if (r.matricula) L.push(`Matrícula: ${formatMatricula(r.matricula)}`);
   L.push(`Kms: ${(r.kms ?? 0).toLocaleString('pt-PT')} · ${r._idade} dias`);
   if (r._p.pvp > 0) L.push(`PVP: ${eur(r._p.pvp)}`);
   if (r._p.desc_eur > 0) L.push(`Desconto: ${eur(r._p.desc_eur)} (${perc(r._p.desc_perc)})`);
@@ -732,7 +733,7 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
             <div>
               <h2 className="text-base font-bold text-foreground leading-tight">{[row.modelo, row.versao].filter(Boolean).join(' ') || '—'}</h2>
               <p className="text-xs text-muted-foreground font-mono uppercase mt-0.5 flex items-center gap-2 flex-wrap">
-                {row.matricula || row.chassis}
+                {row.matricula ? formatMatricula(row.matricula) : chassisCurto(row.chassis)}
                 <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{row._local}</span>
               </p>
             </div>
