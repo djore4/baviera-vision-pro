@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/App';
@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import bmwLogo from '@/assets/bmw-logo.png';
-import { chassisCurto, formatMatricula, parseNum } from '@/lib/viaturaFormat';
+import { chassisCurto, formatMatricula, matriculaCompacta, parseNum } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 
 /* ── Parque de demonstradores (VN · Demos) ────────────────────────────────────
@@ -94,9 +94,9 @@ type Group = 'id' | 'preco' | 'desc' | 'custo' | 'venda';
 /* Grupos colapsáveis: colapsados, mostram só a coluna-resumo (summary). */
 const GROUPS: { key: Group; label: string; collapsible?: boolean }[] = [
   { key: 'id', label: 'Viatura' },
-  { key: 'preco', label: 'Preço de tabela', collapsible: true },
+  { key: 'preco', label: 'Preços', collapsible: true },
   { key: 'desc', label: 'Descontos / apoios', collapsible: true },
-  { key: 'custo', label: 'Custo & margem', collapsible: true },
+  { key: 'custo', label: 'Margem', collapsible: true },
   { key: 'venda', label: 'Venda' },
 ];
 
@@ -149,11 +149,11 @@ const COLS: Col[] = [
   { key: 'versao', label: 'Versão', group: 'id', ...text(r => r.versao), cls: 'text-muted-foreground' },
   { key: 'encomenda', label: 'Enc', group: 'id', ...text(r => r.encomenda), cls: 'text-muted-foreground font-mono' },
   { key: 'chassis', label: 'Chassis', title: 'Últimos 7 caracteres', group: 'id', ...text(r => chassisCurto(r.chassis)), cls: 'text-muted-foreground font-mono uppercase' },
-  { key: 'matricula', label: 'Matrícula', group: 'id', ...text(r => formatMatricula(r.matricula)), cls: 'text-foreground/80 font-mono uppercase font-medium' },
+  { key: 'matricula', label: 'Matrícula', group: 'id', ...text(r => matriculaCompacta(r.matricula)), cls: 'text-foreground/80 font-mono uppercase font-medium' },
   {
     key: 'data_matricula', label: 'Data', group: 'id', align: 'center', cls: 'text-muted-foreground',
     sort: r => r.data_matricula ? new Date(r.data_matricula).getTime() : 0,
-    cell: r => r.data_matricula ? new Date(r.data_matricula).toLocaleDateString('pt-PT') : '—',
+    cell: r => r.data_matricula ? new Date(r.data_matricula).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—',
   },
   { key: 'idade', label: 'Idade', group: 'id', align: 'center', sort: r => r._idade, cell: r => <AgeBadge dias={r._idade} /> },
   {
@@ -196,9 +196,8 @@ const COLS: Col[] = [
     cell: r => r._p.desc_eur ? eur0(r._p.desc_eur) : <span className="text-muted-foreground/40">—</span>,
   },
 
-  { key: 'iva', label: 'IVA', title: '(PVB + OPC − DSC + ECO + LEG/TR + ISV) × 23%', group: 'custo', ...money(r => r._p.iva) },
   {
-    key: 'p_custo', label: 'P Custo', title: 'PVB + OPC − DSC + ECO + LEG/TR + ISV + IVA', group: 'custo', align: 'right',
+    key: 'p_custo', label: 'P Custo', title: '(PVB + OPC − DSC + ECO + LEG/TR + ISV) × 1,23', group: 'custo', align: 'right',
     sort: r => r._p.p_custo, cls: 'text-foreground font-medium',
     cell: r => r._p.p_custo > 0 ? eur0(r._p.p_custo) : '—',
   },
@@ -231,6 +230,12 @@ const DESC_FIRST = new Set(['pvp', 'pvp_desc', 'pvp_siva', 'margem', 'idade', 'd
 const groupStarts = (cols: Col[]) => new Set(cols.filter((c, i) => i > 0 && cols[i - 1].group !== c.group).map(c => c.key));
 
 const COLLAPSE_KEY = 'demos.collapsedGroups';
+const MODELO_W_KEY = 'demos.modeloWidth';
+const MODELO_W_DEFAULT = 88;
+const clampModeloW = (w: number) => Math.min(320, Math.max(56, Math.round(w)));
+function loadModeloW(): number {
+  try { const v = Number(localStorage.getItem(MODELO_W_KEY)); return v ? clampModeloW(v) : MODELO_W_DEFAULT; } catch { return MODELO_W_DEFAULT; }
+}
 function loadCollapsed(): Set<Group> {
   try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? '[]') as Group[]); } catch { return new Set(); }
 }
@@ -326,6 +331,7 @@ export default function DemosPage() {
   // Simulações locais (MGB, ESF, PAC, DEM, SUP, DEP, PVP Desc) — só em memória, nunca gravadas.
   const [overrides, setOverrides] = useState<Overrides>({});
   const [collapsed, setCollapsed] = useState<Set<Group>>(loadCollapsed);
+  const [modeloW, setModeloW] = useState<number>(loadModeloW);
 
   useEffect(() => {
     let alive = true;
@@ -393,6 +399,24 @@ export default function DemosPage() {
       return { ...prev, [chassis]: cur };
     });
 
+  // Largura da coluna Modelo, ajustável arrastando a margem do cabeçalho (rato ou toque).
+  const startResize = (e: React.PointerEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const x0 = e.clientX; const w0 = modeloW; let w = w0;
+    const move = (ev: PointerEvent) => { w = clampModeloW(w0 + ev.clientX - x0); setModeloW(w); };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      try { localStorage.setItem(MODELO_W_KEY, String(w)); } catch { /* sem storage */ }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const resetModeloW = () => {
+    setModeloW(MODELO_W_DEFAULT);
+    try { localStorage.removeItem(MODELO_W_KEY); } catch { /* sem storage */ }
+  };
+
   const toggleGroup = (g: Group) =>
     setCollapsed(prev => {
       const next = new Set(prev);
@@ -401,7 +425,36 @@ export default function DemosPage() {
       return next;
     });
 
-  const visibleCols = useMemo(() => COLS.filter(c => !collapsed.has(c.group) || c.summary), [collapsed]);
+  // Com um só local filtrado, a coluna Local seria sempre igual: esconde-se.
+  const hideLocal = fLocal !== 'Todas';
+  const visibleCols = useMemo(
+    () => COLS.filter(c => (!collapsed.has(c.group) || c.summary) && !(hideLocal && c.key === 'local')),
+    [collapsed, hideLocal],
+  );
+
+  // Local e Modelo ficam fixas à esquerda ao deslizar a tabela (essencial em mobile).
+  const localThRef = useRef<HTMLTableCellElement>(null);
+  const [localW, setLocalW] = useState(0);
+  useLayoutEffect(() => {
+    const el = localThRef.current;
+    if (!el) { setLocalW(0); return; }
+    setLocalW(el.offsetWidth);
+    const ro = new ResizeObserver(() => setLocalW(el.offsetWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hideLocal, loading]);
+  const sticky = (key: string, tint: string) => {
+    if (key !== 'local' && key !== 'modelo') return { cls: '', style: undefined };
+    return {
+      cls: `sticky z-10 bg-card ${tint} ${key === 'modelo' ? 'border-r border-border' : ''}`,
+      style: { left: key === 'local' ? 0 : (hideLocal ? 0 : localW) },
+    };
+  };
+  // Tons equivalentes aos fundos semitransparentes das linhas, sobre fundo opaco.
+  const TINT_HEAD = 'shadow-[inset_0_0_0_999px_hsl(var(--muted)/0.5)]';
+  const tintRow = (reservado: boolean) => reservado
+    ? 'shadow-[inset_0_0_0_999px_rgb(234_179_8/0.05)] group-hover:shadow-[inset_0_0_0_999px_rgb(234_179_8/0.1)]'
+    : 'group-hover:shadow-[inset_0_0_0_999px_hsl(var(--muted)/0.3)]';
   const groupStart = useMemo(() => groupStarts(visibleCols), [visibleCols]);
 
   const filtered = useMemo(() => {
@@ -586,12 +639,15 @@ export default function DemosPage() {
               <tr className="bg-muted/50">
                 {visibleCols.map(c => {
                   const active = sort?.key === c.key;
+                  const st = sticky(c.key, TINT_HEAD);
                   return (
                     <th
                       key={c.key}
+                      ref={c.key === 'local' ? localThRef : undefined}
                       onClick={() => toggleSort(c.key)}
                       title={c.title}
-                      className={`px-2.5 py-2 font-semibold text-muted-foreground whitespace-nowrap border-b border-border transition-colors cursor-pointer select-none hover:text-foreground ${alignCls(c.align)} ${sepCls(c.key)}`}
+                      style={{ ...st.style, ...(c.key === 'modelo' ? { width: modeloW, minWidth: modeloW, maxWidth: modeloW } : {}) }}
+                      className={`${st.cls || (c.key === 'modelo' ? 'relative' : '')} px-2.5 py-2 font-semibold text-muted-foreground whitespace-nowrap border-b border-border transition-colors cursor-pointer select-none hover:text-foreground ${alignCls(c.align)} ${sepCls(c.key)}`}
                     >
                       <span className={`inline-flex items-center gap-1 ${c.align === 'right' ? 'flex-row-reverse' : ''}`}>
                         {c.label}
@@ -599,6 +655,19 @@ export default function DemosPage() {
                           ? (sort!.dir === 'asc' ? <ChevronUp className="h-3 w-3 text-bmw-blue" /> : <ChevronDown className="h-3 w-3 text-bmw-blue" />)
                           : <ChevronsUpDown className="h-3 w-3 opacity-30" />}
                       </span>
+                      {c.key === 'modelo' && (
+                        <span
+                          role="separator"
+                          aria-orientation="vertical"
+                          title="Arrastar para ajustar a largura (duplo clique repõe)"
+                          onPointerDown={startResize}
+                          onClick={e => e.stopPropagation()}
+                          onDoubleClick={e => { e.stopPropagation(); resetModeloW(); }}
+                          className="absolute top-0 right-0 h-full w-3 cursor-col-resize touch-none flex justify-end group/rs"
+                        >
+                          <span className="w-px h-full bg-border group-hover/rs:bg-bmw-blue group-active/rs:bg-bmw-blue" />
+                        </span>
+                      )}
                     </th>
                   );
                 })}
@@ -611,22 +680,24 @@ export default function DemosPage() {
                   <tr
                     key={r.chassis}
                     onClick={() => setSelectedChassis(r.chassis)}
-                    className={`border-b border-border/50 cursor-pointer transition-colors ${reservado ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : 'hover:bg-muted/30'}`}
+                    className={`group border-b border-border/50 cursor-pointer transition-colors ${reservado ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : 'hover:bg-muted/30'}`}
                   >
                     {visibleCols.map(c => c.key === 'modelo' ? (
-                      <td key={c.key} className="px-2.5 py-1.5 font-semibold text-foreground whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5">
+                      <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, tintRow(reservado)).cls} px-2.5 py-1.5 font-semibold text-foreground whitespace-nowrap`}>
+                        <span
+                          className="flex items-center gap-1.5 overflow-hidden"
+                          style={{ maxWidth: modeloW - 20 }}
+                          title={[r.modelo, reservado ? '(em negociação)' : ''].filter(Boolean).join(' ')}
+                        >
+                          {reservado && <span className="h-2 w-2 rounded-full bg-yellow-400 shrink-0" aria-label="Em negociação" />}
                           {capas[r.chassis] && (
                             <img src={capas[r.chassis]} alt="" className="h-5 w-7 rounded object-cover border border-border shrink-0" loading="lazy" />
                           )}
-                          {r.modelo || '—'}
+                          <span className="truncate">{r.modelo || '—'}</span>
                         </span>
-                        {reservado && (
-                          <span className="ml-1.5 bg-yellow-400/90 text-yellow-950 text-[8px] font-bold px-1 py-0.5 rounded uppercase tracking-wider">Negociação</span>
-                        )}
                       </td>
                     ) : (
-                      <td key={c.key} className={`px-2.5 py-1.5 whitespace-nowrap ${alignCls(c.align)} ${c.cls ?? ''} ${sepCls(c.key)}`}>
+                      <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, tintRow(reservado)).cls} px-2.5 py-1.5 whitespace-nowrap ${alignCls(c.align)} ${c.cls ?? ''} ${sepCls(c.key)}`}>
                         {c.edit ? (
                           <EditableCell
                             value={r._inps[c.edit.field]}
@@ -650,13 +721,13 @@ export default function DemosPage() {
                     const v = c.key === 'p_custo' ? eur0(totals.pCusto)
                       : c.key === 'margem' ? eur0(totals.margem)
                       : c.key === 'pvp_desc' ? eur0(totals.pvpDesc)
-                      : c.key === 'modelo' ? `Total (${totals.n} com preço)`
+                      : c.key === 'modelo' ? 'Total'
                       : c.key === 'dep' ? 'Σ'
                       : '';
                     const tone = c.key === 'margem' ? (totals.margem < 0 ? 'text-red-600' : 'text-green-600')
                       : c.key === 'pvp_desc' ? 'text-bmw-blue' : 'text-muted-foreground';
                     return (
-                      <td key={c.key} className={`px-2.5 py-2 whitespace-nowrap ${alignCls(c.align)} ${tone} ${sepCls(c.key)}`}>{v}</td>
+                      <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, TINT_HEAD).cls} px-2.5 py-2 whitespace-nowrap ${alignCls(c.align)} ${tone} ${sepCls(c.key)}`}>{v}</td>
                     );
                   })}
                 </tr>

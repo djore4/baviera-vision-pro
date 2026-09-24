@@ -13,6 +13,12 @@ export function formatMatricula(matricula: string | null | undefined): string {
   return m ? `${m[1]}-${m[2]}-${m[3]}` : raw;
 }
 
+/** Matrícula PT sem hífenes ("AA00BB"), para tabelas compactas. Outros formatos ficam como estão. */
+export function matriculaCompacta(matricula: string | null | undefined): string {
+  const f = formatMatricula(matricula);
+  return /^[A-Z0-9]{2}-[A-Z0-9]{2}-[A-Z0-9]{2}$/.test(f) ? f.replace(/-/g, '') : f;
+}
+
 /* Converte texto em número aceitando formato PT ("76.874,50") e decimal com ponto ("2.5"). */
 export function parseNum(txt: string, kind: 'pct' | 'eur'): string {
   const t = txt.trim().replace(/\s|€|%/g, '');
