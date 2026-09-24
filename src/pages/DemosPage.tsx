@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/App';
@@ -6,34 +6,18 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
   ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, ImageOff,
-  Camera, Trash2, Loader2, Check, UserPlus,
+  Camera, Trash2, Loader2,
 } from 'lucide-react';
 import bmwLogo from '@/assets/bmw-logo.png';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import {
-  listDemoPeople, listAfetacoes, setAfetacao, afetacoesByChassis, initials,
-  type DemoPerson,
-} from '@/lib/demoUsers';
+import { chassisCurto, formatMatricula } from '@/lib/viaturaFormat';
+import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 
 /* ── Parque de demonstradores (VN · Demos) ────────────────────────────────────
  * Consulta, apenas leitura, do parque de viaturas partilhado com a plataforma
- * Caetano (mesmo Supabase, tabela `viaturas`). Os preços (PVP bruto, desconto,
- * margem, idade) são recalculados em runtime a partir de `inputs`, replicando a
- * lógica da plataforma Caetano; usa-se `stats` guardado quando disponível.
- * Tab restrito a administradores por agora (ver permissions.ts).
+ * Caetano (mesmo Supabase, tabela `viaturas`). Os preços são recalculados em
+ * runtime a partir de `inputs`, segundo o racional do Excel "PARQUE BMW"
+ * (ver lib/demoPricing.ts) — a tabela mostra a decomposição completa.
  * ──────────────────────────────────────────────────────────────────────────── */
-
-interface Inputs {
-  pvb: number; opc: number; bsi: number; eco: number; leg: number; isv: number;
-  mgb: number; esf: number; pac: number; dem: number; sup: number;
-  pvp_desc: number; depreciacoes: number;
-}
-
-interface Stats {
-  pvp_bruto: number; pvp_final: number; mg: number; mg_perc: number;
-  idade: number; idade_dias: number; penetracao: number;
-  desc_perc: number; desc_eur: number; iva: number; preco_minimo: number; s_iva: number;
-}
 
 interface Viatura {
   chassis: string;
@@ -56,8 +40,7 @@ interface Viatura {
   stats: unknown;
 }
 
-const TAXA_IVA = 0.23;
-const TEMPLATE_INPUTS: Inputs = {
+const TEMPLATE_INPUTS: PricingInputs = {
   pvb: 0, opc: 0, bsi: 0, eco: 4.2, leg: 1550, isv: 0,
   mgb: 0, esf: 0, pac: 0, dem: 0, sup: 0, pvp_desc: 0, depreciacoes: 0,
 };
@@ -73,56 +56,18 @@ function getArr(v: unknown): string[] {
   return [];
 }
 
-function getInps(v: unknown): Inputs {
+function getInps(v: unknown): PricingInputs {
   if (!v) return { ...TEMPLATE_INPUTS };
   if (typeof v === 'string') {
     try { return { ...TEMPLATE_INPUTS, ...JSON.parse(v) }; } catch { return { ...TEMPLATE_INPUTS }; }
   }
-  return typeof v === 'object' ? { ...TEMPLATE_INPUTS, ...(v as Partial<Inputs>) } : { ...TEMPLATE_INPUTS };
+  return typeof v === 'object' ? { ...TEMPLATE_INPUTS, ...(v as Partial<PricingInputs>) } : { ...TEMPLATE_INPUTS };
 }
 
-/* Mesmo cálculo da plataforma Caetano (calcularPrecosTempoReal). */
-function calcStats(v: Viatura): Stats {
-  const inps = getInps(v.inputs);
-  const baseTributavel = (inps.pvb || 0) + (inps.opc || 0) + (inps.bsi || 0) + (inps.eco || 0) + (inps.leg || 0) + (inps.isv || 0);
-  const pvpBruto = baseTributavel * (1 + TAXA_IVA);
-  const descPerc = (inps.mgb || 0) + (inps.esf || 0) + (inps.pac || 0) + (inps.dem || 0) + (inps.sup || 0);
-  const descEur = ((inps.pvb || 0) + (inps.opc || 0)) * descPerc;
-  const precoMinimo = pvpBruto - descEur * (1 + TAXA_IVA);
-  const mg = (inps.pvp_desc || 0) - precoMinimo + (inps.depreciacoes || 0);
-
-  let idade = 0; let idadeDias = 0;
-  if (v.data_matricula) {
-    const mat = new Date(v.data_matricula); const hoje = new Date();
-    idade = (hoje.getFullYear() - mat.getFullYear()) * 12 + (hoje.getMonth() - mat.getMonth());
-    if (idade < 0) idade = 0;
-    const diff = hoje.getTime() - mat.getTime();
-    idadeDias = diff > 0 ? Math.floor(diff / (1000 * 60 * 60 * 24)) : 0;
-  }
-
-  return {
-    pvp_bruto: pvpBruto,
-    pvp_final: inps.pvp_desc || 0,
-    mg,
-    mg_perc: (inps.pvb + inps.opc) > 0 ? mg / (inps.pvb + inps.opc) : 0,
-    idade,
-    idade_dias: idadeDias,
-    penetracao: inps.pvb > 0 ? (inps.opc || 0) / inps.pvb : 0,
-    desc_perc: descPerc,
-    desc_eur: descEur,
-    iva: (pvpBruto / (1 + TAXA_IVA)) * TAXA_IVA,
-    preco_minimo: precoMinimo,
-    s_iva: (inps.pvp_desc || 0) / (1 + TAXA_IVA),
-  };
-}
-
-/* Prefere stats guardado (como na plataforma Caetano); recalcula em falta. */
-function resolveStats(v: Viatura): Stats {
-  const s = v.stats;
-  if (s && typeof s === 'object' && !Array.isArray(s) && 'pvp_bruto' in (s as object)) {
-    return { ...calcStats(v), ...(s as Partial<Stats>) } as Stats;
-  }
-  return calcStats(v);
+function idadeDias(dataMatricula: string | null): number {
+  if (!dataMatricula) return 0;
+  const diff = Date.now() - new Date(dataMatricula).getTime();
+  return diff > 0 ? Math.floor(diff / (1000 * 60 * 60 * 24)) : 0;
 }
 
 function isReservado(v: Viatura): boolean {
@@ -135,38 +80,142 @@ const eur0 = (n: number | null | undefined) =>
   (n || 0).toLocaleString('pt-PT', { maximumFractionDigits: 0 }) + ' €';
 const perc = (n: number | null | undefined) =>
   ((n || 0) * 100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %';
+const perc1 = (n: number | null | undefined) =>
+  ((n || 0) * 100).toLocaleString('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
 
-interface Row extends Viatura { _stats: Stats; _local: string; _tipologia: string[] }
+interface Row extends Viatura {
+  _inps: PricingInputs; _p: Pricing; _idade: number;
+  _local: string; _tipologia: string[]; _tipo: Tipo;
+}
 
-/* ── Ordenação ─────────────────────────────────────────────────────────────── */
-type SortKey = 'local' | 'modelo' | 'versao' | 'encomenda' | 'chassis' | 'users' | 'matricula'
-  | 'data_matricula' | 'idade' | 'pvp_bruto' | 'pvp_final';
-
-const COLS: { key: SortKey; label: string; num?: boolean; align?: 'right' | 'center'; noSort?: boolean }[] = [
-  { key: 'local', label: 'Local', align: 'center' },
-  { key: 'modelo', label: 'Modelo' },
-  { key: 'versao', label: 'Versão' },
-  { key: 'encomenda', label: 'Enc' },
-  { key: 'chassis', label: 'Chassis' },
-  { key: 'users', label: 'Utiliz.', align: 'center', noSort: true },
-  { key: 'matricula', label: 'Matrícula' },
-  { key: 'data_matricula', label: 'Data', align: 'center' },
-  { key: 'idade', label: 'Idade', num: true, align: 'center' },
-  { key: 'pvp_bruto', label: 'PVP Base', num: true, align: 'right' },
-  { key: 'pvp_final', label: 'PVP Final', num: true, align: 'right' },
+/* ── Colunas (espelham o Excel "PARQUE BMW") ──────────────────────────────── */
+type Group = 'id' | 'preco' | 'desc' | 'custo' | 'venda';
+const GROUPS: { key: Group; label: string }[] = [
+  { key: 'id', label: 'Viatura' },
+  { key: 'preco', label: 'Preço de tabela' },
+  { key: 'desc', label: 'Descontos / apoios' },
+  { key: 'custo', label: 'Custo & margem' },
+  { key: 'venda', label: 'Venda' },
 ];
 
-function sortValue(r: Row, key: SortKey): string | number {
-  switch (key) {
-    case 'local': return r._local.toLowerCase();
-    case 'users': return '';
-    case 'data_matricula': return r.data_matricula ? new Date(r.data_matricula).getTime() : 0;
-    case 'idade': return r._stats.idade_dias;
-    case 'pvp_bruto': return r._stats.pvp_bruto;
-    case 'pvp_final': return r._stats.pvp_final;
-    default: return (r[key] ?? '').toString().toLowerCase();
-  }
+interface Col {
+  key: string;
+  label: string;
+  title?: string;
+  group: Group;
+  align?: 'right' | 'center';
+  sort: (r: Row) => string | number;
+  cell: (r: Row, reservado: boolean) => ReactNode;
+  cls?: string;
 }
+
+const muted = (v: number, fmt: (n: number) => string) =>
+  v ? fmt(v) : <span className="text-muted-foreground/40">—</span>;
+const money = (get: (r: Row) => number): Pick<Col, 'align' | 'sort' | 'cell' | 'cls'> => ({
+  align: 'right', sort: get, cell: r => muted(get(r), eur0), cls: 'text-muted-foreground',
+});
+const pct = (get: (r: Row) => number): Pick<Col, 'align' | 'sort' | 'cell' | 'cls'> => ({
+  align: 'right', sort: get, cell: r => muted(get(r), perc1), cls: 'text-muted-foreground',
+});
+const text = (get: (r: Row) => string | null): Pick<Col, 'sort' | 'cell'> => ({
+  sort: r => (get(r) ?? '').toLowerCase(), cell: r => get(r) || '—',
+});
+
+const TIPO_TAGS: { k: keyof Tipo; label: string }[] = [
+  { k: 'ice', label: 'ICE' }, { k: 'xev', label: 'xEV' }, { k: 'bev', label: 'BEV' },
+  { k: 'qor', label: 'QoR' }, { k: 'm', label: 'M' },
+];
+
+const COLS: Col[] = [
+  {
+    key: 'local', label: 'Local', group: 'id', align: 'center',
+    sort: r => r._local.toLowerCase(),
+    cell: r => <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-semibold border border-border">{r._local}</span>,
+  },
+  { key: 'modelo', label: 'Modelo', group: 'id', ...text(r => r.modelo), cell: () => null /* render dedicado */ },
+  { key: 'versao', label: 'Versão', group: 'id', ...text(r => r.versao), cls: 'text-muted-foreground' },
+  { key: 'encomenda', label: 'Enc', group: 'id', ...text(r => r.encomenda), cls: 'text-muted-foreground font-mono' },
+  { key: 'chassis', label: 'Chassis', title: 'Últimos 7 caracteres', group: 'id', ...text(r => chassisCurto(r.chassis)), cls: 'text-muted-foreground font-mono uppercase' },
+  { key: 'matricula', label: 'Matrícula', group: 'id', ...text(r => formatMatricula(r.matricula)), cls: 'text-foreground/80 font-mono uppercase font-medium' },
+  {
+    key: 'data_matricula', label: 'Data', group: 'id', align: 'center', cls: 'text-muted-foreground',
+    sort: r => r.data_matricula ? new Date(r.data_matricula).getTime() : 0,
+    cell: r => r.data_matricula ? new Date(r.data_matricula).toLocaleDateString('pt-PT') : '—',
+  },
+  { key: 'idade', label: 'Idade', group: 'id', align: 'center', sort: r => r._idade, cell: r => <AgeBadge dias={r._idade} /> },
+  {
+    key: 'tipo', label: 'Tipo', title: 'ICE · xEV · BEV · QoR · M', group: 'id', align: 'center',
+    sort: r => TIPO_TAGS.filter(t => r._tipo[t.k]).map(t => t.label).join(' '),
+    cell: r => {
+      const tags = TIPO_TAGS.filter(t => r._tipo[t.k]);
+      if (!tags.length) return <span className="text-muted-foreground/40">—</span>;
+      return (
+        <span className="inline-flex gap-0.5">
+          {tags.map(t => (
+            <span key={t.k} className="px-1 py-0.5 rounded bg-bmw-blue/10 text-bmw-blue text-[9px] font-bold">{t.label}</span>
+          ))}
+        </span>
+      );
+    },
+  },
+
+  { key: 'pvb', label: 'PVB', title: 'Preço base', group: 'preco', ...money(r => r._inps.pvb) },
+  { key: 'opc', label: 'OPC', title: 'Opcionais', group: 'preco', ...money(r => r._inps.opc) },
+  { key: 'bsi', label: 'BSI', group: 'preco', ...money(r => r._inps.bsi) },
+  { key: 'pen', label: '%', title: 'Penetração de opcionais (OPC / PVB)', group: 'preco', ...pct(r => r._p.penetracao) },
+  { key: 'eco', label: 'ECO', group: 'preco', ...money(r => r._inps.eco) },
+  { key: 'leg', label: 'LEG/TR', title: 'Legalização / transporte', group: 'preco', ...money(r => r._inps.leg) },
+  { key: 'isv', label: 'ISV', group: 'preco', ...money(r => r._inps.isv) },
+  {
+    key: 'pvp', label: 'PVP', title: '(PVB + OPC + BSI + ECO + LEG/TR + ISV) × 1,23', group: 'preco', align: 'right',
+    sort: r => r._p.pvp, cls: 'text-muted-foreground line-through',
+    cell: r => r._p.pvp > 0 ? eur0(r._p.pvp) : '—',
+  },
+
+  { key: 'mgb', label: 'MGB', group: 'desc', ...pct(r => r._inps.mgb) },
+  { key: 'esf', label: 'ESF', group: 'desc', ...pct(r => r._inps.esf) },
+  { key: 'pac', label: 'PAC', group: 'desc', ...pct(r => r._inps.pac) },
+  { key: 'dem', label: 'DEM', group: 'desc', ...pct(r => r._inps.dem) },
+  { key: 'sup', label: 'SUP', group: 'desc', ...pct(r => r._inps.sup) },
+  {
+    key: 'dsc', label: 'DSC €', title: '(PVB + OPC) × (MGB + ESF + PAC + DEM + SUP)', group: 'desc', align: 'right',
+    sort: r => r._p.desc_eur, cls: 'text-red-600 font-medium',
+    cell: r => r._p.desc_eur ? eur0(r._p.desc_eur) : <span className="text-muted-foreground/40">—</span>,
+  },
+
+  { key: 'iva', label: 'IVA', title: '(PVB + OPC − DSC + ECO + LEG/TR + ISV) × 23%', group: 'custo', ...money(r => r._p.iva) },
+  {
+    key: 'p_custo', label: 'P Custo', title: 'PVB + OPC − DSC + ECO + LEG/TR + ISV + IVA', group: 'custo', align: 'right',
+    sort: r => r._p.p_custo, cls: 'text-foreground font-medium',
+    cell: r => r._p.p_custo > 0 ? eur0(r._p.p_custo) : '—',
+  },
+  { key: 'dep', label: 'DEP', title: 'Depreciações', group: 'custo', ...money(r => r._inps.depreciacoes) },
+  {
+    key: 'margem', label: 'Margem', title: 'PVP DESC − P Custo + DEP', group: 'custo', align: 'right',
+    sort: r => (r._p.pvp_desc > 0 ? r._p.margem : -Infinity),
+    cell: r => r._p.pvp_desc > 0
+      ? <span className={`font-bold ${r._p.margem < 0 ? 'text-red-600' : 'text-green-600'}`}>{eur0(r._p.margem)}</span>
+      : <span className="text-muted-foreground/40">—</span>,
+  },
+
+  {
+    key: 'pvp_desc', label: 'PVP Desc', title: 'Preço de venda (com IVA)', group: 'venda', align: 'right',
+    sort: r => r._p.pvp_desc,
+    cell: (r, reservado) => r._p.pvp_desc > 0
+      ? <span className={`font-bold ${reservado ? 'text-red-600' : 'text-bmw-blue'}`}>{eur0(r._p.pvp_desc)}</span>
+      : '—',
+  },
+  {
+    key: 'pvp_siva', label: 'PVP s/IVA', title: 'xEV/BEV: PVP DESC / 1,23 (IVA dedutível) · ICE: PVP DESC', group: 'venda', align: 'right',
+    sort: r => r._p.pvp_sem_iva, cls: 'text-foreground/80 font-medium',
+    cell: r => r._p.pvp_desc > 0 ? eur0(r._p.pvp_sem_iva) : '—',
+  },
+];
+
+const DESC_FIRST = new Set(['pvp', 'pvp_desc', 'pvp_siva', 'margem', 'idade', 'dsc', 'p_custo']);
+
+/* Primeira coluna de cada grupo leva separador vertical. */
+const GROUP_START = new Set(COLS.filter((c, i) => i > 0 && COLS[i - 1].group !== c.group).map(c => c.key));
 
 function AgeBadge({ dias }: { dias: number }) {
   const cls = dias <= 90
@@ -181,73 +230,11 @@ function AgeBadge({ dias }: { dias: number }) {
   );
 }
 
-/* Célula "Utiliz." — mostra as iniciais das pessoas afetadas e, com permissão de
- * edição, permite afetar/desafetar diretamente na tabela (popover com o roster). */
-function AfetacaoCell({ people, affectedIds, canEdit, onToggle }: {
-  people: DemoPerson[];
-  affectedIds: string[];
-  canEdit: boolean;
-  onToggle: (pessoaId: string, on: boolean) => void;
-}) {
-  const affected = new Set(affectedIds);
-  const affectedPeople = people.filter(p => affected.has(p.id));
-  const badges = affectedPeople.length === 0
-    ? <span className="text-muted-foreground/40">—</span>
-    : (
-      <span className="inline-flex items-center gap-0.5 flex-wrap justify-center">
-        {affectedPeople.map(p => (
-          <span key={p.id} title={p.nome} className="inline-grid place-items-center h-5 min-w-[1.25rem] px-1 rounded bg-bmw-blue/10 text-bmw-blue text-[10px] font-bold">
-            {initials(p.nome)}
-          </span>
-        ))}
-      </span>
-    );
-
-  if (!canEdit) return <td className="px-2.5 py-1.5 text-center whitespace-nowrap">{badges}</td>;
-
-  return (
-    <td className="px-2.5 py-1.5 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
-      <Popover>
-        <PopoverTrigger asChild>
-          <button className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-0.5 min-h-[1.5rem] hover:bg-muted/60 transition-colors" title="Afetar utilizadores">
-            {affectedPeople.length === 0
-              ? <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
-              : badges}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="center" className="w-56 p-1.5" onClick={e => e.stopPropagation()}>
-          <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Afetar utilizadores</p>
-          {people.length === 0 ? (
-            <p className="px-2 py-2 text-xs text-muted-foreground">Sem utilizadores. Lança-os no tab Utilizadores.</p>
-          ) : (
-            <div className="max-h-64 overflow-auto">
-              {people.map(p => {
-                const on = affected.has(p.id);
-                return (
-                  <button key={p.id} onClick={() => onToggle(p.id, !on)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted text-left">
-                    <span className={`inline-grid place-items-center h-5 w-5 rounded border shrink-0 ${on ? 'bg-bmw-blue border-bmw-blue text-white' : 'border-border'}`}>
-                      {on && <Check className="h-3 w-3" />}
-                    </span>
-                    <span className="inline-grid place-items-center h-5 min-w-[1.25rem] px-1 rounded bg-bmw-blue/10 text-bmw-blue text-[10px] font-bold shrink-0">{initials(p.nome)}</span>
-                    <span className="text-sm truncate">{p.nome}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </PopoverContent>
-      </Popover>
-    </td>
-  );
-}
-
 export default function DemosPage() {
   const { session } = useAuth();
   const { canEdit } = usePermissions();
   const [rows, setRows] = useState<Row[]>([]);
   const [capas, setCapas] = useState<Record<string, string>>({});
-  const [people, setPeople] = useState<DemoPerson[]>([]);
-  const [afetacoes, setAfetacoes] = useState<Record<string, string[]>>({}); // chassis → pessoa_ids
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -256,35 +243,39 @@ export default function DemosPage() {
   const [fLocal, setFLocal] = useState('Aveiro');
   const localInit = useRef(false);
   const [fTipologia, setFTipologia] = useState<Set<string>>(new Set());
-  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
+  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const [selected, setSelected] = useState<Row | null>(null);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [viaturasRes, capasRes, peopleRes, afetRes] = await Promise.all([
+      const [viaturasRes, capasRes] = await Promise.all([
         supabase.from('viaturas').select('*'),
         supabase.from('demo_capas').select('chassis, url'),
-        listDemoPeople().catch(() => [] as DemoPerson[]),
-        listAfetacoes().catch(() => []),
       ]);
       if (!alive) return;
       if (viaturasRes.error) { setError(viaturasRes.error.message); setRows([]); setLoading(false); return; }
-      const mapped: Row[] = ((viaturasRes.data as Viatura[]) ?? []).map(v => ({
-        ...v,
-        _stats: resolveStats(v),
-        _local: getArr(v.local).join(', ') || '—',
-        _tipologia: getArr(v.tipologia),
-      }));
+      const mapped: Row[] = ((viaturasRes.data as Viatura[]) ?? []).map(v => {
+        const tipologia = getArr(v.tipologia);
+        const tipo = tipoFlags(tipologia);
+        const inps = getInps(v.inputs);
+        return {
+          ...v,
+          _inps: inps,
+          _p: calcPricing(inps, tipo),
+          _idade: idadeDias(v.data_matricula),
+          _local: getArr(v.local).join(', ') || '—',
+          _tipologia: tipologia,
+          _tipo: tipo,
+        };
+      });
       const capaMap: Record<string, string> = {};
       for (const c of (capasRes.data as { chassis: string; url: string }[]) ?? []) {
         if (c.chassis && c.url) capaMap[c.chassis] = c.url;
       }
       setRows(mapped);
       setCapas(capaMap);
-      setPeople(peopleRes);
-      setAfetacoes(afetacoesByChassis(afetRes));
       setLoading(false);
     })();
     return () => { alive = false; };
@@ -296,24 +287,6 @@ export default function DemosPage() {
       if (url) next[chassis] = url; else delete next[chassis];
       return next;
     });
-
-  const canEditDemos = canEdit('demos');
-
-  // Afeta/desafeta uma pessoa a uma viatura, diretamente na tabela (otimista).
-  const toggleAfetacao = async (chassis: string, pessoaId: string, on: boolean) => {
-    const apply = (add: boolean) => setAfetacoes(prev => {
-      const cur = new Set(prev[chassis] ?? []);
-      if (add) cur.add(pessoaId); else cur.delete(pessoaId);
-      return { ...prev, [chassis]: [...cur] };
-    });
-    apply(on);
-    try {
-      await setAfetacao(chassis, pessoaId, on);
-    } catch (e) {
-      apply(!on); // reverte
-      toast.error('Falha ao afetar: ' + (e as Error).message);
-    }
-  };
 
   const modelos = useMemo(() => ['Todos', ...[...new Set(rows.map(r => (r.modelo ?? '').trim()).filter(Boolean))].sort()], [rows]);
   const locais = useMemo(() => ['Todas', ...[...new Set(rows.flatMap(r => getArr(r.local)))].sort()], [rows]);
@@ -334,14 +307,15 @@ export default function DemosPage() {
       if (fLocal !== 'Todas' && !getArr(r.local).includes(fLocal)) return false;
       if (fTipologia.size && !r._tipologia.some(t => fTipologia.has(t))) return false;
       if (!q) return true;
-      return [r.modelo, r.versao, r.chassis, r.matricula, r.encomenda, r._local]
+      return [r.modelo, r.versao, r.chassis, r.matricula, formatMatricula(r.matricula), r.encomenda, r._local]
         .some(v => (v ?? '').toString().toLowerCase().includes(q));
     });
 
-    if (sort) {
+    const col = sort && COLS.find(c => c.key === sort.key);
+    if (sort && col) {
       const dir = sort.dir === 'asc' ? 1 : -1;
       list.sort((a, b) => {
-        const va = sortValue(a, sort.key); const vb = sortValue(b, sort.key);
+        const va = col.sort(a); const vb = col.sort(b);
         if (va < vb) return -1 * dir;
         if (va > vb) return 1 * dir;
         return 0;
@@ -350,19 +324,26 @@ export default function DemosPage() {
       // Ordenação por defeito: reservados primeiro, depois idade descendente.
       list.sort((a, b) => {
         const rr = (isReservado(b) ? 1 : 0) - (isReservado(a) ? 1 : 0);
-        return rr !== 0 ? rr : b._stats.idade_dias - a._stats.idade_dias;
+        return rr !== 0 ? rr : b._idade - a._idade;
       });
     }
     return list;
   }, [rows, search, fModelo, fLocal, fTipologia, sort]);
 
+  // Totais do que está filtrado (como a linha de totais de uma tabela Excel).
+  const totals = useMemo(() => {
+    const priced = filtered.filter(r => r._p.pvp_desc > 0);
+    const sum = (f: (r: Row) => number) => priced.reduce((s, r) => s + f(r), 0);
+    return { n: priced.length, pvpDesc: sum(r => r._p.pvp_desc), margem: sum(r => r._p.margem), pCusto: sum(r => r._p.p_custo) };
+  }, [filtered]);
+
   const toggleTip = (t: string) =>
     setFTipologia(prev => { const n = new Set(prev); if (n.has(t)) n.delete(t); else n.add(t); return n; });
 
-  const toggleSort = (key: SortKey) =>
+  const toggleSort = (key: string) =>
     setSort(prev => {
-      if (!prev || prev.key !== key) return { key, dir: key === 'pvp_final' || key === 'pvp_bruto' || key === 'idade' ? 'desc' : 'asc' };
-      if (prev.dir === 'asc') return { key, dir: 'desc' };
+      if (!prev || prev.key !== key) return { key, dir: DESC_FIRST.has(key) ? 'desc' : 'asc' };
+      if (prev.dir === (DESC_FIRST.has(key) ? 'desc' : 'asc')) return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
       return null; // terceiro clique limpa
     });
 
@@ -370,6 +351,9 @@ export default function DemosPage() {
   const resetFilters = () => {
     setSearch(''); setFModelo('Todos'); setFLocal('Todas'); setFTipologia(new Set());
   };
+
+  const alignCls = (a?: 'right' | 'center') => a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left';
+  const sepCls = (key: string) => GROUP_START.has(key) ? 'border-l border-border' : '';
 
   return (
     <div className="space-y-3 min-w-0 overflow-x-clip">
@@ -462,22 +446,32 @@ export default function DemosPage() {
         <div className="overflow-auto rounded-lg border border-border">
           <table className="w-full text-xs">
             <thead>
+              <tr className="bg-muted/30">
+                {GROUPS.map((g, i) => (
+                  <th
+                    key={g.key}
+                    colSpan={COLS.filter(c => c.group === g.key).length}
+                    className={`px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80 text-center whitespace-nowrap border-b border-border ${i > 0 ? 'border-l' : ''}`}
+                  >
+                    {g.label}
+                  </th>
+                ))}
+              </tr>
               <tr className="bg-muted/50">
                 {COLS.map(c => {
                   const active = sort?.key === c.key;
                   return (
                     <th
                       key={c.key}
-                      onClick={c.noSort ? undefined : () => toggleSort(c.key)}
-                      className={`px-2.5 py-2 font-semibold text-muted-foreground whitespace-nowrap border-b border-border transition-colors ${
-                        c.noSort ? '' : 'cursor-pointer select-none hover:text-foreground'
-                      } ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'}`}
+                      onClick={() => toggleSort(c.key)}
+                      title={c.title}
+                      className={`px-2.5 py-2 font-semibold text-muted-foreground whitespace-nowrap border-b border-border transition-colors cursor-pointer select-none hover:text-foreground ${alignCls(c.align)} ${sepCls(c.key)}`}
                     >
                       <span className={`inline-flex items-center gap-1 ${c.align === 'right' ? 'flex-row-reverse' : ''}`}>
                         {c.label}
-                        {!c.noSort && (active
+                        {active
                           ? (sort!.dir === 'asc' ? <ChevronUp className="h-3 w-3 text-bmw-blue" /> : <ChevronDown className="h-3 w-3 text-bmw-blue" />)
-                          : <ChevronsUpDown className="h-3 w-3 opacity-30" />)}
+                          : <ChevronsUpDown className="h-3 w-3 opacity-30" />}
                       </span>
                     </th>
                   );
@@ -493,44 +487,46 @@ export default function DemosPage() {
                     onClick={() => setSelected(r)}
                     className={`border-b border-border/50 cursor-pointer transition-colors ${reservado ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : 'hover:bg-muted/30'}`}
                   >
-                    <td className="px-2.5 py-1.5 text-center whitespace-nowrap">
-                      <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-semibold border border-border">{r._local}</span>
-                    </td>
-                    <td className="px-2.5 py-1.5 font-semibold text-foreground whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1.5">
-                        {capas[r.chassis] && (
-                          <img src={capas[r.chassis]} alt="" className="h-5 w-7 rounded object-cover border border-border shrink-0" loading="lazy" />
+                    {COLS.map(c => c.key === 'modelo' ? (
+                      <td key={c.key} className="px-2.5 py-1.5 font-semibold text-foreground whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5">
+                          {capas[r.chassis] && (
+                            <img src={capas[r.chassis]} alt="" className="h-5 w-7 rounded object-cover border border-border shrink-0" loading="lazy" />
+                          )}
+                          {r.modelo || '—'}
+                        </span>
+                        {reservado && (
+                          <span className="ml-1.5 bg-yellow-400/90 text-yellow-950 text-[8px] font-bold px-1 py-0.5 rounded uppercase tracking-wider">Negociação</span>
                         )}
-                        {r.modelo || '—'}
-                      </span>
-                      {reservado && (
-                        <span className="ml-1.5 bg-yellow-400/90 text-yellow-950 text-[8px] font-bold px-1 py-0.5 rounded uppercase tracking-wider">Negociação</span>
-                      )}
-                    </td>
-                    <td className="px-2.5 py-1.5 text-muted-foreground whitespace-nowrap">{r.versao || '—'}</td>
-                    <td className="px-2.5 py-1.5 text-muted-foreground font-mono">{r.encomenda || '—'}</td>
-                    <td className="px-2.5 py-1.5 text-muted-foreground font-mono uppercase">{r.chassis || '—'}</td>
-                    <AfetacaoCell
-                      people={people}
-                      affectedIds={afetacoes[r.chassis] ?? []}
-                      canEdit={canEditDemos}
-                      onToggle={(pid, on) => toggleAfetacao(r.chassis, pid, on)}
-                    />
-                    <td className="px-2.5 py-1.5 text-foreground/80 font-mono uppercase font-medium">{r.matricula || '—'}</td>
-                    <td className="px-2.5 py-1.5 text-center text-muted-foreground whitespace-nowrap">
-                      {r.data_matricula ? new Date(r.data_matricula).toLocaleDateString('pt-PT') : '—'}
-                    </td>
-                    <td className="px-2.5 py-1.5 text-center whitespace-nowrap"><AgeBadge dias={r._stats.idade_dias} /></td>
-                    <td className="px-2.5 py-1.5 text-right text-muted-foreground line-through whitespace-nowrap">
-                      {r._stats.pvp_bruto > 0 ? eur(r._stats.pvp_bruto) : '—'}
-                    </td>
-                    <td className={`px-2.5 py-1.5 text-right font-bold whitespace-nowrap ${reservado ? 'text-red-600' : 'text-bmw-blue'}`}>
-                      {r._stats.pvp_final > 0 ? eur(r._stats.pvp_final) : '—'}
-                    </td>
+                      </td>
+                    ) : (
+                      <td key={c.key} className={`px-2.5 py-1.5 whitespace-nowrap ${alignCls(c.align)} ${c.cls ?? ''} ${sepCls(c.key)}`}>
+                        {c.cell(r, reservado)}
+                      </td>
+                    ))}
                   </tr>
                 );
               })}
             </tbody>
+            {totals.n > 0 && (
+              <tfoot>
+                <tr className="bg-muted/50 font-semibold">
+                  {COLS.map(c => {
+                    const v = c.key === 'p_custo' ? eur0(totals.pCusto)
+                      : c.key === 'margem' ? eur0(totals.margem)
+                      : c.key === 'pvp_desc' ? eur0(totals.pvpDesc)
+                      : c.key === 'modelo' ? `Total (${totals.n} com preço)`
+                      : c.key === 'dep' ? 'Σ'
+                      : '';
+                    const tone = c.key === 'margem' ? (totals.margem < 0 ? 'text-red-600' : 'text-green-600')
+                      : c.key === 'pvp_desc' ? 'text-bmw-blue' : 'text-muted-foreground';
+                    return (
+                      <td key={c.key} className={`px-2.5 py-2 whitespace-nowrap ${alignCls(c.align)} ${tone} ${sepCls(c.key)}`}>{v}</td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
+            )}
           </table>
           {filtered.length === 0 && (
             <div className="py-10 text-center text-xs text-muted-foreground">Nenhuma viatura encontrada.</div>
@@ -558,11 +554,11 @@ function shareText(r: Row): string {
   L.push(`🚗 ${[r.modelo, r.versao].filter(Boolean).join(' ')}`.trim());
   const meta = [r._local !== '—' ? `📍 ${r._local}` : '', r._tipologia.join('/')].filter(Boolean).join(' · ');
   if (meta) L.push(meta);
-  if (r.matricula) L.push(`Matrícula: ${r.matricula}`);
-  L.push(`Kms: ${(r.kms ?? 0).toLocaleString('pt-PT')} · ${r._stats.idade_dias} dias`);
-  if (r._stats.pvp_bruto > 0) L.push(`PVP: ${eur(r._stats.pvp_bruto)}`);
-  if (r._stats.desc_eur > 0) L.push(`Desconto: ${eur(r._stats.desc_eur)} (${perc(r._stats.desc_perc)})`);
-  if (r._stats.pvp_final > 0) L.push(`💰 PVP Final: ${eur(r._stats.pvp_final)}`);
+  if (r.matricula) L.push(`Matrícula: ${formatMatricula(r.matricula)}`);
+  L.push(`Kms: ${(r.kms ?? 0).toLocaleString('pt-PT')} · ${r._idade} dias`);
+  if (r._p.pvp > 0) L.push(`PVP: ${eur(r._p.pvp)}`);
+  if (r._p.desc_eur > 0) L.push(`Desconto: ${eur(r._p.desc_eur)} (${perc(r._p.desc_perc)})`);
+  if (r._p.pvp_desc > 0) L.push(`💰 PVP Final: ${eur(r._p.pvp_desc)}`);
   if (r.link_fotos && r.link_fotos.trim() !== '') L.push(`📷 Fotos: ${r.link_fotos}`);
   return L.join('\n');
 }
@@ -575,8 +571,8 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
   onCapaChange: (chassis: string, url: string | null) => void;
   onClose: () => void;
 }) {
-  const inps = getInps(row.inputs);
-  const s = row._stats;
+  const inps = row._inps;
+  const s = row._p;
   const reservado = isReservado(row);
   // Foto automática (og:image do link). undefined = a carregar; null = indisponível.
   const [autoPhoto, setAutoPhoto] = useState<string | null | undefined>(undefined);
@@ -737,16 +733,16 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
             <div>
               <h2 className="text-base font-bold text-foreground leading-tight">{[row.modelo, row.versao].filter(Boolean).join(' ') || '—'}</h2>
               <p className="text-xs text-muted-foreground font-mono uppercase mt-0.5 flex items-center gap-2 flex-wrap">
-                {row.matricula || row.chassis}
+                {row.matricula ? formatMatricula(row.matricula) : chassisCurto(row.chassis)}
                 <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{row._local}</span>
               </p>
             </div>
             <div className="text-right shrink-0">
               <div className={`text-xl font-black ${reservado ? 'text-red-600' : 'text-bmw-blue'}`}>
-                {s.pvp_final > 0 ? eur0(s.pvp_final) : 'N/A'}
+                {s.pvp_desc > 0 ? eur0(s.pvp_desc) : 'N/A'}
               </div>
-              {s.pvp_bruto > 0 && s.pvp_bruto > s.pvp_final && (
-                <div className="text-[11px] text-muted-foreground line-through">{eur0(s.pvp_bruto)}</div>
+              {s.pvp > 0 && s.pvp > s.pvp_desc && (
+                <div className="text-[11px] text-muted-foreground line-through">{eur0(s.pvp)}</div>
               )}
             </div>
           </div>
@@ -763,7 +759,7 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
             </div>
             <div className="bg-muted/40 rounded-lg p-2">
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Idade</div>
-              <div className="text-sm font-bold text-foreground mt-0.5">{s.idade_dias} dias</div>
+              <div className="text-sm font-bold text-foreground mt-0.5">{row._idade} dias</div>
             </div>
           </div>
 
@@ -786,14 +782,16 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
             {line('ECO', eur(inps.eco))}
             {line('Legalização', eur(inps.leg))}
             {line('ISV', eur(inps.isv))}
-            {line('IVA', eur(s.iva))}
             <div className="border-t border-border my-1" />
-            {line('PVP Bruto', eur(s.pvp_bruto), { strong: true })}
+            {line('PVP', eur(s.pvp), { strong: true })}
             {line(`Desconto (${perc(s.desc_perc)})`, '- ' + eur(s.desc_eur), { className: 'text-red-600' })}
+            {line('IVA (s/ custo)', eur(s.iva))}
+            {line('Preço de custo', eur(s.p_custo), { strong: true })}
+            {line('Depreciações', eur(inps.depreciacoes))}
             <div className="border-t border-border my-1" />
-            {line('PVP Final', eur(s.pvp_final), { strong: true, className: 'text-bmw-blue' })}
-            {line('S/ IVA', eur(s.s_iva))}
-            {line('Margem (MG)', eur(s.mg), { strong: true, className: s.mg < 0 ? 'text-red-600' : 'text-green-600' })}
+            {line('PVP Final', eur(s.pvp_desc), { strong: true, className: 'text-bmw-blue' })}
+            {line(s.iva_dedutivel ? 'PVP s/ IVA' : 'PVP s/ IVA (ICE, não dedutível)', eur(s.pvp_sem_iva))}
+            {line('Margem', eur(s.margem), { strong: true, className: s.margem < 0 ? 'text-red-600' : 'text-green-600' })}
             {line('Penetração opcionais', perc(s.penetracao))}
           </div>
 
