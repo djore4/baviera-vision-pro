@@ -855,13 +855,13 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
     </div>
   );
 
-  /* Corpo do cartão. share=true: versão para imagem — sempre horizontal (largura fixa,
-   * independente do ecrã) e sem controlos nem informação interna (custo, reserva, notas). */
+  /* Corpo do cartão (vertical). share=true: versão para imagem — largura fixa, independente
+   * do ecrã, e sem controlos nem informação interna (custo, reserva, notas). */
   const body = (share: boolean) => (
-    <div className={share ? 'bg-card flex items-stretch w-[960px]' : 'bg-card md:flex md:items-stretch'}>
-      {/* Hero / foto (à esquerda em ecrãs largos) */}
-      <div className={share ? 'relative w-[45%] shrink-0' : 'relative md:w-[45%] md:shrink-0'}>
-        <div className={`${share ? 'h-full min-h-[440px]' : 'aspect-[16/9] md:aspect-auto md:h-full md:min-h-[420px]'} w-full bg-gradient-to-br from-bmw-navy to-bmw-blue overflow-hidden flex items-center justify-center`}>
+    <div className={share ? 'bg-card w-[512px]' : 'bg-card'}>
+      {/* Hero / foto */}
+      <div className="relative">
+        <div className="aspect-[16/9] w-full bg-gradient-to-br from-bmw-navy to-bmw-blue overflow-hidden flex items-center justify-center">
           {photoLoading ? (
             <div className="animate-pulse text-white/70 text-xs">A obter foto...</div>
           ) : finalUrl && !imgError ? (
@@ -916,9 +916,9 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
         </div>
       </div>
 
-      <div className={share ? 'p-6 space-y-4 flex-1 min-w-0' : 'p-5 space-y-4 md:flex-1 md:min-w-0'}>
+      <div className="p-5 space-y-4">
         {/* Cabeçalho */}
-        <div className={`flex items-start justify-between gap-3 ${share ? '' : 'pr-8'}`}>
+        <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-bold text-foreground leading-tight">{[row.modelo, row.versao].filter(Boolean).join(' ') || '—'}</h2>
             <p className="text-xs text-muted-foreground font-mono uppercase mt-0.5 flex items-center gap-2 flex-wrap">
@@ -965,14 +965,12 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
         {/* Decomposição de preço */}
         <div className="border border-border rounded-lg p-3">
           <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Decomposição de preço</h3>
-          <div className={share ? 'grid grid-cols-2 gap-x-6' : 'sm:grid sm:grid-cols-2 sm:gap-x-6'}>
-            {line('Preço Base (PVB)', eur(inps.pvb))}
-            {line('Opcionais (OPC)', eur(inps.opc))}
-            {line('BSI', eur(inps.bsi))}
-            {line('ECO', eur(inps.eco))}
-            {line('Legalização', eur(inps.leg))}
-            {line('ISV', eur(inps.isv))}
-          </div>
+          {line('Preço Base (PVB)', eur(inps.pvb))}
+          {line('Opcionais (OPC)', eur(inps.opc))}
+          {line('BSI', eur(inps.bsi))}
+          {line('ECO', eur(inps.eco))}
+          {line('Legalização', eur(inps.leg))}
+          {line('ISV', eur(inps.isv))}
           <div className="border-t border-border my-1" />
           {line('PVP', eur(s.pvp), { strong: true })}
           {line(`Desconto (${perc(s.desc_perc)})`, '- ' + eur(s.desc_eur), { className: 'text-red-600' })}
@@ -1032,7 +1030,7 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="relative bg-card border border-border rounded-xl shadow-xl w-full max-w-lg md:max-w-4xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="relative bg-card border border-border rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {body(false)}
         <button onClick={onClose} className="absolute top-2 right-2 bg-black/40 hover:bg-black/60 text-white rounded-full p-1.5 transition-colors">
           <X className="h-4 w-4" />
