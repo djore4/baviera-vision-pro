@@ -5,11 +5,12 @@ import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
-  ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, ImageOff,
+  ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, RotateCcw, ImageOff,
   Camera, Trash2, Loader2,
 } from 'lucide-react';
+import { toBlob } from 'html-to-image';
 import bmwLogo from '@/assets/bmw-logo.png';
-import { chassisCurto, formatMatricula } from '@/lib/viaturaFormat';
+import { chassisCurto, formatMatricula, parseNum } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 
 /* ── Parque de demonstradores (VN · Demos) ────────────────────────────────────
@@ -90,11 +91,12 @@ interface Row extends Viatura {
 
 /* ── Colunas (espelham o Excel "PARQUE BMW") ──────────────────────────────── */
 type Group = 'id' | 'preco' | 'desc' | 'custo' | 'venda';
-const GROUPS: { key: Group; label: string }[] = [
+/* Grupos colapsáveis: colapsados, mostram só a coluna-resumo (summary). */
+const GROUPS: { key: Group; label: string; collapsible?: boolean }[] = [
   { key: 'id', label: 'Viatura' },
-  { key: 'preco', label: 'Preço de tabela' },
-  { key: 'desc', label: 'Descontos / apoios' },
-  { key: 'custo', label: 'Custo & margem' },
+  { key: 'preco', label: 'Preço de tabela', collapsible: true },
+  { key: 'desc', label: 'Descontos / apoios', collapsible: true },
+  { key: 'custo', label: 'Custo & margem', collapsible: true },
   { key: 'venda', label: 'Venda' },
 ];
 
@@ -107,7 +109,18 @@ interface Col {
   sort: (r: Row) => string | number;
   cell: (r: Row, reservado: boolean) => ReactNode;
   cls?: string;
+  /** Coluna que se mantém visível com o grupo colapsado. */
+  summary?: boolean;
+  /** Campo editável localmente (simulação — nunca é gravado). */
+  edit?: { field: EditField; kind: 'pct' | 'eur' };
 }
+
+/* Campos que se podem simular na tabela. Só em memória: nada é escrito no Supabase. */
+type EditField = 'mgb' | 'esf' | 'pac' | 'dem' | 'sup' | 'depreciacoes' | 'pvp_desc';
+type Overrides = Record<string, Partial<Record<EditField, number>>>;
+
+/* Só há margem com preço de venda e custo conhecidos (sem PVB o custo não tem significado). */
+const temMargem = (r: Row) => r._p.pvp_desc > 0 && r._inps.pvb > 0;
 
 const muted = (v: number, fmt: (n: number) => string) =>
   v ? fmt(v) : <span className="text-muted-foreground/40">—</span>;
@@ -168,18 +181,18 @@ const COLS: Col[] = [
   { key: 'isv', label: 'ISV', group: 'preco', ...money(r => r._inps.isv) },
   {
     key: 'pvp', label: 'PVP', title: '(PVB + OPC + BSI + ECO + LEG/TR + ISV) × 1,23', group: 'preco', align: 'right',
-    sort: r => r._p.pvp, cls: 'text-muted-foreground line-through',
+    sort: r => r._p.pvp, cls: 'text-muted-foreground line-through', summary: true,
     cell: r => r._p.pvp > 0 ? eur0(r._p.pvp) : '—',
   },
 
-  { key: 'mgb', label: 'MGB', group: 'desc', ...pct(r => r._inps.mgb) },
-  { key: 'esf', label: 'ESF', group: 'desc', ...pct(r => r._inps.esf) },
-  { key: 'pac', label: 'PAC', group: 'desc', ...pct(r => r._inps.pac) },
-  { key: 'dem', label: 'DEM', group: 'desc', ...pct(r => r._inps.dem) },
-  { key: 'sup', label: 'SUP', group: 'desc', ...pct(r => r._inps.sup) },
+  { key: 'mgb', label: 'MGB', group: 'desc', ...pct(r => r._inps.mgb), edit: { field: 'mgb', kind: 'pct' } },
+  { key: 'esf', label: 'ESF', group: 'desc', ...pct(r => r._inps.esf), edit: { field: 'esf', kind: 'pct' } },
+  { key: 'pac', label: 'PAC', group: 'desc', ...pct(r => r._inps.pac), edit: { field: 'pac', kind: 'pct' } },
+  { key: 'dem', label: 'DEM', group: 'desc', ...pct(r => r._inps.dem), edit: { field: 'dem', kind: 'pct' } },
+  { key: 'sup', label: 'SUP', group: 'desc', ...pct(r => r._inps.sup), edit: { field: 'sup', kind: 'pct' } },
   {
     key: 'dsc', label: 'DSC €', title: '(PVB + OPC) × (MGB + ESF + PAC + DEM + SUP)', group: 'desc', align: 'right',
-    sort: r => r._p.desc_eur, cls: 'text-red-600 font-medium',
+    sort: r => r._p.desc_eur, cls: 'text-red-600 font-medium', summary: true,
     cell: r => r._p.desc_eur ? eur0(r._p.desc_eur) : <span className="text-muted-foreground/40">—</span>,
   },
 
@@ -189,18 +202,18 @@ const COLS: Col[] = [
     sort: r => r._p.p_custo, cls: 'text-foreground font-medium',
     cell: r => r._p.p_custo > 0 ? eur0(r._p.p_custo) : '—',
   },
-  { key: 'dep', label: 'DEP', title: 'Depreciações', group: 'custo', ...money(r => r._inps.depreciacoes) },
+  { key: 'dep', label: 'DEP', title: 'Depreciações', group: 'custo', ...money(r => r._inps.depreciacoes), edit: { field: 'depreciacoes', kind: 'eur' } },
   {
     key: 'margem', label: 'Margem', title: 'PVP DESC − P Custo + DEP', group: 'custo', align: 'right',
-    sort: r => (r._p.pvp_desc > 0 ? r._p.margem : -Infinity),
-    cell: r => r._p.pvp_desc > 0
+    sort: r => (temMargem(r) ? r._p.margem : -Infinity), summary: true,
+    cell: r => temMargem(r)
       ? <span className={`font-bold ${r._p.margem < 0 ? 'text-red-600' : 'text-green-600'}`}>{eur0(r._p.margem)}</span>
       : <span className="text-muted-foreground/40">—</span>,
   },
 
   {
     key: 'pvp_desc', label: 'PVP Desc', title: 'Preço de venda (com IVA)', group: 'venda', align: 'right',
-    sort: r => r._p.pvp_desc,
+    sort: r => r._p.pvp_desc, edit: { field: 'pvp_desc', kind: 'eur' },
     cell: (r, reservado) => r._p.pvp_desc > 0
       ? <span className={`font-bold ${reservado ? 'text-red-600' : 'text-bmw-blue'}`}>{eur0(r._p.pvp_desc)}</span>
       : '—',
@@ -215,7 +228,72 @@ const COLS: Col[] = [
 const DESC_FIRST = new Set(['pvp', 'pvp_desc', 'pvp_siva', 'margem', 'idade', 'dsc', 'p_custo']);
 
 /* Primeira coluna de cada grupo leva separador vertical. */
-const GROUP_START = new Set(COLS.filter((c, i) => i > 0 && COLS[i - 1].group !== c.group).map(c => c.key));
+const groupStarts = (cols: Col[]) => new Set(cols.filter((c, i) => i > 0 && cols[i - 1].group !== c.group).map(c => c.key));
+
+const COLLAPSE_KEY = 'demos.collapsedGroups';
+function loadCollapsed(): Set<Group> {
+  try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? '[]') as Group[]); } catch { return new Set(); }
+}
+
+/* Aplica as simulações locais a uma linha e recalcula o pricing. */
+function applyOverrides(r: Row, o: Overrides[string] | undefined): Row {
+  if (!o || Object.keys(o).length === 0) return r;
+  const inps = { ...r._inps, ...o };
+  return { ...r, _inps: inps, _p: calcPricing(inps, r._tipo) };
+}
+
+/* Célula editável: clique para editar; Enter/fora confirma, Esc cancela, vazio repõe o original. */
+function EditableCell({ value, kind, edited, onCommit, children }: {
+  value: number;
+  kind: 'pct' | 'eur';
+  edited: boolean;
+  onCommit: (v: number | null) => void;
+  children: ReactNode;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const toText = (v: number) => kind === 'pct'
+    ? String(Math.round(v * 100 * 100) / 100).replace('.', ',')
+    : String(Math.round(v * 100) / 100).replace('.', ',');
+  const commit = () => {
+    if (draft === null) return;
+    const t = parseNum(draft, kind);
+    setDraft(null);
+    if (t === '') { onCommit(null); return; }
+    const n = Number(t);
+    if (!isFinite(n)) { toast.error('Valor inválido.'); return; }
+    onCommit(kind === 'pct' ? n / 100 : n);
+  };
+  if (draft !== null) {
+    return (
+      <input
+        autoFocus
+        inputMode="decimal"
+        value={draft}
+        onClick={e => e.stopPropagation()}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') setDraft(null);
+        }}
+        className="w-20 px-1.5 py-0.5 text-xs text-right bg-background border border-bmw-blue rounded focus:outline-none focus:ring-1 focus:ring-bmw-blue"
+        placeholder={kind === 'pct' ? '%' : '€'}
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); setDraft(value ? toText(value) : ''); }}
+      title={edited ? 'Valor simulado (não gravado) — clique para editar; apague para repor' : 'Clique para simular (não é gravado)'}
+      className={`px-1 -mx-1 rounded border border-dashed transition-colors ${
+        edited ? 'border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-400' : 'border-transparent hover:border-border'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
 
 function AgeBadge({ dias }: { dias: number }) {
   const cls = dias <= 90
@@ -244,7 +322,10 @@ export default function DemosPage() {
   const localInit = useRef(false);
   const [fTipologia, setFTipologia] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
-  const [selected, setSelected] = useState<Row | null>(null);
+  const [selectedChassis, setSelectedChassis] = useState<string | null>(null);
+  // Simulações locais (MGB, ESF, PAC, DEM, SUP, DEP, PVP Desc) — só em memória, nunca gravadas.
+  const [overrides, setOverrides] = useState<Overrides>({});
+  const [collapsed, setCollapsed] = useState<Set<Group>>(loadCollapsed);
 
   useEffect(() => {
     let alive = true;
@@ -300,9 +381,32 @@ export default function DemosPage() {
     if (fLocal === 'Aveiro' && !locais.includes('Aveiro')) setFLocal('Todas');
   }, [rows, locais, fLocal]);
 
+  const viewRows = useMemo(() => rows.map(r => applyOverrides(r, overrides[r.chassis])), [rows, overrides]);
+  const selected = selectedChassis ? viewRows.find(r => r.chassis === selectedChassis) ?? null : null;
+  const nEdited = Object.values(overrides).filter(o => Object.keys(o).length > 0).length;
+
+  const setOverride = (chassis: string, field: EditField, v: number | null) =>
+    setOverrides(prev => {
+      const cur = { ...(prev[chassis] ?? {}) };
+      const original = rows.find(r => r.chassis === chassis)?._inps[field];
+      if (v === null || v === original) delete cur[field]; else cur[field] = v;
+      return { ...prev, [chassis]: cur };
+    });
+
+  const toggleGroup = (g: Group) =>
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(g)) next.delete(g); else next.add(g);
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next])); } catch { /* sem storage */ }
+      return next;
+    });
+
+  const visibleCols = useMemo(() => COLS.filter(c => !collapsed.has(c.group) || c.summary), [collapsed]);
+  const groupStart = useMemo(() => groupStarts(visibleCols), [visibleCols]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = rows.filter(r => {
+    const list = viewRows.filter(r => {
       if (fModelo !== 'Todos' && (r.modelo ?? '').trim() !== fModelo) return false;
       if (fLocal !== 'Todas' && !getArr(r.local).includes(fLocal)) return false;
       if (fTipologia.size && !r._tipologia.some(t => fTipologia.has(t))) return false;
@@ -328,11 +432,11 @@ export default function DemosPage() {
       });
     }
     return list;
-  }, [rows, search, fModelo, fLocal, fTipologia, sort]);
+  }, [viewRows, search, fModelo, fLocal, fTipologia, sort]);
 
   // Totais do que está filtrado (como a linha de totais de uma tabela Excel).
   const totals = useMemo(() => {
-    const priced = filtered.filter(r => r._p.pvp_desc > 0);
+    const priced = filtered.filter(temMargem);
     const sum = (f: (r: Row) => number) => priced.reduce((s, r) => s + f(r), 0);
     return { n: priced.length, pvpDesc: sum(r => r._p.pvp_desc), margem: sum(r => r._p.margem), pCusto: sum(r => r._p.p_custo) };
   }, [filtered]);
@@ -353,7 +457,7 @@ export default function DemosPage() {
   };
 
   const alignCls = (a?: 'right' | 'center') => a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left';
-  const sepCls = (key: string) => GROUP_START.has(key) ? 'border-l border-border' : '';
+  const sepCls = (key: string) => groupStart.has(key) ? 'border-l border-border' : '';
 
   return (
     <div className="space-y-3 min-w-0 overflow-x-clip">
@@ -377,6 +481,15 @@ export default function DemosPage() {
             className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground border border-border rounded-md hover:text-foreground hover:bg-muted transition-colors"
           >
             <RotateCcw className="h-3 w-3" /> Limpar
+          </button>
+        )}
+        {nEdited > 0 && (
+          <button
+            onClick={() => setOverrides({})}
+            title="As simulações são locais e nunca são gravadas"
+            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 border border-amber-500/40 bg-amber-500/10 rounded-md hover:bg-amber-500/20 transition-colors"
+          >
+            <RotateCcw className="h-3 w-3" /> Repor simulação ({nEdited})
           </button>
         )}
       </div>
@@ -447,18 +560,31 @@ export default function DemosPage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-muted/30">
-                {GROUPS.map((g, i) => (
-                  <th
-                    key={g.key}
-                    colSpan={COLS.filter(c => c.group === g.key).length}
-                    className={`px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80 text-center whitespace-nowrap border-b border-border ${i > 0 ? 'border-l' : ''}`}
-                  >
-                    {g.label}
-                  </th>
-                ))}
+                {GROUPS.map((g, i) => {
+                  const isCollapsed = collapsed.has(g.key);
+                  return (
+                    <th
+                      key={g.key}
+                      colSpan={visibleCols.filter(c => c.group === g.key).length}
+                      className={`px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80 text-center whitespace-nowrap border-b border-border ${i > 0 ? 'border-l' : ''}`}
+                    >
+                      {g.collapsible ? (
+                        <button
+                          onClick={() => toggleGroup(g.key)}
+                          title={isCollapsed ? 'Expandir grupo' : 'Colapsar grupo'}
+                          aria-expanded={!isCollapsed}
+                          className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-foreground transition-colors"
+                        >
+                          {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+                          {g.label}
+                        </button>
+                      ) : g.label}
+                    </th>
+                  );
+                })}
               </tr>
               <tr className="bg-muted/50">
-                {COLS.map(c => {
+                {visibleCols.map(c => {
                   const active = sort?.key === c.key;
                   return (
                     <th
@@ -484,10 +610,10 @@ export default function DemosPage() {
                 return (
                   <tr
                     key={r.chassis}
-                    onClick={() => setSelected(r)}
+                    onClick={() => setSelectedChassis(r.chassis)}
                     className={`border-b border-border/50 cursor-pointer transition-colors ${reservado ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : 'hover:bg-muted/30'}`}
                   >
-                    {COLS.map(c => c.key === 'modelo' ? (
+                    {visibleCols.map(c => c.key === 'modelo' ? (
                       <td key={c.key} className="px-2.5 py-1.5 font-semibold text-foreground whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5">
                           {capas[r.chassis] && (
@@ -501,7 +627,16 @@ export default function DemosPage() {
                       </td>
                     ) : (
                       <td key={c.key} className={`px-2.5 py-1.5 whitespace-nowrap ${alignCls(c.align)} ${c.cls ?? ''} ${sepCls(c.key)}`}>
-                        {c.cell(r, reservado)}
+                        {c.edit ? (
+                          <EditableCell
+                            value={r._inps[c.edit.field]}
+                            kind={c.edit.kind}
+                            edited={overrides[r.chassis]?.[c.edit.field] !== undefined}
+                            onCommit={v => setOverride(r.chassis, c.edit!.field, v)}
+                          >
+                            {c.cell(r, reservado)}
+                          </EditableCell>
+                        ) : c.cell(r, reservado)}
                       </td>
                     ))}
                   </tr>
@@ -511,7 +646,7 @@ export default function DemosPage() {
             {totals.n > 0 && (
               <tfoot>
                 <tr className="bg-muted/50 font-semibold">
-                  {COLS.map(c => {
+                  {visibleCols.map(c => {
                     const v = c.key === 'p_custo' ? eur0(totals.pCusto)
                       : c.key === 'margem' ? eur0(totals.margem)
                       : c.key === 'pvp_desc' ? eur0(totals.pvpDesc)
@@ -533,6 +668,11 @@ export default function DemosPage() {
           )}
         </div>
       )}
+      {!loading && filtered.length > 0 && (
+        <p className="text-[10px] text-muted-foreground">
+          MGB, ESF, PAC, DEM, SUP, DEP e PVP Desc podem ser simulados (clique no valor). A simulação é local: nada é gravado no parque.
+        </p>
+      )}
 
       {selected && (
         <ShareCard
@@ -541,7 +681,7 @@ export default function DemosPage() {
           canEdit={canEdit('demos')}
           email={session?.user.email ?? null}
           onCapaChange={handleCapaChange}
-          onClose={() => setSelected(null)}
+          onClose={() => setSelectedChassis(null)}
         />
       )}
     </div>
@@ -549,6 +689,8 @@ export default function DemosPage() {
 }
 
 /* ── Cartão de partilha / detalhe ─────────────────────────────────────────────*/
+const TRANSPARENT_PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
 function shareText(r: Row): string {
   const L: string[] = [];
   L.push(`🚗 ${[r.modelo, r.versao].filter(Boolean).join(' ')}`.trim());
@@ -643,13 +785,62 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
     }
   }
 
+  // PNG do cartão, pré-gerado quando a foto estabiliza: o navigator.share tem de ser
+  // chamado logo no clique (Safari/iOS rejeitam se houver trabalho assíncrono antes).
+  const cardRef = useRef<HTMLDivElement>(null);
+  const pngRef = useRef<Blob | null>(null);
+  const [sharing, setSharing] = useState(false);
+
+  const gerarPng = async (): Promise<Blob> => {
+    const node = cardRef.current;
+    if (!node) throw new Error('cartão indisponível');
+    const blob = await toBlob(node, {
+      pixelRatio: 2,
+      backgroundColor: getComputedStyle(node).backgroundColor || '#ffffff',
+      imagePlaceholder: TRANSPARENT_PX,
+    });
+    if (!blob) throw new Error('imagem vazia');
+    return blob;
+  };
+
+  useEffect(() => {
+    pngRef.current = null;
+    if (photoLoading) return;
+    let alive = true;
+    const t = setTimeout(() => {
+      gerarPng().then(b => { if (alive) pngRef.current = b; }).catch(() => { /* gera no clique */ });
+    }, 400);
+    return () => { alive = false; clearTimeout(t); };
+  }, [row, finalUrl, imgError, photoLoading]);
+
   async function partilhar() {
-    const text = shareText(row);
+    const titulo = [row.modelo, row.versao].filter(Boolean).join(' ') || 'Viatura';
+    const nome = `${titulo} ${row.matricula ? formatMatricula(row.matricula) : chassisCurto(row.chassis)}`
+      .trim().replace(/[^\w\-À-ÿ]+/g, '_');
+    setSharing(true);
     try {
-      if (navigator.share) { await navigator.share({ title: [row.modelo, row.versao].filter(Boolean).join(' '), text }); return; }
-    } catch { return; /* utilizador cancelou */ }
-    try { await navigator.clipboard.writeText(text); toast.success('Resumo copiado para a área de transferência.'); }
-    catch { toast.error('Não foi possível copiar.'); }
+      const blob = pngRef.current ?? await gerarPng();
+      const file = new File([blob], `${nome}.png`, { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: titulo });
+          return;
+        } catch (e) {
+          if ((e as Error).name === 'AbortError') return; // utilizador cancelou
+          // NotAllowedError (gesto expirado) e afins: descarrega em alternativa.
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = file.name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success('Imagem PNG descarregada.');
+    } catch (e) {
+      toast.error('Não foi possível gerar a imagem: ' + (e as Error).message);
+    } finally {
+      setSharing(false);
+    }
   }
 
   async function copiar() {
@@ -664,157 +855,157 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
     </div>
   );
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        {/* Hero / foto */}
-        <div className="relative">
-          <div className="aspect-[16/9] w-full bg-gradient-to-br from-bmw-navy to-bmw-blue overflow-hidden flex items-center justify-center">
-            {photoLoading ? (
-              <div className="animate-pulse text-white/70 text-xs">A obter foto...</div>
-            ) : finalUrl && !imgError ? (
-              <img
-                src={finalUrl}
-                alt={`${row.modelo ?? ''} ${row.versao ?? ''}`}
-                className="w-full h-full object-cover"
-                onError={() => setImgError(true)}
-              />
-            ) : (
-              <div className="flex flex-col items-center gap-2 text-white/90">
-                <img src={bmwLogo} alt="BMW" className="h-12 w-12 opacity-90" />
-                <span className="text-lg font-black tracking-tight text-center px-4">{[row.modelo, row.versao].filter(Boolean).join(' ')}</span>
-                {canEdit
-                  ? <span className="flex items-center gap-1 text-[10px] text-white/70"><Camera className="h-3 w-3" /> define uma foto de capa</span>
-                  : row.link_fotos && <span className="flex items-center gap-1 text-[10px] text-white/60"><ImageOff className="h-3 w-3" /> sem foto de capa</span>}
-              </div>
-            )}
-          </div>
-          <button onClick={onClose} className="absolute top-2 right-2 bg-black/40 hover:bg-black/60 text-white rounded-full p-1.5 transition-colors">
-            <X className="h-4 w-4" />
-          </button>
-
-          {/* Controlo de capa (admin/edição) */}
-          {canEdit && (
-            <div className="absolute top-2 left-2 flex items-center gap-1.5">
-              <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
-              <button
-                onClick={() => fileRef.current?.click()}
-                disabled={uploading}
-                className="flex items-center gap-1 bg-black/45 hover:bg-black/65 text-white text-[11px] font-semibold rounded-full px-2.5 py-1 transition-colors disabled:opacity-60"
-                title="Carregar foto de capa"
-              >
-                {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                {capa ? 'Alterar foto' : 'Definir foto'}
-              </button>
-              {capa && !uploading && (
-                <button
-                  onClick={removerCapa}
-                  className="bg-black/45 hover:bg-red-600/80 text-white rounded-full p-1.5 transition-colors"
-                  title="Remover foto de capa"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
+  /* Corpo do cartão. share=true: versão para imagem — sempre horizontal (largura fixa,
+   * independente do ecrã) e sem controlos nem informação interna (custo, reserva, notas). */
+  const body = (share: boolean) => (
+    <div className={share ? 'bg-card flex items-stretch w-[960px]' : 'bg-card md:flex md:items-stretch'}>
+      {/* Hero / foto (à esquerda em ecrãs largos) */}
+      <div className={share ? 'relative w-[45%] shrink-0' : 'relative md:w-[45%] md:shrink-0'}>
+        <div className={`${share ? 'h-full min-h-[440px]' : 'aspect-[16/9] md:aspect-auto md:h-full md:min-h-[420px]'} w-full bg-gradient-to-br from-bmw-navy to-bmw-blue overflow-hidden flex items-center justify-center`}>
+          {photoLoading ? (
+            <div className="animate-pulse text-white/70 text-xs">A obter foto...</div>
+          ) : finalUrl && !imgError ? (
+            <img
+              src={finalUrl}
+              alt={`${row.modelo ?? ''} ${row.versao ?? ''}`}
+              className="w-full h-full object-cover"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-white/90">
+              <img src={bmwLogo} alt="BMW" className="h-12 w-12 opacity-90" />
+              <span className="text-lg font-black tracking-tight text-center px-4">{[row.modelo, row.versao].filter(Boolean).join(' ')}</span>
+              {!share && (canEdit
+                ? <span className="flex items-center gap-1 text-[10px] text-white/70"><Camera className="h-3 w-3" /> define uma foto de capa</span>
+                : row.link_fotos && <span className="flex items-center gap-1 text-[10px] text-white/60"><ImageOff className="h-3 w-3" /> sem foto de capa</span>)}
             </div>
           )}
-          <div className="absolute bottom-2 left-2 flex items-center gap-1.5 flex-wrap">
-            {reservado
-              ? <span className="px-2 py-0.5 rounded bg-yellow-400 text-yellow-950 text-[10px] font-bold uppercase tracking-wider shadow">Em negociação</span>
-              : <span className="px-2 py-0.5 rounded bg-green-500 text-white text-[10px] font-bold uppercase tracking-wider shadow">Disponível</span>}
-            {row._tipologia.map(t => (
-              <span key={t} className="px-2 py-0.5 rounded bg-white/90 text-bmw-navy text-[10px] font-bold uppercase tracking-wider shadow">{t}</span>
-            ))}
+        </div>
+
+        {/* Controlo de capa (admin/edição) */}
+        {!share && canEdit && (
+          <div className="absolute top-2 left-2 flex items-center gap-1.5">
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1 bg-black/45 hover:bg-black/65 text-white text-[11px] font-semibold rounded-full px-2.5 py-1 transition-colors disabled:opacity-60"
+              title="Carregar foto de capa"
+            >
+              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+              {capa ? 'Alterar foto' : 'Definir foto'}
+            </button>
+            {capa && !uploading && (
+              <button
+                onClick={removerCapa}
+                className="bg-black/45 hover:bg-red-600/80 text-white rounded-full p-1.5 transition-colors"
+                title="Remover foto de capa"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 flex-wrap">
+          {reservado
+            ? <span className="px-2 py-0.5 rounded bg-yellow-400 text-yellow-950 text-[10px] font-bold uppercase tracking-wider shadow">Em negociação</span>
+            : <span className="px-2 py-0.5 rounded bg-green-500 text-white text-[10px] font-bold uppercase tracking-wider shadow">Disponível</span>}
+          {row._tipologia.map(t => (
+            <span key={t} className="px-2 py-0.5 rounded bg-white/90 text-bmw-navy text-[10px] font-bold uppercase tracking-wider shadow">{t}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className={share ? 'p-6 space-y-4 flex-1 min-w-0' : 'p-5 space-y-4 md:flex-1 md:min-w-0'}>
+        {/* Cabeçalho */}
+        <div className={`flex items-start justify-between gap-3 ${share ? '' : 'pr-8'}`}>
+          <div>
+            <h2 className="text-base font-bold text-foreground leading-tight">{[row.modelo, row.versao].filter(Boolean).join(' ') || '—'}</h2>
+            <p className="text-xs text-muted-foreground font-mono uppercase mt-0.5 flex items-center gap-2 flex-wrap">
+              {row.matricula ? formatMatricula(row.matricula) : chassisCurto(row.chassis)}
+              <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{row._local}</span>
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <div className={`text-xl font-black ${reservado ? 'text-red-600' : 'text-bmw-blue'}`}>
+              {s.pvp_desc > 0 ? eur0(s.pvp_desc) : 'N/A'}
+            </div>
+            {s.pvp > 0 && s.pvp > s.pvp_desc && (
+              <div className="text-[11px] text-muted-foreground line-through">{eur0(s.pvp)}</div>
+            )}
           </div>
         </div>
 
-        <div className="p-5 space-y-4">
-          {/* Cabeçalho */}
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-foreground leading-tight">{[row.modelo, row.versao].filter(Boolean).join(' ') || '—'}</h2>
-              <p className="text-xs text-muted-foreground font-mono uppercase mt-0.5 flex items-center gap-2 flex-wrap">
-                {row.matricula ? formatMatricula(row.matricula) : chassisCurto(row.chassis)}
-                <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{row._local}</span>
-              </p>
-            </div>
-            <div className="text-right shrink-0">
-              <div className={`text-xl font-black ${reservado ? 'text-red-600' : 'text-bmw-blue'}`}>
-                {s.pvp_desc > 0 ? eur0(s.pvp_desc) : 'N/A'}
-              </div>
-              {s.pvp > 0 && s.pvp > s.pvp_desc && (
-                <div className="text-[11px] text-muted-foreground line-through">{eur0(s.pvp)}</div>
-              )}
-            </div>
+        {/* Meta */}
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="bg-muted/40 rounded-lg p-2">
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-center gap-1"><Gauge className="h-3 w-3" />Kms</div>
+            <div className="text-sm font-bold text-foreground mt-0.5">{(row.kms ?? 0).toLocaleString('pt-PT')}</div>
           </div>
-
-          {/* Meta */}
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-muted/40 rounded-lg p-2">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-center gap-1"><Gauge className="h-3 w-3" />Kms</div>
-              <div className="text-sm font-bold text-foreground mt-0.5">{(row.kms ?? 0).toLocaleString('pt-PT')}</div>
-            </div>
-            <div className="bg-muted/40 rounded-lg p-2">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-center gap-1"><Calendar className="h-3 w-3" />Matrícula</div>
-              <div className="text-sm font-bold text-foreground mt-0.5">{row.data_matricula ? new Date(row.data_matricula).toLocaleDateString('pt-PT') : '—'}</div>
-            </div>
-            <div className="bg-muted/40 rounded-lg p-2">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Idade</div>
-              <div className="text-sm font-bold text-foreground mt-0.5">{row._idade} dias</div>
-            </div>
+          <div className="bg-muted/40 rounded-lg p-2">
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-center gap-1"><Calendar className="h-3 w-3" />Matrícula</div>
+            <div className="text-sm font-bold text-foreground mt-0.5">{row.data_matricula ? new Date(row.data_matricula).toLocaleDateString('pt-PT') : '—'}</div>
           </div>
+          <div className="bg-muted/40 rounded-lg p-2">
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Idade</div>
+            <div className="text-sm font-bold text-foreground mt-0.5">{row._idade} dias</div>
+          </div>
+        </div>
 
-          {row.estado_entrega && row.estado_entrega.trim() !== '' && (
-            <div className={`text-center text-xs font-bold py-2 rounded-lg border ${
-              row.estado_entrega.toLowerCase().includes('imediata')
-                ? 'bg-green-500/10 text-green-600 border-green-500/30'
-                : 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30'
-            }`}>
-              Entrega: {row.estado_entrega}
-            </div>
-          )}
+        {row.estado_entrega && row.estado_entrega.trim() !== '' && (
+          <div className={`text-center text-xs font-bold py-2 rounded-lg border ${
+            row.estado_entrega.toLowerCase().includes('imediata')
+              ? 'bg-green-500/10 text-green-600 border-green-500/30'
+              : 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30'
+          }`}>
+            Entrega: {row.estado_entrega}
+          </div>
+        )}
 
-          {/* Decomposição de preço */}
-          <div className="border border-border rounded-lg p-3">
-            <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Decomposição de preço</h3>
+        {/* Decomposição de preço */}
+        <div className="border border-border rounded-lg p-3">
+          <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Decomposição de preço</h3>
+          <div className={share ? 'grid grid-cols-2 gap-x-6' : 'sm:grid sm:grid-cols-2 sm:gap-x-6'}>
             {line('Preço Base (PVB)', eur(inps.pvb))}
             {line('Opcionais (OPC)', eur(inps.opc))}
             {line('BSI', eur(inps.bsi))}
             {line('ECO', eur(inps.eco))}
             {line('Legalização', eur(inps.leg))}
             {line('ISV', eur(inps.isv))}
-            <div className="border-t border-border my-1" />
-            {line('PVP', eur(s.pvp), { strong: true })}
-            {line(`Desconto (${perc(s.desc_perc)})`, '- ' + eur(s.desc_eur), { className: 'text-red-600' })}
-            {line('IVA (s/ custo)', eur(s.iva))}
-            {line('Preço de custo', eur(s.p_custo), { strong: true })}
-            {line('Depreciações', eur(inps.depreciacoes))}
-            <div className="border-t border-border my-1" />
-            {line('PVP Final', eur(s.pvp_desc), { strong: true, className: 'text-bmw-blue' })}
-            {line(s.iva_dedutivel ? 'PVP s/ IVA' : 'PVP s/ IVA (ICE, não dedutível)', eur(s.pvp_sem_iva))}
-            {line('Margem', eur(s.margem), { strong: true, className: s.margem < 0 ? 'text-red-600' : 'text-green-600' })}
-            {line('Penetração opcionais', perc(s.penetracao))}
           </div>
+          <div className="border-t border-border my-1" />
+          {line('PVP', eur(s.pvp), { strong: true })}
+          {line(`Desconto (${perc(s.desc_perc)})`, '- ' + eur(s.desc_eur), { className: 'text-red-600' })}
+          {!share && line('IVA (s/ custo)', eur(s.iva))}
+          {!share && line('Preço de custo', eur(s.p_custo), { strong: true })}
+          <div className="border-t border-border my-1" />
+          {line('PVP Final', eur(s.pvp_desc), { strong: true, className: 'text-bmw-blue' })}
+          {line(s.iva_dedutivel ? 'PVP s/ IVA' : 'PVP s/ IVA (ICE, não dedutível)', eur(s.pvp_sem_iva))}
+        </div>
 
-          {reservado && (
-            <div className="text-xs text-muted-foreground bg-yellow-500/5 border border-yellow-500/20 rounded-lg p-2.5">
-              Reservado por <strong className="text-foreground">{row.reserva_user || 'Desconhecido'}</strong>
-              {row.reserva_expira && <> · válido até {new Date(row.reserva_expira).toLocaleString('pt-PT')}</>}
-            </div>
-          )}
+        {!share && reservado && (
+          <div className="text-xs text-muted-foreground bg-yellow-500/5 border border-yellow-500/20 rounded-lg p-2.5">
+            Reservado por <strong className="text-foreground">{row.reserva_user || 'Desconhecido'}</strong>
+            {row.reserva_expira && <> · válido até {new Date(row.reserva_expira).toLocaleString('pt-PT')}</>}
+          </div>
+        )}
 
-          {row.observacoes && row.observacoes.trim() !== '' && (
-            <div className="text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground">Observações: </span>{row.observacoes}
-            </div>
-          )}
+        {!share && row.observacoes && row.observacoes.trim() !== '' && (
+          <div className="text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">Observações: </span>{row.observacoes}
+          </div>
+        )}
 
-          {/* Ações */}
+        {/* Ações */}
+        {!share && (
           <div className="flex items-center gap-2 pt-1">
             <button
               onClick={partilhar}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold bg-bmw-blue text-white rounded-lg hover:bg-bmw-blue/90 transition-colors"
+              disabled={sharing}
+              title="Partilhar o cartão como imagem PNG"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold bg-bmw-blue text-white rounded-lg hover:bg-bmw-blue/90 transition-colors disabled:opacity-60"
             >
-              <Share2 className="h-3.5 w-3.5" /> Partilhar
+              {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />} Partilhar
             </button>
             <button
               onClick={copiar}
@@ -834,7 +1025,22 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
               </a>
             )}
           </div>
-        </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="relative bg-card border border-border rounded-xl shadow-xl w-full max-w-lg md:max-w-4xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        {body(false)}
+        <button onClick={onClose} className="absolute top-2 right-2 bg-black/40 hover:bg-black/60 text-white rounded-full p-1.5 transition-colors">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      {/* Cópia fora do ecrã usada para gerar o PNG de partilha. */}
+      <div aria-hidden className="fixed top-0 left-[-10000px] pointer-events-none">
+        <div ref={cardRef}>{body(true)}</div>
       </div>
     </div>
   );

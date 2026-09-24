@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { chassisCurto, formatMatricula } from '@/lib/viaturaFormat';
+import { chassisCurto, formatMatricula, parseNum } from '@/lib/viaturaFormat';
 
 describe('chassisCurto', () => {
   it('mostra só os últimos 7 caracteres de um VIN completo', () => {
@@ -22,5 +22,17 @@ describe('formatMatricula', () => {
   it('não mexe em formatos desconhecidos', () => {
     expect(formatMatricula('L-12345')).toBe('L-12345');
     expect(formatMatricula(null)).toBe('');
+  });
+});
+
+describe('parseNum', () => {
+  it('aceita formato PT com milhares e vírgula', () => {
+    expect(Number(parseNum('76.874,50 €', 'eur'))).toBe(76874.5);
+    expect(Number(parseNum('76.874', 'eur'))).toBe(76874);
+  });
+  it('ponto decimal em percentagens', () => {
+    expect(Number(parseNum('2.5', 'pct'))).toBe(2.5);
+    expect(Number(parseNum('8 %', 'pct'))).toBe(8);
+    expect(Number(parseNum('2,33', 'pct'))).toBe(2.33);
   });
 });
