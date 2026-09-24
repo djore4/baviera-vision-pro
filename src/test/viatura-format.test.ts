@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { chassisCurto, formatMatricula, parseNum } from '@/lib/viaturaFormat';
+import { chassisCurto, formatMatricula, matriculaCompacta, parseNum } from '@/lib/viaturaFormat';
 
 describe('chassisCurto', () => {
   it('mostra só os últimos 7 caracteres de um VIN completo', () => {
@@ -34,5 +34,15 @@ describe('parseNum', () => {
     expect(Number(parseNum('2.5', 'pct'))).toBe(2.5);
     expect(Number(parseNum('8 %', 'pct'))).toBe(8);
     expect(Number(parseNum('2,33', 'pct'))).toBe(2.33);
+  });
+});
+
+describe('matriculaCompacta', () => {
+  it('remove hífenes de matrículas PT', () => {
+    expect(matriculaCompacta('BZ-66-NU')).toBe('BZ66NU');
+    expect(matriculaCompacta('ch59dd')).toBe('CH59DD');
+  });
+  it('não mexe noutros formatos', () => {
+    expect(matriculaCompacta('L-12345')).toBe('L-12345');
   });
 });
