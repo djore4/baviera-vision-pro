@@ -53,6 +53,7 @@ const PERSON_HEX: Array<{ bg: string; text: string }> = [
   { bg: '#db2777', text: '#ffffff' },
 ];
 
+/* Horário por defeito (VN). Cada escala pode definir o seu em `config.horario`. */
 const HORARIO_LINES = [
   'Semana: 9h - 19h',
   'Stand: 9h - 12h e 13:30h - 19h',
@@ -77,6 +78,7 @@ export interface EscalaConfig {
   typologies: Typology[];   // colunas
   workTypologies: Typology[]; // contam como dia de trabalho / FDS
   hasGenius: boolean;       // coluna Genius + tipo de membro PG
+  horario?: string[];       // linhas do quadro "Horário" (omissão: HORARIO_LINES)
 }
 
 type DayAssign = Partial<Record<Typology, string[]>>;
@@ -415,7 +417,7 @@ export default function EscalaBoard({ config }: { config: EscalaConfig }) {
     ).join('');
 
     const legend = team.map(m => chip(m.id)).join(' ');
-    const horario = HORARIO_LINES.map(l => `<div${l.startsWith('*') ? ' style="font-style:italic"' : ''}>${esc(l)}</div>`).join('');
+    const horario = (config.horario ?? HORARIO_LINES).map(l => `<div${l.startsWith('*') ? ' style="font-style:italic"' : ''}>${esc(l)}</div>`).join('');
 
     const title = `Escala ${MONTHS_PT_FULL[month]} ${year}`;
     const fileTitle = `Escala_${MONTHS_PT[month]}_${year}`;
@@ -688,7 +690,7 @@ export default function EscalaBoard({ config }: { config: EscalaConfig }) {
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Horário</div>
             <ul className="space-y-0.5 text-[11px] text-muted-foreground">
-              {HORARIO_LINES.map(l => (
+              {(config.horario ?? HORARIO_LINES).map(l => (
                 <li key={l} className={l.startsWith('*') ? 'italic' : ''}>{l}</li>
               ))}
             </ul>
