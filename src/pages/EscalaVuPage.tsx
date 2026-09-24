@@ -11,6 +11,12 @@ const VU_CONFIG: EscalaConfig = {
   typologies: ['STAND', 'APOIO', 'LIVRE', 'FOLGAS', 'FÉRIAS', 'FORMAÇÃO'],
   workTypologies: ['STAND', 'APOIO', 'LIVRE'],
   hasGenius: false,
+  horario: [
+    'Stand: 9h – 12:30h e 14:00h – 19:00h',
+    'Apoio: 9h – 12:30h e 14:00h – 18:00h',
+    'Sábado: 09:30h – 12:30h e 14:00h – 19:00h*',
+    '*Salvo exceções a comunicar',
+  ],
 };
 
 export default function EscalaVuPage() {
