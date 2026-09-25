@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useData } from '@/contexts/DataContext';
 import { QualityManager } from '@/components/QualityManager';
 import { parseVuControl, replaceControlRecordsVu } from '@/lib/control-records-vu';
+import { parseVuAngariacao, replaceAngariacoesVu } from '@/lib/angariacao-vu';
 import { parseEotFile, importEotContracts } from '@/lib/eot';
 
 export default function DadosPage() {
@@ -22,6 +23,7 @@ export default function DadosPage() {
   const [importingVu, setImportingVu] = useState(false);
   const [importErrorVu, setImportErrorVu] = useState<string | null>(null);
   const [importCountVu, setImportCountVu] = useState<number | null>(null);
+  const [importCountAng, setImportCountAng] = useState<number | null>(null); // null = ficheiro sem sheet ANGARIAÇÃO
 
   // Importação do mapa de terminações -> tabela eot_contracts (tab End-of-Term)
   const inputRefEot = useRef<HTMLInputElement>(null);
@@ -73,9 +75,14 @@ export default function DadosPage() {
     setImportingVu(true);
     setImportErrorVu(null);
     setImportCountVu(null);
+    setImportCountAng(null);
     try {
-      const records = parseVuControl(await file.arrayBuffer());
+      const buffer = await file.arrayBuffer();
+      const records = parseVuControl(buffer);
+      // Lê as duas sheets antes de gravar, para um erro numa não deixar a outra a meio.
+      const angariacoes = parseVuAngariacao(buffer);
       const n = await replaceControlRecordsVu(records);
+      if (angariacoes) setImportCountAng(await replaceAngariacoesVu(angariacoes));
       setImportCountVu(n);
     } catch (err) {
       setImportErrorVu(err instanceof Error ? err.message : 'Erro ao importar dados VU');
@@ -165,8 +172,9 @@ export default function DadosPage() {
         <div className="bg-card border border-border rounded-lg p-6 space-y-4">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Gestão de Dados VU</h2>
           <p className="text-xs text-muted-foreground">
-            Carrega o ficheiro de <strong>Viaturas Usadas</strong>. Importa a sheet <strong>CONTROL</strong>,
-            gravando por cima dos dados VU atuais. Alimenta o <strong>WIP</strong> (FATURA/CARTEIRA) e o <strong>Funil</strong> (FRIO/MORNO/QUENTE) da secção VU.
+            Carrega o ficheiro de <strong>Viaturas Usadas</strong>. Importa as sheets <strong>CONTROL</strong> e <strong>ANGARIAÇÃO</strong>,
+            gravando por cima dos dados VU atuais. Alimenta o <strong>WIP</strong> (FATURA/CARTEIRA), o <strong>Funil</strong> (FRIO/MORNO/QUENTE)
+            e a <strong>Angariação</strong> da secção VU.
           </p>
           <Button size="lg" className="w-full gap-2" onClick={() => inputRefVu.current?.click()} disabled={loading || importingVu}>
             {importingVu ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
@@ -183,8 +191,15 @@ export default function DadosPage() {
             <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
               <Database className="h-5 w-5 text-primary flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-foreground">{importCountVu} registos VU importados</p>
-                <p className="text-xs text-muted-foreground">Já podes consultar o WIP e o Funil da secção VU.</p>
+                <p className="text-sm font-medium text-foreground">
+                  {importCountVu} registos VU importados
+                  {importCountAng !== null && <> · {importCountAng} angariações</>}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {importCountAng !== null
+                    ? 'Já podes consultar o WIP, o Funil e a Angariação da secção VU.'
+                    : 'Já podes consultar o WIP e o Funil. O ficheiro não tem a sheet ANGARIAÇÃO — as angariações não foram alteradas.'}
+                </p>
               </div>
             </div>
           )}
@@ -257,7 +272,7 @@ export default function DadosPage() {
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-foreground">Importar dados VU?</p>
                 <p className="text-xs text-muted-foreground">
-                  Vais importar de <span className="font-medium">{pendingFileVu.name}</span> a sheet <strong>CONTROL</strong>, que
+                  Vais importar de <span className="font-medium">{pendingFileVu.name}</span> as sheets <strong>CONTROL</strong> e <strong>ANGARIAÇÃO</strong>, que
                   <strong> grava por cima</strong> dos dados VU atuais. Não afeta os dados VN. Esta ação não pode ser anulada.
                 </p>
               </div>
