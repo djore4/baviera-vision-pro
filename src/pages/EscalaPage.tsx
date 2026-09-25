@@ -14,6 +14,8 @@ const VN_CONFIG: EscalaConfig = {
   typologies: ['Genius', 'STAND', 'APOIO', 'LIVRE', 'FOLGAS', 'FÉRIAS', 'FORMAÇÃO'],
   workTypologies: ['Genius', 'STAND', 'APOIO', 'LIVRE'],
   hasGenius: true,
+  tabKey: 'escala',
+  editableByAll: true, // na escala VN qualquer pessoa pode alterar
 };
 
 export default function EscalaPage() {

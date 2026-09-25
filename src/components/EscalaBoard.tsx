@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 /* ── Escala mensal (equipa × tipologias) ───────────────────────────────────────
  * Componente partilhado entre a escala VN e VU. As diferenças (ficheiro de
@@ -79,6 +80,8 @@ export interface EscalaConfig {
   workTypologies: Typology[]; // contam como dia de trabalho / FDS
   hasGenius: boolean;       // coluna Genius + tipo de membro PG
   horario?: string[];       // linhas do quadro "Horário" (omissão: HORARIO_LINES)
+  tabKey: string;           // tab na matriz de permissões (edição exige 'edit')
+  editableByAll?: boolean;  // true: qualquer pessoa com acesso ao tab pode editar
 }
 
 type DayAssign = Partial<Record<Typology, string[]>>;
@@ -163,16 +166,33 @@ function migrate(parsed: Record<string, unknown>, config: EscalaConfig): EscalaS
 // ---- Cell (multi-select de pessoas por tipologia) ---------------------------
 
 function AssignCell({
-  eligible, selectedIds, typ, colorOf, onToggle,
+  eligible, selectedIds, typ, colorOf, onToggle, readOnly,
 }: {
   eligible: Member[];
   selectedIds: string[];
   typ: Typology;
   colorOf: (memberId: string) => string;
   onToggle: (memberId: string) => void;
+  readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selectedMembers = eligible.filter(m => selectedIds.includes(m.id));
+
+  if (readOnly) {
+    return (
+      <div className="flex min-h-[1.75rem] w-full flex-wrap items-center justify-center gap-0.5 px-1 py-1">
+        {selectedMembers.length ? (
+          selectedMembers.map(m => (
+            <span key={m.id} className={`rounded px-1 py-0.5 text-[11px] font-semibold ${colorOf(m.id)}`}>
+              {m.initials}
+            </span>
+          ))
+        ) : (
+          <span className="text-[11px] font-semibold text-muted-foreground/50">—</span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -218,6 +238,9 @@ function AssignCell({
 // ---- Component --------------------------------------------------------------
 
 export default function EscalaBoard({ config }: { config: EscalaConfig }) {
+  const { canEdit } = usePermissions();
+  // VN: qualquer pessoa com acesso edita. VU: só funções com 'edit' no tab (chefe de vendas VU).
+  const editable = !!config.editableByAll || canEdit(config.tabKey);
   const TYPOLOGIES = config.typologies;
   const WORK_TYPOLOGIES = config.workTypologies;
 
@@ -461,6 +484,7 @@ export default function EscalaBoard({ config }: { config: EscalaConfig }) {
   };
 
   const save = async () => {
+    if (!editable) return;
     setSaving(true);
     try {
       const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
@@ -504,24 +528,34 @@ export default function EscalaBoard({ config }: { config: EscalaConfig }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setTeamOpen(o => !o)}>
-            <Users className="h-4 w-4 mr-1.5" /> Equipa
-          </Button>
-          <Button variant="outline" size="sm" onClick={clearMonth}>
-            <RotateCcw className="h-4 w-4 mr-1.5" /> Limpar mês
-          </Button>
+          {editable ? (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setTeamOpen(o => !o)}>
+                <Users className="h-4 w-4 mr-1.5" /> Equipa
+              </Button>
+              <Button variant="outline" size="sm" onClick={clearMonth}>
+                <RotateCcw className="h-4 w-4 mr-1.5" /> Limpar mês
+              </Button>
+            </>
+          ) : (
+            <span className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground" title="Só o chefe de vendas pode alterar esta escala">
+              Só consulta
+            </span>
+          )}
           <Button variant="outline" size="sm" onClick={exportPdf}>
             <FileDown className="h-4 w-4 mr-1.5" /> Exportar PDF
           </Button>
-          <Button size="sm" onClick={save} disabled={saving || !dirty}>
-            {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />}
-            {dirty ? 'Guardar' : 'Guardado'}
-          </Button>
+          {editable && (
+            <Button size="sm" onClick={save} disabled={saving || !dirty}>
+              {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />}
+              {dirty ? 'Guardar' : 'Guardado'}
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Team editor */}
-      {teamOpen && (
+      {editable && teamOpen && (
         <div className="rounded-lg border border-border bg-card p-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Equipa</span>
@@ -603,8 +637,10 @@ export default function EscalaBoard({ config }: { config: EscalaConfig }) {
                   </td>
                   <td className="px-2 py-1">
                     <div className="flex items-center gap-1.5">
-                      {d.sunday ? (
-                        <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      {d.sunday || !editable ? (
+                        isHoliday && !d.sunday
+                          ? <Flag className="h-3.5 w-3.5 shrink-0 text-rose-600" fill="currentColor" aria-label="Feriado" />
+                          : <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
                       ) : (
                         <button
                           onClick={() => toggleHoliday(d.key)}
@@ -630,6 +666,7 @@ export default function EscalaBoard({ config }: { config: EscalaConfig }) {
                           selectedIds={dayMap[t] ?? []}
                           colorOf={colorOf}
                           onToggle={mid => toggleAssign(d.key, t, mid)}
+                          readOnly={!editable}
                         />
                       </td>
                     ))
