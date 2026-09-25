@@ -32,6 +32,7 @@ import ArquivoPage from "./pages/ArquivoPage";
 import DefinicoesPage from "./pages/DefinicoesPage";
 import ProspecaoPage from "./pages/ProspecaoPage";
 import WipPage from "./pages/WipPage";
+import FunilVuPage from "./pages/FunilVuPage";
 import AngariacaoPage from "./pages/AngariacaoPage";
 import StockPage from "./pages/StockPage";
 import EscalaVuPage from "./pages/EscalaVuPage";
@@ -118,6 +119,7 @@ const App = () => (
               <Route path="/vendedores" element={tab('vendedores', <VendedoresPage />)} />
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
               <Route path="/wip" element={tab('wip', <WipPage />)} />
+              <Route path="/funil-vu" element={tab('funil-vu', <FunilVuPage />)} />
               <Route path="/ficha-margem-vu" element={tab('ficha-margem-vu', <FichaMargemVuPage />)} />
               <Route path="/angariacao" element={tab('angariacao', <AngariacaoPage />)} />
               <Route path="/stock" element={tab('stock', <StockPage />)} />

@@ -27,6 +27,7 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   demos: CarFront,
   prospecao: Target,
   wip: ClipboardList,
+  'funil-vu': Filter,
   angariacao: Handshake,
   stock: Car,
   'escala-vu': CalendarDays,
