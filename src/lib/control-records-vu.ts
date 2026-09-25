@@ -4,10 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 /* ── Registos de control das Viaturas Usadas ───────────────────────────────────
  * O ficheiro VU tem UMA sheet "CONTROL" com um layout próprio (diferente do VN):
  * cabeçalho na primeira linha com dados, STATUS = FATURA | CARTEIRA (WIP) ou
- * FRIO | MORNO | QUENTE (funil de vendas), e colunas PROV / 360º / RECOND /
+ * FRIO | MORNO | QUENTE (funil de vendas) ou ANGARIAÇÃO (angariação), e colunas PROV / 360º / RECOND /
  * DGARANT / GARANT 3S específicas dos usados.
- * Guardado na tabela control_records_vu; alimenta a WIP (só FATURA/CARTEIRA) e o
- * Funil (só FRIO/MORNO/QUENTE) da secção VU. NÃO se mistura com os dados VN.
+ * Guardado na tabela control_records_vu; alimenta a WIP (só FATURA/CARTEIRA), o
+ * Funil (só FRIO/MORNO/QUENTE) e a Angariação (só ANGARIACAO) da secção VU. NÃO se mistura com os dados VN.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const TABLE = 'control_records_vu';
@@ -16,14 +16,17 @@ const TABLE = 'control_records_vu';
 export const VU_WIP_STATUSES = ['FATURA', 'CARTEIRA'] as const;
 /** Status do funil de vendas VU (negócios ainda não fechados). */
 export const VU_FUNIL_STATUSES = ['FRIO', 'MORNO', 'QUENTE'] as const;
-const VU_STATUSES: readonly string[] = [...VU_WIP_STATUSES, ...VU_FUNIL_STATUSES];
+/** Status da angariação VU (guardado sem acento: "ANGARIAÇÃO" → "ANGARIACAO"). */
+export const VU_ANGARIACAO_STATUS = 'ANGARIACAO';
+const VU_STATUSES: readonly string[] = [...VU_WIP_STATUSES, ...VU_FUNIL_STATUSES, VU_ANGARIACAO_STATUS];
 
 export const isVuWipStatus = (s: string) => (VU_WIP_STATUSES as readonly string[]).includes(s);
 export const isVuFunilStatus = (s: string) => (VU_FUNIL_STATUSES as readonly string[]).includes(s);
+export const isVuAngariacaoStatus = (s: string) => s === VU_ANGARIACAO_STATUS;
 
 export interface VuRecord {
   id?: string;
-  status: string;      // FATURA | CARTEIRA | FRIO | MORNO | QUENTE
+  status: string;      // FATURA | CARTEIRA | FRIO | MORNO | QUENTE | ANGARIACAO
   dtFecho: Date | null;
   mes1: string;
   resp: string;
@@ -50,6 +53,9 @@ export interface VuRecord {
 
 const norm = (v: unknown) =>
   String(v ?? '').trim().toUpperCase().replace(/º/g, '').replace(/\s+/g, ' ');
+
+/* Status sem acentos, para aceitar "Angariação", "ANGARIACAO", etc. */
+const normStatus = (v: unknown) => norm(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 const str = (v: unknown) => (v == null ? '' : String(v).trim());
 
@@ -80,8 +86,8 @@ export function garantiaToIso(v: unknown): string {
   return d ? d.toISOString().slice(0, 10) : str(v);
 }
 
-/** Lê a sheet CONTROL do ficheiro VU e devolve os registos da WIP (FATURA/CARTEIRA)
- *  e do funil (FRIO/MORNO/QUENTE). */
+/** Lê a sheet CONTROL do ficheiro VU e devolve os registos da WIP (FATURA/CARTEIRA),
+ *  do funil (FRIO/MORNO/QUENTE) e da angariação (ANGARIAÇÃO). */
 export function parseVuControl(buffer: ArrayBuffer): VuRecord[] {
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
   const sheetName = wb.SheetNames.find(n => n.trim().toUpperCase() === 'CONTROL') ?? wb.SheetNames[0];
@@ -107,7 +113,7 @@ export function parseVuControl(buffer: ArrayBuffer): VuRecord[] {
   for (let r = headerIdx + 1; r < rows.length; r++) {
     const row = rows[r] as unknown[];
     if (!Array.isArray(row)) continue;
-    const status = norm(at(row, 'STATUS'));
+    const status = normStatus(at(row, 'STATUS'));
     const resp = str(at(row, 'RESP'));
     const cliente = str(at(row, 'CLIENTE'));
     // Ignora linhas sem conteúdo real (ex.: linhas de listas/validação).
@@ -219,7 +225,7 @@ export async function loadControlVuFromDb(): Promise<VuRecord[]> {
 /** Substitui todos os registos VU pelos fornecidos (snapshot da sheet CONTROL). */
 export async function replaceControlRecordsVu(records: VuRecord[]): Promise<number> {
   if (records.length === 0) {
-    throw new Error('A sheet CONTROL não tem registos VU (FATURA/CARTEIRA/FRIO/MORNO/QUENTE) — importação cancelada para não apagar os dados existentes.');
+    throw new Error('A sheet CONTROL não tem registos VU (FATURA/CARTEIRA/FRIO/MORNO/QUENTE/ANGARIAÇÃO) — importação cancelada para não apagar os dados existentes.');
   }
   const { error: delError } = await supabase.from(TABLE).delete().not('id', 'is', null);
   if (delError) throw new Error(`Erro ao limpar registos VU existentes: ${delError.message}`);
