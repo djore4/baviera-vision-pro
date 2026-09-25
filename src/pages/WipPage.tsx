@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { RetomaFilter } from '@/components/RetomaFilter';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
-  loadControlVuFromDb, listVuObjetivos, setVuObjetivo, type VuRecord,
+  loadControlVuFromDb, listVuObjetivos, setVuObjetivo, isVuWipStatus, type VuRecord,
 } from '@/lib/control-records-vu';
 
 /* ── WIP · Viaturas Usadas ─────────────────────────────────────────────────────
@@ -104,7 +104,8 @@ export default function WipPage() {
     Promise.all([loadControlVuFromDb(), listVuObjetivos()])
       .then(([recs, objs]) => {
         if (!alive) return;
-        setRecords(recs);
+        // Os negócios do funil (FRIO/MORNO/QUENTE) não entram na WIP.
+        setRecords(recs.filter(r => isVuWipStatus(r.status)));
         setObjMap(Object.fromEntries(objs.map(o => [o.mes, o.faturas])));
       })
       .catch(() => { if (alive) setRecords([]); });

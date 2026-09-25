@@ -166,7 +166,7 @@ export default function DadosPage() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Gestão de Dados VU</h2>
           <p className="text-xs text-muted-foreground">
             Carrega o ficheiro de <strong>Viaturas Usadas</strong>. Importa a sheet <strong>CONTROL</strong>,
-            gravando por cima dos dados VU atuais. Alimenta o dashboard <strong>WIP</strong> da secção VU.
+            gravando por cima dos dados VU atuais. Alimenta o <strong>WIP</strong> (FATURA/CARTEIRA) e o <strong>Funil</strong> (FRIO/MORNO/QUENTE) da secção VU.
           </p>
           <Button size="lg" className="w-full gap-2" onClick={() => inputRefVu.current?.click()} disabled={loading || importingVu}>
             {importingVu ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
@@ -184,7 +184,7 @@ export default function DadosPage() {
               <Database className="h-5 w-5 text-primary flex-shrink-0" />
               <div>
                 <p className="text-sm font-medium text-foreground">{importCountVu} registos VU importados</p>
-                <p className="text-xs text-muted-foreground">Já podes consultar o WIP da secção VU.</p>
+                <p className="text-xs text-muted-foreground">Já podes consultar o WIP e o Funil da secção VU.</p>
               </div>
             </div>
           )}

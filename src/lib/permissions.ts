@@ -63,6 +63,7 @@ export const TABS: TabDef[] = [
   { key: 'demos', label: 'Demos', path: '/demos', area: 'vn' },
   // ── Vendas VU (em desenvolvimento) ──────────────────────────────────────────
   { key: 'wip', label: 'WIP', path: '/wip', area: 'vu' },
+  { key: 'funil-vu', label: 'Funil', path: '/funil-vu', area: 'vu' },
   { key: 'ficha-margem-vu', label: 'Ficha de Margem', path: '/ficha-margem-vu', area: 'vu' },
   { key: 'angariacao', label: 'Angariação', path: '/angariacao', area: 'vu' },
   { key: 'stock', label: 'Stock', path: '/stock', area: 'vu' },
