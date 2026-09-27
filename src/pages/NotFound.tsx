@@ -1,7 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { Car } from "lucide-react";
-import bmwLogo from "@/assets/bmw-logo.png";
+import { client } from '@/clients';
 
 /* Página 404 — com marca e um toque de humor de stand. */
 const NotFound = () => {
@@ -14,7 +14,7 @@ const NotFound = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
       <div className="w-full max-w-md text-center space-y-5">
-        <img src={bmwLogo} alt="BMW" className="mx-auto h-12 w-12 opacity-90" />
+        <img src={client.logo.src} alt={client.logo.alt} className="mx-auto h-12 w-12 opacity-90" />
 
         <div className="flex items-center justify-center gap-3 text-primary">
           <span className="text-5xl font-black tracking-tight tabular-nums">404</span>

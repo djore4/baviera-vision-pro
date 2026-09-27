@@ -9,7 +9,7 @@ import {
   Camera, Trash2, Loader2,
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
-import bmwLogo from '@/assets/bmw-logo.png';
+import { client } from '@/clients';
 import { chassisCurto, formatMatricula, matriculaCompacta, parseNum } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 
@@ -165,7 +165,7 @@ const COLS: Col[] = [
       return (
         <span className="inline-flex gap-0.5">
           {tags.map(t => (
-            <span key={t.k} className="px-1 py-0.5 rounded bg-bmw-blue/10 text-bmw-blue text-[9px] font-bold">{t.label}</span>
+            <span key={t.k} className="px-1 py-0.5 rounded bg-brand-primary/10 text-brand-primary text-[9px] font-bold">{t.label}</span>
           ))}
         </span>
       );
@@ -214,7 +214,7 @@ const COLS: Col[] = [
     key: 'pvp_desc', label: 'PVP Desc', title: 'Preço de venda (com IVA)', group: 'venda', align: 'right',
     sort: r => r._p.pvp_desc, edit: { field: 'pvp_desc', kind: 'eur' },
     cell: (r, reservado) => r._p.pvp_desc > 0
-      ? <span className={`font-bold ${reservado ? 'text-red-600' : 'text-bmw-blue'}`}>{eur0(r._p.pvp_desc)}</span>
+      ? <span className={`font-bold ${reservado ? 'text-red-600' : 'text-brand-primary'}`}>{eur0(r._p.pvp_desc)}</span>
       : '—',
   },
   {
@@ -281,7 +281,7 @@ function EditableCell({ value, kind, edited, onCommit, children }: {
           if (e.key === 'Enter') commit();
           if (e.key === 'Escape') setDraft(null);
         }}
-        className="w-20 px-1.5 py-0.5 text-xs text-right bg-background border border-bmw-blue rounded focus:outline-none focus:ring-1 focus:ring-bmw-blue"
+        className="w-20 px-1.5 py-0.5 text-xs text-right bg-background border border-brand-primary rounded focus:outline-none focus:ring-1 focus:ring-brand-primary"
         placeholder={kind === 'pct' ? '%' : '€'}
       />
     );
@@ -586,7 +586,7 @@ export default function DemosPage() {
                     onClick={() => toggleTip(t)}
                     aria-pressed={on}
                     className={`px-3 py-1 text-[11px] font-semibold rounded-md border transition-colors ${
-                      on ? 'bg-bmw-blue text-white border-bmw-blue' : 'bg-background text-muted-foreground border-border hover:text-foreground hover:border-bmw-blue/50'
+                      on ? 'bg-brand-primary text-white border-brand-primary' : 'bg-background text-muted-foreground border-border hover:text-foreground hover:border-brand-primary/50'
                     }`}
                   >
                     {t}
@@ -652,7 +652,7 @@ export default function DemosPage() {
                       <span className={`inline-flex items-center gap-1 ${c.align === 'right' ? 'flex-row-reverse' : ''}`}>
                         {c.label}
                         {active
-                          ? (sort!.dir === 'asc' ? <ChevronUp className="h-3 w-3 text-bmw-blue" /> : <ChevronDown className="h-3 w-3 text-bmw-blue" />)
+                          ? (sort!.dir === 'asc' ? <ChevronUp className="h-3 w-3 text-brand-primary" /> : <ChevronDown className="h-3 w-3 text-brand-primary" />)
                           : <ChevronsUpDown className="h-3 w-3 opacity-30" />}
                       </span>
                       {c.key === 'modelo' && (
@@ -665,7 +665,7 @@ export default function DemosPage() {
                           onDoubleClick={e => { e.stopPropagation(); resetModeloW(); }}
                           className="absolute top-0 right-0 h-full w-3 cursor-col-resize touch-none flex justify-end group/rs"
                         >
-                          <span className="w-px h-full bg-border group-hover/rs:bg-bmw-blue group-active/rs:bg-bmw-blue" />
+                          <span className="w-px h-full bg-border group-hover/rs:bg-brand-primary group-active/rs:bg-brand-primary" />
                         </span>
                       )}
                     </th>
@@ -725,7 +725,7 @@ export default function DemosPage() {
                       : c.key === 'dep' ? 'Σ'
                       : '';
                     const tone = c.key === 'margem' ? (totals.margem < 0 ? 'text-red-600' : 'text-green-600')
-                      : c.key === 'pvp_desc' ? 'text-bmw-blue' : 'text-muted-foreground';
+                      : c.key === 'pvp_desc' ? 'text-brand-primary' : 'text-muted-foreground';
                     return (
                       <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, TINT_HEAD).cls} px-2.5 py-2 whitespace-nowrap ${alignCls(c.align)} ${tone} ${sepCls(c.key)}`}>{v}</td>
                     );
@@ -932,7 +932,7 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
     <div className={share ? 'bg-card w-[512px]' : 'bg-card'}>
       {/* Hero / foto */}
       <div className="relative">
-        <div className="aspect-[16/9] w-full bg-gradient-to-br from-bmw-navy to-bmw-blue overflow-hidden flex items-center justify-center">
+        <div className="aspect-[16/9] w-full bg-gradient-to-br from-brand-dark to-brand-primary overflow-hidden flex items-center justify-center">
           {photoLoading ? (
             <div className="animate-pulse text-white/70 text-xs">A obter foto...</div>
           ) : finalUrl && !imgError ? (
@@ -944,7 +944,7 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
             />
           ) : (
             <div className="flex flex-col items-center gap-2 text-white/90">
-              <img src={bmwLogo} alt="BMW" className="h-12 w-12 opacity-90" />
+              <img src={client.logo.src} alt={client.logo.alt} className="h-12 w-12 opacity-90" />
               <span className="text-lg font-black tracking-tight text-center px-4">{[row.modelo, row.versao].filter(Boolean).join(' ')}</span>
               {!share && (canEdit
                 ? <span className="flex items-center gap-1 text-[10px] text-white/70"><Camera className="h-3 w-3" /> define uma foto de capa</span>
@@ -982,7 +982,7 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
             ? <span className="px-2 py-0.5 rounded bg-yellow-400 text-yellow-950 text-[10px] font-bold uppercase tracking-wider shadow">Em negociação</span>
             : <span className="px-2 py-0.5 rounded bg-green-500 text-white text-[10px] font-bold uppercase tracking-wider shadow">Disponível</span>}
           {row._tipologia.map(t => (
-            <span key={t} className="px-2 py-0.5 rounded bg-white/90 text-bmw-navy text-[10px] font-bold uppercase tracking-wider shadow">{t}</span>
+            <span key={t} className="px-2 py-0.5 rounded bg-white/90 text-brand-dark text-[10px] font-bold uppercase tracking-wider shadow">{t}</span>
           ))}
         </div>
       </div>
@@ -998,7 +998,7 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
             </p>
           </div>
           <div className="text-right shrink-0">
-            <div className={`text-xl font-black ${reservado ? 'text-red-600' : 'text-bmw-blue'}`}>
+            <div className={`text-xl font-black ${reservado ? 'text-red-600' : 'text-brand-primary'}`}>
               {s.pvp_desc > 0 ? eur0(s.pvp_desc) : 'N/A'}
             </div>
             {s.pvp > 0 && s.pvp > s.pvp_desc && (
@@ -1048,7 +1048,7 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
           {!share && line('IVA (s/ custo)', eur(s.iva))}
           {!share && line('Preço de custo', eur(s.p_custo), { strong: true })}
           <div className="border-t border-border my-1" />
-          {line('PVP Final', eur(s.pvp_desc), { strong: true, className: 'text-bmw-blue' })}
+          {line('PVP Final', eur(s.pvp_desc), { strong: true, className: 'text-brand-primary' })}
           {line(s.iva_dedutivel ? 'PVP s/ IVA' : 'PVP s/ IVA (ICE, não dedutível)', eur(s.pvp_sem_iva))}
         </div>
 
@@ -1072,7 +1072,7 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
               onClick={partilhar}
               disabled={sharing}
               title="Partilhar o cartão como imagem PNG"
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold bg-bmw-blue text-white rounded-lg hover:bg-bmw-blue/90 transition-colors disabled:opacity-60"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 transition-colors disabled:opacity-60"
             >
               {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />} Partilhar
             </button>

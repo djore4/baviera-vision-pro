@@ -1,3 +1,5 @@
+import { client } from '@/clients';
+
 /* ── Easter egg: saudação na consola ──────────────────────────────────────────
  * Mensagem estilizada para quem abre o DevTools. Invisível ao utilizador normal,
  * clássico e profissional. Corre apenas uma vez por sessão de página.
@@ -15,7 +17,7 @@ export function printConsoleEgg(): void {
   ].join(';');
   const line = 'color:#1C69D4;font-size:12px';
 
-  console.log('%cCaetano BMW · Dashboard', banner);
+  console.log(`%c${client.title} · Dashboard`, banner);
   console.log(
     '%c👀 A espreitar o motor? Se percebes de código, fala connosco. 🏎️',
     line,

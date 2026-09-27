@@ -16,7 +16,7 @@ extend: {
         '2xl': '1600px',
       },
       fontFamily: {
-        sans: ["BMWTypeNext", "Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-brand)", "Inter", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -70,13 +70,10 @@ extend: {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        bmw: {
-          blue: "#1C69D4",
-          navy: "#0F172A",
-          green: "#16A34A",
-          red: "#DC2626",
-          orange: "#F59E0B",
-          darkblue: "#1E40AF",
+        // Cores da marca do cliente (src/clients/<id>/config.ts → applyClientBranding).
+        brand: {
+          primary: "hsl(var(--brand-primary) / <alpha-value>)",
+          dark: "hsl(var(--brand-dark) / <alpha-value>)",
         },
         repsol: {
           orange: "#EF7D00",

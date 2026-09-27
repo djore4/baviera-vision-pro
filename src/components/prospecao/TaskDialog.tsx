@@ -85,7 +85,7 @@ export function TaskDialog({ open, onOpenChange, task, accounts, onChanged }: Pr
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <CalendarClock className="h-4 w-4 text-bmw-blue" />
+            <CalendarClock className="h-4 w-4 text-brand-primary" />
             {typeLabel[task.type]}
           </DialogTitle>
         </DialogHeader>

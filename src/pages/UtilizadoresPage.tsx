@@ -124,7 +124,7 @@ function DemoUsersSection() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Car className="h-4 w-4 text-bmw-blue" /> Utilizadores dos demonstradores
+          <Car className="h-4 w-4 text-brand-primary" /> Utilizadores dos demonstradores
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -151,7 +151,7 @@ function DemoUsersSection() {
           <div className="flex flex-wrap gap-1.5">
             {people.map(p => (
               <span key={p.id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card pl-1 pr-1 py-0.5 text-sm">
-                <span className="inline-grid place-items-center h-6 w-6 rounded-full bg-bmw-blue/10 text-bmw-blue text-[11px] font-bold">{initials(p.nome)}</span>
+                <span className="inline-grid place-items-center h-6 w-6 rounded-full bg-brand-primary/10 text-brand-primary text-[11px] font-bold">{initials(p.nome)}</span>
                 <span className="font-medium">{p.nome}</span>
                 <button onClick={() => remove(p)} disabled={busy === p.id} className="grid place-items-center h-5 w-5 rounded-full text-muted-foreground hover:bg-destructive/15 hover:text-destructive disabled:opacity-50" title="Remover">
                   {busy === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3.5 w-3.5" />}
@@ -315,7 +315,7 @@ function UsersSection({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="u-email">Email</Label>
-              <Input id="u-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@caetano.pt" autoComplete="off" />
+              <Input id="u-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="nome@empresa.pt" autoComplete="off" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="u-pass">Password</Label>

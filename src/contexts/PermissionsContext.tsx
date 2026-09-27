@@ -2,22 +2,20 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/App';
 import {
-  listRoles, listUsers, TABS, ADMIN_ONLY_TAB_KEYS,
+  listRoles, listUsers, isPlatformAdmin, TABS, ADMIN_ONLY_TAB_KEYS,
   type AccessLevel, type AppRole, type AppUser,
 } from '@/lib/permissions';
+import { client } from '@/clients';
 
 /* Tabs restritos a administradores (fora da matriz de funções). */
 const ADMIN_ONLY_TABS = new Set(ADMIN_ONLY_TAB_KEYS);
 
-/* Email de administrador de fallback (também definido no App e na edge function). */
-const ADMIN_EMAIL = 'joaocarlos.duarte@caetano.pt';
+/* Tabs que não existem nesta instalação (configuração do cliente). */
+const DISABLED_TABS = new Set(client.disabledTabs);
 
-/* Exceções pontuais de acesso por email, fora da matriz de funções.
- * Concede acesso a tabs específicos a contas individuais sem lhes alterar a
- * função. Usar com parcimónia — a via normal é a matriz de permissões. */
-const TAB_ACCESS_EXCEPTIONS: Record<string, Record<string, AccessLevel>> = {
-  'tiago.santos@caetano.pt': { stock: 'edit' },
-};
+/* Exceções pontuais de acesso por email, fora da matriz de funções
+ * (configuração do cliente). Usar com parcimónia — a via normal é a matriz. */
+const TAB_ACCESS_EXCEPTIONS = client.tabAccessExceptions;
 
 interface PermissionsValue {
   loading: boolean;
@@ -44,6 +42,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
   const [roles, setRoles] = useState<AppRole[] | null>(null);
   const [me, setMe] = useState<AppUser | null | undefined>(undefined);
+  const [platformAdmin, setPlatformAdmin] = useState(false);
   const [tick, setTick] = useState(0);
   const reload = useCallback(() => setTick(t => t + 1), []);
 
@@ -51,8 +50,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     let alive = true;
     (async () => {
       try {
-        const [rs, us] = await Promise.all([listRoles(), listUsers()]);
+        const [rs, us, pa] = await Promise.all([
+          listRoles(), listUsers(), isPlatformAdmin().catch(() => false),
+        ]);
         if (!alive) return;
+        setPlatformAdmin(pa);
         setRoles(rs);
         setMe(us.find(u => (u.email ?? '').toLowerCase() === email) ?? null);
       } catch (e) {
@@ -68,12 +70,12 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
   const value = useMemo<PermissionsValue>(() => {
     const loading = roles === null || me === undefined;
-    const emailIsAdmin = email === ADMIN_EMAIL;
     const role = me?.perfil ? roles?.find(r => r.name === me.perfil) ?? null : null;
-    const isAdmin = emailIsAdmin || !!role?.is_admin;
+    const isAdmin = platformAdmin || !!role?.is_admin;
     const managed = !!me;
 
     const access = (tab: string): AccessLevel => {
+      if (DISABLED_TABS.has(tab)) return 'none';
       if (isAdmin) return 'edit';
       // Tabs restritos a admin não são acessíveis a mais ninguém, mesmo que a
       // função os inclua na matriz (bloqueio "para já", ver TabDef.adminOnly).
@@ -102,7 +104,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       canEdit: (t) => access(t) === 'edit',
       reload,
     };
-  }, [roles, me, email, reload]);
+  }, [roles, me, platformAdmin, email, reload]);
 
   if (value.loading) return null;
 

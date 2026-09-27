@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { client } from '@/clients';
 
 /* ── Escala mensal (equipa × tipologias) ───────────────────────────────────────
  * Componente partilhado entre a escala VN e VU. As diferenças (ficheiro de
@@ -463,7 +464,7 @@ export default function EscalaBoard({ config }: { config: EscalaConfig }) {
   .box h2{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;margin:0 0 4px}
   @page{size:A4 portrait;margin:10mm}
 </style></head><body>
-  <h1>ESCALA | CAETANO BMW Aveiro</h1>
+  <h1>ESCALA | ${esc(client.documentHeader.toUpperCase())}</h1>
   <p class="sub">${esc(title)}</p>
   <table><thead><tr>${head}</tr></thead><tbody>${bodyRows}</tbody></table>
   <div class="grid">

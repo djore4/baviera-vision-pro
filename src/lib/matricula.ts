@@ -1,3 +1,5 @@
+import { client } from '@/clients';
+
 /**
  * Geração do texto do "Pedido de matrícula" para copy/paste.
  *
@@ -19,9 +21,9 @@ export interface MatriculaFields {
   ret?: number | null;
 }
 
-/** Destinatários e CC fixos do pedido de matrícula. */
-const DESTINATARIOS = ['sonia.carvalho@caetano.pt', 'lurdes.aguiar@caetano.pt'];
-const CC = ['jose.mesquita@caetano.pt', 'joaocarlos.duarte@caetano.pt'];
+/** Destinatários e CC do pedido de matrícula (configuração do cliente). */
+const DESTINATARIOS = client.matricula.to;
+const CC = client.matricula.cc;
 
 /** Saudação em função da hora: bom dia (<12h), boa tarde (12–20h), boa noite (>=20h). */
 export function saudacao(now: Date = new Date()): string {

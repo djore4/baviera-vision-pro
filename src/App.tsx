@@ -48,16 +48,13 @@ import { useEffect, useState, createContext, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session } from "@supabase/supabase-js";
 
-const ADMIN_EMAIL = "joaocarlos.duarte@caetano.pt";
-
 const queryClient = new QueryClient();
 
 interface AuthContextValue {
   session: Session | null;
-  isAdmin: boolean;
 }
 
-export const AuthContext = createContext<AuthContextValue>({ session: null, isAdmin: false });
+export const AuthContext = createContext<AuthContextValue>({ session: null });
 export const useAuth = () => useContext(AuthContext);
 
 function AuthGate({ children }: { children: React.ReactNode }) {
@@ -72,10 +69,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   if (session === undefined) return null;
   if (!session) return <LoginPage />;
 
-  const isAdmin = session.user.email === ADMIN_EMAIL;
-
   return (
-    <AuthContext.Provider value={{ session, isAdmin }}>
+    <AuthContext.Provider value={{ session }}>
       {children}
     </AuthContext.Provider>
   );
