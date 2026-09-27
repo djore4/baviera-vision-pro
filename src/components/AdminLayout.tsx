@@ -3,7 +3,7 @@ import { Database, Car, Target, LogOut, Menu, X, ChevronLeft } from 'lucide-reac
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import bmwLogo from '@/assets/bmw-logo.png';
+import { client } from '@/clients';
 
 const ADMIN_NAV = [
   { path: '/admin/database', label: 'DATABASE', icon: Database },
@@ -42,7 +42,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         <div className="px-4 py-5 border-b border-white/10 flex items-center justify-between">
           <div>
             <h1 className="text-sm font-bold tracking-tight text-white whitespace-nowrap">
-              Caetano<span className="text-amber-400 ml-1">ADMIN</span>
+              {client.name}<span className="text-amber-400 ml-1">ADMIN</span>
             </h1>
             <p className="text-[10px] text-white/40 mt-0.5">Área restrita</p>
           </div>
@@ -90,7 +90,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-muted-foreground hover:text-foreground">
               {sidebarOpen && !isMobile ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </button>
-            <img src={bmwLogo} alt="BMW" className="h-8 w-8" />
+            <img src={client.logo.src} alt={client.logo.alt} className="h-8 w-8" />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               {currentLabel}
             </span>

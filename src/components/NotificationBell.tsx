@@ -19,6 +19,7 @@ import {
 import {
   listTaskAlerts, listRecentAccounts, type Account, type Task, type TaskAlerts,
 } from '@/lib/prospec';
+import { client } from '@/clients';
 
 /* ── Centro de notificações global (todas as áreas) ───────────────────────────
  * Sino no topo, visível em todos os perfis. Mostra as notificações destinadas a
@@ -115,7 +116,7 @@ export function NotificationBell() {
     if (fresh.length === 0) return;
     const body = fresh.length === 1 ? fresh[0].title : `${fresh.length} notificações novas`;
     try {
-      const n = new Notification('Caetano BMW', { body, tag: 'app-notif', icon: '/favicon.ico' });
+      const n = new Notification(client.title, { body, tag: 'app-notif', icon: '/favicon.ico' });
       n.onclick = () => { window.focus(); n.close(); };
     } catch { /* ignora */ }
     fresh.forEach(n => notified.add(n.id));

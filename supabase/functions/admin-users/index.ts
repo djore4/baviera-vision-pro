@@ -1,12 +1,10 @@
 // Edge function admin-users — operações privilegiadas sobre utilizadores/funções.
-// Só um administrador (email de admin ou perfil com is_admin) pode invocar.
+// Só um administrador (email em platform_admins ou perfil com is_admin) pode invocar.
 // Usa o service role para criar/eliminar utilizadores de autenticação e para
 // escrever nas tabelas app_users/app_roles (que só permitem leitura a
 // utilizadores autenticados). A tabela app_users é exclusiva desta plataforma.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const ADMIN_EMAIL = "joaocarlos.duarte@caetano.pt";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -50,8 +48,13 @@ Deno.serve(async (req) => {
 
     const admin = createClient(url, serviceKey);
 
-    // Validar admin: email de admin OU perfil com is_admin.
-    let isAdmin = (user.email ?? "").toLowerCase() === ADMIN_EMAIL;
+    // Validar admin: email em platform_admins OU perfil com is_admin.
+    let isAdmin = false;
+    if (user.email) {
+      const { data: pa } = await admin.from("platform_admins").select("email")
+        .eq("email", user.email.toLowerCase()).maybeSingle();
+      isAdmin = !!pa;
+    }
     if (!isAdmin && user.email) {
       const { data: u } = await admin.from("app_users").select("perfil").ilike("email", user.email).maybeSingle();
       if (u?.perfil) {

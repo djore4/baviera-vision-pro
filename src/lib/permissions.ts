@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { client } from '@/clients';
 
 /* ── Permissões (RBAC) — camada de acesso a dados ─────────────────────────────
  * Acesso por função (app_roles) sobre cada tab. A função de um utilizador vem
@@ -47,7 +48,7 @@ export interface TabDef {
 
 /* Registo único de todos os tabs (fonte de verdade para nav e matriz).
  * A ordem dentro de cada área define a ordem dos itens na sidebar. */
-export const TABS: TabDef[] = [
+const ALL_TABS: TabDef[] = [
   // ── Vendas VN ──────────────────────────────────────────────────────────────
   { key: 'prospecao', label: 'Diário', path: '/prospecao', area: 'vn' },
   { key: 'retails', label: 'WIP', path: '/retails', area: 'vn' },
@@ -88,6 +89,9 @@ export const TABS: TabDef[] = [
   { key: 'objetivos', label: 'Objetivos', path: '/objetivos', area: 'admin' },
 ];
 
+/* Tabs desta instalação: os desativados na configuração do cliente não existem. */
+export const TABS: TabDef[] = ALL_TABS.filter(t => !client.disabledTabs.includes(t.key));
+
 /* Tabs "arrumados" dentro do Arquivo (não aparecem diretamente na barra lateral). */
 export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'multas', 'database', 'objetivos'];
 
@@ -122,6 +126,13 @@ export async function listRoles(): Promise<AppRole[]> {
     .order('name', { ascending: true });
   if (error) throw error;
   return (data ?? []) as AppRole[];
+}
+
+/* Administrador da plataforma (email em platform_admins, via RPC). */
+export async function isPlatformAdmin(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('is_platform_admin');
+  if (error) throw error;
+  return data === true;
 }
 
 export async function listUsers(): Promise<AppUser[]> {

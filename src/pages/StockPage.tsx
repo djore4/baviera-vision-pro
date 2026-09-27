@@ -870,7 +870,7 @@ function RetomaDetail({
         onClick={e => e.stopPropagation()}
       >
         {/* Cabeçalho */}
-        <div className="relative bg-bmw-navy text-white px-5 py-4 rounded-t-xl">
+        <div className="relative bg-brand-dark text-white px-5 py-4 rounded-t-xl">
           <button onClick={onClose} className="absolute top-3 right-3 text-white/60 hover:text-white">
             <X className="h-4 w-4" />
           </button>

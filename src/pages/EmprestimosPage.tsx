@@ -336,9 +336,9 @@ export default function EmprestimosPage() {
         <div className="overflow-auto rounded-lg border border-border max-h-[74vh]">
           <div className="w-max">
             {/* Cabeçalho: viaturas */}
-            <div className="flex sticky top-0 z-20 bg-bmw-navy text-white">
+            <div className="flex sticky top-0 z-20 bg-brand-dark text-white">
               <div
-                className="shrink-0 sticky left-0 z-30 bg-bmw-navy border-r border-white/10 flex items-center justify-center text-[9px] font-semibold uppercase tracking-wider"
+                className="shrink-0 sticky left-0 z-30 bg-brand-dark border-r border-white/10 flex items-center justify-center text-[9px] font-semibold uppercase tracking-wider"
                 style={{ width: TIME_W }}
               >
                 Dia

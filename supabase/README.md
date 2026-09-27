@@ -31,20 +31,24 @@ Um projeto Supabase por cliente (região UE).
    `verify_jwt = false`, já definido em `config.toml`).
 5. Auth: desligar "Allow new users to sign up" e ligar "Leaked password
    protection". Criar o utilizador do administrador em Authentication.
-6. Frontend: novo deploy com `VITE_SUPABASE_URL`,
+6. Frontend: configuração do cliente em `src/clients/<id>/config.ts` (nome,
+   logótipo, cores, tipo de letra, tabs desativados, destinatários da
+   matrícula, exceções de acesso) e novo projeto Vercel ligado ao mesmo
+   repositório, com `VITE_CLIENT=<id>`, `VITE_SUPABASE_URL`,
    `VITE_SUPABASE_PUBLISHABLE_KEY` e `VITE_SUPABASE_PROJECT_ID` do projeto.
+   Sem `VITE_CLIENT` a instalação é a Baviera.
 
 ### Ainda não parametrizado (bloqueia um segundo cliente)
 
-- Email de admin fixo em `src/App.tsx`, `src/contexts/PermissionsContext.tsx`
-  e `functions/admin-users/index.ts` (a base de dados já usa
-  `platform_admins`).
 - Notificações push da Prospeção: as chaves VAPID são lidas de `cs_config`,
   tabela de outra aplicação que partilha o projeto atual, e a chave pública
   está fixa em `src/lib/prospecPush.ts`. O agendamento (`pg_cron`,
   `prospec-push-15m`) é criado à mão com o URL e a chave do projeto.
 - Regras do cliente atual no esquema: `objetivos_orcamento.tipo` só aceita
-  `'GSC'`/`'BMW'`.
+  `'GSC'`/`'BMW'` (e os ecrãs de Objetivos, Produção e Retails usam esses
+  nomes).
+- Módulos da Baviera ainda no núcleo: Bónus BMW (ficha de margem), "Link
+  Caetano" no Stock, importação dos Excel do DMS da Caetano.
 
 ## Produção atual (Baviera)
 

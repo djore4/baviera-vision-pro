@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
-import bmwLogo from '@/assets/bmw-logo.png';
+import { client } from '@/clients';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -22,10 +22,12 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 p-8 bg-card border border-border rounded-xl shadow-lg">
         <div className="flex flex-col items-center gap-3">
-          <img src={bmwLogo} alt="BMW" className="h-12 w-12" />
+          <img src={client.logo.src} alt={client.logo.alt} className="h-12 w-12" />
           <div className="text-center">
-            <h1 className="text-lg font-bold text-foreground">Caetano <span className="text-primary">BMW</span></h1>
-            <p className="text-xs text-muted-foreground mt-1">Acesso restrito à equipa de Aveiro</p>
+            <h1 className="text-lg font-bold text-foreground">
+              {client.name}{client.nameAccent && <> <span className="text-primary">{client.nameAccent}</span></>}
+            </h1>
+            <p className="text-xs text-muted-foreground mt-1">{client.loginSubtitle}</p>
           </div>
         </div>
 
@@ -38,7 +40,7 @@ export default function LoginPage() {
               onChange={e => setEmail(e.target.value)}
               required
               className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="email@caetanobaviera.pt"
+              placeholder="nome@empresa.pt"
             />
           </div>
           <div className="space-y-1.5">

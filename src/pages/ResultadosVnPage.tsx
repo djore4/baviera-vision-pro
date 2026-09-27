@@ -108,7 +108,7 @@ export default function ResultadosVnPage() {
               key={mo.key}
               onClick={() => setMode(mo.key)}
               className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
-                mode === mo.key ? 'bg-bmw-blue text-white' : 'text-muted-foreground hover:text-foreground'
+                mode === mo.key ? 'bg-brand-primary text-white' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {mo.label}

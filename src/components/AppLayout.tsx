@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { seasonalFlags } from '@/lib/seasonal';
 import { NotificationBell } from '@/components/NotificationBell';
-import bmwLogo from '@/assets/bmw-logo.png';
+import { client } from '@/clients';
 
 /* Ícone por tab (a camada de dados em permissions.ts mantém-se sem deps de UI). */
 const TAB_ICONS: Record<string, LucideIcon> = {
@@ -119,13 +119,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         className={`
           ${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative'}
           ${sidebarOpen ? 'w-52' : 'w-0 overflow-hidden'}
-          bg-bmw-navy flex-shrink-0 flex flex-col transition-all duration-200
+          bg-brand-dark flex-shrink-0 flex flex-col transition-all duration-200
         `}
       >
         <div className="px-4 py-5 border-b border-white/10 flex items-center justify-between">
           <h1 className="text-lg font-bold tracking-tight text-white whitespace-nowrap flex items-center">
-            Caetano
-            <img src={bmwLogo} alt="BMW" className="h-5 w-5 ml-1.5" />
+            {client.name}
+            <img src={client.logo.src} alt={client.logo.alt} className="h-5 w-5 ml-1.5" />
           </h1>
           {isMobile && (
             <button onClick={() => setSidebarOpen(false)} className="text-white/60 hover:text-white">
@@ -158,7 +158,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   const badge = item.key === 'prospecao' && prospecOverdue > 0 ? prospecOverdue : null;
                   const cls = isAdminArea
                     ? (active ? 'bg-amber-500 text-black' : 'text-amber-400/70 hover:text-amber-400 hover:bg-white/5')
-                    : (active ? 'bg-bmw-blue text-white' : 'text-white/60 hover:text-white hover:bg-white/5');
+                    : (active ? 'bg-brand-primary text-white' : 'text-white/60 hover:text-white hover:bg-white/5');
                   return (
                     <Link
                       key={item.path}
@@ -185,7 +185,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               to={SETTINGS_NAV_ITEM.path}
               className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
                 location.pathname === SETTINGS_NAV_ITEM.path
-                  ? 'bg-bmw-blue text-white'
+                  ? 'bg-brand-primary text-white'
                   : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -195,7 +195,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
         <div className="px-4 py-3 border-t border-white/10">
-          <span className="text-[10px] text-white/40 uppercase tracking-wider">BMW Dealer Dashboard</span>
+          <span className="text-[10px] text-white/40 uppercase tracking-wider">{client.tagline}</span>
         </div>
       </aside>
 
@@ -205,8 +205,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-muted-foreground hover:text-foreground">
               {sidebarOpen && !isMobile ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </button>
-            <button onClick={handleLogoClick} className="relative flex-shrink-0" title="BMW" aria-label="BMW">
-              <img src={bmwLogo} alt="BMW" className={`h-8 w-8 ${vroom ? 'animate-vroom' : ''}`} />
+            <button onClick={handleLogoClick} className="relative flex-shrink-0" title={client.logo.alt} aria-label={client.logo.alt}>
+              <img src={client.logo.src} alt={client.logo.alt} className={`h-8 w-8 ${vroom ? 'animate-vroom' : ''}`} />
               {season.xmas && (
                 <span className="absolute -top-2 -right-1 text-[13px] leading-none select-none" aria-hidden>🎅</span>
               )}

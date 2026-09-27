@@ -19,30 +19,17 @@ html, body {
   }
 }
 
-@font-face {
-  font-family: 'BMWTypeNext';
-  src: url('/fonts/BMWTypeNextLatin-Regular.woff2') format('woff2'),
-       url('/fonts/BMWTypeNextLatinTT-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'BMWTypeNext';
-  src: url('/fonts/BMWTypeNextLatin-Bold.woff2') format('woff2'),
-       url('/fonts/BMWTypeNextLatinTT-Bold.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
+    /* Marca do cliente: valores por omissão, redefinidos por applyClientBranding. */
+    --brand-primary: 214 77% 47%;
+    --brand-dark: 222 47% 11%;
+    --font-brand: 'Inter';
+
     --background: 210 40% 98%;
     --foreground: 215 25% 17%;
     --card: 0 0% 100%;

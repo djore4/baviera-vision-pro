@@ -35,7 +35,7 @@ function Score15({ value, onChange }: { value: number | null; onChange: (v: numb
           onClick={() => onChange(n)}
           className={`h-7 w-7 rounded text-xs font-semibold border transition-colors ${
             (value ?? 0) >= n
-              ? 'bg-bmw-blue text-white border-bmw-blue'
+              ? 'bg-brand-primary text-white border-brand-primary'
               : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
           }`}
         >
@@ -206,7 +206,7 @@ export function AccountDialog({ open, onOpenChange, account, myEmail, myNome, is
                   onClick={() => setFrota(t.value)}
                   className={`h-8 px-3 rounded text-xs font-medium border transition-colors ${
                     frota === t.value
-                      ? 'bg-bmw-blue text-white border-bmw-blue'
+                      ? 'bg-brand-primary text-white border-brand-primary'
                       : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
                   }`}
                 >
@@ -383,7 +383,7 @@ function InteractionsSection({ accountId, autor }: { accountId: string; autor: s
           <div key={i.id} className="flex items-start justify-between gap-2 rounded border border-border p-2 text-sm">
             <div>
               <div className="flex items-center gap-2">
-                <span className="rounded bg-bmw-blue/10 text-bmw-blue px-1.5 py-0.5 text-xs font-medium capitalize">
+                <span className="rounded bg-brand-primary/10 text-brand-primary px-1.5 py-0.5 text-xs font-medium capitalize">
                   {INTERACTION_TIPOS.find(t => t.value === i.tipo)?.label ?? i.tipo}
                 </span>
                 <span className="text-xs text-muted-foreground">{fmtDateTime(i.occurred_at)}</span>

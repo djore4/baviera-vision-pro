@@ -39,7 +39,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
       onClick={onClick}
       aria-pressed={on}
       className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-colors ${
-        on ? 'bg-bmw-blue text-white border-bmw-blue' : 'bg-background text-muted-foreground border-border hover:text-foreground hover:border-bmw-blue/50'
+        on ? 'bg-brand-primary text-white border-brand-primary' : 'bg-background text-muted-foreground border-border hover:text-foreground hover:border-brand-primary/50'
       }`}
     >
       {children}
