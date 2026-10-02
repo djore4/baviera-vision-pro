@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock, Search, Loader2, RefreshCw, Filter as FilterIcon, MapPin,
-  ListChecks, CalendarDays, ChevronRight, UserCheck, ArrowUp, ArrowDown, ArrowUpDown,
+  ListChecks, CalendarDays, UserCheck, ArrowUp, ArrowDown, ArrowUpDown,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -341,7 +341,7 @@ export default function EndOfTermPage() {
               {/* Desktop: tabela */}
               <div className="hidden sm:block rounded-xl border border-border bg-card overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-border bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                         <SortTh k="cliente" label="Cliente" sort={sort} onSort={toggleSort} />
@@ -353,7 +353,6 @@ export default function EndOfTermPage() {
                         <SortTh k="proxima" label="Próxima ação" sort={sort} onSort={toggleSort} className="hidden lg:table-cell" />
                         <SortTh k="prestacao" label="Prestação" sort={sort} onSort={toggleSort} align="right" />
                         <SortTh k="total" label="Total" sort={sort} onSort={toggleSort} align="right" />
-                        <th className="px-2 py-2" />
                       </tr>
                     </thead>
                     <tbody>
@@ -363,41 +362,40 @@ export default function EndOfTermPage() {
                         const nextOverdue = next ? isOverdue(next) : false;
                         return (
                           <tr key={c.contrato} onClick={() => openContract(c)} className={cn('border-b border-border/60 border-l-4 last:border-b-0 hover:bg-muted/30 cursor-pointer', tempDef(c.temperatura)?.row ?? 'border-l-transparent')}>
-                            <td className="px-3 py-2">
-                              <div className="font-medium text-foreground truncate max-w-[220px]">{c.cliente || '—'}</div>
+                            <td className="px-2 py-1.5">
+                              <div className="font-medium text-foreground truncate max-w-[200px]" title={c.cliente ?? undefined}>{c.cliente || '—'}</div>
                             </td>
-                            <td className="px-3 py-2">
-                              <div className="truncate max-w-[180px]">{[c.marca, c.modelo].filter(Boolean).join(' ') || '—'}</div>
+                            <td className="px-2 py-1.5">
+                              <div className="truncate max-w-[170px]" title={[c.marca, c.modelo].filter(Boolean).join(' ') || undefined}>{[c.marca, c.modelo].filter(Boolean).join(' ') || '—'}</div>
                               <div className="text-[11px] text-muted-foreground">{c.matricula || ''}</div>
                             </td>
-                            <td className="px-3 py-2 hidden md:table-cell text-xs truncate max-w-[170px]">
+                            <td className="px-2 py-1.5 hidden md:table-cell truncate max-w-[150px]">
                               <div className="text-muted-foreground truncate">{c.vendedor || '—'}</div>
                               {c.owner_nome && <div className="inline-flex items-center gap-1 text-primary mt-0.5"><UserCheck className="h-3 w-3 shrink-0" /><span className="truncate">{c.owner_nome}</span></div>}
                             </td>
-                            <td className="px-3 py-2 whitespace-nowrap">
-                              <div className="text-xs">{c.data_fim ? new Date(c.data_fim).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}</div>
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              <div>{c.data_fim ? new Date(c.data_fim).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}</div>
                               {d != null && (
                                 <div className={cn('text-[11px]', d < 0 ? 'text-muted-foreground' : d <= 30 ? 'text-destructive font-medium' : d <= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
                                   {d < 0 ? 'terminado' : `${d} dias`}
                                 </div>
                               )}
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-2 py-1.5">
                               <span className={cn('inline-block rounded-full text-[11px] font-medium px-2 py-0.5 whitespace-nowrap', faseCls(c.fase))}>{faseLabel(c.fase)}</span>
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-2 py-1.5">
                               <TemperaturaPicker value={c.temperatura} onChange={v => setTemperatura(c, v)} disabled={!editable} />
                             </td>
-                            <td className="px-3 py-2 hidden lg:table-cell">
+                            <td className="px-2 py-1.5 hidden lg:table-cell">
                               {next ? (
-                                <div className={cn('text-xs', nextOverdue && 'text-destructive font-medium')}>
+                                <div className={cn(nextOverdue && 'text-destructive font-medium')}>
                                   {actTipoLabel(next.tipo)} · {relativeLabel(next.due_at, false).text}
                                 </div>
                               ) : <span className="text-[11px] text-muted-foreground/60">—</span>}
                             </td>
-                            <td className="px-3 py-2 text-right tabular-nums text-sm font-semibold">{eur(c.prestacao)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">{eur(c.valor_total)}</td>
-                            <td className="px-2 py-2 text-muted-foreground/40"><ChevronRight className="h-4 w-4" /></td>
+                            <td className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap font-semibold">{eur(c.prestacao)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{eur(c.valor_total)}</td>
                           </tr>
                         );
                       })}
@@ -476,7 +474,7 @@ function SortTh({ k, label, sort, onSort, className, align = 'left' }: {
   const Icon = !active ? ArrowUpDown : sort!.dir === 'asc' ? ArrowUp : ArrowDown;
   return (
     <th aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={cn('px-3 py-2 font-medium', align === 'right' && 'text-right', className)}>
+      className={cn('px-2 py-1.5 font-medium whitespace-nowrap', align === 'right' && 'text-right', className)}>
       <button type="button" onClick={() => onSort(k)}
         className={cn('inline-flex items-center gap-1 uppercase tracking-wide hover:text-foreground', active && 'text-foreground')}>
         {label}
