@@ -9,7 +9,6 @@ const VN_CONFIG: EscalaConfig = {
     { id: 'FS', initials: 'FS', kind: 'VEND' },
     { id: 'NC', initials: 'NC', kind: 'VEND' },
     { id: 'PM', initials: 'PM', kind: 'VEND' },
-    { id: 'TS', initials: 'TS', kind: 'VEND' },
   ],
   typologies: ['Genius', 'STAND', 'APOIO', 'LIVRE', 'FOLGAS', 'FÉRIAS', 'FORMAÇÃO'],
   workTypologies: ['Genius', 'STAND', 'APOIO', 'LIVRE'],

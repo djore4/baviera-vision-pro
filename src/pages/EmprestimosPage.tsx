@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { isRetiredMember } from '@/lib/team';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -61,7 +62,7 @@ const BAR_PAD = 2; // px
 
 const ESCALA_BUCKET = 'excel-files';
 const ESCALA_PATH = 'escala-teste.json';
-const DEFAULT_MEMBERS = ['JD', 'BR', 'FS', 'NC', 'PM', 'TS'];
+const DEFAULT_MEMBERS = ['JD', 'BR', 'FS', 'NC', 'PM'];
 
 const TIPO_STYLE: Record<LoanTipo, { bar: string; dot: string; label: string; icon: typeof User }> = {
   interno: { bar: 'bg-blue-600 text-white', dot: 'bg-blue-600', label: 'Utilizador interno', icon: Users },
@@ -131,7 +132,7 @@ export default function EmprestimosPage() {
       const { data } = await supabase.storage.from(ESCALA_BUCKET).download(ESCALA_PATH);
       if (data) {
         const parsed = JSON.parse(await data.text()) as { team?: Array<{ initials?: string }> };
-        const team = (parsed.team ?? []).map(m => (m.initials ?? '').trim()).filter(Boolean);
+        const team = (parsed.team ?? []).map(m => (m.initials ?? '').trim()).filter(m => m && !isRetiredMember(m));
         if (team.length) setMembers(Array.from(new Set(team)));
       }
     } catch {

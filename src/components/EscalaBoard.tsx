@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { client } from '@/clients';
+import { isRetiredMember } from '@/lib/team';
 
 /* ── Escala mensal (equipa × tipologias) ───────────────────────────────────────
  * Componente partilhado entre a escala VN e VU. As diferenças (ficheiro de
@@ -178,6 +179,8 @@ function AssignCell({
 }) {
   const [open, setOpen] = useState(false);
   const selectedMembers = eligible.filter(m => selectedIds.includes(m.id));
+  // Quem já saiu da equipa só aparece se já estiver atribuído (para o poder desmarcar).
+  const pickable = eligible.filter(m => !isRetiredMember(m.initials) || selectedIds.includes(m.id));
 
   if (readOnly) {
     return (
@@ -212,10 +215,10 @@ function AssignCell({
       </PopoverTrigger>
       <PopoverContent align="center" className="w-44 p-1">
         <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{typ}</div>
-        {eligible.length === 0 && (
+        {pickable.length === 0 && (
           <div className="px-2 py-1.5 text-xs text-muted-foreground">Sem pessoas elegíveis</div>
         )}
-        {eligible.map(m => {
+        {pickable.map(m => {
           const checked = selectedIds.includes(m.id);
           return (
             <button
@@ -325,7 +328,7 @@ export default function EscalaBoard({ config }: { config: EscalaConfig }) {
         if (d.weekend && WORK_TYPOLOGIES.includes(typ)) fds++;
       }
       return { id: m.id, initials: m.initials, pg, std, outros, total: pg + std + outros, fds };
-    });
+    }).filter(s => !isRetiredMember(s.initials) || s.total > 0);
   }, [team, days, assignments, holidaySet, TYPOLOGIES, WORK_TYPOLOGIES]);
 
   // ---- Mutations ----
@@ -572,7 +575,7 @@ export default function EscalaBoard({ config }: { config: EscalaConfig }) {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {team.map(m => (
+            {team.filter(m => !isRetiredMember(m.initials)).map(m => (
               <div key={m.id} className="flex items-center gap-1 rounded border border-border bg-background px-1.5 py-1">
                 <Input
                   value={m.initials}
@@ -717,7 +720,7 @@ export default function EscalaBoard({ config }: { config: EscalaConfig }) {
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Equipa</div>
             <div className="flex flex-wrap gap-1.5">
-              {team.map(m => (
+              {team.filter(m => !isRetiredMember(m.initials) || summary.some(s => s.id === m.id)).map(m => (
                 <span key={m.id} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${colorOf(m.id)}`}>{m.initials}</span>
               ))}
             </div>
