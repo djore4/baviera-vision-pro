@@ -27,7 +27,7 @@ export function applyClientBranding(c: ClientConfig = client) {
   if (c.font) {
     const byWeight = new Map<number, string[]>();
     for (const f of c.font.faces) {
-      byWeight.set(f.weight, [...(byWeight.get(f.weight) ?? []), `url('${f.url}') format('${f.format}')`]);
+      byWeight.set(f.weight, [...(byWeight.get(f.weight) ?? []), `url('${import.meta.env.BASE_URL}${f.url.replace(/^\//, '')}') format('${f.format}')`]);
     }
     const css = [...byWeight].map(([weight, srcs]) =>
       `@font-face{font-family:'${c.font!.family}';src:${srcs.join(',')};font-weight:${weight};font-style:normal;font-display:swap}`,
