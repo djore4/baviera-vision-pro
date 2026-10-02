@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Loader2, Database, Filter } from 'lucide-react';
+import { Loader2, Database, Filter, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
@@ -48,6 +48,25 @@ const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set',
 
 const monthKeyStr = (d: Date) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 const periodLabel = (key: string) => { const [y, m] = key.split('/'); return `${MESES_PT[Number(m) - 1] ?? m} ${y}`; };
+
+/* Colunas da tabela: chave, título, alinhamento e valor de ordenação. */
+type SortKey = 'resp' | 'status' | 'type' | 'model' | 'version' | 'cliente' | 'mat' | 'prov' | 'ret' | 'fin' | 'a360' | 'dfat' | 'dgarant' | 'garant3s';
+const COLUMNS: { key: SortKey; label: string; align: 'left' | 'center'; value: (r: VuRecord) => string | number }[] = [
+  { key: 'resp', label: 'Resp', align: 'left', value: r => r.resp || '' },
+  { key: 'status', label: 'Status', align: 'left', value: r => r.status || '' },
+  { key: 'type', label: 'Tipo', align: 'left', value: r => r.type || '' },
+  { key: 'model', label: 'Modelo', align: 'left', value: r => r.model || '' },
+  { key: 'version', label: 'Versão', align: 'left', value: r => r.version || '' },
+  { key: 'cliente', label: 'Cliente', align: 'left', value: r => r.cliente || '' },
+  { key: 'mat', label: 'Matrícula', align: 'left', value: r => r.mat || '' },
+  { key: 'prov', label: 'Proveniência', align: 'left', value: r => r.prov || '' },
+  { key: 'ret', label: 'RET', align: 'center', value: r => (r.ret > 0 ? 1 : 0) },
+  { key: 'fin', label: 'FIN', align: 'center', value: r => r.fin || '' },
+  { key: 'a360', label: '360º', align: 'center', value: r => (r.a360 > 0 ? 1 : 0) },
+  { key: 'dfat', label: 'Fatura', align: 'center', value: r => (r.dfat ? new Date(r.dfat).getTime() : 0) },
+  { key: 'dgarant', label: 'DGarant', align: 'center', value: r => r.dgarant || '' },
+  { key: 'garant3s', label: 'Garant 3S', align: 'center', value: r => r.garant3s || '' },
+];
 
 function Kpi({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
@@ -98,6 +117,7 @@ export default function WipPage() {
   const [selectedRet, setSelectedRet] = useState<boolean | null>(null); // retoma: null=todos, true=com, false=sem
   const [selectedFin, setSelectedFin] = useState<string | null>(null); // método de pagamento (PP | FS | EXT | N/A)
   const [objDraft, setObjDraft] = useState<string>('');
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -150,6 +170,24 @@ export default function WipPage() {
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [records, selectedMonthKeys, selectedResps, selectedStatus, selectedProv, selectedRet, selectedFin]);
+
+  // Ordenação da tabela: 1.º clique ascendente, 2.º descendente, 3.º repõe a ordem original.
+  const sorted = useMemo(() => {
+    if (!sort) return filtered;
+    const col = COLUMNS.find(c => c.key === sort.key)!;
+    const mul = sort.dir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const va = col.value(a), vb = col.value(b);
+      const cmp = typeof va === 'number' && typeof vb === 'number'
+        ? va - vb
+        : String(va).localeCompare(String(vb), 'pt', { numeric: true, sensitivity: 'base' });
+      return cmp * mul;
+    });
+  }, [filtered, sort]);
+
+  const toggleSort = (key: SortKey) => {
+    setSort(prev => !prev || prev.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : null);
+  };
 
   const resps = useMemo(() => {
     const set = new Set<string>();
@@ -405,16 +443,6 @@ export default function WipPage() {
 
         {/* Conteúdo principal */}
         <div className="flex-1 min-w-0 space-y-3">
-          <header className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 shadow-sm">
-            <span className="grid place-items-center h-10 w-10 rounded-xl bg-primary text-primary-foreground shadow-sm shrink-0">
-              <ClipboardList className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-base sm:text-lg font-bold tracking-tight leading-tight truncate">WIP · Viaturas Usadas</h1>
-              <p className="text-xs text-muted-foreground leading-snug line-clamp-1">{filtered.length} de {records.length} registos VU.</p>
-            </div>
-          </header>
-
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
             {/* KPIs + status por responsável */}
             <div className="lg:col-span-2 space-y-3">
@@ -448,6 +476,48 @@ export default function WipPage() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {/* Realização vs Objetivo — só faturas */}
+              <div className="rounded-xl border-2 border-primary/30 bg-gradient-to-br from-primary/5 to-primary/15 p-3 shadow-sm">
+                <p className="text-xs font-bold text-primary uppercase mb-1 tracking-wide text-center">Realização vs Objetivo · Faturas</p>
+                <div className="flex justify-center">
+                  <Gauge pct={gauge.pct} prevPct={gauge.prevPct} />
+                </div>
+                <div className="grid grid-cols-3 gap-1 text-center mt-1">
+                  <div>
+                    <p className="text-base font-bold text-foreground tabular-nums">{gauge.objetivo || '—'}</p>
+                    <p className="text-[9px] text-muted-foreground">Objetivo</p>
+                  </div>
+                  <div>
+                    <p className="text-base font-extrabold tabular-nums" style={{ color: FATURA_COLOR }}>{gauge.atual}</p>
+                    <p className="text-[9px] text-muted-foreground">Faturas</p>
+                  </div>
+                  <div>
+                    <p className="text-base font-bold tabular-nums" style={{ color: CARTEIRA_COLOR }}>{gauge.previsao}</p>
+                    <p className="text-[9px] text-muted-foreground">Previsão</p>
+                  </div>
+                </div>
+                {/* Editar objetivo do mês (só com um único mês selecionado) */}
+                {!singleMonth ? (
+                  <p className="mt-2 text-[10px] text-center text-muted-foreground">Seleciona um único mês nos filtros para definir/editar o objetivo.</p>
+                ) : canEditWip ? (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <input
+                      type="number" min={0}
+                      value={objDraft}
+                      onChange={e => setObjDraft(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && saveObjetivo()}
+                      placeholder={`Objetivo ${periodLabel(singleMonth)}…`}
+                      className="h-8 flex-1 min-w-0 rounded-md border border-input bg-background px-2 text-xs"
+                    />
+                    <button onClick={saveObjetivo} disabled={objDraft === ''} className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50">Guardar</button>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[10px] text-center text-muted-foreground">Objetivo definido pela gestão.</p>
                 )}
               </div>
 
@@ -493,46 +563,6 @@ export default function WipPage() {
                 )}
               </div>
             </div>
-
-            {/* Realização vs Objetivo — só faturas */}
-            <div className="rounded-xl border-2 border-primary/30 bg-gradient-to-br from-primary/5 to-primary/15 p-3 shadow-sm">
-              <p className="text-xs font-bold text-primary uppercase mb-1 tracking-wide text-center">Realização vs Objetivo · Faturas</p>
-              <div className="flex justify-center">
-                <Gauge pct={gauge.pct} prevPct={gauge.prevPct} />
-              </div>
-              <div className="grid grid-cols-3 gap-1 text-center mt-1">
-                <div>
-                  <p className="text-base font-bold text-foreground tabular-nums">{gauge.objetivo || '—'}</p>
-                  <p className="text-[9px] text-muted-foreground">Objetivo</p>
-                </div>
-                <div>
-                  <p className="text-base font-extrabold tabular-nums" style={{ color: FATURA_COLOR }}>{gauge.atual}</p>
-                  <p className="text-[9px] text-muted-foreground">Faturas</p>
-                </div>
-                <div>
-                  <p className="text-base font-bold tabular-nums" style={{ color: CARTEIRA_COLOR }}>{gauge.previsao}</p>
-                  <p className="text-[9px] text-muted-foreground">Previsão</p>
-                </div>
-              </div>
-              {/* Editar objetivo do mês (só com um único mês selecionado) */}
-              {!singleMonth ? (
-                <p className="mt-2 text-[10px] text-center text-muted-foreground">Seleciona um único mês nos filtros para definir/editar o objetivo.</p>
-              ) : canEditWip ? (
-                <div className="mt-2 flex items-center gap-1.5">
-                  <input
-                    type="number" min={0}
-                    value={objDraft}
-                    onChange={e => setObjDraft(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && saveObjetivo()}
-                    placeholder={`Objetivo ${periodLabel(singleMonth)}…`}
-                    className="h-8 flex-1 min-w-0 rounded-md border border-input bg-background px-2 text-xs"
-                  />
-                  <button onClick={saveObjetivo} disabled={objDraft === ''} className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50">Guardar</button>
-                </div>
-              ) : (
-                <p className="mt-2 text-[10px] text-center text-muted-foreground">Objetivo definido pela gestão.</p>
-              )}
-            </div>
           </div>
 
           {/* Tabela de registos */}
@@ -540,27 +570,27 @@ export default function WipPage() {
             <table className="w-full text-xs">
               <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="text-left font-semibold px-2.5 py-2">Resp</th>
-                  <th className="text-left font-semibold px-2.5 py-2">Status</th>
-                  <th className="text-left font-semibold px-2.5 py-2">Tipo</th>
-                  <th className="text-left font-semibold px-2.5 py-2">Modelo</th>
-                  <th className="text-left font-semibold px-2.5 py-2">Versão</th>
-                  <th className="text-left font-semibold px-2.5 py-2">Cliente</th>
-                  <th className="text-left font-semibold px-2.5 py-2">Matrícula</th>
-                  <th className="text-left font-semibold px-2.5 py-2">Proveniência</th>
-                  <th className="text-center font-semibold px-2.5 py-2">RET</th>
-                  <th className="text-center font-semibold px-2.5 py-2">FIN</th>
-                  <th className="text-center font-semibold px-2.5 py-2">360º</th>
-                  <th className="text-center font-semibold px-2.5 py-2">Fatura</th>
-                  <th className="text-center font-semibold px-2.5 py-2">DGarant</th>
-                  <th className="text-center font-semibold px-2.5 py-2">Garant 3S</th>
+                  {COLUMNS.map(c => {
+                    const active = sort?.key === c.key;
+                    const Icon = !active ? ArrowUpDown : sort!.dir === 'asc' ? ArrowUp : ArrowDown;
+                    return (
+                      <th key={c.key} aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                        className={`font-semibold px-2.5 py-2 ${c.align === 'center' ? 'text-center' : 'text-left'}`}>
+                        <button type="button" onClick={() => toggleSort(c.key)}
+                          className={`inline-flex items-center gap-1 uppercase tracking-wide hover:text-foreground ${active ? 'text-foreground' : ''}`}>
+                          {c.label}
+                          <Icon className={`h-3 w-3 ${active ? '' : 'opacity-40'}`} />
+                        </button>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && (
                   <tr><td colSpan={14} className="py-8 text-center text-muted-foreground">Sem registos no período.</td></tr>
                 )}
-                {filtered.map((r, i) => {
+                {sorted.map((r, i) => {
                   const isFatura = r.status === 'FATURA';
                   const prov = (r.prov || '').trim().toUpperCase();
                   return (

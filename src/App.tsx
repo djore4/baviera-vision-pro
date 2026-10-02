@@ -21,7 +21,6 @@ import FunilPage from "./pages/FunilPage";
 import LoginPage from "./pages/LoginPage";
 import DatabasePage from "./pages/DatabasePage";
 import FichaMargemPage from "./pages/FichaMargemPage";
-import FichaMargemVuPage from "./pages/FichaMargemVuPage";
 import DemosPage from "./pages/DemosPage";
 import EmprestimosPage from "./pages/EmprestimosPage";
 import ObjetivosPage from "./pages/ObjetivosPage";
@@ -36,10 +35,6 @@ import FunilVuPage from "./pages/FunilVuPage";
 import AngariacaoPage from "./pages/AngariacaoPage";
 import StockPage from "./pages/StockPage";
 import EscalaVuPage from "./pages/EscalaVuPage";
-import ResultadosVnPage from "./pages/ResultadosVnPage";
-import ResultadosVuPage from "./pages/ResultadosVuPage";
-import ResultadosFinancePage from "./pages/ResultadosFinancePage";
-import ResultadosApvPage from "./pages/ResultadosApvPage";
 import EndOfTermPage from "./pages/EndOfTermPage";
 import { EasterEggs } from "@/components/EasterEggs";
 import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
@@ -115,14 +110,9 @@ const App = () => (
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
               <Route path="/wip" element={tab('wip', <WipPage />)} />
               <Route path="/funil-vu" element={tab('funil-vu', <FunilVuPage />)} />
-              <Route path="/ficha-margem-vu" element={tab('ficha-margem-vu', <FichaMargemVuPage />)} />
               <Route path="/angariacao" element={tab('angariacao', <AngariacaoPage />)} />
               <Route path="/stock" element={tab('stock', <StockPage />)} />
               <Route path="/escala-vu" element={tab('escala-vu', <EscalaVuPage />)} />
-              <Route path="/resultados-vn" element={tab('resultados-vn', <ResultadosVnPage />)} />
-              <Route path="/resultados-vu" element={tab('resultados-vu', <ResultadosVuPage />)} />
-              <Route path="/resultados-finance" element={tab('resultados-finance', <ResultadosFinancePage />)} />
-              <Route path="/resultados-apv" element={tab('resultados-apv', <ResultadosApvPage />)} />
               <Route path="/arquivo" element={tab('arquivo', <ArquivoPage />)} />
               <Route path="/prospecao" element={tab('prospecao', <ProspecaoPage />)} />
               <Route path="/utilizadores" element={tab('utilizadores', <UtilizadoresPage />)} />
