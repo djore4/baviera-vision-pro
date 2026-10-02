@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  CalendarClock, AlertTriangle, Search, Loader2, RefreshCw, Filter as FilterIcon,
-  ListChecks, CalendarDays, ChevronRight, UserCheck,
+  CalendarClock, Search, Loader2, RefreshCw, Filter as FilterIcon, MapPin,
+  ListChecks, CalendarDays, ChevronRight, UserCheck, ArrowUp, ArrowDown, ArrowUpDown,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -15,11 +15,16 @@ import { ContractDialog } from '@/components/eot/ContractDialog';
 import { EmptyState, relativeLabel } from '@/components/prospecao/ui';
 import {
   listEotContracts, listEotVendedores, listAgenda, listEotOwners,
-  FASES, faseLabel, faseCls, actTipoLabel, isFechada, daysToEnd, eur, isOverdue,
+  FASES, faseLabel, faseCls, actTipoLabel, isFechada, daysToEnd, eur, isOverdue, contractLocal,
   type EotContract, type AgendaItem, type EotOwner, type Fase,
 } from '@/lib/eot';
 
 type UntilKey = 'all' | '30' | '60' | '90';
+
+const DEFAULT_LOCAL = 'Aveiro';
+
+type SortKey = 'cliente' | 'viatura' | 'resp' | 'fim' | 'fase' | 'proxima' | 'total';
+type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
 
 export default function EndOfTermPage() {
   const { scope, isDirector, myEmail, myNome } = useEotScope();
@@ -39,6 +44,9 @@ export default function EndOfTermPage() {
   const [hideClosed, setHideClosed] = useState(true);
   const [ownerFilter, setOwnerFilter] = useState<string>('all'); // all | none | <email>
   const [q, setQ] = useState('');
+  const [local, setLocal] = useState<string>(DEFAULT_LOCAL); // all | <local>
+  const [localTouched, setLocalTouched] = useState(false);
+  const [sort, setSort] = useState<SortState>(null);
 
   const [selected, setSelected] = useState<EotContract | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -74,6 +82,28 @@ export default function EndOfTermPage() {
     return m;
   }, [agenda]);
 
+  // Locais presentes nos contratos (mais contratos primeiro). O local escolhido
+  // fica sempre na lista, mesmo que entretanto não tenha contratos.
+  const locals = useMemo(() => {
+    const count = new Map<string, number>();
+    contracts.forEach(c => { const l = contractLocal(c); count.set(l, (count.get(l) ?? 0) + 1); });
+    const list = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([l]) => l);
+    if (local !== 'all' && !list.includes(local)) list.unshift(local);
+    return list;
+  }, [contracts, local]);
+
+  // Se o utilizador ainda não escolheu e o local por omissão não tem contratos
+  // (ex.: vendedor com contratos só noutro local), mostra todos em vez de vazio.
+  useEffect(() => {
+    if (loading || localTouched || contracts.length === 0) return;
+    if (!contracts.some(c => contractLocal(c) === DEFAULT_LOCAL)) setLocal('all');
+  }, [loading, localTouched, contracts]);
+
+  const inLocal = useCallback(
+    (c: EotContract) => local === 'all' || contractLocal(c) === local,
+    [local],
+  );
+
   const filtered = useMemo(() => {
     const now = new Date(); now.setHours(23, 59, 59, 999);
     const limitIso = (days: number) => {
@@ -82,6 +112,7 @@ export default function EndOfTermPage() {
     };
     const term = q.trim().toLowerCase();
     return contracts.filter(c => {
+      if (!inLocal(c)) return false;
       if (hideClosed && isFechada(c.fase)) return false;
       if (vendedor !== 'all' && c.vendedor !== vendedor) return false;
       if (fase !== 'all' && c.fase !== fase) return false;
@@ -96,41 +127,61 @@ export default function EndOfTermPage() {
       }
       return true;
     });
-  }, [contracts, hideClosed, vendedor, fase, until, ownerFilter, q]);
+  }, [contracts, inLocal, hideClosed, vendedor, fase, until, ownerFilter, q]);
 
-  // KPIs (sobre o universo não-fechado, independente dos filtros de tabela).
+  // Ordenação por cabeçalho: 1.º clique ascendente, 2.º descendente, 3.º repõe a ordem original.
+  const sorted = useMemo(() => {
+    if (!sort) return filtered;
+    const value = (c: EotContract): string | number | null => {
+      switch (sort.key) {
+        case 'cliente': return (c.cliente ?? '').toLowerCase() || null;
+        case 'viatura': return [c.marca, c.modelo].filter(Boolean).join(' ').toLowerCase() || null;
+        case 'resp': return (c.owner_nome ?? c.vendedor ?? '').toLowerCase() || null;
+        case 'fim': return c.data_fim;
+        case 'fase': return FASES.findIndex(f => f.value === c.fase);
+        case 'proxima': return nextByContrato.get(c.contrato)?.due_at ?? null;
+        case 'total': return c.valor_total;
+      }
+    };
+    const mul = sort.dir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const va = value(a), vb = value(b);
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;            // vazios sempre no fim
+      if (vb == null) return -1;
+      const cmp = typeof va === 'number' && typeof vb === 'number'
+        ? va - vb
+        : String(va).localeCompare(String(vb), 'pt', { numeric: true });
+      return cmp * mul;
+    });
+  }, [filtered, sort, nextByContrato]);
+
+  const toggleSort = (key: SortKey) =>
+    setSort(prev => !prev || prev.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : null);
+
+  // A agenda segue o local escolhido (pelo local do contrato).
+  const agendaView = useMemo(() => {
+    if (local === 'all') return agenda;
+    const byContrato = new Map(contracts.map(c => [c.contrato, c]));
+    return agenda.filter(a => { const c = byContrato.get(a.contrato); return c ? inLocal(c) : false; });
+  }, [agenda, contracts, local, inLocal]);
+
+  // KPIs (sobre o universo não-fechado do local escolhido, independente dos
+  // restantes filtros de tabela).
   const kpis = useMemo(() => {
-    const ativos = contracts.filter(c => !isFechada(c.fase));
+    const doLocal = contracts.filter(inLocal);
+    const ativos = doLocal.filter(c => !isFechada(c.fase));
     const in30 = ativos.filter(c => { const d = daysToEnd(c.data_fim); return d != null && d >= 0 && d <= 30; }).length;
     const in60 = ativos.filter(c => { const d = daysToEnd(c.data_fim); return d != null && d >= 0 && d <= 60; }).length;
-    const overdueFollow = agenda.filter(a => isOverdue(a)).length;
-    const fechados = contracts.filter(c => c.fase === 'renovado' || c.fase === 'retomado').length;
+    const overdueFollow = agendaView.filter(a => isOverdue(a)).length;
+    const fechados = doLocal.filter(c => c.fase === 'renovado' || c.fase === 'retomado').length;
     return { ativos: ativos.length, in30, in60, overdueFollow, fechados };
-  }, [contracts, agenda]);
+  }, [contracts, inLocal, agendaView]);
 
   const openContract = (c: EotContract) => { setSelected(c); setDialogOpen(true); };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5 animate-fade-in">
-      {/* Cabeçalho */}
-      <header className="flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 shadow-sm">
-        <span className="grid place-items-center h-10 w-10 rounded-xl bg-primary text-primary-foreground shadow-sm shrink-0">
-          <CalendarClock className="h-5 w-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-base sm:text-lg font-bold tracking-tight leading-tight truncate">End-of-Term</h1>
-        </div>
-        {kpis.overdueFollow > 0 && (
-          <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-destructive/10 text-destructive text-[11px] sm:text-xs font-semibold px-2.5 py-1.5 whitespace-nowrap">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            {kpis.overdueFollow} em atraso
-          </span>
-        )}
-        <button onClick={load} className="shrink-0 text-muted-foreground hover:text-foreground" title="Atualizar">
-          <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-        </button>
-      </header>
-
+    <div className="max-w-6xl mx-auto space-y-4 animate-fade-in">
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Kpi label="Contratos ativos" value={kpis.ativos} />
@@ -157,6 +208,13 @@ export default function EndOfTermPage() {
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cliente, matrícula ou contrato…" className="pl-8 h-9" />
             </div>
             <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+              <Select value={local} onValueChange={(v) => { setLocal(v); setLocalTouched(true); }}>
+                <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[140px] gap-1"><MapPin className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Local" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os locais</SelectItem>
+                  {locals.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <Select value={vendedor} onValueChange={setVendedor}>
                 <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[140px] gap-1"><FilterIcon className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Vendedor" /></SelectTrigger>
                 <SelectContent>
@@ -194,6 +252,9 @@ export default function EndOfTermPage() {
                 <input type="checkbox" checked={hideClosed} onChange={(e) => setHideClosed(e.target.checked)} className="rounded border-border" />
                 Esconder fechados
               </label>
+              <button onClick={load} className="hidden sm:inline-flex items-center sm:ml-auto text-muted-foreground hover:text-foreground" title="Atualizar">
+                <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+              </button>
             </div>
           </div>
 
@@ -205,7 +266,7 @@ export default function EndOfTermPage() {
             <>
               {/* Mobile: cartões */}
               <ul className="sm:hidden space-y-2">
-                {filtered.map(c => {
+                {sorted.map(c => {
                   const d = daysToEnd(c.data_fim);
                   const next = nextByContrato.get(c.contrato);
                   const nextOverdue = next ? isOverdue(next) : false;
@@ -241,18 +302,18 @@ export default function EndOfTermPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                        <th className="px-3 py-2 font-medium">Cliente</th>
-                        <th className="px-3 py-2 font-medium">Viatura</th>
-                        <th className="px-3 py-2 font-medium hidden md:table-cell">Vendedor / Resp.</th>
-                        <th className="px-3 py-2 font-medium">Fim</th>
-                        <th className="px-3 py-2 font-medium">Fase</th>
-                        <th className="px-3 py-2 font-medium hidden lg:table-cell">Próxima ação</th>
-                        <th className="px-3 py-2 font-medium text-right">Total</th>
+                        <SortTh k="cliente" label="Cliente" sort={sort} onSort={toggleSort} />
+                        <SortTh k="viatura" label="Viatura" sort={sort} onSort={toggleSort} />
+                        <SortTh k="resp" label="Vendedor / Resp." sort={sort} onSort={toggleSort} className="hidden md:table-cell" />
+                        <SortTh k="fim" label="Fim" sort={sort} onSort={toggleSort} />
+                        <SortTh k="fase" label="Fase" sort={sort} onSort={toggleSort} />
+                        <SortTh k="proxima" label="Próxima ação" sort={sort} onSort={toggleSort} className="hidden lg:table-cell" />
+                        <SortTh k="total" label="Total" sort={sort} onSort={toggleSort} align="right" />
                         <th className="px-2 py-2" />
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map(c => {
+                      {sorted.map(c => {
                         const d = daysToEnd(c.data_fim);
                         const next = nextByContrato.get(c.contrato);
                         const nextOverdue = next ? isOverdue(next) : false;
@@ -305,11 +366,11 @@ export default function EndOfTermPage() {
         <TabsContent value="agenda" className="mt-4">
           {loading ? (
             <Loader />
-          ) : agenda.length === 0 ? (
+          ) : agendaView.length === 0 ? (
             <EmptyState icon={CalendarDays} title="Nada agendado" hint="Abra um contrato e agende uma chamada, reunião ou proposta." />
           ) : (
             <ul className="space-y-2">
-              {agenda.map(a => {
+              {agendaView.map(a => {
                 const overdue = isOverdue(a);
                 const rel = relativeLabel(a.due_at, false);
                 const contract = contracts.find(c => c.contrato === a.contrato);
@@ -357,6 +418,23 @@ export default function EndOfTermPage() {
         onChanged={load}
       />
     </div>
+  );
+}
+
+function SortTh({ k, label, sort, onSort, className, align = 'left' }: {
+  k: SortKey; label: string; sort: SortState; onSort: (k: SortKey) => void; className?: string; align?: 'left' | 'right';
+}) {
+  const active = sort?.key === k;
+  const Icon = !active ? ArrowUpDown : sort!.dir === 'asc' ? ArrowUp : ArrowDown;
+  return (
+    <th aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={cn('px-3 py-2 font-medium', align === 'right' && 'text-right', className)}>
+      <button type="button" onClick={() => onSort(k)}
+        className={cn('inline-flex items-center gap-1 uppercase tracking-wide hover:text-foreground', active && 'text-foreground')}>
+        {label}
+        <Icon className={cn('h-3 w-3', !active && 'opacity-40')} />
+      </button>
+    </th>
   );
 }
 

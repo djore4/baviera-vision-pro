@@ -309,20 +309,28 @@ export async function listEotVendedores(scope: Scope): Promise<string[]> {
 /* ── Responsáveis (vendedores a quem o chefe pode atribuir contratos) ─────────── */
 export interface EotOwner { email: string; nome: string; }
 
-/* Perfis de vendedor — os mesmos que trabalham o tab WIP. São estas as contas a
- * quem se pode atribuir um contrato para follow-up. */
-export const EOT_SELLER_ROLES = ['Vendedor VN', 'Vendedor VU'];
+/* Responsáveis possíveis: os mesmos da escala (BR, FS, NC, PM) mais o Francisco
+ * Dias (FD), coordenador deste tipo de negócios. Resolvidos por email na tabela
+ * de utilizadores para o contrato atribuído aparecer no mapa da pessoa. */
+export const EOT_OWNERS: { initials: string; email: string }[] = [
+  { initials: 'BR', email: 'belmiro.resgate@caetano.pt' },
+  { initials: 'FS', email: 'fernando.sousa@caetano.pt' },
+  { initials: 'NC', email: 'nuno.conde@caetano.pt' },
+  { initials: 'PM', email: 'paulo.j.matos@caetano.pt' },
+  { initials: 'FD', email: 'francisco.dias@caetano.pt' },
+];
 
-/** Vendedores da plataforma (contas com perfil de vendedor). O contrato atribuído
- *  passa a aparecer no "mapa" do vendedor (filtro por owner_email). */
 export async function listEotOwners(): Promise<EotOwner[]> {
-  const { data, error } = await supabase.from('app_users').select('nome, email, perfil');
+  const { data, error } = await supabase.from('app_users').select('nome, email');
   if (error || !data) return [];
-  const roles = new Set(EOT_SELLER_ROLES);
-  return (data as { nome: string | null; email: string | null; perfil: string | null }[])
-    .filter(u => u.email && u.perfil && roles.has(u.perfil))
-    .map(u => ({ email: u.email as string, nome: u.nome || (u.email as string) }))
-    .sort((a, b) => a.nome.localeCompare(b.nome));
+  const byEmail = new Map(
+    (data as { nome: string | null; email: string | null }[])
+      .filter(u => u.email).map(u => [u.email!.toLowerCase(), u.nome]),
+  );
+  // Mantém a ordem definida acima; ignora quem não tenha conta.
+  return EOT_OWNERS
+    .filter(o => byEmail.has(o.email))
+    .map(o => ({ email: o.email, nome: `${o.initials} · ${byEmail.get(o.email) || o.email}` }));
 }
 
 /** Atribui (ou remove) o responsável de follow-up de um contrato. */
@@ -426,6 +434,20 @@ export async function countOverdue(scope: Scope): Promise<number> {
   const { count, error } = await q;
   if (error) return 0;
   return count ?? 0;
+}
+
+/* Local (cidade) de um contrato: parte do "concessionário responsável" sem a marca
+ * nem o sufixo numérico — "Baviera Aveiro 2" e "Caetano Aveiro" → "Aveiro". */
+export function contractLocal(c: Pick<EotContract, 'concessionario_resp' | 'concessionario'>): string {
+  const raw = (c.concessionario_resp || c.concessionario || '').trim();
+  if (!raw) return '—';
+  const s = raw
+    .replace(/^(Caetano Baviera|Baviera|Caetano)\s*[–-]?\s*/i, '')
+    .replace(/\s+\d+$/, '')
+    .replace(/\s+-\s+.*$/, '')     // "Lisboa - M.G.Costa" → "Lisboa"
+    .replace(/^V\.\s*N\.\s*Gaia$/i, 'Gaia')
+    .trim();
+  return s || raw;
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────────────────── */
