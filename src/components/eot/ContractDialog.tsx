@@ -16,9 +16,9 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import {
-  updateEotContract, assignEotOwner, listActivities, createActivity, setActivityDone, deleteActivity,
+  updateEotContract, assignEotOwner, TEMPERATURAS, tempDef, listActivities, createActivity, setActivityDone, deleteActivity,
   FASES, faseLabel, faseCls, ACT_TIPOS, actTipoLabel, isOverdue, daysToEnd, eur,
-  type EotContract, type EotActivity, type EotOwner, type Fase, type ActTipo,
+  type EotContract, type EotActivity, type EotOwner, type Fase, type ActTipo, type Temperatura,
 } from '@/lib/eot';
 import { relativeLabel } from '@/components/prospecao/ui';
 
@@ -52,6 +52,7 @@ export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirect
   const [obs, setObs] = useState('');
   const [savingState, setSavingState] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [savingTemp, setSavingTemp] = useState(false);
 
   const [activities, setActivities] = useState<EotActivity[]>([]);
   const [loadingActs, setLoadingActs] = useState(false);
@@ -95,6 +96,16 @@ export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirect
       onChanged();
     } catch (e) { toast.error((e as Error).message); }
     finally { setSavingState(false); }
+  };
+
+  const changeTemp = async (value: Temperatura | null) => {
+    setSavingTemp(true);
+    try {
+      await updateEotContract(contract.contrato, { temperatura: value });
+      toast.success(value ? `Classificado como ${tempDef(value)!.label}.` : 'Classificação removida.');
+      onChanged();
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setSavingTemp(false); }
   };
 
   const changeOwner = async (value: string) => {
@@ -202,6 +213,30 @@ export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirect
         {!isDirector && contract.owner_nome && (
           <p className="text-xs text-muted-foreground">Responsável: <span className="font-medium text-foreground">{contract.owner_nome}</span></p>
         )}
+
+        {/* Temperatura do negócio (Frio / Morno / Quente) */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Temperatura</Label>
+          <div className="flex flex-wrap gap-2">
+            {TEMPERATURAS.map(t => {
+              const active = contract.temperatura === t.value;
+              return (
+                <button
+                  key={t.value} type="button" disabled={!canEdit || savingTemp}
+                  onClick={() => changeTemp(active ? null : t.value)}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-all disabled:opacity-60',
+                    active ? cn(t.badge, 'border-transparent ring-2 ring-offset-1 ring-offset-background', t.value === 'frio' ? 'ring-sky-500' : t.value === 'morno' ? 'ring-amber-500' : 'ring-red-500')
+                           : 'border-border bg-background hover:bg-accent',
+                  )}
+                >
+                  <span className={cn('h-2.5 w-2.5 rounded-full', t.dot)} />{t.label}
+                </button>
+              );
+            })}
+          </div>
+          {canEdit && <p className="text-[11px] text-muted-foreground">Clica de novo para remover a classificação.</p>}
+        </div>
 
         {/* Estado de acompanhamento */}
         <div className="space-y-2">

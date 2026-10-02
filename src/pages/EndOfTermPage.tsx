@@ -12,18 +12,20 @@ import { cn } from '@/lib/utils';
 import { useEotScope } from '@/hooks/useEotScope';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { ContractDialog } from '@/components/eot/ContractDialog';
+import { TemperaturaPicker } from '@/components/eot/TemperaturaPicker';
+import { toast } from 'sonner';
 import { EmptyState, relativeLabel } from '@/components/prospecao/ui';
 import {
   listEotContracts, listEotVendedores, listAgenda, listEotOwners,
-  FASES, faseLabel, faseCls, actTipoLabel, isFechada, daysToEnd, eur, isOverdue, contractLocal,
-  type EotContract, type AgendaItem, type EotOwner, type Fase,
+  FASES, TEMPERATURAS, tempDef, updateEotContract, faseLabel, faseCls, actTipoLabel, isFechada, daysToEnd, eur, isOverdue, contractLocal,
+  type EotContract, type AgendaItem, type EotOwner, type Fase, type Temperatura,
 } from '@/lib/eot';
 
 type UntilKey = 'all' | '30' | '60' | '90';
 
 const DEFAULT_LOCAL = 'Aveiro';
 
-type SortKey = 'cliente' | 'viatura' | 'resp' | 'fim' | 'fase' | 'proxima' | 'total';
+type SortKey = 'cliente' | 'viatura' | 'resp' | 'fim' | 'fase' | 'temp' | 'proxima' | 'prestacao' | 'total';
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
 
 export default function EndOfTermPage() {
@@ -40,6 +42,7 @@ export default function EndOfTermPage() {
   // Filtros
   const [vendedor, setVendedor] = useState<string>('all');
   const [fase, setFase] = useState<string>('all');
+  const [temp, setTemp] = useState<string>('all'); // all | none | frio | morno | quente
   const [until, setUntil] = useState<UntilKey>('all');
   const [hideClosed, setHideClosed] = useState(true);
   const [ownerFilter, setOwnerFilter] = useState<string>('all'); // all | none | <email>
@@ -125,6 +128,8 @@ export default function EndOfTermPage() {
       if (hideClosed && isFechada(c.fase)) return false;
       if (vendedor !== 'all' && c.vendedor !== vendedor) return false;
       if (fase !== 'all' && c.fase !== fase) return false;
+      if (temp === 'none' && c.temperatura) return false;
+      if (temp !== 'all' && temp !== 'none' && c.temperatura !== temp) return false;
       if (ownerFilter === 'none' && c.owner_email) return false;
       if (ownerFilter !== 'all' && ownerFilter !== 'none' && c.owner_email !== ownerFilter) return false;
       if (until !== 'all') {
@@ -136,7 +141,7 @@ export default function EndOfTermPage() {
       }
       return true;
     });
-  }, [contracts, inLocal, hideClosed, vendedor, fase, until, ownerFilter, q]);
+  }, [contracts, inLocal, hideClosed, vendedor, fase, temp, until, ownerFilter, q]);
 
   // Ordenação por cabeçalho: 1.º clique ascendente, 2.º descendente, 3.º repõe a ordem original.
   const sorted = useMemo(() => {
@@ -148,7 +153,9 @@ export default function EndOfTermPage() {
         case 'resp': return (c.owner_nome ?? c.vendedor ?? '').toLowerCase() || null;
         case 'fim': return c.data_fim;
         case 'fase': return FASES.findIndex(f => f.value === c.fase);
+        case 'temp': return c.temperatura ? TEMPERATURAS.findIndex(t => t.value === c.temperatura) : null;
         case 'proxima': return nextByContrato.get(c.contrato)?.due_at ?? null;
+        case 'prestacao': return c.prestacao;
         case 'total': return c.valor_total;
       }
     };
@@ -186,6 +193,18 @@ export default function EndOfTermPage() {
     const fechados = doLocal.filter(c => c.fase === 'renovado' || c.fase === 'retomado').length;
     return { ativos: ativos.length, in30, in60, overdueFollow, fechados };
   }, [contracts, inLocal, agendaView]);
+
+  // Classificar a temperatura sem recarregar a lista (atualização local).
+  const setTemperatura = async (c: EotContract, value: Temperatura | null) => {
+    const prev = c.temperatura;
+    setContracts(list => list.map(x => x.contrato === c.contrato ? { ...x, temperatura: value } : x));
+    try {
+      await updateEotContract(c.contrato, { temperatura: value });
+    } catch (e) {
+      setContracts(list => list.map(x => x.contrato === c.contrato ? { ...x, temperatura: prev } : x));
+      toast.error('Não foi possível classificar: ' + (e as Error).message);
+    }
+  };
 
   const openContract = (c: EotContract) => { setSelected(c); setDialogOpen(true); };
 
@@ -249,6 +268,18 @@ export default function EndOfTermPage() {
                   {FASES.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Select value={temp} onValueChange={setTemp}>
+                <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[130px]"><SelectValue placeholder="Temperatura" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as temperaturas</SelectItem>
+                  {TEMPERATURAS.map(t => (
+                    <SelectItem key={t.value} value={t.value}>
+                      <span className="inline-flex items-center gap-2"><span className={cn('h-2 w-2 rounded-full', t.dot)} />{t.label}</span>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="none">Sem classificação</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={until} onValueChange={(v) => setUntil(v as UntilKey)}>
                 <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[120px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -281,7 +312,7 @@ export default function EndOfTermPage() {
                   const next = nextByContrato.get(c.contrato);
                   const nextOverdue = next ? isOverdue(next) : false;
                   return (
-                    <li key={c.contrato} onClick={() => openContract(c)} className="rounded-xl border border-border bg-card p-3 shadow-sm cursor-pointer active:bg-muted/40">
+                    <li key={c.contrato} onClick={() => openContract(c)} className={cn('rounded-xl border border-border border-l-4 bg-card p-3 shadow-sm cursor-pointer active:bg-muted/40', tempDef(c.temperatura)?.row ?? 'border-l-transparent')}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="font-medium text-sm truncate">{c.cliente || '—'}</div>
@@ -292,8 +323,9 @@ export default function EndOfTermPage() {
                       <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px]">
                         <span className="text-muted-foreground">Fim {c.data_fim ? new Date(c.data_fim).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}</span>
                         {d != null && <span className={cn(d < 0 ? 'text-muted-foreground' : d <= 30 ? 'text-destructive font-medium' : d <= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>{d < 0 ? 'terminado' : `${d} dias`}</span>}
-                        <span className="text-muted-foreground tabular-nums ml-auto">{eur(c.valor_total)}</span>
+                        <span className="ml-auto text-right tabular-nums"><span className="font-semibold text-foreground">{eur(c.prestacao)}</span><span className="text-muted-foreground">/mês · {eur(c.valor_total)}</span></span>
                       </div>
+                      <div className="mt-1.5"><TemperaturaPicker value={c.temperatura} onChange={v => setTemperatura(c, v)} disabled={!editable} /></div>
                       {(c.owner_nome || next) && (
                         <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]">
                           {c.owner_nome && <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5"><UserCheck className="h-3 w-3" />{c.owner_nome}</span>}
@@ -317,7 +349,9 @@ export default function EndOfTermPage() {
                         <SortTh k="resp" label="Vendedor / Resp." sort={sort} onSort={toggleSort} className="hidden md:table-cell" />
                         <SortTh k="fim" label="Fim" sort={sort} onSort={toggleSort} />
                         <SortTh k="fase" label="Fase" sort={sort} onSort={toggleSort} />
+                        <SortTh k="temp" label="Temp." sort={sort} onSort={toggleSort} />
                         <SortTh k="proxima" label="Próxima ação" sort={sort} onSort={toggleSort} className="hidden lg:table-cell" />
+                        <SortTh k="prestacao" label="Prestação" sort={sort} onSort={toggleSort} align="right" />
                         <SortTh k="total" label="Total" sort={sort} onSort={toggleSort} align="right" />
                         <th className="px-2 py-2" />
                       </tr>
@@ -328,7 +362,7 @@ export default function EndOfTermPage() {
                         const next = nextByContrato.get(c.contrato);
                         const nextOverdue = next ? isOverdue(next) : false;
                         return (
-                          <tr key={c.contrato} onClick={() => openContract(c)} className="border-b border-border/60 last:border-0 hover:bg-muted/30 cursor-pointer">
+                          <tr key={c.contrato} onClick={() => openContract(c)} className={cn('border-b border-border/60 border-l-4 last:border-b-0 hover:bg-muted/30 cursor-pointer', tempDef(c.temperatura)?.row ?? 'border-l-transparent')}>
                             <td className="px-3 py-2">
                               <div className="font-medium text-foreground truncate max-w-[220px]">{c.cliente || '—'}</div>
                             </td>
@@ -351,6 +385,9 @@ export default function EndOfTermPage() {
                             <td className="px-3 py-2">
                               <span className={cn('inline-block rounded-full text-[11px] font-medium px-2 py-0.5 whitespace-nowrap', faseCls(c.fase))}>{faseLabel(c.fase)}</span>
                             </td>
+                            <td className="px-3 py-2">
+                              <TemperaturaPicker value={c.temperatura} onChange={v => setTemperatura(c, v)} disabled={!editable} />
+                            </td>
                             <td className="px-3 py-2 hidden lg:table-cell">
                               {next ? (
                                 <div className={cn('text-xs', nextOverdue && 'text-destructive font-medium')}>
@@ -358,7 +395,8 @@ export default function EndOfTermPage() {
                                 </div>
                               ) : <span className="text-[11px] text-muted-foreground/60">—</span>}
                             </td>
-                            <td className="px-3 py-2 text-right tabular-nums text-xs">{eur(c.valor_total)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-sm font-semibold">{eur(c.prestacao)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">{eur(c.valor_total)}</td>
                             <td className="px-2 py-2 text-muted-foreground/40"><ChevronRight className="h-4 w-4" /></td>
                           </tr>
                         );

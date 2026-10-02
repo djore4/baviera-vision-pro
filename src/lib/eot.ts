@@ -33,6 +33,18 @@ export const FASES: { value: Fase; label: string; cls: string }[] = [
   { value: 'sem_interesse',    label: 'Sem interesse',    cls: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' },
 ];
 
+/* Temperatura do negócio (classificação do vendedor). A cor facilita a leitura
+ * rápida da carteira por parte do administrador. */
+export type Temperatura = 'frio' | 'morno' | 'quente';
+
+export const TEMPERATURAS: { value: Temperatura; label: string; badge: string; row: string; dot: string }[] = [
+  { value: 'frio',   label: 'Frio',   dot: 'bg-sky-500',   badge: 'bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-200',       row: 'border-l-sky-500 bg-sky-500/[0.06]' },
+  { value: 'morno',  label: 'Morno',  dot: 'bg-amber-500', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200', row: 'border-l-amber-500 bg-amber-500/[0.07]' },
+  { value: 'quente', label: 'Quente', dot: 'bg-red-500',   badge: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-200',         row: 'border-l-red-500 bg-red-500/[0.07]' },
+];
+
+export const tempDef = (t: Temperatura | null) => TEMPERATURAS.find(x => x.value === t) ?? null;
+
 export const faseLabel = (f: Fase) => FASES.find(x => x.value === f)?.label ?? f;
 export const faseCls   = (f: Fase) => FASES.find(x => x.value === f)?.cls ?? '';
 
@@ -84,6 +96,7 @@ export interface EotContract {
   valor_total: number | null;
   concessionario_resp: string | null;
   fase: Fase;
+  temperatura: Temperatura | null;
   resultado: string | null;
   obs: string | null;
   owner_email: string | null;
@@ -285,7 +298,7 @@ export async function listEotContracts(scope: Scope, filter?: EotFilter): Promis
 }
 
 export type EotContractPatch = Partial<Pick<EotContract,
-  'fase' | 'resultado' | 'obs' | 'owner_email' | 'owner_nome'
+  'fase' | 'temperatura' | 'resultado' | 'obs' | 'owner_email' | 'owner_nome'
   | 'contacto' | 'telefone' | 'telemovel'>>;
 
 export async function updateEotContract(contrato: string, patch: EotContractPatch): Promise<EotContract> {
