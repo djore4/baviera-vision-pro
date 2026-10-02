@@ -22,5 +22,5 @@ export function useEotScope() {
 
   const scope = useMemo<Scope>(() => ({ isDirector, email }), [isDirector, email]);
 
-  return { scope, isDirector, myEmail: email, myNome: nome };
+  return { scope, isDirector, isAdmin, myEmail: email, myNome: nome };
 }

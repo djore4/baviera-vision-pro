@@ -27,7 +27,7 @@ type SortKey = 'cliente' | 'viatura' | 'resp' | 'fim' | 'fase' | 'proxima' | 'to
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
 
 export default function EndOfTermPage() {
-  const { scope, isDirector, myEmail, myNome } = useEotScope();
+  const { scope, isDirector, isAdmin, myEmail, myNome } = useEotScope();
   const { canEdit } = usePermissions();
   const editable = canEdit('end-of-term');
 
@@ -224,8 +224,8 @@ export default function EndOfTermPage() {
                   {locals.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {/* Vendedor (do mapa) só para a gestão; os vendedores filtram por Responsável. */}
-              {isDirector && (
+              {/* Vendedor (do mapa): só o administrador. Os restantes filtram por Responsável. */}
+              {isAdmin && (
                 <Select value={vendedor} onValueChange={setVendedor}>
                   <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[140px] gap-1"><FilterIcon className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Vendedor" /></SelectTrigger>
                   <SelectContent>
