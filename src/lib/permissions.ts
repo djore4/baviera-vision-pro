@@ -88,6 +88,11 @@ export const TABS: TabDef[] = ALL_TABS.filter(t => !client.disabledTabs.includes
 /* Tabs "arrumados" dentro do Arquivo (não aparecem diretamente na barra lateral). */
 export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'multas', 'database', 'objetivos'];
 
+/* Tabs atribuíveis na matriz de permissões. Ficam de fora os desativados (já não
+ * estão em TABS), os arrumados no Arquivo e os de acesso restrito a admin: esses
+ * estão sempre barrados e só o admin lhes acede (no Arquivo). */
+export const PERMISSION_TABS: TabDef[] = TABS.filter(t => !ARCHIVED_TAB_KEYS.includes(t.key) && !t.adminOnly);
+
 /* Tabs de acesso restrito a administradores (deriva de TabDef.adminOnly). */
 export const ADMIN_ONLY_TAB_KEYS: string[] = TABS.filter(t => t.adminOnly).map(t => t.key);
 
