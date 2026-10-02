@@ -99,6 +99,15 @@ export default function EndOfTermPage() {
     if (!contracts.some(c => contractLocal(c) === DEFAULT_LOCAL)) setLocal('all');
   }, [loading, localTouched, contracts]);
 
+  // Responsáveis do filtro: a gestão vê a lista de atribuição; o vendedor vê os
+  // responsáveis presentes nos seus contratos.
+  const ownerOptions = useMemo(() => {
+    if (isDirector) return owners;
+    const m = new Map<string, string>();
+    contracts.forEach(c => { if (c.owner_email) m.set(c.owner_email, c.owner_nome || c.owner_email); });
+    return [...m].map(([email, nome]) => ({ email, nome }));
+  }, [isDirector, owners, contracts]);
+
   const inLocal = useCallback(
     (c: EotContract) => local === 'all' || contractLocal(c) === local,
     [local],
@@ -215,23 +224,24 @@ export default function EndOfTermPage() {
                   {locals.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={vendedor} onValueChange={setVendedor}>
-                <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[140px] gap-1"><FilterIcon className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Vendedor" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os vendedores</SelectItem>
-                  {vendedores.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {/* Vendedor (do mapa) só para a gestão; os vendedores filtram por Responsável. */}
               {isDirector && (
-                <Select value={ownerFilter} onValueChange={setOwnerFilter}>
-                  <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[150px]"><SelectValue placeholder="Responsável" /></SelectTrigger>
+                <Select value={vendedor} onValueChange={setVendedor}>
+                  <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[140px] gap-1"><FilterIcon className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Vendedor" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Qualquer responsável</SelectItem>
-                    <SelectItem value="none">Sem responsável</SelectItem>
-                    {owners.map(o => <SelectItem key={o.email} value={o.email}>{o.nome}</SelectItem>)}
+                    <SelectItem value="all">Todos os vendedores</SelectItem>
+                    {vendedores.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
                   </SelectContent>
                 </Select>
               )}
+              <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+                <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[150px]"><SelectValue placeholder="Responsável" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Qualquer responsável</SelectItem>
+                  {isDirector && <SelectItem value="none">Sem responsável</SelectItem>}
+                  {ownerOptions.map(o => <SelectItem key={o.email} value={o.email}>{o.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <Select value={fase} onValueChange={setFase}>
                 <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[120px]"><SelectValue placeholder="Fase" /></SelectTrigger>
                 <SelectContent>
