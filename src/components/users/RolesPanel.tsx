@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, Save, Trash2, ShieldCheck, Undo2, Copy } from 'lucide-react';
 import { toast } from 'sonner';
-import { AREAS, TABS, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
+import { AREAS, PERMISSION_TABS, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,17 +32,18 @@ const level = (p: Perms | undefined, key: string): AccessLevel => p?.[key] ?? 'n
 /* Chaves com valor 'none' equivalem a chave ausente: normaliza para comparar. */
 const normalize = (p: Perms | undefined): Perms => {
   const out: Perms = {};
-  TABS.forEach(t => { const v = level(p, t.key); if (v !== 'none') out[t.key] = v; });
+  PERMISSION_TABS.forEach(t => { const v = level(p, t.key); if (v !== 'none') out[t.key] = v; });
   return out;
 };
-/* Ao guardar, preserva chaves de tabs que não existem nesta instalação (tabs
- * desativados no cliente) para não as perder. */
-const forSave = (p: Perms | undefined): Perms => {
-  const known = new Set(TABS.map(t => t.key));
+/* Chaves fora da matriz (tabs desativados, arrumados no Arquivo ou só de admin)
+ * não se editam aqui: preservam-se tal como estão ao guardar. */
+const hiddenKeys = (p: Perms | undefined): Perms => {
+  const known = new Set(PERMISSION_TABS.map(t => t.key));
   const extra: Perms = {};
   Object.entries(p ?? {}).forEach(([k, v]) => { if (!known.has(k)) extra[k] = v; });
-  return { ...extra, ...normalize(p) };
+  return extra;
 };
+const forSave = (p: Perms | undefined): Perms => ({ ...hiddenKeys(p), ...normalize(p) });
 const samePerms = (a: Perms | undefined, b: Perms | undefined) => {
   const na = normalize(a), nb = normalize(b);
   const keys = new Set([...Object.keys(na), ...Object.keys(nb)]);
@@ -106,7 +107,7 @@ export function RolesPanel({
 
   const copyFrom = (source: string) => {
     if (!role) return;
-    setDrafts(prev => ({ ...prev, [role.name]: { ...(prev[source] ?? {}) } }));
+    setDrafts(prev => ({ ...prev, [role.name]: { ...hiddenKeys(prev[role.name]), ...normalize(prev[source]) } }));
     toast.success(`Permissões de "${source}" copiadas (por guardar).`);
   };
 
@@ -209,7 +210,7 @@ export function RolesPanel({
             </div>
 
             {AREAS.map(area => {
-              const tabs = TABS.filter(t => t.area === area.key);
+              const tabs = PERMISSION_TABS.filter(t => t.area === area.key);
               if (tabs.length === 0) return null;
               const withAccess = tabs.filter(t => level(draft, t.key) !== 'none').length;
               const keys = tabs.map(t => t.key);
@@ -312,7 +313,7 @@ function CreateRoleDialog({ open, onOpenChange, roles, allNames, onCreated }: {
     if (allNames.some(x => x.toLowerCase() === n.toLowerCase())) { toast.error('Já existe uma função com esse nome.'); return; }
     setSaving(true);
     try {
-      const base = from === NONE ? {} : { ...(roles.find(r => r.name === from)?.permissions ?? {}) };
+      const base = from === NONE ? {} : normalize(roles.find(r => r.name === from)?.permissions);
       await saveRole(n, base, false);
       toast.success(`Função "${n}" criada.`);
       close(false);
