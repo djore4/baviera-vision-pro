@@ -116,7 +116,9 @@ export default function EndOfTermPage() {
     [local],
   );
 
-  const filtered = useMemo(() => {
+  // Contratos que cumprem todos os filtros exceto "Esconder fechados": é o universo
+  // dos contadores (para "Renovados / Retomados" não ficar sempre a zero) e da agenda.
+  const scoped = useMemo(() => {
     const now = new Date(); now.setHours(23, 59, 59, 999);
     const limitIso = (days: number) => {
       const d = new Date(now); d.setDate(d.getDate() + days);
@@ -125,7 +127,6 @@ export default function EndOfTermPage() {
     const term = q.trim().toLowerCase();
     return contracts.filter(c => {
       if (!inLocal(c)) return false;
-      if (hideClosed && isFechada(c.fase)) return false;
       if (vendedor !== 'all' && c.vendedor !== vendedor) return false;
       if (fase !== 'all' && c.fase !== fase) return false;
       if (temp === 'none' && c.temperatura) return false;
@@ -141,7 +142,12 @@ export default function EndOfTermPage() {
       }
       return true;
     });
-  }, [contracts, inLocal, hideClosed, vendedor, fase, temp, until, ownerFilter, q]);
+  }, [contracts, inLocal, vendedor, fase, temp, until, ownerFilter, q]);
+
+  const filtered = useMemo(
+    () => (hideClosed ? scoped.filter(c => !isFechada(c.fase)) : scoped),
+    [scoped, hideClosed],
+  );
 
   // Ordenação por cabeçalho: 1.º clique ascendente, 2.º descendente, 3.º repõe a ordem original.
   const sorted = useMemo(() => {
@@ -175,24 +181,20 @@ export default function EndOfTermPage() {
   const toggleSort = (key: SortKey) =>
     setSort(prev => !prev || prev.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : null);
 
-  // A agenda segue o local escolhido (pelo local do contrato).
+  // A agenda e os contadores seguem todos os filtros (pelo contrato de cada item).
   const agendaView = useMemo(() => {
-    if (local === 'all') return agenda;
-    const byContrato = new Map(contracts.map(c => [c.contrato, c]));
-    return agenda.filter(a => { const c = byContrato.get(a.contrato); return c ? inLocal(c) : false; });
-  }, [agenda, contracts, local, inLocal]);
+    const ids = new Set(scoped.map(c => c.contrato));
+    return agenda.filter(a => ids.has(a.contrato));
+  }, [agenda, scoped]);
 
-  // KPIs (sobre o universo não-fechado do local escolhido, independente dos
-  // restantes filtros de tabela).
   const kpis = useMemo(() => {
-    const doLocal = contracts.filter(inLocal);
-    const ativos = doLocal.filter(c => !isFechada(c.fase));
+    const ativos = scoped.filter(c => !isFechada(c.fase));
     const in30 = ativos.filter(c => { const d = daysToEnd(c.data_fim); return d != null && d >= 0 && d <= 30; }).length;
     const in60 = ativos.filter(c => { const d = daysToEnd(c.data_fim); return d != null && d >= 0 && d <= 60; }).length;
     const overdueFollow = agendaView.filter(a => isOverdue(a)).length;
-    const fechados = doLocal.filter(c => c.fase === 'renovado' || c.fase === 'retomado').length;
+    const fechados = scoped.filter(c => c.fase === 'renovado' || c.fase === 'retomado').length;
     return { ativos: ativos.length, in30, in60, overdueFollow, fechados };
-  }, [contracts, inLocal, agendaView]);
+  }, [scoped, agendaView]);
 
   // Classificar a temperatura sem recarregar a lista (atualização local).
   const setTemperatura = async (c: EotContract, value: Temperatura | null) => {
@@ -210,7 +212,77 @@ export default function EndOfTermPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4 animate-fade-in">
-      {/* KPIs */}
+      {/* Filtros — empilham no telemóvel, alinham no desktop */}
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cliente, matrícula ou contrato…" className="pl-8 h-9" />
+        </div>
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+          <Select value={local} onValueChange={(v) => { setLocal(v); setLocalTouched(true); }}>
+            <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[140px] gap-1"><MapPin className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Local" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os locais</SelectItem>
+              {locals.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {/* Vendedor (do mapa): só o administrador. Os restantes filtram por Responsável. */}
+          {isAdmin && (
+            <Select value={vendedor} onValueChange={setVendedor}>
+              <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[140px] gap-1"><FilterIcon className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Vendedor" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os vendedores</SelectItem>
+                {vendedores.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+            <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[150px]"><SelectValue placeholder="Responsável" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Qualquer responsável</SelectItem>
+              {isDirector && <SelectItem value="none">Sem responsável</SelectItem>}
+              {ownerOptions.map(o => <SelectItem key={o.email} value={o.email}>{o.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={fase} onValueChange={setFase}>
+            <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[120px]"><SelectValue placeholder="Fase" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as fases</SelectItem>
+              {FASES.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={temp} onValueChange={setTemp}>
+            <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[130px]"><SelectValue placeholder="Temperatura" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as temperaturas</SelectItem>
+              {TEMPERATURAS.map(t => (
+                <SelectItem key={t.value} value={t.value}>
+                  <span className="inline-flex items-center gap-2"><span className={cn('h-2 w-2 rounded-full', t.dot)} />{t.label}</span>
+                </SelectItem>
+              ))}
+              <SelectItem value="none">Sem classificação</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={until} onValueChange={(v) => setUntil(v as UntilKey)}>
+            <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[120px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Qualquer prazo</SelectItem>
+              <SelectItem value="30">Termina ≤ 30 dias</SelectItem>
+              <SelectItem value="60">Termina ≤ 60 dias</SelectItem>
+              <SelectItem value="90">Termina ≤ 90 dias</SelectItem>
+            </SelectContent>
+          </Select>
+          <label className="col-span-2 sm:col-auto flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap sm:ml-1">
+            <input type="checkbox" checked={hideClosed} onChange={(e) => setHideClosed(e.target.checked)} className="rounded border-border" />
+            Esconder fechados
+          </label>
+          <button onClick={load} className="hidden sm:inline-flex items-center sm:ml-auto text-muted-foreground hover:text-foreground" title="Atualizar">
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          </button>
+        </div>
+      </div>
+
+      {/* Contadores (seguem os filtros acima) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Kpi label="Contratos ativos" value={kpis.ativos} />
         <Kpi label="A terminar ≤ 30 dias" value={kpis.in30} tone={kpis.in30 > 0 ? 'warn' : 'default'} />
@@ -229,76 +301,6 @@ export default function EndOfTermPage() {
 
         {/* ── Contratos ─────────────────────────────────────────────────────── */}
         <TabsContent value="contratos" className="mt-4 space-y-3">
-          {/* Filtros — empilham no telemóvel, alinham no desktop */}
-          <div className="space-y-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cliente, matrícula ou contrato…" className="pl-8 h-9" />
-            </div>
-            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
-              <Select value={local} onValueChange={(v) => { setLocal(v); setLocalTouched(true); }}>
-                <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[140px] gap-1"><MapPin className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Local" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os locais</SelectItem>
-                  {locals.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              {/* Vendedor (do mapa): só o administrador. Os restantes filtram por Responsável. */}
-              {isAdmin && (
-                <Select value={vendedor} onValueChange={setVendedor}>
-                  <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[140px] gap-1"><FilterIcon className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Vendedor" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os vendedores</SelectItem>
-                    {vendedores.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )}
-              <Select value={ownerFilter} onValueChange={setOwnerFilter}>
-                <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[150px]"><SelectValue placeholder="Responsável" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Qualquer responsável</SelectItem>
-                  {isDirector && <SelectItem value="none">Sem responsável</SelectItem>}
-                  {ownerOptions.map(o => <SelectItem key={o.email} value={o.email}>{o.nome}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={fase} onValueChange={setFase}>
-                <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[120px]"><SelectValue placeholder="Fase" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as fases</SelectItem>
-                  {FASES.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={temp} onValueChange={setTemp}>
-                <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[130px]"><SelectValue placeholder="Temperatura" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as temperaturas</SelectItem>
-                  {TEMPERATURAS.map(t => (
-                    <SelectItem key={t.value} value={t.value}>
-                      <span className="inline-flex items-center gap-2"><span className={cn('h-2 w-2 rounded-full', t.dot)} />{t.label}</span>
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="none">Sem classificação</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={until} onValueChange={(v) => setUntil(v as UntilKey)}>
-                <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[120px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Qualquer prazo</SelectItem>
-                  <SelectItem value="30">Termina ≤ 30 dias</SelectItem>
-                  <SelectItem value="60">Termina ≤ 60 dias</SelectItem>
-                  <SelectItem value="90">Termina ≤ 90 dias</SelectItem>
-                </SelectContent>
-              </Select>
-              <label className="col-span-2 sm:col-auto flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap sm:ml-1">
-                <input type="checkbox" checked={hideClosed} onChange={(e) => setHideClosed(e.target.checked)} className="rounded border-border" />
-                Esconder fechados
-              </label>
-              <button onClick={load} className="hidden sm:inline-flex items-center sm:ml-auto text-muted-foreground hover:text-foreground" title="Atualizar">
-                <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-              </button>
-            </div>
-          </div>
-
           {loading ? (
             <Loader />
           ) : filtered.length === 0 ? (
