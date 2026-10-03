@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
 
 /* ── Lavagem — camada de acesso a dados ───────────────────────────────────────
  * Controlo do fluxo de lavagens automóvel. Cada ciclo (car_wash_cycles) regista
@@ -154,7 +155,7 @@ async function logEvent(e: {
       plate: e.plate ?? null,
       wash_type: e.wash_type ?? null,
       detail: e.detail ?? null,
-      snapshot: e.snapshot ?? null,
+      snapshot: (e.snapshot ?? null) as Json,
     });
   } catch (err) {
     // A auditoria não deve bloquear a operação principal.
@@ -210,7 +211,7 @@ export async function listActiveCycles(): Promise<CarWashCycle[]> {
  * - nenhum dos dois -> lavagem imediata (arranca já, sem agendamento). */
 export async function createCycle(input: NewCycle): Promise<CarWashCycle> {
   const type = WASH_TYPE_MAP[input.wash_type];
-  const row: Record<string, unknown> = {
+  const row: TablesInsert<'car_wash_cycles'> = {
     plate: input.plate.trim().toUpperCase(),
     wash_type: input.wash_type,
     duration_min: type.duration,
@@ -269,7 +270,7 @@ export async function startCycle(id: string): Promise<CarWashCycle> {
  * ordem manual da fila. Regista também o interlocutor que reagendou (scheduled_by),
  * para que a slot indique com quem falar sobre a marcação. */
 export async function rescheduleCycle(id: string, scheduledAtISO: string, by?: string | null): Promise<CarWashCycle> {
-  const patch: Record<string, unknown> = { scheduled_at: scheduledAtISO, queue_order: null };
+  const patch: TablesUpdate<'car_wash_cycles'> = { scheduled_at: scheduledAtISO, queue_order: null };
   if (by !== undefined) patch.scheduled_by = by;
   const { data, error } = await supabase
     .from('car_wash_cycles')

@@ -33,3 +33,4 @@ done
 psqlq "-d t -f $ROOT/supabase/seeds/new_client_defaults.sql"
 psqlq "-d t -o /dev/null -f $HERE/rls.test.sql"
 psqlq "-d t -o /dev/null -f $HERE/import.test.sql"
+psqlq "-d t -o /dev/null -v ROOT=$ROOT -f $HERE/lavagem.test.sql"

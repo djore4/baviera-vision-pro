@@ -28,7 +28,9 @@ const config: ClientConfig = {
     cc: ['jose.mesquita@caetano.pt', 'joaocarlos.duarte@caetano.pt'],
   },
   disabledTabs: [],
-  tabAccessExceptions: {
+  // Já está em app_access_exceptions (migração 20261003100000); isto só vale
+  // enquanto a base de dados não a tiver. Remover depois de aplicada.
+  legacyTabAccessExceptions: {
     'tiago.santos@caetano.pt': { stock: 'edit' },
   },
 };

@@ -1,4 +1,4 @@
-project_id = "fzjabtcjueyuekfhzuds"
+project_id = "yifxgiwmibjaornighvt"
 
 [functions.admin-users]
 # Validação de JWT feita dentro da função (getUser), para evitar o erro de

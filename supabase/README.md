@@ -22,39 +22,104 @@ define as funções `has_access(tab, nível)`, `has_any_access(tabs, nível)`,
 segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
 
 - Admin = email em `platform_admins` **ou** perfil com `is_admin`: `edit` em tudo.
-- Exceções por email: tabela `app_access_exceptions` (só eleva, nunca reduz).
-  Espelha `tabAccessExceptions` do `config.ts` do cliente — **manter as duas em
-  sincronia** até a UI passar a ler da BD.
+- **Exceções por email:** tabela `app_access_exceptions` (só eleva, nunca reduz),
+  **única fonte** — a RLS usa-a em `access_rank` e a interface lê-a com
+  `my_access_exceptions()`. Já não há cópia em `src/clients/<cliente>/config.ts`.
+  Para criar uma: `insert into app_access_exceptions (email, tab, level) values
+  ('alguem@x.pt', 'stock', 'edit')` (email em minúsculas).
+- **Permissões por ação** (`lavagem:reagendar`, `lavagem:iniciar`,
+  `lavagem:qualidade`, `lavagem:registos`): chaves `'<tab>:<ação>'` em
+  `app_roles.permissions`, geridas na matriz (Utilizadores → Funções). Substituem
+  as regras por NOME de função que estavam no código da Lavagem. Definidas em
+  `SUB_PERMISSIONS` (`src/lib/permissions.ts`) e impostas pela RLS
+  (`20261003140000`). A BD não distingue "iniciar" de "qualidade" dentro de um
+  update; a interface sim.
+- **Diário (prospeção):** cada vendedor só vê e altera as suas contas e tarefas
+  (`owner_email`, sem distinguir maiúsculas); contactos e interações herdam da
+  conta. O administrador (diretor) vê e reatribui tudo (`20261003120000`).
+- **Outras aplicações no mesmo projeto:** a Caetano Sales Force partilha este
+  projeto e tem as suas próprias políticas (`salesforce_users*` em `historico`,
+  `viaturas`, `utilizadores`; ver `20260930141317`). As políticas somam-se (OR) e
+  `apply_rls` só apaga as que a plataforma gere — nunca as de outra aplicação.
 - Ao acrescentar uma tabela nova: ativar RLS e dar-lhe políticas explícitas
   (sem políticas só o service role acede). Ao acrescentar um tab: dizer em que
   tabelas lê e escreve, e acrescentar o caso a `tests/rls.test.sql`.
-- Limitações: `lavagem` — a UI decide algumas ações pelo nome do perfil
-  (Lavador, Preparador, APV); a BD só distingue `view`/`edit`. `prospecao` — o
-  isolamento por vendedor (cada um só vê as suas contas) continua na aplicação.
-  Quem tem `view` num tab **não** escreve nas tabelas dele, exceto em `lavagem`
-  e `prospecao`, onde `view` basta para operar.
+- Quem tem `view` num tab **não** escreve nas tabelas dele (sem a permissão por
+  ação correspondente, nas áreas que as têm).
 
 ### Importações atómicas
 
-`replace_rows(tabela, linhas jsonb, p_allow_empty)` (migração
-`20261003110000`) substitui todas as linhas de `control_records`,
-`control_records_vu` ou `angariacoes_vu` numa única transação: ou entra tudo, ou
-fica tudo como estava. É `security invoker`, por isso as políticas RLS decidem
-quem importa. A app usa-a através de `src/lib/replace-rows.ts`. Uma chamada com
-20 mil linhas demora cerca de 1 s; o limite prático é o tamanho do pedido HTTP,
-não a BD. Não há histórico dos snapshots anteriores: se for preciso reverter uma
-importação *correta mas errada*, tem de vir do Excel de backup.
+- `replace_rows(tabela, linhas jsonb, p_allow_empty)` (`20261003110000`) substitui
+  todas as linhas de `control_records`, `control_records_vu` ou `angariacoes_vu`
+  numa única transação: ou entra tudo, ou fica tudo como estava.
+- `import_control_excel(control, orcamento, resp)` (`20261003150000`) faz o mesmo
+  para o Excel de control inteiro: registos **e** objetivos na mesma transação
+  (uma falha nos objetivos desfaz também os registos).
+- Ambas são `security invoker`: as políticas RLS decidem quem importa. A app usa-as
+  através de `src/lib/replace-rows.ts` e `src/lib/control-records.ts`. 20 mil
+  linhas demoram cerca de 1 s; o limite prático é o tamanho do pedido HTTP.
+- **Compatibilidade enquanto as migrações não estão aplicadas:** se a função não
+  existir (`PGRST202`), a app recorre ao caminho antigo (apagar + inserir em
+  lotes), **sem atomicidade**, e regista um aviso na consola. Remover esse
+  recurso (`legacyReplace` e o ramo `isMissingRpc`) quando as migrações estiverem
+  aplicadas em todos os ambientes.
+- Não há histórico dos snapshots anteriores: reverter uma importação *correta
+  mas errada* só é possível a partir do Excel de backup.
 
-### Testes
+### Compatibilidade enquanto as migrações não estão aplicadas
+
+O código foi feito para funcionar com a base de dados **antes e depois** das
+migrações, para que o deploy do frontend não dependa da ordem em que se aplicam.
+São três recursos temporários, todos a remover quando as migrações estiverem
+aplicadas em todos os ambientes:
+
+| O quê | Sem a migração | Com a migração | Remover |
+| --- | --- | --- | --- |
+| Importar o Excel (`replace_rows`, `import_control_excel`) | caminho antigo (apagar + inserir em lotes), **sem atomicidade**, com aviso na consola | uma transação | `legacyReplace` e o ramo `isMissingRpc` em `src/lib/replace-rows.ts` e `src/lib/control-records.ts` |
+| Exceções por email (`my_access_exceptions`) | cópia em `legacyTabAccessExceptions` do config do cliente | tabela `app_access_exceptions` | `legacyTabAccessExceptions` (config e tipo) e o ramo `PGRST202` de `getMyAccessExceptions` |
+| Permissões da Lavagem (`app_capabilities`) | regras antigas por nome de função (Lavador, Preparador, APV) | permissões por ação na matriz | o ramo `legacy` de `src/lib/lavagem-access.ts`; passa a mostrar sempre as permissões por ação em `RolesPanel` |
+
+A Lavagem decide pelo marcador `app_capabilities()` (criado na migração
+`20261003140000`) e não pelos dados, para que um administrador que remova todas
+as chaves `lavagem:*` de uma função não reative sem querer as regras por nome.
+Os testes `src/test/lavagem-access.test.ts` garantem que, com a base antiga, as
+permissões são exatamente as do código anterior para todas as funções.
+
+### Testes e tipos
 
 ```sh
-supabase/tests/run.sh
+supabase/tests/run.sh          # RLS, importações e migração de dados
+supabase/tests/gen-types.sh    # regenera src/integrations/supabase/types.ts
 ```
 
-Cria um Postgres temporário (sem Supabase), aplica `migrations/*.sql` e o seed, e
-corre `tests/rls.test.sql` como cada perfil (admin, vendedor, CV, finance,
-lavador, estranho, anon…). Falha se alguma política deixar de se comportar como
-esperado. Corre também no CI.
+`run.sh` cria um Postgres temporário (sem Supabase), aplica `migrations/*.sql` e o
+seed, e corre `rls.test.sql` (cada perfil: admin, vendedor, CV, finance, lavador,
+APV, Sales Force, estranho, anon…), `import.test.sql` (atomicidade e validações) e
+`lavagem.test.sql` (migração de dados). Falha se alguma política deixar de se
+comportar como esperado. Corre também no CI, tal como `tsc` e a verificação de
+que `types.ts` está em dia com as migrações (`gen-types.sh` + `git diff`).
+
+### Histórico de migrações (produção)
+
+O repositório e o histórico remoto (`supabase_migrations.schema_migrations`) têm
+de usar as mesmas versões, senão o `supabase db push` tenta reaplicar migrações.
+Estado a 2026-10-03 (projeto `yifxgiwmibjaornighvt`):
+
+| Versão | Migração | Em produção |
+| --- | --- | --- |
+| `20260926130000` | `baseline` | reproduz a produção (não consta do histórico remoto: `repair`, abaixo) |
+| `20260927174306` | `is_platform_admin` | aplicada |
+| `20260930141317` | `acesso_salesforce_sem_crm` | aplicada (copiada do histórico remoto) |
+| `20261002203833` | `eot_temperatura` | aplicada |
+| `20261003100000` … `20261003160000` | RLS por perfil, RPCs, Diário, exceções, Lavagem, `responsavel_interno` | **por aplicar** |
+
+Ao aplicar as últimas com o MCP/dashboard, o histórico remoto regista a versão
+com a hora da aplicação, não a do ficheiro: depois, renomear os ficheiros locais
+para essas versões (ou `supabase migration repair`).
+
+`20260711140000_demo_emprestimos_responsavel_interno` (legada) **nunca foi
+aplicada**: a página Empréstimos escreve `responsavel_interno` e falhava ao
+guardar. A migração `20261003160000` acrescenta a coluna.
 
 ## Criar um cliente novo
 
@@ -77,7 +142,7 @@ Um projeto Supabase por cliente (região UE).
    protection". Criar o utilizador do administrador em Authentication.
 6. Frontend: configuração do cliente em `src/clients/<id>/config.ts` (nome,
    logótipo, cores, tipo de letra, tabs desativados, destinatários da
-   matrícula, exceções de acesso) e novo projeto Vercel ligado ao mesmo
+   matrícula) e novo projeto Vercel ligado ao mesmo
    repositório, com `VITE_CLIENT=<id>`, `VITE_SUPABASE_URL`,
    `VITE_SUPABASE_PUBLISHABLE_KEY` e `VITE_SUPABASE_PROJECT_ID` do projeto.
    Sem `VITE_CLIENT` a instalação é a Baviera.
@@ -96,9 +161,15 @@ Um projeto Supabase por cliente (região UE).
 
 ## Produção atual (Baviera)
 
-O esquema já corresponde à baseline; não há nada a aplicar. O histórico de
-migrações remoto tem versões antigas que não existem localmente. Antes de
-usar `supabase db push` contra este projeto, alinhar o histórico:
+O esquema corresponde à baseline mais as três migrações aplicadas depois dela
+(ver a tabela em «Histórico de migrações»). Faltam aplicar as de
+`20261003100000` em diante, **por ordem de versão** (as seguintes dependem das
+funções e da tabela criadas pela RLS por perfil). Só `replace_rows` (`…110000`) e
+`responsavel_interno` (`…160000`) são independentes e aditivas, e podem ir já.
+As que restringem acesso (RLS por perfil, Diário, Lavagem) devem ser verificadas
+com utilizadores reais logo a seguir. O histórico de migrações remoto tem versões antigas que não existem
+localmente. Antes de usar `supabase db push` contra este projeto, alinhar o
+histórico:
 
 ```sh
 supabase migration list                      # ver versões só remotas

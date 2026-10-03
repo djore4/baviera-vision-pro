@@ -125,6 +125,24 @@ begin
 end $$;
 reset session_replication_role;
 
+
+-- Diário: dois donos, com o email do vn guardado em maiúsculas de propósito.
+delete from public.prospec_interactions; delete from public.prospec_contacts;
+delete from public.prospec_tasks; delete from public.prospec_accounts;
+insert into public.prospec_accounts (id, nome, fase, owner_email) values
+  ('00000000-0000-0000-0000-0000000000a1', 'conta do vn', 'novo', 'VN@x.pt'),
+  ('00000000-0000-0000-0000-0000000000a2', 'conta do cv', 'novo', 'cv@x.pt');
+insert into public.prospec_tasks (type, account_id, owner_email, descricao) values
+  ('todo', '00000000-0000-0000-0000-0000000000a1', 'vn@x.pt', 'tarefa do vn'),
+  ('todo', '00000000-0000-0000-0000-0000000000a2', 'cv@x.pt', 'tarefa do cv'),
+  ('todo', null, null, 'tarefa sem dono');
+insert into public.prospec_contacts (account_id, nome) values
+  ('00000000-0000-0000-0000-0000000000a1', 'contacto do vn'),
+  ('00000000-0000-0000-0000-0000000000a2', 'contacto do cv');
+insert into public.prospec_interactions (account_id, tipo, occurred_at) values
+  ('00000000-0000-0000-0000-0000000000a1', 'chamada', now()),
+  ('00000000-0000-0000-0000-0000000000a2', 'chamada', now());
+
 insert into public.notifications (title, audience) values
   ('geral', 'all'), ('lavagem', 'lavagem'), ('eot', 'end-of-term');
 insert into public.notification_reads (notification_id, user_email)
@@ -173,6 +191,8 @@ commit;
 -- Funções não executáveis por anon.
 begin;
 select t.as_anon();
+select t.check('anon não executa my_access_exceptions',
+  t.dml($q$ select public.my_access_exceptions() $q$) = -1);
 select t.check('anon não executa has_access',
   t.dml($q$ select public.has_access('lavagem') $q$) = -1);
 select t.back();
@@ -244,16 +264,16 @@ select t.check('vn: NÃO altera app_users/app_roles',
   and t.dml($q$ update public.app_users set perfil = 'Administrador' $q$) = 0);
 select t.check('vn: NÃO escreve eot/multas',     not t.can_insert('eot_contracts') and not t.can_insert('penalties'));
 -- escritas permitidas
-select t.check('vn: escreve prospeção (Diário)',
-  t.can_insert('prospec_accounts') and t.dml($q$ update public.prospec_tasks set done = true $q$) > 0);
-select t.check('vn: cria/atualiza lavagens (view basta)',
-  t.can_insert('car_wash_cycles') and t.dml($q$ update public.car_wash_cycles set notes = 'n' $q$) > 0);
+select t.check('vn: escreve o seu Diário',
+  t.dml($q$ update public.prospec_tasks set done = true $q$) > 0);
+select t.check('vn: NÃO cria, atualiza nem apaga lavagens (só consulta)',
+  not t.can_insert('car_wash_cycles')
+  and t.dml($q$ update public.car_wash_cycles set notes = 'n' $q$) = 0
+  and t.dml($q$ delete from public.car_wash_cycles $q$) = 0);
 select t.check('vn: NÃO apaga lavagens (exige edit)',
   t.dml($q$ delete from public.car_wash_cycles $q$) = 0);
-select t.check('vn: regista eventos de lavagem mas não os altera',
-  t.can_insert('car_wash_events')
-  and t.dml($q$ update public.car_wash_events set detail = 'x' $q$) = 0
-  and t.dml($q$ delete from public.car_wash_events $q$) = 0);
+select t.check('vn: NÃO lê nem escreve a auditoria de lavagens',
+  t.n('car_wash_events') = 0 and not t.can_insert('car_wash_events'));
 select t.check('vn: marca como lida só em seu nome',
   t.can_insert('notification_reads') is not null
   and t.dml($q$ insert into public.notification_reads (notification_id, user_email)
@@ -313,6 +333,9 @@ select t.check('lavador: só lavagem + dados-base',
 select t.check('lavador: cria e inicia lavagens',
   t.can_insert('car_wash_cycles') and t.dml($q$ update public.car_wash_cycles set started_at = now() $q$) > 0);
 select t.check('lavador: NÃO apaga lavagens', t.dml($q$ delete from public.car_wash_cycles $q$) = 0);
+select t.check('lavador: regista eventos mas não lê a auditoria nem a altera',
+  t.can_insert('car_wash_events') and t.n('car_wash_events') = 0
+  and t.dml($q$ update public.car_wash_events set detail = 'x' $q$) = 0);
 select t.back();
 commit;
 begin;
@@ -321,9 +344,58 @@ select t.check('preparador: apaga lavagens (edit)', t.dml($q$ delete from public
 select t.back();
 commit;
 
+-- Permissões finas da Lavagem (funções com chaves 'lavagem:<ação>')
+insert into public.app_roles (name, is_admin, permissions) values
+  ('APV', false, '{"lavagem": "edit", "lavagem:registos": "edit"}'),
+  ('Qualidade', false, '{"lavagem": "view", "lavagem:qualidade": "edit"}'),
+  ('Reagendador', false, '{"lavagem": "view", "lavagem:reagendar": "edit"}'),
+  ('Sem acesso lavagem', false, '{"lavagem:iniciar": "edit"}');
+insert into public.app_users (nome, email, perfil) values
+  ('APV', 'apv@x.pt', 'APV'), ('QC', 'qc@x.pt', 'Qualidade'),
+  ('Reag', 'reag@x.pt', 'Reagendador'), ('SemTab', 'semtab@x.pt', 'Sem acesso lavagem');
+insert into public.car_wash_cycles (plate, wash_type, duration_min)
+  values ('ZZ-00-ZZ', 'simples', 10), ('ZZ-00-ZY', 'simples', 10);
+begin;
+select t.as_user('apv@x.pt');
+select t.check('apv: lê a auditoria (lavagem:registos) e gere lavagens (edit do tab)',
+  t.n('car_wash_events') > 0 and t.can_insert('car_wash_cycles')
+  and t.dml($q$ update public.car_wash_cycles set notes = 'a' where plate = 'ZZ-00-ZZ' $q$) = 1
+  and t.dml($q$ delete from public.car_wash_cycles where plate = 'ZZ-00-ZY' $q$) = 1);
+select t.check('apv: NÃO altera nem apaga a auditoria',
+  t.dml($q$ update public.car_wash_events set detail = 'x' $q$) = 0
+  and t.dml($q$ delete from public.car_wash_events $q$) = 0);
+select t.back();
+commit;
+begin;
+select t.as_user('qc@x.pt');
+select t.check('qualidade: atribui qualidade (update) mas NÃO cria nem apaga lavagens',
+  t.dml($q$ update public.car_wash_cycles set quality_score = 8 $q$) > 0
+  and not t.can_insert('car_wash_cycles')
+  and t.dml($q$ delete from public.car_wash_cycles $q$) = 0);
+select t.check('qualidade: regista o evento mas NÃO lê a auditoria',
+  t.can_insert('car_wash_events') and t.n('car_wash_events') = 0);
+select t.back();
+commit;
+begin;
+select t.as_user('reag@x.pt');
+select t.check('reagendar (view no tab): edita e apaga lavagens existentes',
+  t.dml($q$ update public.car_wash_cycles set notes = 'r' where plate = 'ZZ-00-ZZ' $q$) = 1
+  and t.dml($q$ delete from public.car_wash_cycles where plate = 'ZZ-00-ZZ' $q$) = 1);
+select t.back();
+commit;
+begin;
+select t.as_user('semtab@x.pt');
+select t.check('permissão fina sem acesso ao tab não lê as lavagens',
+  t.n('car_wash_cycles') = 0);
+select t.back();
+commit;
+
+
 -- ── Exceção por email ───────────────────────────────────────────────────────
 begin;
 select t.as_user('vu@x.pt');
+select t.check('my_access_exceptions: sem exceções devolve {} (não vê as dos outros)',
+  public.my_access_exceptions() = '{}'::jsonb);
 select t.check('vu sem exceção: NÃO escreve retomas', not t.can_insert('retomas'));
 select t.check('vu (escala-vu=view): lê mas NÃO escreve a escala VU',
   not t.can_insert_obj('excel-files', 'escala-vu.json') and not t.can_insert_obj('excel-files', 'escala-repsol.json'));
@@ -332,6 +404,8 @@ select t.back();
 commit;
 begin;
 select t.as_user('tiago@x.pt');
+select t.check('my_access_exceptions: devolve as exceções do próprio',
+  public.my_access_exceptions() = '{"stock": "edit"}'::jsonb);
 select t.check('tiago com exceção: escreve retomas', t.can_insert('retomas'));
 select t.check('tiago: exceção não dá mais nada',    not t.can_insert('control_records_vu') and t.n('eot_contracts') = 0);
 select t.back();
@@ -362,6 +436,86 @@ select t.as_user('admin_role@x.pt');
 select t.check('admin(perfil): lê e escreve tudo',
   t.n('crm_notes') > 0 and t.can_insert('control_records') and t.can_insert('notifications')
   and t.n('notifications') = 3);
+select t.back();
+commit;
+
+-- ── Diário: cada vendedor só vê e altera o que é seu ────────────────────────
+begin;
+select t.as_user('vn@x.pt');
+select t.check('diário/vn: só vê a sua conta, tarefa, contacto e interação',
+  t.n('prospec_accounts') = 1 and t.n('prospec_tasks') = 1
+  and t.n('prospec_contacts') = 1 and t.n('prospec_interactions') = 1
+  and (select nome from public.prospec_accounts) = 'conta do vn');
+select t.check('diário/vn: não vê a conta, tarefa nem contacto do colega nem tarefas sem dono',
+  not exists (select 1 from public.prospec_accounts where nome = 'conta do cv')
+  and not exists (select 1 from public.prospec_tasks where descricao in ('tarefa do cv', 'tarefa sem dono'))
+  and not exists (select 1 from public.prospec_contacts where nome = 'contacto do cv'));
+select t.check('diário/vn: cria conta e tarefa em seu nome',
+  t.dml($q$ insert into public.prospec_accounts (nome, fase, owner_email) values ('nova', 'novo', 'vn@x.pt') $q$) = 1
+  and t.dml($q$ insert into public.prospec_tasks (type, descricao, owner_email) values ('todo', 'nova', 'vn@x.pt') $q$) = 1);
+select t.check('diário/vn: NÃO cria conta nem tarefa para outro dono nem sem dono',
+  t.dml($q$ insert into public.prospec_accounts (nome, fase, owner_email) values ('x', 'novo', 'cv@x.pt') $q$) = -1
+  and t.dml($q$ insert into public.prospec_accounts (nome, fase) values ('x', 'novo') $q$) = -1
+  and t.dml($q$ insert into public.prospec_tasks (type, descricao, owner_email) values ('todo', 'x', 'cv@x.pt') $q$) = -1);
+select t.check('diário/vn: altera a sua conta mas NÃO a passa para outro dono',
+  t.dml($q$ update public.prospec_accounts set setor = 's' where nome = 'conta do vn' $q$) = 1
+  and t.dml($q$ update public.prospec_accounts set owner_email = 'cv@x.pt' where nome = 'conta do vn' $q$) = -1);
+select t.check('diário/vn: NÃO altera nem apaga o que é do colega',
+  t.dml($q$ update public.prospec_accounts set setor = 'hack' where nome = 'conta do cv' $q$) = 0
+  and t.dml($q$ delete from public.prospec_accounts where nome = 'conta do cv' $q$) = 0
+  and t.dml($q$ update public.prospec_tasks set done = true where descricao = 'tarefa do cv' $q$) = 0);
+select t.check('diário/vn: contactos e interações só na sua conta',
+  t.dml($q$ insert into public.prospec_contacts (account_id, nome) values ('00000000-0000-0000-0000-0000000000a1', 'novo') $q$) = 1
+  and t.dml($q$ insert into public.prospec_contacts (account_id, nome) values ('00000000-0000-0000-0000-0000000000a2', 'intruso') $q$) = -1
+  and t.dml($q$ insert into public.prospec_interactions (account_id, tipo, occurred_at) values ('00000000-0000-0000-0000-0000000000a2', 'chamada', now()) $q$) = -1
+  and t.dml($q$ delete from public.prospec_contacts where nome = 'contacto do cv' $q$) = 0);
+select t.back();
+commit;
+begin;
+select t.as_user('cv@x.pt');
+select t.check('diário/cv: vê só o seu (a conta do vn, com email em maiúsculas, não)',
+  t.n('prospec_accounts') = 1 and (select nome from public.prospec_accounts) = 'conta do cv'
+  and t.n('prospec_tasks') = 1 and t.n('prospec_contacts') = 1);
+select t.back();
+commit;
+begin;
+select t.as_user('fin@x.pt');   -- sem acesso ao tab
+select t.check('diário/fin: sem acesso ao tab não vê nem escreve nada',
+  t.n('prospec_accounts') = 0 and t.n('prospec_tasks') = 0 and t.n('prospec_contacts') = 0
+  and t.dml($q$ insert into public.prospec_accounts (nome, fase, owner_email) values ('x', 'novo', 'fin@x.pt') $q$) = -1);
+select t.back();
+commit;
+begin;
+select t.as_user('admin_role@x.pt');   -- o diretor vê tudo e reatribui
+select t.check('diário/admin: vê todos os donos',
+  t.n('prospec_accounts') >= 3 and t.n('prospec_tasks') >= 4 and t.n('prospec_contacts') >= 3);
+select t.check('diário/admin: reatribui uma conta a outro vendedor',
+  t.dml($q$ update public.prospec_accounts set owner_email = 'cv@x.pt' where nome = 'nova' $q$) = 1);
+select t.back();
+commit;
+
+-- ── Sales Force (outra aplicação no mesmo projeto) ──────────────────────────
+-- As suas políticas têm de sobreviver à migração e continuar a funcionar; e quem
+-- só é da Sales Force não ganha acesso a nada do resto.
+select t.check('sales force: as 3 políticas continuam lá',
+  (select count(*) from pg_policies where schemaname = 'public'
+     and ((tablename = 'historico' and policyname = 'salesforce_users')
+       or (tablename = 'viaturas' and policyname = 'salesforce_users')
+       or (tablename = 'utilizadores' and policyname = 'salesforce_users_read'))) = 3);
+select t.check('plataforma: as políticas legadas foram substituídas',
+  not exists (select 1 from pg_policies where schemaname = 'public' and policyname in ('platform_users', 'platform_users_read')));
+insert into public.utilizadores (email) values ('sf@x.pt');
+begin;
+select t.as_user('sf@x.pt');
+select t.check('sales force: lê e escreve historico e viaturas',
+  t.n('historico') > 0 and t.n('viaturas') > 0 and t.can_insert('historico') and t.can_insert('viaturas'));
+select t.check('sales force: lê utilizadores mas não escreve',
+  t.n('utilizadores') > 0 and not t.can_insert('utilizadores')
+  and t.dml($q$ update public.utilizadores set email = email $q$) = 0);
+select t.check('sales force: sem acesso ao resto da plataforma',
+  t.n('control_records') = 0 and t.n('eot_contracts') = 0 and t.n('app_users') = 0
+  and not t.can_insert('control_records') and not t.can_insert('retomas')
+  and not t.can_insert('notifications') and not t.can_insert('prospec_accounts'));
 select t.back();
 commit;
 

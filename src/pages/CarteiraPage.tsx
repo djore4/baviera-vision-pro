@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 import { useData } from '@/contexts/DataContext';
 import { formatDate } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
@@ -147,7 +147,7 @@ export default function CarteiraPage() {
     });
   }, []);
 
-  const handleLegendClick = useCallback((e: any, _: any, event?: MouseEvent) => {
+  const handleLegendClick = useCallback((e: any, _: any, event: ReactMouseEvent) => {
     const key = e?.dataKey ?? e?.value;
     if (!key) return;
     handleRespClick(key, event?.ctrlKey || event?.metaKey);

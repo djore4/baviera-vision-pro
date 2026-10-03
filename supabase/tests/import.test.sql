@@ -105,6 +105,85 @@ select t.check('dados=edit: importa control, VU e angariações',
 select t.back();
 commit;
 
+-- ── import_control_excel: registos + objetivos numa só transação ─────────────
+delete from public.control_records;
+insert into public.control_records (status, resp) values ('antigo', 'A'), ('antigo', 'B');
+delete from public.objetivos_orcamento; delete from public.objetivos_resp;
+insert into public.objetivos_orcamento (ano, mes, tipo, orcamento) values (2025, 1, 'GSC', 5), (2026, 9, 'GSC', 1);
+insert into public.objetivos_resp (ano, mes, responsavel, objetivo) values (2025, 1, 'Ana', 3);
+
+-- falha nos objetivos (valor não inteiro) depois de os orçamentos já terem sido gravados
+begin;
+select t.as_user('imp@x.pt');
+select t.check('excel: objetivo inválido → erro 22P02',
+  t.state($q$ select public.import_control_excel(
+    '[{"status":"novo","resp":"X"}]',
+    '[{"ano":2026,"mes":9,"tipo":"GSC","orcamento":100}]',
+    '[{"ano":2026,"mes":9,"responsavel":"Rui","objetivo":"abc"}]') $q$) = '22P02');
+select t.back();
+commit;
+select t.check('excel: a falha desfaz TUDO — registos antigos intactos',
+  (select count(*) from public.control_records) = 2
+  and not exists (select 1 from public.control_records where status = 'novo'));
+select t.check('excel: a falha desfaz TUDO — orçamentos e objetivos como estavam',
+  (select orcamento from public.objetivos_orcamento where ano = 2026 and mes = 9 and tipo = 'GSC') = 1
+  and (select count(*) from public.objetivos_orcamento) = 2
+  and (select count(*) from public.objetivos_resp) = 1);
+
+begin;
+select t.as_user('imp@x.pt');
+select t.check('excel: importa registos e devolve o nº de registos',
+  public.import_control_excel(
+    '[{"status":"novo","resp":"X"},{"status":"novo","resp":"Y"},{"status":"novo","resp":"Z"}]',
+    '[{"ano":2026,"mes":9,"tipo":"GSC","orcamento":100},{"ano":2026,"mes":9,"tipo":"BMW","orcamento":200}]',
+    '[{"ano":2026,"mes":9,"responsavel":"Rui","objetivo":7},{"ano":2025,"mes":1,"responsavel":"Ana","objetivo":4}]') = 3);
+select t.back();
+commit;
+select t.check('excel: substitui os registos',
+  (select count(*) from public.control_records) = 3 and not exists (select 1 from public.control_records where status = 'antigo'));
+select t.check('excel: faz upsert dos orçamentos e mantém os meses que não vêm no ficheiro',
+  (select orcamento from public.objetivos_orcamento where ano = 2026 and mes = 9 and tipo = 'GSC') = 100
+  and (select orcamento from public.objetivos_orcamento where ano = 2026 and mes = 9 and tipo = 'BMW') = 200
+  and (select orcamento from public.objetivos_orcamento where ano = 2025 and mes = 1 and tipo = 'GSC') = 5);
+select t.check('excel: faz upsert dos objetivos por vendedor',
+  (select objetivo from public.objetivos_resp where ano = 2026 and mes = 9 and responsavel = 'Rui') = 7
+  and (select objetivo from public.objetivos_resp where ano = 2025 and mes = 1 and responsavel = 'Ana') = 4
+  and (select count(*) from public.objetivos_resp) = 2);
+
+begin;
+select t.as_user('imp@x.pt');
+select t.check('excel: sem registos é recusado e nada é apagado',
+  t.state($q$ select public.import_control_excel('[]', '[{"ano":2026,"mes":9,"tipo":"GSC","orcamento":1}]') $q$) = '22023');
+select t.check('excel: orçamentos que não são array são recusados',
+  t.state($q$ select public.import_control_excel('[{"status":"x"}]', '{"a":1}') $q$) = '22023');
+select t.back();
+commit;
+select t.check('excel: as recusas não mexeram em nada',
+  (select count(*) from public.control_records) = 3
+  and (select orcamento from public.objetivos_orcamento where ano = 2026 and mes = 9 and tipo = 'GSC') = 100);
+
+begin;
+select t.as_user('vn@x.pt');
+select t.check('excel: vn NÃO importa (RLS) e nada muda',
+  t.state($q$ select public.import_control_excel('[{"status":"hack"}]', '[{"ano":2030,"mes":1,"tipo":"GSC","orcamento":1}]') $q$) = '42501');
+select t.back();
+commit;
+begin;
+select t.as_user('cv@x.pt');   -- dados = view
+select t.check('excel: cv (dados=view) NÃO importa', 
+  t.state($q$ select public.import_control_excel('[{"status":"hack"}]') $q$) = '42501');
+select t.back();
+commit;
+begin;
+select t.as_anon();
+select t.check('excel: anon sem acesso à função',
+  t.state($q$ select public.import_control_excel('[{"status":"x"}]') $q$) = '42501');
+select t.back();
+commit;
+select t.check('excel: as tentativas negadas não alteraram nada',
+  (select count(*) from public.control_records where status = 'hack') = 0
+  and (select count(*) from public.objetivos_orcamento where ano = 2030) = 0);
+
 do $$
 declare total int := (select count(*) from t.results);
         fails int := (select count(*) from t.results where not ok);

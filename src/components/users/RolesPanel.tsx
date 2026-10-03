@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, Save, Trash2, ShieldCheck, Undo2, Copy } from 'lucide-react';
 import { toast } from 'sonner';
-import { AREAS, PERMISSION_TABS, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
+import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { saveRole, deleteRole } from '@/lib/permissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 type Perms = Record<string, AccessLevel>;
 
@@ -30,15 +31,17 @@ const LEVELS: { value: AccessLevel; label: string; on: string }[] = [
 const level = (p: Perms | undefined, key: string): AccessLevel => p?.[key] ?? 'none';
 
 /* Chaves com valor 'none' equivalem a chave ausente: normaliza para comparar. */
+/* Chaves editáveis na matriz: os tabs e as suas permissões finas ('lavagem:iniciar'…). */
+const MATRIX_KEYS = [...PERMISSION_TABS.map(t => t.key), ...SUB_PERMISSIONS.map(sp => sp.key)];
 const normalize = (p: Perms | undefined): Perms => {
   const out: Perms = {};
-  PERMISSION_TABS.forEach(t => { const v = level(p, t.key); if (v !== 'none') out[t.key] = v; });
+  MATRIX_KEYS.forEach(k => { const v = level(p, k); if (v !== 'none') out[k] = v; });
   return out;
 };
 /* Chaves fora da matriz (tabs desativados, arrumados no Arquivo ou só de admin)
  * não se editam aqui: preservam-se tal como estão ao guardar. */
 const hiddenKeys = (p: Perms | undefined): Perms => {
-  const known = new Set(PERMISSION_TABS.map(t => t.key));
+  const known = new Set(MATRIX_KEYS);
   const extra: Perms = {};
   Object.entries(p ?? {}).forEach(([k, v]) => { if (!known.has(k)) extra[k] = v; });
   return extra;
@@ -56,6 +59,10 @@ export function RolesPanel({
   roles: AppRole[]; users: AppUser[]; loading: boolean; onSaved: () => Promise<void>;
 }) {
   // Funções de administrador têm acesso total e nada editável: ficam de fora.
+  // As permissões por ação (ex.: 'lavagem:iniciar') só se mostram quando a base de
+  // dados já as suporta: antes disso a interface usa as regras antigas por nome de
+  // função, e guardar uma chave nova numa função não faria o que o utilizador espera.
+  const { capabilities } = usePermissions();
   const editableRoles = useMemo(() => roles.filter(r => !r.is_admin), [roles]);
   const adminRoles = useMemo(() => roles.filter(r => r.is_admin), [roles]);
 
@@ -231,19 +238,36 @@ export function RolesPanel({
                   </div>
                   <ul className="divide-y divide-border/60">
                     {tabs.map(t => (
-                      <li key={t.key} className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5">
-                        <span className="text-sm font-medium">{t.label}</span>
-                        <ToggleGroup
-                          type="single" size="sm" variant="outline" value={level(draft, t.key)}
-                          onValueChange={v => v && setLevel([t.key], v as AccessLevel)}
-                          className="gap-0"
-                        >
-                          {LEVELS.map(l => (
-                            <ToggleGroupItem key={l.value} value={l.value} className={cn('h-7 px-2.5 text-xs rounded-none first:rounded-l-md last:rounded-r-md -ml-px first:ml-0', l.on)}>
-                              {l.label}
-                            </ToggleGroupItem>
-                          ))}
-                        </ToggleGroup>
+                      <li key={t.key} className="px-3 py-1.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-sm font-medium">{t.label}</span>
+                          <ToggleGroup
+                            type="single" size="sm" variant="outline" value={level(draft, t.key)}
+                            onValueChange={v => v && setLevel([t.key], v as AccessLevel)}
+                            className="gap-0"
+                          >
+                            {LEVELS.map(l => (
+                              <ToggleGroupItem key={l.value} value={l.value} className={cn('h-7 px-2.5 text-xs rounded-none first:rounded-l-md last:rounded-r-md -ml-px first:ml-0', l.on)}>
+                                {l.label}
+                              </ToggleGroupItem>
+                            ))}
+                          </ToggleGroup>
+                        </div>
+                        {/* Permissões finas do tab (ex.: Lavagem): ações atribuídas por função. */}
+                        {capabilities.lavagemGranular && SUB_PERMISSIONS.filter(sp => sp.parent === t.key).map(sp => (
+                          <div key={sp.key} className="mt-1 ml-3 flex flex-wrap items-center justify-between gap-2 border-l-2 border-border pl-3">
+                            <span className="text-xs text-muted-foreground" title={sp.hint}>{sp.label}</span>
+                            <ToggleGroup
+                              type="single" size="sm" variant="outline"
+                              value={level(draft, sp.key) === 'none' ? 'none' : 'edit'}
+                              onValueChange={v => v && setLevel([sp.key], v as AccessLevel)}
+                              className="gap-0"
+                            >
+                              <ToggleGroupItem value="none" className={cn('h-6 px-2 text-[11px] rounded-none first:rounded-l-md last:rounded-r-md', LEVELS[0].on)}>Não</ToggleGroupItem>
+                              <ToggleGroupItem value="edit" className={cn('h-6 px-2 text-[11px] rounded-none first:rounded-l-md last:rounded-r-md -ml-px', LEVELS[2].on)}>Sim</ToggleGroupItem>
+                            </ToggleGroup>
+                          </div>
+                        ))}
                       </li>
                     ))}
                   </ul>

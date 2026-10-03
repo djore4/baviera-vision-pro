@@ -21,6 +21,9 @@ jobs:
           node-version: 20
           cache: 'npm'
       - run: npm ci
+      # Tipos: tsc limpo e types.ts em dia com as migrações (regenera e compara).
+      - run: npx tsc --noEmit -p tsconfig.app.json
+      - run: supabase/tests/gen-types.sh && git diff --exit-code src/integrations/supabase/types.ts
       - run: npx vitest run
       # Políticas RLS: aplica as migrações num Postgres temporário e verifica cada perfil.
       - run: supabase/tests/run.sh

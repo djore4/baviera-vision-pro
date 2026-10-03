@@ -18,7 +18,6 @@ const config: ClientConfig = {
   },
   matricula: { to: ['matriculas@autodemo.pt'], cc: [] },
   disabledTabs: ['escala-repsol'],
-  tabAccessExceptions: {},
 };
 
 export default config;
