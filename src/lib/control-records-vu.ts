@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
+import { replaceTableRows } from '@/lib/replace-rows';
 
 /* ── Registos de control das Viaturas Usadas ───────────────────────────────────
  * O ficheiro VU tem UMA sheet "CONTROL" com um layout próprio (diferente do VN):
@@ -221,17 +222,7 @@ export async function replaceControlRecordsVu(records: VuRecord[]): Promise<numb
   if (records.length === 0) {
     throw new Error('A sheet CONTROL não tem registos VU (FATURA/CARTEIRA/FRIO/MORNO/QUENTE) — importação cancelada para não apagar os dados existentes.');
   }
-  const { error: delError } = await supabase.from(TABLE).delete().not('id', 'is', null);
-  if (delError) throw new Error(`Erro ao limpar registos VU existentes: ${delError.message}`);
-
-  const rows = records.map(recordToDbRow);
-  const BATCH = 500;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const chunk = rows.slice(i, i + BATCH);
-    const { error } = await supabase.from(TABLE).insert(chunk);
-    if (error) throw new Error(`Erro ao importar registos VU (lote ${i / BATCH + 1}): ${error.message}`);
-  }
-  return rows.length;
+  return replaceTableRows(TABLE, records.map(recordToDbRow), { label: 'registos VU' });
 }
 
 /* ── Objetivos de faturas VU (por mês) ── */

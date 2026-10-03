@@ -32,3 +32,4 @@ for f in $(ls "$ROOT"/supabase/migrations/*.sql | sort); do
 done
 psqlq "-d t -f $ROOT/supabase/seeds/new_client_defaults.sql"
 psqlq "-d t -o /dev/null -f $HERE/rls.test.sql"
+psqlq "-d t -o /dev/null -f $HERE/import.test.sql"

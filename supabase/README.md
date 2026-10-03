@@ -34,6 +34,17 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   Quem tem `view` num tab **não** escreve nas tabelas dele, exceto em `lavagem`
   e `prospecao`, onde `view` basta para operar.
 
+### Importações atómicas
+
+`replace_rows(tabela, linhas jsonb, p_allow_empty)` (migração
+`20261003110000`) substitui todas as linhas de `control_records`,
+`control_records_vu` ou `angariacoes_vu` numa única transação: ou entra tudo, ou
+fica tudo como estava. É `security invoker`, por isso as políticas RLS decidem
+quem importa. A app usa-a através de `src/lib/replace-rows.ts`. Uma chamada com
+20 mil linhas demora cerca de 1 s; o limite prático é o tamanho do pedido HTTP,
+não a BD. Não há histórico dos snapshots anteriores: se for preciso reverter uma
+importação *correta mas errada*, tem de vir do Excel de backup.
+
 ### Testes
 
 ```sh

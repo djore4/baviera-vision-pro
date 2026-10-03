@@ -22,6 +22,10 @@ export type Database = {
     Functions: {
       is_platform_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
       is_platform_user: { Args: Record<PropertyKey, never>; Returns: boolean }
+      replace_rows: {
+        Args: { p_table: string; p_rows: Json; p_allow_empty?: boolean }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
