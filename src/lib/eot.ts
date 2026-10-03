@@ -184,7 +184,7 @@ export function parseEotFile(buffer: ArrayBuffer): EotImportRow[] {
   const sheetName = wb.SheetNames.find(n => n.trim().toUpperCase() === 'EOT') ?? wb.SheetNames[0];
   if (!sheetName) throw new Error('O ficheiro não tem nenhuma sheet.');
   const ws = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '', raw: true, cellDates: true });
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '', raw: true, cellDates: true } as XLSX.Sheet2JSONOpts);
 
   // Cabeçalho = a linha que contém "Contrato" e "Cliente".
   const headerIdx = rows.findIndex(r =>

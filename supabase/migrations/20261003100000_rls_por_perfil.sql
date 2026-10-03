@@ -10,17 +10,19 @@
 -- termos dos mesmos tabs da matriz. A lógica espelha PermissionsContext.access():
 --   admin (platform_admins ou perfil is_admin)  -> edit em tudo
 --   senão: máximo entre o nível do perfil e a exceção por email
---   (app_access_exceptions, o equivalente em BD de client.tabAccessExceptions)
+--   (app_access_exceptions: única fonte das exceções por email; a UI lê-a
+--   através de my_access_exceptions(), ver a migração do mesmo nome)
 --
 -- Princípio de rollout: a BD nunca é mais permissiva do que a UI pretende, mas
 -- também não é mais restritiva do que aquilo que a UI legitimamente permite
 -- (ex.: o Lavador, com 'view' em lavagem, cria e inicia lavagens).
 --
--- Limitações conhecidas (ver supabase/README.md):
---  * lavagem: a UI decide algumas ações pelo NOME do perfil (Lavador, Preparador,
---    APV…); a BD só distingue view/edit do tab.
---  * prospecao: escreve quem tem acesso ao tab; o isolamento por vendedor (cada
---    um só vê as suas contas) continua a ser da aplicação.
+-- Esta migração dá a regra de base por tab. Duas áreas são refinadas por
+-- migrações seguintes, que substituem as políticas destas tabelas:
+--  * lavagem  -> 20261003140000_lavagem_permissoes_granulares (permissões por
+--    ação em vez de pelo NOME do perfil);
+--  * prospecao -> 20261003120000_prospec_isolamento_vendedor (cada vendedor só
+--    vê e altera o que é seu).
 
 -- ── Exceções de acesso por email ────────────────────────────────────────────
 create table if not exists public.app_access_exceptions (
@@ -35,9 +37,9 @@ create table if not exists public.app_access_exceptions (
 -- Sem políticas: só o service role escreve; as funções abaixo (security definer) leem.
 alter table public.app_access_exceptions enable row level security;
 
--- Migra a exceção que existia em src/clients/baviera/config.ts
--- (tabAccessExceptions). Só entra se o utilizador existir neste projeto, para
--- não deixar rasto da Baviera noutros clientes.
+-- Migra a exceção que existia em src/clients/baviera/config.ts (agora removida
+-- de lá: a tabela é a única fonte). Só entra se o utilizador existir neste
+-- projeto, para não deixar rasto da Baviera noutros clientes.
 insert into public.app_access_exceptions (email, tab, level)
 select 'tiago.santos@caetano.pt', 'stock', 'edit'
 where exists (select 1 from public.app_users where lower(email) = 'tiago.santos@caetano.pt')

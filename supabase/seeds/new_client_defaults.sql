@@ -11,8 +11,8 @@ insert into public.app_roles (name, is_admin, permissions) values
   ('Finance', false, '{"carteira": "view", "producao": "view", "end-of-term": "edit"}'),
   ('Secretaria', false, '{"retails": "view", "carteira": "view", "producao": "view", "ficha-margem": "edit"}'),
   ('Gestor de Serviço', false, '{"lavagem": "edit"}'),
-  ('Preparador', false, '{"lavagem": "edit", "retails": "view", "carteira": "view", "producao": "view"}'),
-  ('Lavador', false, '{"lavagem": "view"}')
+  ('Preparador', false, '{"lavagem": "edit", "lavagem:reagendar": "edit", "lavagem:qualidade": "edit", "retails": "view", "carteira": "view", "producao": "view"}'),
+  ('Lavador', false, '{"lavagem": "view", "lavagem:iniciar": "edit"}')
 on conflict (name) do nothing;
 
 -- Ciclo de multas inicial (penalties.cycle_id tem default 1).

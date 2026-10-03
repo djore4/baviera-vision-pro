@@ -399,9 +399,9 @@ export async function listProspecOwners(): Promise<ProspecOwner[]> {
   if (usersRes.error) throw usersRes.error;
   const okRoles = new Set(
     (rolesRes.data ?? [])
-      .filter((r: { permissions: Record<string, unknown> | null }) =>
-        r.permissions && Object.prototype.hasOwnProperty.call(r.permissions, 'prospecao'))
-      .map((r: { name: string }) => r.name),
+      .filter(r => r.permissions && typeof r.permissions === 'object' && !Array.isArray(r.permissions)
+        && Object.prototype.hasOwnProperty.call(r.permissions, 'prospecao'))
+      .map(r => r.name),
   );
   return (usersRes.data ?? [])
     .filter((u: { email: string | null; perfil: string | null }) => u.email && u.perfil && okRoles.has(u.perfil))

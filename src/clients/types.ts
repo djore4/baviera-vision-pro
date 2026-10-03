@@ -1,4 +1,3 @@
-import type { AccessLevel } from '@/lib/permissions';
 
 /* ── Configuração por cliente ─────────────────────────────────────────────────
  * Cada instalação (projeto Vercel + projeto Supabase) serve um cliente,
@@ -36,6 +35,4 @@ export interface ClientConfig {
   disabledTabs: string[];
   /** Destinatários do pedido de matrícula (texto copiado para email). */
   matricula: { to: string[]; cc: string[] };
-  /** Exceções de acesso por email, fora da matriz de funções. Só elevam o acesso. */
-  tabAccessExceptions: Record<string, Record<string, AccessLevel>>;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, Legend,
 } from 'recharts';
@@ -23,6 +23,8 @@ const PT_MONTHS = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 const RADIUS_TICKS = [0, 2, 4, 6, 8, 10];
+/* O recharts aceita números em `ticks`; a tipagem exige TickItem[]. */
+const RADIUS_TICKS_PROP = RADIUS_TICKS as unknown as ComponentProps<typeof PolarRadiusAxis>['ticks'];
 const PALETTE = ['#16A34A', '#F59E0B', '#DC2626', '#8B5CF6', '#0EA5E9', '#EC4899', '#14B8A6', '#F97316', '#64748B', '#1C69D4'];
 const AVG_COLOR = '#1C69D4';
 
@@ -175,7 +177,7 @@ export function QualityRadarCard() {
                 {/* Escala fixa 0–10 em ambos os eixos. */}
                 <PolarRadiusAxis
                   domain={[QUALITY_MIN, QUALITY_MAX]}
-                  ticks={RADIUS_TICKS}
+                  ticks={RADIUS_TICKS_PROP}
                   tickCount={RADIUS_TICKS.length}
                   tick={{ fontSize: 9 }}
                   stroke="hsl(var(--border))"

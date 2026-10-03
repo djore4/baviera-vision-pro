@@ -2,8 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { AppData, PeriodFilter, ControlRecord } from '@/types/data';
 import { parseExcel, getDeliveryMonth } from '@/lib/excel-parser';
 import { supabase } from '@/integrations/supabase/client';
-import { replaceControlRecords } from '@/lib/control-records';
-import { loadObjetivos, replaceObjetivosFromExcel } from '@/lib/objetivos';
+import { importControlExcel } from '@/lib/control-records';
+import { loadObjetivos } from '@/lib/objetivos';
 
 interface DataContextValue {
   data: AppData | null;
@@ -155,9 +155,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const buffer = await file.arrayBuffer();
       const parsed = parseExcel(buffer);
 
-      // Importa para o Supabase (fonte de verdade única).
-      const count = await replaceControlRecords(parsed.control);
-      await replaceObjetivosFromExcel(parsed);
+      // Importa para o Supabase (fonte de verdade única), registos e objetivos
+      // numa só transação.
+      const count = await importControlExcel(parsed);
 
       // Guarda o Excel como cópia de segurança (já não é lido pela app).
       const { error: uploadError } = await supabase.storage

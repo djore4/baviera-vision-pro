@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, type ComponentProps } from 'react';
 import { Radar as RadarIcon, Loader2, Save, ChevronLeft, ChevronRight, Users, Trash2 } from 'lucide-react';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, Legend,
@@ -38,6 +38,8 @@ const PT_MONTHS = [
 
 const isVehicle = (t: string) => t === 'VN' || t === 'VD';
 const RADIUS_TICKS = [0, 2, 4, 6, 8, 10];
+/* O recharts aceita números em `ticks`; a tipagem exige TickItem[]. */
+const RADIUS_TICKS_PROP = RADIUS_TICKS as unknown as ComponentProps<typeof PolarRadiusAxis>['ticks'];
 
 /* Responsáveis que aparecem como `resp` mas não são vendedores. */
 const NOT_VENDEDOR = new Set(['JD']);
@@ -361,7 +363,7 @@ export function QualityManager() {
                   {/* Escala fixa 0–10 em ambos os eixos: assim vê-se quando nenhuma nota é máxima. */}
                   <PolarRadiusAxis
                     domain={[QUALITY_MIN, QUALITY_MAX]}
-                    ticks={RADIUS_TICKS}
+                    ticks={RADIUS_TICKS_PROP}
                     tickCount={RADIUS_TICKS.length}
                     tick={{ fontSize: 9 }}
                     stroke="hsl(var(--border))"

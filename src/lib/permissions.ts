@@ -93,6 +93,34 @@ export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', '
  * estão sempre barrados e só o admin lhes acede (no Arquivo). */
 export const PERMISSION_TABS: TabDef[] = TABS.filter(t => !ARCHIVED_TAB_KEYS.includes(t.key) && !t.adminOnly);
 
+/* ── Permissões finas dentro de um tab ───────────────────────────────────────
+ * Ações de um tab que se atribuem por função na matriz, em vez de dependerem do
+ * NOME da função no código (antes: `roleName === 'Lavador'`). Guardam-se em
+ * app_roles.permissions com a chave '<tab>:<ação>' e valor 'edit' (concedida) ou
+ * ausente. Dar acesso ao tab em si continua a ser a chave '<tab>'.
+ * A RLS (migração lavagem_permissoes_granulares) usa as mesmas chaves. */
+export interface SubPermissionDef {
+  key: string;      // '<tab>:<ação>'
+  parent: string;   // chave do tab
+  label: string;
+  hint: string;
+}
+
+const ALL_SUB_PERMISSIONS: SubPermissionDef[] = [
+  { key: 'lavagem:reagendar', parent: 'lavagem', label: 'Reagendar e apagar',
+    hint: 'Editar lavagens já existentes (arrastar na agenda) e removê-las. Quem tem edição no tab já o faz.' },
+  { key: 'lavagem:iniciar', parent: 'lavagem', label: 'Criar e iniciar',
+    hint: 'Criar lavagens, iniciar as agendadas e usar "Agendar já".' },
+  { key: 'lavagem:qualidade', parent: 'lavagem', label: 'Controlo de qualidade',
+    hint: 'Atribuir nota e observações de qualidade a uma lavagem.' },
+  { key: 'lavagem:registos', parent: 'lavagem', label: 'Ver registos',
+    hint: 'Consultar o histórico e a auditoria de lavagens.' },
+];
+
+/* Só as dos tabs que existem nesta instalação. */
+export const SUB_PERMISSIONS: SubPermissionDef[] =
+  ALL_SUB_PERMISSIONS.filter(sp => TABS.some(t => t.key === sp.parent));
+
 /* Tabs de acesso restrito a administradores (deriva de TabDef.adminOnly). */
 export const ADMIN_ONLY_TAB_KEYS: string[] = TABS.filter(t => t.adminOnly).map(t => t.key);
 
@@ -131,6 +159,23 @@ export async function isPlatformAdmin(): Promise<boolean> {
   const { data, error } = await supabase.rpc('is_platform_admin');
   if (error) throw error;
   return data === true;
+}
+
+/* Exceções de acesso por tab do utilizador atual (tabela app_access_exceptions,
+ * única fonte — a RLS usa a mesma). Se a função ainda não existir na base de
+ * dados (migração por aplicar) ou falhar, não há exceções: nunca eleva acesso
+ * por engano. */
+export async function getMyAccessExceptions(): Promise<Record<string, AccessLevel>> {
+  const { data, error } = await supabase.rpc('my_access_exceptions');
+  if (error) {
+    console.warn('Exceções de acesso indisponíveis:', error.message);
+    return {};
+  }
+  const out: Record<string, AccessLevel> = {};
+  Object.entries((data ?? {}) as Record<string, string>).forEach(([tab, lvl]) => {
+    if (lvl === 'view' || lvl === 'edit') out[tab] = lvl;
+  });
+  return out;
 }
 
 export async function listUsers(): Promise<AppUser[]> {

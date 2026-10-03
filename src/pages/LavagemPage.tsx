@@ -268,25 +268,23 @@ function layoutDay(items: CarWashCycle[]): { placed: PlacedCycle[]; lanes: numbe
 export default function LavagemPage() {
   const { session } = useAuth();
   const { data: appData } = useData();
-  const { isAdmin, roleName, canEdit } = usePermissions();
-  // Permissões específicas dentro do tab Lavagem (ver tab: qualquer perfil com acesso).
-  // Acesso de edição ao tab Lavagem concede as tarefas de planeamento (agendar/reordenar),
-  // para além dos perfis dedicados — ex.: APV agenda lavagens de serviço.
-  const lavagemEdit = canEdit('lavagem');                                           // edição atribuída ao perfil
-  // Reagendar/editar lavagens já existentes (arrastar na agenda). O Lavador NÃO edita
-  // existentes — só cria novas e inicia as agendadas.
-  const canReschedule = isAdmin || roleName === 'Preparador' || lavagemEdit;        // editar existentes (arrastar)
+  const { isAdmin, canEdit, canView } = usePermissions();
+  // Permissões dentro do tab Lavagem, atribuídas por função na matriz
+  // (chaves 'lavagem:<ação>'; o administrador tem todas). Antes dependiam do NOME
+  // da função (Lavador, Preparador, APV…).
+  // Reagendar/editar lavagens já existentes (arrastar na agenda): edição do tab
+  // (ex.: APV agenda lavagens de serviço) ou a permissão explícita. O Lavador NÃO
+  // edita existentes — só cria novas e inicia as agendadas.
+  const canReschedule = canEdit('lavagem') || canView('lavagem:reagendar');
   // Iniciar uma lavagem agendada e usar "Agendar já" (agendar para agora + arrancar).
-  const canStartCycle = isAdmin || roleName === 'Lavador';                          // iniciar / agendar já
+  const canStartCycle = canView('lavagem:iniciar');
   // Criar/agendar novas lavagens (ver o formulário): quem edita existentes e também o Lavador.
-  const canCreate = canReschedule || canStartCycle;                                 // ver formulário
-  const canQC = isAdmin || roleName === 'Preparador' || roleName === 'Vendedor';    // controlo de qualidade
+  const canCreate = canReschedule || canStartCycle;
+  const canQC = canView('lavagem:qualidade');                                       // controlo de qualidade
   const canExport = isAdmin;                                                        // exportar Excel
-  // Consultar os registos/auditoria de lavagens: administrador e perfil APV.
-  const canViewRegistos = isAdmin || roleName === 'APV';                            // ver registos de lavagens
-  // Remover lavagens: quem pode editar/reagendar as existentes (admin, Preparador e
-  // perfis com edição no tab — ex.: APV). Todas as eliminações ficam registadas na
-  // auditoria (car_wash_events), acessível ao administrador.
+  const canViewRegistos = canView('lavagem:registos');                              // histórico e auditoria
+  // Remover lavagens: quem pode editar/reagendar as existentes. Todas as eliminações
+  // ficam registadas na auditoria (car_wash_events).
   const canDelete = canReschedule;                                                  // remover registos
 
   const [plate, setPlate] = useState('');

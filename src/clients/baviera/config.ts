@@ -28,9 +28,6 @@ const config: ClientConfig = {
     cc: ['jose.mesquita@caetano.pt', 'joaocarlos.duarte@caetano.pt'],
   },
   disabledTabs: [],
-  tabAccessExceptions: {
-    'tiago.santos@caetano.pt': { stock: 'edit' },
-  },
 };
 
 export default config;

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/App';
 import {
-  listRoles, listUsers, isPlatformAdmin, TABS, ADMIN_ONLY_TAB_KEYS,
+  listRoles, listUsers, isPlatformAdmin, getMyAccessExceptions, TABS, ADMIN_ONLY_TAB_KEYS,
   type AccessLevel, type AppRole, type AppUser,
 } from '@/lib/permissions';
 import { client } from '@/clients';
@@ -12,10 +12,6 @@ const ADMIN_ONLY_TABS = new Set(ADMIN_ONLY_TAB_KEYS);
 
 /* Tabs que não existem nesta instalação (configuração do cliente). */
 const DISABLED_TABS = new Set(client.disabledTabs);
-
-/* Exceções pontuais de acesso por email, fora da matriz de funções
- * (configuração do cliente). Usar com parcimónia — a via normal é a matriz. */
-const TAB_ACCESS_EXCEPTIONS = client.tabAccessExceptions;
 
 interface PermissionsValue {
   loading: boolean;
@@ -43,6 +39,9 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const [roles, setRoles] = useState<AppRole[] | null>(null);
   const [me, setMe] = useState<AppUser | null | undefined>(undefined);
   const [platformAdmin, setPlatformAdmin] = useState(false);
+  // Exceções pontuais de acesso, fora da matriz de funções (tabela
+  // app_access_exceptions). Usar com parcimónia — a via normal é a matriz.
+  const [exceptions, setExceptions] = useState<Record<string, AccessLevel>>({});
   const [tick, setTick] = useState(0);
   const reload = useCallback(() => setTick(t => t + 1), []);
 
@@ -50,11 +49,13 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     let alive = true;
     (async () => {
       try {
-        const [rs, us, pa] = await Promise.all([
+        const [rs, us, pa, ex] = await Promise.all([
           listRoles(), listUsers(), isPlatformAdmin().catch(() => false),
+          getMyAccessExceptions().catch(() => ({} as Record<string, AccessLevel>)),
         ]);
         if (!alive) return;
         setPlatformAdmin(pa);
+        setExceptions(ex);
         setRoles(rs);
         setMe(us.find(u => (u.email ?? '').toLowerCase() === email) ?? null);
       } catch (e) {
@@ -82,7 +83,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       if (ADMIN_ONLY_TABS.has(tab)) return 'none';
       // Exceção pontual por email (tem precedência sobre a função, mas não sobre
       // o acesso total de admin). Só eleva o acesso, nunca o reduz.
-      const exception = email ? TAB_ACCESS_EXCEPTIONS[email]?.[tab] : undefined;
+      const exception = exceptions[tab];
       const roleAccess = role ? ((role.permissions?.[tab] as AccessLevel) ?? 'none') : 'none';
       if (exception) {
         const rank: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
@@ -104,7 +105,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       canEdit: (t) => access(t) === 'edit',
       reload,
     };
-  }, [roles, me, platformAdmin, email, reload]);
+  }, [roles, me, platformAdmin, exceptions, reload]);
 
   if (value.loading) return null;
 
