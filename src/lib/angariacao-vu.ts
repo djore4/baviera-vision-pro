@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
+import { replaceTableRows } from '@/lib/replace-rows';
 
 /* ── Angariações · Viaturas Usadas ─────────────────────────────────────────────
  * O ficheiro VU tem uma sheet própria "ANGARIAÇÃO" (uma linha por viatura
@@ -132,18 +133,11 @@ export async function loadAngariacoesVu(): Promise<Angariacao[]> {
 
 /** Substitui todas as angariações pelas da sheet (snapshot). */
 export async function replaceAngariacoesVu(rows: Angariacao[]): Promise<number> {
-  const { error: delError } = await supabase.from(TABLE).delete().not('id', 'is', null);
-  if (delError) throw new Error(`Erro ao limpar angariações existentes: ${delError.message}`);
-  if (rows.length === 0) return 0;
   const payload = rows.map(a => ({
     dt_ang: isoDate(a.dtAng), resp: a.resp || null, cliente: a.cliente || null, angar: a.angar || null,
     mat: a.mat || null, model: a.model || null, version: a.version || null,
     ano: a.ano, kms: a.kms, v_compra: a.vCompra,
   }));
-  const BATCH = 500;
-  for (let i = 0; i < payload.length; i += BATCH) {
-    const { error } = await supabase.from(TABLE).insert(payload.slice(i, i + BATCH));
-    if (error) throw new Error(`Erro ao importar angariações (lote ${i / BATCH + 1}): ${error.message}`);
-  }
-  return payload.length;
+  // Ficheiro sem angariações esvazia a tabela (comportamento anterior).
+  return replaceTableRows(TABLE, payload, { allowEmpty: true, label: 'angariações' });
 }

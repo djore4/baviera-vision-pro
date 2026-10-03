@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { replaceTableRows } from '@/lib/replace-rows';
 import type { ControlRecord } from '@/types/data';
 
 /** Data (Date) -> string 'AAAA-MM-DD' para colunas `date`, ou null. */
@@ -54,19 +54,7 @@ export async function replaceControlRecords(records: ControlRecord[]): Promise<n
     throw new Error('A sheet CONTROL não tem registos — importação cancelada para não apagar os dados existentes.');
   }
 
-  // Apaga todos os registos atuais (todas as linhas têm id não-nulo).
-  const { error: delError } = await supabase
-    .from('control_records')
-    .delete()
-    .not('id', 'is', null);
-  if (delError) throw new Error(`Erro ao limpar registos existentes: ${delError.message}`);
-
-  const rows = records.map(controlRecordToRow);
-  const BATCH = 500;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const chunk = rows.slice(i, i + BATCH);
-    const { error } = await supabase.from('control_records').insert(chunk);
-    if (error) throw new Error(`Erro ao importar registos (lote ${i / BATCH + 1}): ${error.message}`);
-  }
-  return rows.length;
+  // Uma só transação na BD (apagar + inserir): se algo falhar, os dados
+  // anteriores ficam intactos.
+  return replaceTableRows('control_records', records.map(controlRecordToRow), { label: 'registos' });
 }

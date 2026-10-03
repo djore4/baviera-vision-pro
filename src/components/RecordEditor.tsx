@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useData } from '@/contexts/DataContext';
 import { X, Check, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 /* ── Form shape (colunas de control_records) ── */
 export interface RecordForm {
@@ -121,16 +122,21 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
       cme: form.cme !== null && String(form.cme) !== '' ? Number(form.cme) : null,
       neg: form.neg || null, dmat: form.dmat || null, date298: form.date298 || null, app: form.app || null,
     };
-    if (editId) { await supabase.from('control_records').update(payload).eq('id', editId); }
-    else { await supabase.from('control_records').insert(payload); }
-    setSaving(false); setOpen(false);
+    const { error } = editId
+      ? await supabase.from('control_records').update(payload).eq('id', editId)
+      : await supabase.from('control_records').insert(payload);
+    setSaving(false);
+    if (error) { toast.error(`Não foi possível gravar o registo: ${error.message}`); return; }
+    setOpen(false);
     await notifyChanged();
   }
 
   async function remove() {
     if (!editId) return;
-    await supabase.from('control_records').delete().eq('id', editId);
-    setConfirmDelete(false); setOpen(false);
+    const { error } = await supabase.from('control_records').delete().eq('id', editId);
+    setConfirmDelete(false);
+    if (error) { toast.error(`Não foi possível eliminar o registo: ${error.message}`); return; }
+    setOpen(false);
     await notifyChanged();
   }
 

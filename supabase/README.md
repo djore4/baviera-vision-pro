@@ -12,6 +12,50 @@
   para um cliente novo.
 - `functions/` — edge functions.
 
+## Permissões (RLS por perfil)
+
+A matriz de permissões (`app_roles.permissions`, tab → `view`/`edit`) é imposta
+pela base de dados, não só pela interface. `20261003100000_rls_por_perfil.sql`
+define as funções `has_access(tab, nível)`, `has_any_access(tabs, nível)`,
+`has_any_tab()` e `is_app_admin()`, e uma política por operação em cada tabela
+(ver o mapa tabela → tabs no cabeçalho de cada bloco da migração). O storage
+segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
+
+- Admin = email em `platform_admins` **ou** perfil com `is_admin`: `edit` em tudo.
+- Exceções por email: tabela `app_access_exceptions` (só eleva, nunca reduz).
+  Espelha `tabAccessExceptions` do `config.ts` do cliente — **manter as duas em
+  sincronia** até a UI passar a ler da BD.
+- Ao acrescentar uma tabela nova: ativar RLS e dar-lhe políticas explícitas
+  (sem políticas só o service role acede). Ao acrescentar um tab: dizer em que
+  tabelas lê e escreve, e acrescentar o caso a `tests/rls.test.sql`.
+- Limitações: `lavagem` — a UI decide algumas ações pelo nome do perfil
+  (Lavador, Preparador, APV); a BD só distingue `view`/`edit`. `prospecao` — o
+  isolamento por vendedor (cada um só vê as suas contas) continua na aplicação.
+  Quem tem `view` num tab **não** escreve nas tabelas dele, exceto em `lavagem`
+  e `prospecao`, onde `view` basta para operar.
+
+### Importações atómicas
+
+`replace_rows(tabela, linhas jsonb, p_allow_empty)` (migração
+`20261003110000`) substitui todas as linhas de `control_records`,
+`control_records_vu` ou `angariacoes_vu` numa única transação: ou entra tudo, ou
+fica tudo como estava. É `security invoker`, por isso as políticas RLS decidem
+quem importa. A app usa-a através de `src/lib/replace-rows.ts`. Uma chamada com
+20 mil linhas demora cerca de 1 s; o limite prático é o tamanho do pedido HTTP,
+não a BD. Não há histórico dos snapshots anteriores: se for preciso reverter uma
+importação *correta mas errada*, tem de vir do Excel de backup.
+
+### Testes
+
+```sh
+supabase/tests/run.sh
+```
+
+Cria um Postgres temporário (sem Supabase), aplica `migrations/*.sql` e o seed, e
+corre `tests/rls.test.sql` como cada perfil (admin, vendedor, CV, finance,
+lavador, estranho, anon…). Falha se alguma política deixar de se comportar como
+esperado. Corre também no CI.
+
 ## Criar um cliente novo
 
 Um projeto Supabase por cliente (região UE).
