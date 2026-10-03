@@ -4,6 +4,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { fireConfetti } from '@/lib/confetti';
 import { useData } from '@/contexts/DataContext';
 import { useRecordEditor } from '@/components/RecordEditor';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { RetomaFilter } from '@/components/RetomaFilter';
 import { formatDate } from '@/lib/excel-parser';
@@ -25,6 +26,9 @@ type SortDir = 'asc' | 'desc';
 export default function ProducaoPage() {
   const { data, filter } = useData();
   const { openEditor } = useRecordEditor();
+  // Espelha a política RLS de control_records: escreve quem edita Dados ou Database.
+  const { canEdit } = usePermissions();
+  const canEditRecords = canEdit('dados') || canEdit('database');
   const isMobile = useIsMobile();
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
@@ -391,7 +395,7 @@ export default function ProducaoPage() {
 
           {isMobile && (
             <div className="order-4 xl:order-none">
-              <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={openEditor} />
+              <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={canEditRecords ? openEditor : undefined} />
             </div>
           )}
 
@@ -453,7 +457,7 @@ export default function ProducaoPage() {
           </div>
 
           {!isMobile && (
-            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={openEditor} />
+            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={canEditRecords ? openEditor : undefined} />
           )}
         </div>
       </div>
@@ -464,7 +468,7 @@ export default function ProducaoPage() {
 function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, toggleSort, SortIcon, exportCSV, openEditor }: {
   tableData: any[]; tableColumns: [SortKey, string][]; searchTerm: string; setSearchTerm: (v: string) => void;
   toggleSort: (k: SortKey) => void; SortIcon: React.FC<{ col: SortKey }>; exportCSV: () => void;
-  openEditor: (id: string) => void;
+  openEditor?: (id: string) => void;
 }) {
   return (
     <div className="bg-card border border-border rounded-lg">
@@ -493,7 +497,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
           </thead>
           <tbody>
             {tableData.map((r, i) => (
-              <tr key={i} onClick={() => r.id && openEditor(r.id)} title="Clicar para editar" className="text-[11px] border-b border-border transition-colors hover:bg-muted/50 cursor-pointer">
+              <tr key={i} onClick={() => r.id && openEditor?.(r.id)} title={openEditor ? 'Clicar para editar' : undefined} className={`text-[11px] border-b border-border transition-colors hover:bg-muted/50${openEditor ? ' cursor-pointer' : ''}`}>
                 <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
                 <td className="px-3 py-1">{r.type}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{r.model}</td>

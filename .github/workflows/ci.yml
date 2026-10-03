@@ -22,6 +22,8 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npx vitest run
+      # Políticas RLS: aplica as migrações num Postgres temporário e verifica cada perfil.
+      - run: supabase/tests/run.sh
       - run: npx vite build
         env:
           VITE_SUPABASE_URL: https://example.supabase.co
