@@ -163,11 +163,17 @@ export async function isPlatformAdmin(): Promise<boolean> {
 
 /* Exceções de acesso por tab do utilizador atual (tabela app_access_exceptions,
  * única fonte — a RLS usa a mesma). Se a função ainda não existir na base de
- * dados (migração por aplicar) ou falhar, não há exceções: nunca eleva acesso
- * por engano. */
-export async function getMyAccessExceptions(): Promise<Record<string, AccessLevel>> {
+ * dados (migração por aplicar), usa-se a cópia legada do config do cliente
+ * (`legacyTabAccessExceptions`), SÓ para essa situação: assim a edição que um
+ * utilizador tinha não desaparece entre o deploy e a migração. Noutros erros não
+ * há exceções: nunca eleva acesso por engano. */
+export async function getMyAccessExceptions(email?: string | null): Promise<Record<string, AccessLevel>> {
   const { data, error } = await supabase.rpc('my_access_exceptions');
   if (error) {
+    if ((error as { code?: string }).code === 'PGRST202') {
+      console.warn('my_access_exceptions em falta na base de dados: a usar as exceções legadas do config. Aplicar a migração 20261003130000.');
+      return (email && client.legacyTabAccessExceptions?.[email.toLowerCase()]) || {};
+    }
     console.warn('Exceções de acesso indisponíveis:', error.message);
     return {};
   }
@@ -176,6 +182,18 @@ export async function getMyAccessExceptions(): Promise<Record<string, AccessLeve
     if (lvl === 'view' || lvl === 'edit') out[tab] = lvl;
   });
   return out;
+}
+
+/* Capacidades que a base de dados já tem (função app_capabilities, migração
+ * lavagem_permissoes_granulares). Sem a função, nenhuma: a interface mantém as
+ * regras antigas até a migração ser aplicada. */
+export interface AppCapabilities { lavagemGranular: boolean }
+
+export async function getAppCapabilities(): Promise<AppCapabilities> {
+  const { data, error } = await supabase.rpc('app_capabilities');
+  if (error) return { lavagemGranular: false };
+  const caps = (data ?? {}) as Record<string, unknown>;
+  return { lavagemGranular: caps.lavagem_granular === true };
 }
 
 export async function listUsers(): Promise<AppUser[]> {

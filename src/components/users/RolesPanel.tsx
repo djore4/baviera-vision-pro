@@ -18,6 +18,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { saveRole, deleteRole } from '@/lib/permissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 type Perms = Record<string, AccessLevel>;
 
@@ -58,6 +59,10 @@ export function RolesPanel({
   roles: AppRole[]; users: AppUser[]; loading: boolean; onSaved: () => Promise<void>;
 }) {
   // Funções de administrador têm acesso total e nada editável: ficam de fora.
+  // As permissões por ação (ex.: 'lavagem:iniciar') só se mostram quando a base de
+  // dados já as suporta: antes disso a interface usa as regras antigas por nome de
+  // função, e guardar uma chave nova numa função não faria o que o utilizador espera.
+  const { capabilities } = usePermissions();
   const editableRoles = useMemo(() => roles.filter(r => !r.is_admin), [roles]);
   const adminRoles = useMemo(() => roles.filter(r => r.is_admin), [roles]);
 
@@ -249,7 +254,7 @@ export function RolesPanel({
                           </ToggleGroup>
                         </div>
                         {/* Permissões finas do tab (ex.: Lavagem): ações atribuídas por função. */}
-                        {SUB_PERMISSIONS.filter(sp => sp.parent === t.key).map(sp => (
+                        {capabilities.lavagemGranular && SUB_PERMISSIONS.filter(sp => sp.parent === t.key).map(sp => (
                           <div key={sp.key} className="mt-1 ml-3 flex flex-wrap items-center justify-between gap-2 border-l-2 border-border pl-3">
                             <span className="text-xs text-muted-foreground" title={sp.hint}>{sp.label}</span>
                             <ToggleGroup

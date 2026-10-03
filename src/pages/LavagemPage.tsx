@@ -6,6 +6,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { lavagemAccess } from '@/lib/lavagem-access';
 import { useData } from '@/contexts/DataContext';
 import {
   WASH_TYPES, WASH_TYPE_MAP, type WashTypeId, type CarWashCycle, type CarWashEvent,
@@ -268,24 +269,12 @@ function layoutDay(items: CarWashCycle[]): { placed: PlacedCycle[]; lanes: numbe
 export default function LavagemPage() {
   const { session } = useAuth();
   const { data: appData } = useData();
-  const { isAdmin, canEdit, canView } = usePermissions();
-  // Permissões dentro do tab Lavagem, atribuídas por função na matriz
-  // (chaves 'lavagem:<ação>'; o administrador tem todas). Antes dependiam do NOME
-  // da função (Lavador, Preparador, APV…).
-  // Reagendar/editar lavagens já existentes (arrastar na agenda): edição do tab
-  // (ex.: APV agenda lavagens de serviço) ou a permissão explícita. O Lavador NÃO
-  // edita existentes — só cria novas e inicia as agendadas.
-  const canReschedule = canEdit('lavagem') || canView('lavagem:reagendar');
-  // Iniciar uma lavagem agendada e usar "Agendar já" (agendar para agora + arrancar).
-  const canStartCycle = canView('lavagem:iniciar');
-  // Criar/agendar novas lavagens (ver o formulário): quem edita existentes e também o Lavador.
-  const canCreate = canReschedule || canStartCycle;
-  const canQC = canView('lavagem:qualidade');                                       // controlo de qualidade
-  const canExport = isAdmin;                                                        // exportar Excel
-  const canViewRegistos = canView('lavagem:registos');                              // histórico e auditoria
-  // Remover lavagens: quem pode editar/reagendar as existentes. Todas as eliminações
-  // ficam registadas na auditoria (car_wash_events).
-  const canDelete = canReschedule;                                                  // remover registos
+  const { isAdmin, roleName, canEdit, canView, capabilities } = usePermissions();
+  // Permissões dentro do tab Lavagem: por ação, atribuídas por função na matriz
+  // (ver lavagemAccess). Enquanto a migração não está aplicada, mantêm-se as regras
+  // antigas por nome de função.
+  const { canReschedule, canStartCycle, canCreate, canQC, canExport, canViewRegistos, canDelete } =
+    lavagemAccess({ isAdmin, roleName, capabilities, canEdit, canView });
 
   const [plate, setPlate] = useState('');
   const [model, setModel] = useState('');

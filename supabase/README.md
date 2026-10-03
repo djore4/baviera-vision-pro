@@ -66,6 +66,25 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
 - Não há histórico dos snapshots anteriores: reverter uma importação *correta
   mas errada* só é possível a partir do Excel de backup.
 
+### Compatibilidade enquanto as migrações não estão aplicadas
+
+O código foi feito para funcionar com a base de dados **antes e depois** das
+migrações, para que o deploy do frontend não dependa da ordem em que se aplicam.
+São três recursos temporários, todos a remover quando as migrações estiverem
+aplicadas em todos os ambientes:
+
+| O quê | Sem a migração | Com a migração | Remover |
+| --- | --- | --- | --- |
+| Importar o Excel (`replace_rows`, `import_control_excel`) | caminho antigo (apagar + inserir em lotes), **sem atomicidade**, com aviso na consola | uma transação | `legacyReplace` e o ramo `isMissingRpc` em `src/lib/replace-rows.ts` e `src/lib/control-records.ts` |
+| Exceções por email (`my_access_exceptions`) | cópia em `legacyTabAccessExceptions` do config do cliente | tabela `app_access_exceptions` | `legacyTabAccessExceptions` (config e tipo) e o ramo `PGRST202` de `getMyAccessExceptions` |
+| Permissões da Lavagem (`app_capabilities`) | regras antigas por nome de função (Lavador, Preparador, APV) | permissões por ação na matriz | o ramo `legacy` de `src/lib/lavagem-access.ts`; passa a mostrar sempre as permissões por ação em `RolesPanel` |
+
+A Lavagem decide pelo marcador `app_capabilities()` (criado na migração
+`20261003140000`) e não pelos dados, para que um administrador que remova todas
+as chaves `lavagem:*` de uma função não reative sem querer as regras por nome.
+Os testes `src/test/lavagem-access.test.ts` garantem que, com a base antiga, as
+permissões são exatamente as do código anterior para todas as funções.
+
 ### Testes e tipos
 
 ```sh

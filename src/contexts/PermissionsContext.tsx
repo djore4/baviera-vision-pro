@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/App';
 import {
-  listRoles, listUsers, isPlatformAdmin, getMyAccessExceptions, TABS, ADMIN_ONLY_TAB_KEYS,
-  type AccessLevel, type AppRole, type AppUser,
+  listRoles, listUsers, isPlatformAdmin, getMyAccessExceptions, getAppCapabilities, TABS, ADMIN_ONLY_TAB_KEYS,
+  type AccessLevel, type AppCapabilities, type AppRole, type AppUser,
 } from '@/lib/permissions';
 import { client } from '@/clients';
 
@@ -19,6 +19,8 @@ interface PermissionsValue {
   managed: boolean;              // o email consta da tabela utilizadores
   roleName: string | null;
   me: AppUser | null;
+  /** Capacidades da base de dados (migrações já aplicadas). */
+  capabilities: AppCapabilities;
   access: (tab: string) => AccessLevel;
   canView: (tab: string) => boolean;
   canEdit: (tab: string) => boolean;
@@ -27,6 +29,7 @@ interface PermissionsValue {
 
 const PermissionsContext = createContext<PermissionsValue>({
   loading: true, isAdmin: false, managed: false, roleName: null, me: null,
+  capabilities: { lavagemGranular: false },
   access: () => 'none', canView: () => false, canEdit: () => false, reload: () => {},
 });
 
@@ -42,6 +45,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   // Exceções pontuais de acesso, fora da matriz de funções (tabela
   // app_access_exceptions). Usar com parcimónia — a via normal é a matriz.
   const [exceptions, setExceptions] = useState<Record<string, AccessLevel>>({});
+  const [capabilities, setCapabilities] = useState<AppCapabilities>({ lavagemGranular: false });
   const [tick, setTick] = useState(0);
   const reload = useCallback(() => setTick(t => t + 1), []);
 
@@ -49,13 +53,15 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     let alive = true;
     (async () => {
       try {
-        const [rs, us, pa, ex] = await Promise.all([
+        const [rs, us, pa, ex, caps] = await Promise.all([
           listRoles(), listUsers(), isPlatformAdmin().catch(() => false),
-          getMyAccessExceptions().catch(() => ({} as Record<string, AccessLevel>)),
+          getMyAccessExceptions(email).catch(() => ({} as Record<string, AccessLevel>)),
+          getAppCapabilities().catch((): AppCapabilities => ({ lavagemGranular: false })),
         ]);
         if (!alive) return;
         setPlatformAdmin(pa);
         setExceptions(ex);
+        setCapabilities(caps);
         setRoles(rs);
         setMe(us.find(u => (u.email ?? '').toLowerCase() === email) ?? null);
       } catch (e) {
@@ -100,12 +106,13 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       loading, isAdmin, managed,
       roleName: role?.name ?? me?.perfil ?? null,
       me: me ?? null,
+      capabilities,
       access,
       canView: (t) => access(t) !== 'none',
       canEdit: (t) => access(t) === 'edit',
       reload,
     };
-  }, [roles, me, platformAdmin, exceptions, reload]);
+  }, [roles, me, platformAdmin, exceptions, capabilities, reload]);
 
   if (value.loading) return null;
 

@@ -1677,6 +1677,7 @@ export type Database = {
     }
     Functions: {
       access_rank: { Args: { p_tab: string }; Returns: number }
+      app_capabilities: { Args: Record<PropertyKey, never>; Returns: Json }
       can_write_excel_file: { Args: { p_name: string }; Returns: boolean }
       has_access: { Args: { p_level?: string; p_tab: string }; Returns: boolean }
       has_any_access: { Args: { p_level?: string; p_tabs: string[] }; Returns: boolean }

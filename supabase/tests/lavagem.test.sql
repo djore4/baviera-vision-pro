@@ -32,6 +32,18 @@ select t.check('migração: idempotente (2.ª execução não duplica nem estrag
   (select count(*) from public.app_roles where permissions ? 'lavagem:iniciar') >= 1
   and (select jsonb_object_keys(permissions) from public.app_roles where name = 'Lavador' order by 1 limit 1) is not null);
 
+begin;
+select t.as_user('vn@x.pt');
+select t.check('app_capabilities: marca a Lavagem granular para um utilizador autenticado',
+  public.app_capabilities() = '{"lavagem_granular": true}'::jsonb);
+select t.back();
+commit;
+begin;
+select t.as_anon();
+select t.check('app_capabilities: anon sem acesso', t.state($q$ select public.app_capabilities() $q$) = '42501');
+select t.back();
+commit;
+
 do $$
 declare total int := (select count(*) from t.results);
         fails int := (select count(*) from t.results where not ok);

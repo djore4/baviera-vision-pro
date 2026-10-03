@@ -67,3 +67,21 @@ begin
   execute format('create policy car_wash_events_update on public.car_wash_events for update to authenticated using (%s) with check (%s)', adm, adm);
   execute format('create policy car_wash_events_delete on public.car_wash_events for delete to authenticated using (%s)', adm);
 end $$;
+
+-- ── 3. Marcador para a interface ─────────────────────────────────────────────
+-- A interface só usa as permissões por ação depois desta migração (antes, usa as
+-- regras antigas por nome de função, para funcionar também com uma base ainda
+-- não migrada). Em vez de o adivinhar a partir dos dados — um administrador
+-- poderia remover todas as chaves e reativar sem querer as regras por nome —,
+-- pergunta-se aqui. Estende-se com novas capacidades quando for preciso.
+create or replace function public.app_capabilities()
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select '{"lavagem_granular": true}'::jsonb;
+$$;
+
+revoke all on function public.app_capabilities() from public, anon;
+grant execute on function public.app_capabilities() to authenticated;
