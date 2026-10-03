@@ -365,6 +365,31 @@ select t.check('admin(perfil): lê e escreve tudo',
 select t.back();
 commit;
 
+-- ── Sales Force (outra aplicação no mesmo projeto) ──────────────────────────
+-- As suas políticas têm de sobreviver à migração e continuar a funcionar; e quem
+-- só é da Sales Force não ganha acesso a nada do resto.
+select t.check('sales force: as 3 políticas continuam lá',
+  (select count(*) from pg_policies where schemaname = 'public'
+     and ((tablename = 'historico' and policyname = 'salesforce_users')
+       or (tablename = 'viaturas' and policyname = 'salesforce_users')
+       or (tablename = 'utilizadores' and policyname = 'salesforce_users_read'))) = 3);
+select t.check('plataforma: as políticas legadas foram substituídas',
+  not exists (select 1 from pg_policies where schemaname = 'public' and policyname in ('platform_users', 'platform_users_read')));
+insert into public.utilizadores (email) values ('sf@x.pt');
+begin;
+select t.as_user('sf@x.pt');
+select t.check('sales force: lê e escreve historico e viaturas',
+  t.n('historico') > 0 and t.n('viaturas') > 0 and t.can_insert('historico') and t.can_insert('viaturas'));
+select t.check('sales force: lê utilizadores mas não escreve',
+  t.n('utilizadores') > 0 and not t.can_insert('utilizadores')
+  and t.dml($q$ update public.utilizadores set email = email $q$) = 0);
+select t.check('sales force: sem acesso ao resto da plataforma',
+  t.n('control_records') = 0 and t.n('eot_contracts') = 0 and t.n('app_users') = 0
+  and not t.can_insert('control_records') and not t.can_insert('retomas')
+  and not t.can_insert('notifications') and not t.can_insert('prospec_accounts'));
+select t.back();
+commit;
+
 -- ── Resultado ───────────────────────────────────────────────────────────────
 do $$
 declare total int := (select count(*) from t.results);

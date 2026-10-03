@@ -29,6 +29,8 @@ psqlq "-d t -f $HERE/stubs.sql"
 for f in $(ls "$ROOT"/supabase/migrations/*.sql | sort); do
   echo "→ $(basename "$f")"
   psqlq "-d t -f $f"
+  # produção tem políticas extra (Sales Force) criadas depois do baseline
+  case "$f" in *_baseline.sql) psqlq "-d t -f $HERE/prod_extras.sql";; esac
 done
 psqlq "-d t -f $ROOT/supabase/seeds/new_client_defaults.sql"
 psqlq "-d t -o /dev/null -f $HERE/rls.test.sql"

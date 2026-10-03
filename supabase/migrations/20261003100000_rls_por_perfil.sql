@@ -166,8 +166,13 @@ grant execute on function
 to authenticated;
 
 -- ── Políticas por tabela ────────────────────────────────────────────────────
--- Helper descartável: ativa RLS, remove as políticas existentes e cria uma por
--- operação. Cada expressão é aplicada tal como está (using / with check).
+-- Helper descartável: ativa RLS, remove as políticas desta plataforma e cria uma
+-- por operação. Cada expressão é aplicada tal como está (using / with check).
+-- Só apaga as políticas que esta migração gere: as legadas `platform_users` /
+-- `platform_users_read` e as suas próprias `<tabela>_<operação>`. Políticas de
+-- outras aplicações que partilham o projeto (ex.: `salesforce_users*` em
+-- historico, viaturas e utilizadores) NÃO se tocam — as políticas somam-se (OR),
+-- por isso continuam a dar-lhes o acesso que já tinham.
 create function pg_temp.apply_rls(t text, sel text, ins text, upd text, del text)
 returns void
 language plpgsql
@@ -177,7 +182,9 @@ declare
 begin
   execute format('alter table public.%I enable row level security', t);
   for p in select policyname from pg_policies
-           where schemaname = 'public' and tablename = t loop
+           where schemaname = 'public' and tablename = t
+             and (policyname in ('platform_users', 'platform_users_read')
+                  or left(policyname, length(t) + 1) = t || '_') loop
     execute format('drop policy %I on public.%I', p.policyname, t);
   end loop;
   if sel is not null then
