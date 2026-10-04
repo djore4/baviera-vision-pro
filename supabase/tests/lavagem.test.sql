@@ -34,8 +34,10 @@ select t.check('migração: idempotente (2.ª execução não duplica nem estrag
 
 begin;
 select t.as_user('vn@x.pt');
+-- (esta suite volta a correr a migração da Lavagem, que só define a sua flag; a do
+-- End-of-Term é verificada em eot.test.sql, que corre depois e redefine a função)
 select t.check('app_capabilities: marca a Lavagem granular para um utilizador autenticado',
-  public.app_capabilities() = '{"lavagem_granular": true}'::jsonb);
+  public.app_capabilities() @> '{"lavagem_granular": true}'::jsonb);
 select t.back();
 commit;
 begin;

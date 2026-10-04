@@ -94,8 +94,9 @@ select t.back();
 commit;
 
 -- Utilizador com dados=edit importa as três tabelas
-insert into public.app_roles (name, is_admin, permissions) values ('Importador', false, '{"dados":"edit"}');
-insert into public.app_users (nome, email, perfil) values ('Imp', 'imp@x.pt', 'Importador');
+-- (o perfil Importador e o utilizador imp@x.pt já podem existir, criados por rls.test.sql)
+insert into public.app_roles (name, is_admin, permissions) values ('Importador', false, '{"dados":"edit"}') on conflict (name) do nothing;
+insert into public.app_users (nome, email, perfil) values ('Imp', 'imp@x.pt', 'Importador') on conflict (email) do nothing;
 begin;
 select t.as_user('imp@x.pt');
 select t.check('dados=edit: importa control, VU e angariações',

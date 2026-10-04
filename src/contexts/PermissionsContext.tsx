@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/App';
 import {
-  listRoles, listUsers, isPlatformAdmin, getMyAccessExceptions, getAppCapabilities, TABS, ADMIN_ONLY_TAB_KEYS,
+  listRoles, listUsers, isPlatformAdmin, getMyAccessExceptions, getAppCapabilities, NO_CAPABILITIES, TABS, ADMIN_ONLY_TAB_KEYS,
   type AccessLevel, type AppCapabilities, type AppRole, type AppUser,
 } from '@/lib/permissions';
 import { client } from '@/clients';
@@ -29,7 +29,7 @@ interface PermissionsValue {
 
 const PermissionsContext = createContext<PermissionsValue>({
   loading: true, isAdmin: false, managed: false, roleName: null, me: null,
-  capabilities: { lavagemGranular: false },
+  capabilities: NO_CAPABILITIES,
   access: () => 'none', canView: () => false, canEdit: () => false, reload: () => {},
 });
 
@@ -45,7 +45,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   // Exceções pontuais de acesso, fora da matriz de funções (tabela
   // app_access_exceptions). Usar com parcimónia — a via normal é a matriz.
   const [exceptions, setExceptions] = useState<Record<string, AccessLevel>>({});
-  const [capabilities, setCapabilities] = useState<AppCapabilities>({ lavagemGranular: false });
+  const [capabilities, setCapabilities] = useState<AppCapabilities>(NO_CAPABILITIES);
   const [tick, setTick] = useState(0);
   const reload = useCallback(() => setTick(t => t + 1), []);
 
@@ -56,7 +56,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         const [rs, us, pa, ex, caps] = await Promise.all([
           listRoles(), listUsers(), isPlatformAdmin().catch(() => false),
           getMyAccessExceptions(email).catch(() => ({} as Record<string, AccessLevel>)),
-          getAppCapabilities().catch((): AppCapabilities => ({ lavagemGranular: false })),
+          getAppCapabilities().catch((): AppCapabilities => ({ ...NO_CAPABILITIES })),
         ]);
         if (!alive) return;
         setPlatformAdmin(pa);

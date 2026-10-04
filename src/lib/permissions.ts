@@ -104,17 +104,23 @@ export interface SubPermissionDef {
   parent: string;   // chave do tab
   label: string;
   hint: string;
+  /** Capacidade da base de dados que tem de existir para a permissão fazer efeito
+   *  (migração aplicada); até lá não se mostra na matriz. */
+  capability: keyof AppCapabilities;
 }
 
 const ALL_SUB_PERMISSIONS: SubPermissionDef[] = [
   { key: 'lavagem:reagendar', parent: 'lavagem', label: 'Reagendar e apagar',
-    hint: 'Editar lavagens já existentes (arrastar na agenda) e removê-las. Quem tem edição no tab já o faz.' },
+    hint: 'Editar lavagens já existentes (arrastar na agenda) e removê-las. Quem tem edição no tab já o faz.', capability: 'lavagemGranular' },
   { key: 'lavagem:iniciar', parent: 'lavagem', label: 'Criar e iniciar',
-    hint: 'Criar lavagens, iniciar as agendadas e usar "Agendar já".' },
+    hint: 'Criar lavagens, iniciar as agendadas e usar "Agendar já".', capability: 'lavagemGranular' },
   { key: 'lavagem:qualidade', parent: 'lavagem', label: 'Controlo de qualidade',
-    hint: 'Atribuir nota e observações de qualidade a uma lavagem.' },
+    hint: 'Atribuir nota e observações de qualidade a uma lavagem.', capability: 'lavagemGranular' },
   { key: 'lavagem:registos', parent: 'lavagem', label: 'Ver registos',
-    hint: 'Consultar o histórico e a auditoria de lavagens.' },
+    hint: 'Consultar o histórico e a auditoria de lavagens.', capability: 'lavagemGranular' },
+  { key: 'end-of-term:todos', parent: 'end-of-term', label: 'Ver todos os contratos',
+    hint: 'Ver e controlar os contratos de todos os vendedores, incluindo os sem responsável, e atribuir responsáveis. Sem isto, cada pessoa só vê os contratos que lhe estão afetos.',
+    capability: 'eotGranular' },
 ];
 
 /* Só as dos tabs que existem nesta instalação. */
@@ -187,13 +193,18 @@ export async function getMyAccessExceptions(email?: string | null): Promise<Reco
 /* Capacidades que a base de dados já tem (função app_capabilities, migração
  * lavagem_permissoes_granulares). Sem a função, nenhuma: a interface mantém as
  * regras antigas até a migração ser aplicada. */
-export interface AppCapabilities { lavagemGranular: boolean }
+export interface AppCapabilities { lavagemGranular: boolean; eotGranular: boolean }
+
+export const NO_CAPABILITIES: AppCapabilities = { lavagemGranular: false, eotGranular: false };
 
 export async function getAppCapabilities(): Promise<AppCapabilities> {
   const { data, error } = await supabase.rpc('app_capabilities');
-  if (error) return { lavagemGranular: false };
+  if (error) return { ...NO_CAPABILITIES };
   const caps = (data ?? {}) as Record<string, unknown>;
-  return { lavagemGranular: caps.lavagem_granular === true };
+  return {
+    lavagemGranular: caps.lavagem_granular === true,
+    eotGranular: caps.eot_granular === true,
+  };
 }
 
 export async function listUsers(): Promise<AppUser[]> {

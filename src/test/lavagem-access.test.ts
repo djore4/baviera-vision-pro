@@ -28,7 +28,7 @@ function oldRules(isAdmin: boolean, roleName: string | null, lavagemEdit: boolea
 const ROLES = ['Preparador', 'Lavador', 'APV', 'Vendedor', 'Vendedor VN', 'Vendedor VU', 'BPS + Motorrad', 'Gestor de Serviço', 'Finance', null];
 
 describe('lavagemAccess — base de dados ainda não migrada (regras antigas por nome)', () => {
-  const caps = { lavagemGranular: false };
+  const caps = { lavagemGranular: false, eotGranular: false };
 
   it.each(ROLES)('%s: igual às regras antigas, com e sem edição do tab, admin ou não', roleName => {
     for (const isAdmin of [false, true]) {
@@ -51,7 +51,7 @@ describe('lavagemAccess — base de dados ainda não migrada (regras antigas por
 });
 
 describe('lavagemAccess — base de dados migrada (permissões por ação)', () => {
-  const caps = { lavagemGranular: true };
+  const caps = { lavagemGranular: true, eotGranular: false };
   const f = (perms: Perms, roleName: string | null = 'x', isAdmin = false) =>
     lavagemAccess({ ...who(roleName, perms, isAdmin), capabilities: caps });
 
