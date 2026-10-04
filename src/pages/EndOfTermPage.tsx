@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock, Search, Loader2, RefreshCw, Filter as FilterIcon, MapPin,
-  ListChecks, CalendarDays, UserCheck, ArrowUp, ArrowDown, ArrowUpDown,
+  ListChecks, CalendarDays, UserCheck, ArrowUp, ArrowDown, ArrowUpDown, X,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -14,10 +14,11 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import { ContractDialog } from '@/components/eot/ContractDialog';
 import { TemperaturaPicker } from '@/components/eot/TemperaturaPicker';
 import { toast } from 'sonner';
+import { applyKpi, kpiCounts, KPI_LABELS, type KpiKey } from '@/lib/eot-kpi';
 import { EmptyState, relativeLabel } from '@/components/prospecao/ui';
 import {
   listEotContracts, listEotVendedores, listAgenda, listEotOwners,
-  FASES, TEMPERATURAS, tempDef, updateEotContract, faseLabel, faseCls, actTipoLabel, isFechada, daysToEnd, eur, isOverdue, contractLocal,
+  FASES, TEMPERATURAS, tempDef, updateEotContract, faseLabel, faseCls, actTipoLabel, daysToEnd, eur, isOverdue, contractLocal,
   type EotContract, type AgendaItem, type EotOwner, type Fase, type Temperatura,
 } from '@/lib/eot';
 
@@ -50,6 +51,9 @@ export default function EndOfTermPage() {
   const [local, setLocal] = useState<string>(DEFAULT_LOCAL); // all | <local>
   const [localTouched, setLocalTouched] = useState(false);
   const [sort, setSort] = useState<SortState>(null);
+  // Contador ativo (clique num dos cartões do topo): filtra a lista de contratos.
+  const [kpi, setKpi] = useState<KpiKey | null>(null);
+  const [tab, setTab] = useState<string>('contratos');
 
   const [selected, setSelected] = useState<EotContract | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -144,10 +148,7 @@ export default function EndOfTermPage() {
     });
   }, [contracts, inLocal, vendedor, fase, temp, until, ownerFilter, q]);
 
-  const filtered = useMemo(
-    () => (hideClosed ? scoped.filter(c => !isFechada(c.fase)) : scoped),
-    [scoped, hideClosed],
-  );
+  const filtered = useMemo(() => applyKpi(scoped, kpi, hideClosed), [scoped, kpi, hideClosed]);
 
   // Ordenação por cabeçalho: 1.º clique ascendente, 2.º descendente, 3.º repõe a ordem original.
   const sorted = useMemo(() => {
@@ -187,14 +188,18 @@ export default function EndOfTermPage() {
     return agenda.filter(a => ids.has(a.contrato));
   }, [agenda, scoped]);
 
-  const kpis = useMemo(() => {
-    const ativos = scoped.filter(c => !isFechada(c.fase));
-    const in30 = ativos.filter(c => { const d = daysToEnd(c.data_fim); return d != null && d >= 0 && d <= 30; }).length;
-    const in60 = ativos.filter(c => { const d = daysToEnd(c.data_fim); return d != null && d >= 0 && d <= 60; }).length;
-    const overdueFollow = agendaView.filter(a => isOverdue(a)).length;
-    const fechados = scoped.filter(c => c.fase === 'renovado' || c.fase === 'retomado').length;
-    return { ativos: ativos.length, in30, in60, overdueFollow, fechados };
-  }, [scoped, agendaView]);
+  // Os contadores seguem os filtros acima (não o contador ativo): os números ficam
+  // estáveis ao clicar, e cada um coincide com as linhas que a lista mostra.
+  const kpis = useMemo(() => ({
+    ...kpiCounts(scoped),
+    overdueFollow: agendaView.filter(a => isOverdue(a)).length,
+  }), [scoped, agendaView]);
+
+  // Clicar num contador filtra a lista (e leva ao separador Contratos); clicar outra vez limpa.
+  const toggleKpi = (k: KpiKey) => {
+    setKpi(prev => (prev === k ? null : k));
+    setTab('contratos');
+  };
 
   // Classificar a temperatura sem recarregar a lista (atualização local).
   const setTemperatura = async (c: EotContract, value: Temperatura | null) => {
@@ -284,13 +289,13 @@ export default function EndOfTermPage() {
 
       {/* Contadores (seguem os filtros acima) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Kpi label="Contratos ativos" value={kpis.ativos} />
-        <Kpi label="A terminar ≤ 30 dias" value={kpis.in30} tone={kpis.in30 > 0 ? 'warn' : 'default'} />
-        <Kpi label="A terminar ≤ 60 dias" value={kpis.in60} />
-        <Kpi label="Renovados / Retomados" value={kpis.fechados} tone="good" />
+        <Kpi label={KPI_LABELS.ativos} value={kpis.ativos} active={kpi === 'ativos'} onClick={() => toggleKpi('ativos')} />
+        <Kpi label={KPI_LABELS.ate30} value={kpis.ate30} tone={kpis.ate30 > 0 ? 'warn' : 'default'} active={kpi === 'ate30'} onClick={() => toggleKpi('ate30')} />
+        <Kpi label={KPI_LABELS.ate60} value={kpis.ate60} active={kpi === 'ate60'} onClick={() => toggleKpi('ate60')} />
+        <Kpi label={KPI_LABELS.fechados} value={kpis.fechados} tone="good" active={kpi === 'fechados'} onClick={() => toggleKpi('fechados')} />
       </div>
 
-      <Tabs defaultValue="contratos">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="h-10 p-1 bg-muted/60 w-full sm:w-auto">
           <TabsTrigger value="contratos" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm"><ListChecks className="h-4 w-4" />Contratos</TabsTrigger>
           <TabsTrigger value="agenda" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm">
@@ -301,10 +306,19 @@ export default function EndOfTermPage() {
 
         {/* ── Contratos ─────────────────────────────────────────────────────── */}
         <TabsContent value="contratos" className="mt-4 space-y-3">
+          {kpi && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary font-medium pl-2.5 pr-1 py-0.5">
+                A mostrar: {KPI_LABELS[kpi]} · {filtered.length}
+                <button type="button" onClick={() => setKpi(null)} aria-label="Limpar o filtro do contador"
+                  className="rounded-full p-0.5 hover:bg-primary/20"><X className="h-3 w-3" /></button>
+              </span>
+            </div>
+          )}
           {loading ? (
             <Loader />
           ) : filtered.length === 0 ? (
-            <EmptyState icon={CalendarClock} title="Sem contratos" hint={contracts.length === 0 ? 'Carregue o mapa de terminações no tab Dados.' : 'Nenhum contrato corresponde aos filtros.'} />
+            <EmptyState icon={CalendarClock} title="Sem contratos" hint={contracts.length === 0 ? 'Carregue o mapa de terminações no tab Dados.' : kpi ? 'Nenhum contrato corresponde a este contador e aos filtros.' : 'Nenhum contrato corresponde aos filtros.'} />
           ) : (
             <>
               {/* Mobile: cartões */}
@@ -486,15 +500,26 @@ function SortTh({ k, label, sort, onSort, className, align = 'left' }: {
   );
 }
 
-function Kpi({ label, value, tone = 'default' }: { label: string; value: number; tone?: 'default' | 'warn' | 'good' }) {
+/* Contador clicável: filtra a lista de contratos (e volta a clicar para limpar). */
+function Kpi({ label, value, tone = 'default', active = false, onClick }: {
+  label: string; value: number; tone?: 'default' | 'warn' | 'good'; active?: boolean; onClick: () => void;
+}) {
   return (
-    <div className="rounded-xl border border-border bg-card px-3.5 py-3 shadow-sm">
+    <button
+      type="button" onClick={onClick} aria-pressed={active}
+      title={active ? 'Clique para limpar o filtro' : `Mostrar: ${label}`}
+      className={cn(
+        'rounded-xl border bg-card px-3.5 py-3 shadow-sm text-left transition-all cursor-pointer',
+        'hover:border-primary/50 hover:shadow-md active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+        active ? 'border-primary ring-2 ring-primary/40 bg-primary/5' : 'border-border',
+      )}
+    >
       <div className={cn(
         'text-2xl font-bold tabular-nums leading-none',
         tone === 'warn' ? 'text-destructive' : tone === 'good' ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground',
       )}>{value}</div>
       <div className="text-[11px] text-muted-foreground mt-1 leading-tight">{label}</div>
-    </div>
+    </button>
   );
 }
 
