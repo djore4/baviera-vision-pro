@@ -43,6 +43,17 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   todos, incluindo os sem dono, e atribui donos; quem importa o mapa (`dados` com
   `edit`) escreve tudo, porque o upsert por contrato avalia as políticas de select e
   de update. As atividades herdam do contrato (`20261003170000`).
+- **Notificações do End-of-Term** (`20261003180000`): criadas na base de dados, por
+  trigger, e não no browser — não dependem de a pessoa ter a página aberta nem se
+  contornam (inserir em `notifications` continua a ser só do administrador).
+  Atribuir um contrato a um vendedor avisa-o (`recipient_email`); quando alguém que
+  **não** é administrador regista uma atividade num contrato (tarefa agendada ou
+  interação feita), os administradores são avisados (`audience = '@admin'`). Cada aviso
+  leva um `link` interno (`/end-of-term?contrato=…`); a interface só segue caminhos
+  internos e abre o contrato. Quem vê o quê: avisos dirigidos a uma pessoa, só a ela
+  (nem ao administrador); `@admin`, só aos administradores (o Finance, com visão total
+  do tab, não); `all` e por área como antes. Não geram aviso: atribuir a si próprio,
+  largar o dono, alterar outros campos, atividades de administradores e do service role.
 - **Outras aplicações no mesmo projeto:** a Caetano Sales Force partilha este
   projeto e tem as suas próprias políticas (`salesforce_users*` em `historico`,
   `viaturas`, `utilizadores`; ver `20260930141317`). As políticas somam-se (OR) e
@@ -121,6 +132,7 @@ Estado a 2026-10-03 (projeto `yifxgiwmibjaornighvt`):
 | `20261003100000` … `20261003150000` | RLS por perfil, RPCs, Diário, exceções, Lavagem | aplicadas (pelo editor SQL; falta registá-las no histórico) |
 | `20261003160000` | `responsavel_interno` (Empréstimos, arquivada) | não aplicada de propósito |
 | `20261003170000` | End-of-Term por vendedor | **por aplicar** |
+| `20261003180000` | Notificações do End-of-Term (com link) | **por aplicar** |
 
 Ao aplicar as últimas com o MCP/dashboard, o histórico remoto regista a versão
 com a hora da aplicação, não a do ficheiro: depois, renomear os ficheiros locais

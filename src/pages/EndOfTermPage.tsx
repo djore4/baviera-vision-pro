@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   CalendarClock, Search, Loader2, RefreshCw, Filter as FilterIcon, MapPin,
   ListChecks, CalendarDays, UserCheck, ArrowUp, ArrowDown, ArrowUpDown, X,
@@ -58,6 +59,10 @@ export default function EndOfTermPage() {
   const [selected, setSelected] = useState<EotContract | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // Hotlink das notificações: /end-of-term?contrato=<n.º> abre esse contrato.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const wantedContract = searchParams.get('contrato');
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -79,6 +84,26 @@ export default function EndOfTermPage() {
   }, [scope, isDirector]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Abre o contrato pedido no link assim que a lista carrega; se não existir (ou a
+  // pessoa não tiver acesso, já que só vê os seus), avisa. O parâmetro sai do URL para
+  // não reabrir ao atualizar.
+  useEffect(() => {
+    if (!wantedContract || loading) return;
+    const found = contracts.find(x => x.contrato === wantedContract);
+    if (found) {
+      setSelected(found);
+      setDialogOpen(true);
+      setTab('contratos');
+    } else {
+      toast.info(`O contrato ${wantedContract} não foi encontrado, ou não tem acesso a ele.`);
+    }
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete('contrato');
+      return next;
+    }, { replace: true });
+  }, [wantedContract, loading, contracts, setSearchParams]);
 
   // Próxima ação aberta por contrato (a mais próxima).
   const nextByContrato = useMemo(() => {
