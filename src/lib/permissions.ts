@@ -49,7 +49,6 @@ export interface TabDef {
  * A ordem dentro de cada área define a ordem dos itens na sidebar. */
 const ALL_TABS: TabDef[] = [
   // ── Vendas VN ──────────────────────────────────────────────────────────────
-  { key: 'prospecao', label: 'Diário', path: '/prospecao', area: 'vn' },
   { key: 'retails', label: 'WIP', path: '/retails', area: 'vn' },
   { key: 'funil', label: 'Funil', path: '/funil', area: 'vn' },
   { key: 'producao', label: 'Produção', path: '/producao', area: 'vn' },
@@ -80,13 +79,16 @@ const ALL_TABS: TabDef[] = [
   { key: 'multas', label: 'Multas', path: '/multas', area: 'admin' },
   { key: 'database', label: 'Database', path: '/database', area: 'admin' },
   { key: 'objetivos', label: 'Objetivos', path: '/objetivos', area: 'admin' },
+  // Diário arquivado "para já": só o admin acede, mesmo que a função ainda tenha a
+  // chave 'prospecao'. Para o reativar, voltar a pô-lo na área 'vn' sem adminOnly.
+  { key: 'prospecao', label: 'Diário', path: '/prospecao', area: 'admin', adminOnly: true },
 ];
 
 /* Tabs desta instalação: os desativados na configuração do cliente não existem. */
 export const TABS: TabDef[] = ALL_TABS.filter(t => !client.disabledTabs.includes(t.key));
 
 /* Tabs "arrumados" dentro do Arquivo (não aparecem diretamente na barra lateral). */
-export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'multas', 'database', 'objetivos'];
+export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'multas', 'database', 'objetivos', 'prospecao'];
 
 /* Tabs atribuíveis na matriz de permissões. Ficam de fora os desativados (já não
  * estão em TABS), os arrumados no Arquivo e os de acesso restrito a admin: esses

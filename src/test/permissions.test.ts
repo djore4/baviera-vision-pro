@@ -69,6 +69,13 @@ describe('permissões finas (SUB_PERMISSIONS)', () => {
     for (const k of keys) expect(PERMISSION_TABS.some(t => t.key === k)).toBe(false);
   });
 
+  it('o Diário está arquivado: fora da matriz, só admin, no Arquivo', () => {
+    const diario = TABS.find(t => t.key === 'prospecao');
+    expect(diario?.adminOnly).toBe(true);
+    expect(diario?.area).toBe('admin');
+    expect(PERMISSION_TABS.some(t => t.key === 'prospecao')).toBe(false);
+  });
+
   it('cada uma depende de uma capacidade que existe, para só aparecer com a migração aplicada', () => {
     const known = ['lavagemGranular', 'eotGranular'];
     for (const sp of SUB_PERMISSIONS) expect(known).toContain(sp.capability);
