@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   listNotifications, listReadIds, markRead, createNotification, deleteNotification,
+  isNotificationVisible, notificationTarget, ADMIN_AUDIENCE,
   type Notification,
 } from '@/lib/notifications';
 import {
@@ -28,7 +29,9 @@ import { client } from '@/clients';
  * enviar uma mensagem (geral ou dirigida a uma área). Aviso do browser opcional.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-const REFRESH_MS = 5 * 60 * 1000;
+// Atualiza a cada 2 minutos e sempre que a janela ganha foco (os avisos automáticos,
+// como um contrato atribuído, chegam por aqui).
+const REFRESH_MS = 2 * 60 * 1000;
 const ENABLED_KEY = 'notif:enabled';
 const NOTIFIED_KEY = 'notif:notified';
 /** Janela de "clientes recentes" do Diário de Bordo mostrada no painel (dias). */
@@ -45,7 +48,7 @@ const fmtTime = (iso: string | null) =>
   iso ? new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '';
 const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' }) : '';
-const audienceLabel = (a: string) => a === 'all' ? 'Todos' : (TABS.find(t => t.key === a)?.label ?? a);
+const audienceLabel = (a: string) => a === 'all' ? 'Todos' : a === ADMIN_AUDIENCE ? 'Administração' : (TABS.find(t => t.key === a)?.label ?? a);
 /** Caminho da rota associada a uma tab key (para navegar ao clicar na notificação). */
 const tabPath = (key: string) => TABS.find(t => t.key === key)?.path ?? null;
 
@@ -89,8 +92,8 @@ export function NotificationBell() {
 
   // Só as notificações que este perfil pode ver (gating por permissões).
   const visible = useMemo(
-    () => items.filter(n => n.audience === 'all' || canView(n.audience)),
-    [items, canView]);
+    () => items.filter(n => isNotificationVisible(n, email, canView)),
+    [items, canView, email]);
   const unread = useMemo(() => visible.filter(n => !readIds.has(n.id)), [visible, readIds]);
 
   // Itens do Diário de Bordo com id estável (para contador/realce "novo").
@@ -129,7 +132,7 @@ export function NotificationBell() {
       const [list, reads] = await Promise.all([listNotifications(), listReadIds(email)]);
       setItems(list);
       setReadIds(reads);
-      const vis = list.filter(n => n.audience === 'all' || canView(n.audience));
+      const vis = list.filter(n => isNotificationVisible(n, email, canView));
       maybeNotify(vis.filter(n => !reads.has(n.id)));
     } catch { /* silencioso */ }
     // Alertas do Diário de Bordo (Prospeção), só para quem tem acesso.
@@ -436,13 +439,16 @@ export function NotificationBell() {
               )}
               {visible.map(n => {
                 const isUnread = !readIds.has(n.id);
-                // Mensagens dirigidas a uma área abrem essa área; as gerais ('all')
-                // não têm página específica.
-                const target = n.audience === 'all' ? null : tabPath(n.audience);
+                // Clicar abre o link da notificação (ex.: o contrato) ou, sem link, a área a
+                // que se dirige; as gerais ('all') sem link não têm página específica.
+                const target = notificationTarget(n, tabPath);
                 return (
                   <div key={n.id}
                     onClick={target ? () => goTo(target) : undefined}
-                    title={target ? `Abrir ${audienceLabel(n.audience)}` : undefined}
+                    onKeyDown={target ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goTo(target); } } : undefined}
+                    role={target ? 'link' : undefined}
+                    tabIndex={target ? 0 : undefined}
+                    title={target ? (n.link ? 'Abrir' : `Abrir ${audienceLabel(n.audience)}`) : undefined}
                     className={cn(
                     'rounded-md border px-2.5 py-1.5 transition-colors',
                     target && 'cursor-pointer hover:border-primary/60',
@@ -458,8 +464,9 @@ export function NotificationBell() {
                           <span>·</span>
                           <span>{fmtWhen(n.created_at)}</span>
                           {n.audience !== 'all' && (
-                            <span className="rounded bg-muted px-1 py-0.5 text-[10px]">{audienceLabel(n.audience)}</span>
+                            <span className="rounded bg-muted px-1 py-0.5 text-[10px]">{n.recipient_email ? 'Para si' : audienceLabel(n.audience)}</span>
                           )}
+                          {target && <span className="text-primary font-medium">Abrir ›</span>}
                         </div>
                       </div>
                       {isAdmin && (

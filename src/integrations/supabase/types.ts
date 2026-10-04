@@ -1044,6 +1044,8 @@ export type Database = {
           created_by: string | null
           created_by_nome: string | null
           id: string
+          link: string | null
+          recipient_email: string | null
           title: string
         }
         Insert: {
@@ -1053,6 +1055,8 @@ export type Database = {
           created_by?: string | null
           created_by_nome?: string | null
           id?: string
+          link?: string | null
+          recipient_email?: string | null
           title: string
         }
         Update: {
@@ -1062,6 +1066,8 @@ export type Database = {
           created_by?: string | null
           created_by_nome?: string | null
           id?: string
+          link?: string | null
+          recipient_email?: string | null
           title?: string
         }
         Relationships: []
@@ -1679,6 +1685,7 @@ export type Database = {
       access_rank: { Args: { p_tab: string }; Returns: number }
       app_capabilities: { Args: Record<PropertyKey, never>; Returns: Json }
       can_write_excel_file: { Args: { p_name: string }; Returns: boolean }
+      eot_contract_link: { Args: { p_contrato: string }; Returns: string }
       has_access: { Args: { p_level?: string; p_tab: string }; Returns: boolean }
       has_any_access: { Args: { p_level?: string; p_tabs: string[] }; Returns: boolean }
       has_any_tab: { Args: Record<PropertyKey, never>; Returns: boolean }
@@ -1695,6 +1702,7 @@ export type Database = {
         Args: { p_allow_empty?: boolean; p_rows: Json; p_table: string }
         Returns: number
       }
+      url_encode: { Args: { p_text: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

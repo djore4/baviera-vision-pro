@@ -456,7 +456,7 @@ begin;
 select t.as_user('admin_role@x.pt');
 select t.check('admin(perfil): lê e escreve tudo',
   t.n('crm_notes') > 0 and t.can_insert('control_records') and t.can_insert('notifications')
-  and t.n('notifications') = 3);
+  and (select count(*) from public.notifications where title in ('geral', 'lavagem', 'eot')) = 3);
 select t.back();
 commit;
 
