@@ -37,6 +37,12 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
 - **Diário (prospeção):** cada vendedor só vê e altera as suas contas e tarefas
   (`owner_email`, sem distinguir maiúsculas); contactos e interações herdam da
   conta. O administrador (diretor) vê e reatribui tudo (`20261003120000`).
+- **End-of-Term:** cada vendedor só vê e altera os contratos que lhe estão afetos
+  (`owner_email`, sem distinguir maiúsculas), e não os passa para outro dono; quem
+  tem a permissão `end-of-term:todos` (o administrador e o Finance) vê e controla
+  todos, incluindo os sem dono, e atribui donos; quem importa o mapa (`dados` com
+  `edit`) escreve tudo, porque o upsert por contrato avalia as políticas de select e
+  de update. As atividades herdam do contrato (`20261003170000`).
 - **Outras aplicações no mesmo projeto:** a Caetano Sales Force partilha este
   projeto e tem as suas próprias políticas (`salesforce_users*` em `historico`,
   `viaturas`, `utilizadores`; ver `20260930141317`). As políticas somam-se (OR) e
@@ -78,9 +84,10 @@ aplicadas em todos os ambientes:
 | Importar o Excel (`replace_rows`, `import_control_excel`) | caminho antigo (apagar + inserir em lotes), **sem atomicidade**, com aviso na consola | uma transação | `legacyReplace` e o ramo `isMissingRpc` em `src/lib/replace-rows.ts` e `src/lib/control-records.ts` |
 | Exceções por email (`my_access_exceptions`) | cópia em `legacyTabAccessExceptions` do config do cliente | tabela `app_access_exceptions` | `legacyTabAccessExceptions` (config e tipo) e o ramo `PGRST202` de `getMyAccessExceptions` |
 | Permissões da Lavagem (`app_capabilities`) | regras antigas por nome de função (Lavador, Preparador, APV) | permissões por ação na matriz | o ramo `legacy` de `src/lib/lavagem-access.ts`; passa a mostrar sempre as permissões por ação em `RolesPanel` |
+| Visão total no End-of-Term (`app_capabilities`) | regra antiga por nome de função (`Finance`) | permissão `end-of-term:todos` | o ramo `legacy` e `EOT_FULL_ACCESS_ROLES` em `src/lib/eot-access.ts` |
 
-A Lavagem decide pelo marcador `app_capabilities()` (criado na migração
-`20261003140000`) e não pelos dados, para que um administrador que remova todas
+A Lavagem e o End-of-Term decidem pelo marcador `app_capabilities()` (criado na migração
+`20261003140000` e estendido na `20261003170000`) e não pelos dados, para que um administrador que remova todas
 as chaves `lavagem:*` de uma função não reative sem querer as regras por nome.
 Os testes `src/test/lavagem-access.test.ts` garantem que, com a base antiga, as
 permissões são exatamente as do código anterior para todas as funções.
@@ -111,7 +118,9 @@ Estado a 2026-10-03 (projeto `yifxgiwmibjaornighvt`):
 | `20260927174306` | `is_platform_admin` | aplicada |
 | `20260930141317` | `acesso_salesforce_sem_crm` | aplicada (copiada do histórico remoto) |
 | `20261002203833` | `eot_temperatura` | aplicada |
-| `20261003100000` … `20261003160000` | RLS por perfil, RPCs, Diário, exceções, Lavagem, `responsavel_interno` | **por aplicar** |
+| `20261003100000` … `20261003150000` | RLS por perfil, RPCs, Diário, exceções, Lavagem | aplicadas (pelo editor SQL; falta registá-las no histórico) |
+| `20261003160000` | `responsavel_interno` (Empréstimos, arquivada) | não aplicada de propósito |
+| `20261003170000` | End-of-Term por vendedor | **por aplicar** |
 
 Ao aplicar as últimas com o MCP/dashboard, o histórico remoto regista a versão
 com a hora da aplicação, não a do ficheiro: depois, renomear os ficheiros locais

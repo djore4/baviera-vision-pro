@@ -254,7 +254,7 @@ export function RolesPanel({
                           </ToggleGroup>
                         </div>
                         {/* Permissões finas do tab (ex.: Lavagem): ações atribuídas por função. */}
-                        {capabilities.lavagemGranular && SUB_PERMISSIONS.filter(sp => sp.parent === t.key).map(sp => (
+                        {SUB_PERMISSIONS.filter(sp => sp.parent === t.key && capabilities[sp.capability]).map(sp => (
                           <div key={sp.key} className="mt-1 ml-3 flex flex-wrap items-center justify-between gap-2 border-l-2 border-border pl-3">
                             <span className="text-xs text-muted-foreground" title={sp.hint}>{sp.label}</span>
                             <ToggleGroup

@@ -143,6 +143,26 @@ insert into public.prospec_interactions (account_id, tipo, occurred_at) values
   ('00000000-0000-0000-0000-0000000000a1', 'chamada', now()),
   ('00000000-0000-0000-0000-0000000000a2', 'chamada', now());
 
+
+-- End-of-Term: contratos de dois donos (o do vendedor com o email em maiúsculas), um sem dono, e atividades.
+delete from public.eot_activities; delete from public.eot_contracts;
+insert into public.eot_contracts (contrato, cliente, owner_email) values
+  ('EOT-V1', 'cliente do vendedor 1', 'EOTV@x.pt'),
+  ('EOT-V2', 'cliente do vendedor 2', 'eot2@x.pt'),
+  ('EOT-NONE', 'sem dono', null);
+insert into public.eot_activities (contrato, tipo, descricao) values
+  ('EOT-V1', 'chamada', 'atividade do contrato 1'),
+  ('EOT-V2', 'chamada', 'atividade do contrato 2');
+insert into public.app_roles (name, is_admin, permissions) values
+  ('Vendedor EOT', false, '{"end-of-term": "edit"}'),
+  ('Consulta EOT', false, '{"end-of-term": "view"}'),
+  ('Importador', false, '{"dados": "edit"}'),
+  ('Todos sem tab', false, '{"end-of-term:todos": "edit"}');
+insert into public.app_users (nome, email, perfil) values
+  ('Vend EOT 1', 'eotv@x.pt', 'Vendedor EOT'), ('Vend EOT 2', 'eot2@x.pt', 'Vendedor EOT'),
+  ('Consulta', 'eotview@x.pt', 'Consulta EOT'), ('Importador', 'imp@x.pt', 'Importador'),
+  ('Todos sem tab', 'todossemtab@x.pt', 'Todos sem tab');
+
 insert into public.notifications (title, audience) values
   ('geral', 'all'), ('lavagem', 'lavagem'), ('eot', 'end-of-term');
 insert into public.notification_reads (notification_id, user_email)
@@ -315,9 +335,10 @@ commit;
 -- ── Finance ─────────────────────────────────────────────────────────────────
 begin;
 select t.as_user('fin@x.pt');
-select t.check('fin: lê e escreve eot',
+select t.check('fin: lê e escreve eot (end-of-term:todos)',
   t.n('eot_contracts') > 0 and t.n('eot_activities') > 0
-  and t.can_insert('eot_activities') and t.dml($q$ update public.eot_contracts set cliente = 'c' $q$) > 0);
+  and t.dml($q$ insert into public.eot_activities (contrato, tipo) values ('EOT-V1', 'chamada') $q$) = 1
+  and t.dml($q$ update public.eot_contracts set cliente = 'c' $q$) > 0);
 select t.check('fin: NÃO lê prospeção nem lavagem', t.n('prospec_accounts') = 0 and t.n('car_wash_cycles') = 0);
 select t.check('fin: NÃO escreve control_records',  not t.can_insert('control_records'));
 select t.check('fin: vê notificações gerais + eot', (select count(*) from public.notifications) = 2
@@ -491,6 +512,102 @@ select t.check('diário/admin: vê todos os donos',
   t.n('prospec_accounts') >= 3 and t.n('prospec_tasks') >= 4 and t.n('prospec_contacts') >= 3);
 select t.check('diário/admin: reatribui uma conta a outro vendedor',
   t.dml($q$ update public.prospec_accounts set owner_email = 'cv@x.pt' where nome = 'nova' $q$) = 1);
+select t.back();
+commit;
+
+-- ── End-of-Term: cada vendedor só vê e altera os seus contratos ──────────────
+begin;
+select t.as_user('eotv@x.pt');   -- 'edit' no tab, sem end-of-term:todos
+select t.check('eot/vendedor: só vê o seu contrato e as atividades dele',
+  t.n('eot_contracts') = 1 and (select contrato from public.eot_contracts) = 'EOT-V1'
+  and t.n('eot_activities') >= 1
+  and (select count(distinct contrato) from public.eot_activities) = 1
+  and (select min(contrato) from public.eot_activities) = 'EOT-V1');
+select t.check('eot/vendedor: não vê o contrato do colega nem os sem dono',
+  not exists (select 1 from public.eot_contracts where contrato in ('EOT-V2', 'EOT-NONE'))
+  and not exists (select 1 from public.eot_activities where contrato = 'EOT-V2'));
+select t.check('eot/vendedor: altera o seu contrato (fase, temperatura, observações)',
+  t.dml($q$ update public.eot_contracts set fase = 'contactado', temperatura = 'quente', obs = 'x' where contrato = 'EOT-V1' $q$) = 1);
+select t.check('eot/vendedor: NÃO altera nem apaga o contrato do colega nem o sem dono',
+  t.dml($q$ update public.eot_contracts set fase = 'perdido' where contrato = 'EOT-V2' $q$) = 0
+  and t.dml($q$ update public.eot_contracts set fase = 'perdido' where contrato = 'EOT-NONE' $q$) = 0
+  and t.dml($q$ delete from public.eot_contracts where contrato in ('EOT-V2', 'EOT-NONE') $q$) = 0);
+select t.check('eot/vendedor: NÃO passa o seu contrato a outro dono, nem o larga sem dono',
+  t.dml($q$ update public.eot_contracts set owner_email = 'eot2@x.pt' where contrato = 'EOT-V1' $q$) = -1
+  and t.dml($q$ update public.eot_contracts set owner_email = null where contrato = 'EOT-V1' $q$) = -1);
+select t.check('eot/vendedor: NÃO se atribui um contrato que não é seu',
+  t.dml($q$ update public.eot_contracts set owner_email = 'eotv@x.pt' where contrato = 'EOT-NONE' $q$) = 0);
+select t.check('eot/vendedor: NÃO cria contratos (importação é do administrador)',
+  t.dml($q$ insert into public.eot_contracts (contrato, owner_email) values ('EOT-NOVO', 'eotv@x.pt') $q$) = 1
+  and t.dml($q$ insert into public.eot_contracts (contrato, owner_email) values ('EOT-NOVO2', 'eot2@x.pt') $q$) = -1);
+select t.check('eot/vendedor: regista atividades no seu contrato, não no do colega',
+  t.dml($q$ insert into public.eot_activities (contrato, tipo) values ('EOT-V1', 'email') $q$) = 1
+  and t.dml($q$ insert into public.eot_activities (contrato, tipo) values ('EOT-V2', 'email') $q$) = -1
+  and t.dml($q$ insert into public.eot_activities (contrato, tipo) values ('EOT-INEXISTENTE', 'email') $q$) = -1);
+select t.check('eot/vendedor: conclui e apaga atividades do seu contrato, não as do colega',
+  t.dml($q$ update public.eot_activities set done = true where contrato = 'EOT-V1' $q$) >= 1
+  and t.dml($q$ update public.eot_activities set done = true where contrato = 'EOT-V2' $q$) = 0
+  and t.dml($q$ delete from public.eot_activities where contrato = 'EOT-V2' $q$) = 0
+  and t.dml($q$ delete from public.eot_activities where contrato = 'EOT-V1' $q$) >= 1);
+select t.back();
+commit;
+begin;
+select t.as_user('eot2@x.pt');
+select t.check('eot/vendedor 2: vê só o dele (o dono do 1.º, em maiúsculas, não lhe aparece)',
+  t.n('eot_contracts') = 1 and (select contrato from public.eot_contracts) = 'EOT-V2');
+select t.back();
+commit;
+begin;
+select t.as_user('eotview@x.pt');   -- só consulta
+select t.check('eot/consulta: não tem contratos (não é dono de nenhum) e não escreve',
+  t.n('eot_contracts') = 0
+  and t.dml($q$ update public.eot_contracts set fase = 'perdido' $q$) = 0
+  and t.dml($q$ insert into public.eot_activities (contrato, tipo) values ('EOT-V1', 'email') $q$) = -1);
+select t.back();
+commit;
+begin;
+select t.as_user('fin@x.pt');   -- Finance: end-of-term:todos
+select t.check('eot/finance: vê todos os contratos, incluindo os sem dono, e as atividades',
+  t.n('eot_contracts') >= 3 and exists (select 1 from public.eot_contracts where contrato = 'EOT-NONE')
+  and t.n('eot_activities') >= 1);
+select t.check('eot/finance: atribui um contrato sem dono e reatribui outro',
+  t.dml($q$ update public.eot_contracts set owner_email = 'eotv@x.pt', owner_nome = 'Vend EOT 1' where contrato = 'EOT-NONE' $q$) = 1
+  and t.dml($q$ update public.eot_contracts set owner_email = 'eot2@x.pt' where contrato = 'EOT-V1' $q$) = 1);
+select t.back();
+commit;
+begin;
+select t.as_user('imp@x.pt');   -- dados = edit: importa o mapa
+select t.check('eot/importador (dados=edit): vê tudo e faz upsert por contrato',
+  t.n('eot_contracts') >= 3
+  and t.dml($q$ insert into public.eot_contracts (contrato, cliente) values ('EOT-V2', 'reimportado')
+                on conflict (contrato) do update set cliente = excluded.cliente $q$) = 1
+  and t.dml($q$ insert into public.eot_contracts (contrato, cliente) values ('EOT-IMPORTADO', 'novo')
+                on conflict (contrato) do update set cliente = excluded.cliente $q$) = 1);
+select t.back();
+commit;
+begin;
+select t.as_user('todossemtab@x.pt');   -- tem end-of-term:todos mas não o tab
+select t.check('eot: a permissão "todos" sem acesso ao tab não dá nada',
+  t.n('eot_contracts') = 0 and t.n('eot_activities') = 0);
+select t.back();
+commit;
+begin;
+select t.as_user('admin_role@x.pt');
+select t.check('eot/admin: vê tudo e atribui donos',
+  t.n('eot_contracts') >= 4
+  and t.dml($q$ update public.eot_contracts set owner_email = 'eotv@x.pt' where contrato = 'EOT-IMPORTADO' $q$) = 1);
+select t.back();
+commit;
+begin;
+select t.as_user('cv@x.pt');   -- dados = view
+select t.check('eot/dados=view: não vê nem importa contratos',
+  t.n('eot_contracts') = 0
+  and t.dml($q$ insert into public.eot_contracts (contrato) values ('EOT-HACK') $q$) = -1);
+select t.back();
+commit;
+begin;
+select t.as_anon();
+select t.check('eot/anon: nada', t.n('eot_contracts') = 0 and t.n('eot_activities') = 0);
 select t.back();
 commit;
 
