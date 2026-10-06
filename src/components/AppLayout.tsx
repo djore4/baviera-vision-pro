@@ -5,7 +5,7 @@ import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { useProspec } from '@/contexts/ProspecContext';
-import { AREAS, TABS, ARCHIVED_TAB_KEYS } from '@/lib/permissions';
+import { AREAS, TABS, ARCHIVED_TAB_KEYS, navAreaFor } from '@/lib/permissions';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -56,7 +56,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const sections = AREAS
     .map(area => ({
       area,
-      items: TABS.filter(t => t.area === area.key && !ARCHIVED.has(t.key) && canView(t.key)),
+      items: TABS.filter(t => navAreaFor(t, canView) === area.key && !ARCHIVED.has(t.key) && canView(t.key)),
     }))
     .filter(s => s.items.length > 0);
 
@@ -78,7 +78,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       return next;
     });
   };
-  const activeArea = TABS.find(t => t.path === location.pathname)?.area ?? null;
+  const activeTab = TABS.find(t => t.path === location.pathname);
+  const activeArea = activeTab ? navAreaFor(activeTab, canView) : null;
 
   // Easter egg: clicar no logo várias vezes seguidas faz "vrum".
   const [vroom, setVroom] = useState(false);

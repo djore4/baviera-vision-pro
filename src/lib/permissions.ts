@@ -87,6 +87,17 @@ const ALL_TABS: TabDef[] = [
 /* Tabs desta instalação: os desativados na configuração do cliente não existem. */
 export const TABS: TabDef[] = ALL_TABS.filter(t => !client.disabledTabs.includes(t.key));
 
+/* Área em que um tab aparece na navegação. Quase sempre é a sua área; exceção: o
+ * End-of-Term é um tab de VN, mas um vendedor VU a quem foi dado acesso vê-o na
+ * secção VU. "Vendedor VU" = vê algum tab VU e nenhum outro tab VN — por isso quem
+ * trabalha em VN (e o administrador) continua a vê-lo em VN. */
+export function navAreaFor(tab: TabDef, canView: (key: string) => boolean): AreaKey {
+  if (tab.key !== 'end-of-term') return tab.area;
+  const seesVu = TABS.some(t => t.area === 'vu' && canView(t.key));
+  const seesOtherVn = TABS.some(t => t.area === 'vn' && t.key !== tab.key && canView(t.key));
+  return seesVu && !seesOtherVn ? 'vu' : tab.area;
+}
+
 /* Tabs "arrumados" dentro do Arquivo (não aparecem diretamente na barra lateral). */
 export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'multas', 'database', 'objetivos', 'prospecao'];
 
