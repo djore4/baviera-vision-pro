@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { replaceTableRows } from '@/lib/replace-rows';
+import { toLocalIsoDay } from '@/lib/utils';
 
 /* ── Registos de control das Viaturas Usadas ───────────────────────────────────
  * O ficheiro VU tem UMA sheet "CONTROL" com um layout próprio (diferente do VN):
@@ -78,7 +79,7 @@ function toNum(v: unknown): number {
  *  e, depois de corrigido, passa automaticamente a data. */
 export function garantiaToIso(v: unknown): string {
   const d = toDate(v);
-  return d ? d.toISOString().slice(0, 10) : str(v);
+  return d ? toLocalIsoDay(d) : str(v);
 }
 
 /** Lê a sheet CONTROL do ficheiro VU e devolve os registos da WIP (FATURA/CARTEIRA)
@@ -154,7 +155,7 @@ interface DbRow {
   obs: string | null;
 }
 
-const isoDate = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+const isoDate = (d: Date | null) => (d ? toLocalIsoDay(d) : null);
 
 function mapDbRow(r: DbRow): VuRecord {
   return {

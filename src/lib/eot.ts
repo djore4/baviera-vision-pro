@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
+import { toLocalIsoDay } from '@/lib/utils';
 
 /* ── End-of-Term (EoT) — controlo das terminações de contrato BMW FS ──────────
  * O ficheiro-base é o "MAPA DE CONTRATOS A TERMINAR NOS PRÓXIMOS 12 MESES"
@@ -154,7 +155,7 @@ function toDate(v: unknown): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-const isoDate = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+const isoDate = (d: Date | null) => (d ? toLocalIsoDay(d) : null);
 
 function toNum(v: unknown): number | null {
   if (v == null || v === '') return null;

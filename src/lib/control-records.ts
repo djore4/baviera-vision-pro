@@ -3,11 +3,12 @@ import type { Json } from '@/integrations/supabase/types';
 import { replaceTableRows, isMissingRpc } from '@/lib/replace-rows';
 import { objetivosRowsFromExcel, replaceObjetivosFromExcel } from '@/lib/objetivos';
 import type { AppData, ControlRecord } from '@/types/data';
+import { toLocalIsoDay } from '@/lib/utils';
 
 /** Data (Date) -> string 'AAAA-MM-DD' para colunas `date`, ou null. */
 function isoDate(d: Date | null): string | null {
   if (!d || isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+  return toLocalIsoDay(d);
 }
 
 /** Mapeia um registo da sheet CONTROL para uma linha da tabela control_records.
