@@ -323,8 +323,9 @@ export async function listEotVendedores(scope: Scope): Promise<string[]> {
 /* ── Responsáveis (vendedores a quem o chefe pode atribuir contratos) ─────────── */
 export interface EotOwner { email: string; nome: string; }
 
-/* Responsáveis possíveis: os mesmos da escala (BR, FS, NC, PM) mais o Francisco
- * Dias (FD), coordenador deste tipo de negócios. Resolvidos por email na tabela
+/* Responsáveis possíveis: os mesmos da escala (BR, FS, NC, PM), o Francisco
+ * Dias (FD), coordenador deste tipo de negócios, e o António Lourenço (AL), o
+ * Marcos Pinto (MP) e o Rui Duarte (RD). Resolvidos por email na tabela
  * de utilizadores para o contrato atribuído aparecer no mapa da pessoa. */
 export const EOT_OWNERS: { initials: string; email: string }[] = [
   { initials: 'BR', email: 'belmiro.resgate@caetano.pt' },
@@ -332,6 +333,9 @@ export const EOT_OWNERS: { initials: string; email: string }[] = [
   { initials: 'NC', email: 'nuno.conde@caetano.pt' },
   { initials: 'PM', email: 'paulo.j.matos@caetano.pt' },
   { initials: 'FD', email: 'francisco.dias@caetano.pt' },
+  { initials: 'AL', email: 'antonio.lourenco@caetano.pt' },
+  { initials: 'MP', email: 'marcos.pinto@caetano.pt' },
+  { initials: 'RD', email: 'rui.duarte@caetano.pt' },
 ];
 
 export async function listEotOwners(): Promise<EotOwner[]> {
