@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   CalendarClock, Search, Loader2, RefreshCw, Filter as FilterIcon, MapPin,
-  ListChecks, CalendarDays, UserCheck, ArrowUp, ArrowDown, ArrowUpDown, X,
+  ListChecks, CalendarDays, BarChart3, UserCheck, ArrowUp, ArrowDown, ArrowUpDown, X,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -14,12 +14,13 @@ import { useEotScope } from '@/hooks/useEotScope';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { ContractDialog } from '@/components/eot/ContractDialog';
 import { TemperaturaPicker } from '@/components/eot/TemperaturaPicker';
+import { EotReport } from '@/components/eot/EotReport';
 import { toast } from 'sonner';
 import { applyKpi, kpiCounts, KPI_LABELS, type KpiKey } from '@/lib/eot-kpi';
 import { EmptyState, relativeLabel } from '@/components/prospecao/ui';
 import {
   listEotContracts, listEotVendedores, listAgenda, listEotOwners,
-  FASES, TEMPERATURAS, tempDef, updateEotContract, faseLabel, faseCls, actTipoLabel, daysToEnd, eur, isOverdue, contractLocal,
+  FASES, TEMPERATURAS, tempDef, updateEotContract, faseLabel, faseCls, actTipoLabel, daysToEnd, eur, isOverdue, isFechada, contractLocal,
   type EotContract, type AgendaItem, type EotOwner, type Fase, type Temperatura,
 } from '@/lib/eot';
 
@@ -207,6 +208,14 @@ export default function EndOfTermPage() {
   const toggleSort = (key: SortKey) =>
     setSort(prev => !prev || prev.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : null);
 
+  // Report: oportunidades abertas (ou todas, se "Esconder fechados" estiver desligado),
+  // com a próxima ação de cada contrato vinda da agenda.
+  const reportContracts = useMemo(
+    () => (hideClosed ? scoped.filter(c => !isFechada(c.fase)) : scoped),
+    [scoped, hideClosed],
+  );
+  const nextTipo = useCallback((contrato: string) => nextByContrato.get(contrato)?.tipo ?? null, [nextByContrato]);
+
   // A agenda e os contadores seguem todos os filtros (pelo contrato de cada item).
   const agendaView = useMemo(() => {
     const ids = new Set(scoped.map(c => c.contrato));
@@ -327,6 +336,7 @@ export default function EndOfTermPage() {
             <CalendarDays className="h-4 w-4" />Agenda
             {kpis.overdueFollow > 0 && <span className="ml-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 leading-tight">{kpis.overdueFollow}</span>}
           </TabsTrigger>
+          <TabsTrigger value="report" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm"><BarChart3 className="h-4 w-4" />Report</TabsTrigger>
         </TabsList>
 
         {/* ── Contratos ─────────────────────────────────────────────────────── */}
@@ -490,6 +500,11 @@ export default function EndOfTermPage() {
               })}
             </ul>
           )}
+        </TabsContent>
+
+        {/* ── Report: oportunidades na régua temporal ────────────────────────── */}
+        <TabsContent value="report" className="mt-4">
+          {loading ? <Loader /> : <EotReport contracts={reportContracts} nextTipo={nextTipo} />}
         </TabsContent>
       </Tabs>
 

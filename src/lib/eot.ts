@@ -481,5 +481,9 @@ export function daysToEnd(data_fim: string | null): number | null {
   return Math.round((end.getTime() - today.getTime()) / 86400000);
 }
 
+/** Mês de uma data, 'AAAA-MM' (hora local). */
+export const toIsoMonth = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
 export const eur = (v: number | null): string =>
   v == null ? '—' : v.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });

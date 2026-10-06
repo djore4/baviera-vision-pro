@@ -200,3 +200,33 @@ describe('EndOfTermPage — hotlink das notificações (?contrato=)', () => {
     }
   });
 });
+
+describe('EndOfTermPage — Report', () => {
+  const abrirReport = async () => {
+    renderPage();
+    await rodape(3);
+    // O Radix muda de separador no mousedown (não no click).
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Report/ }), { button: 0 });
+    return await screen.findByRole('row', { name: /^Total/ });
+  };
+
+  it('mostra as oportunidades abertas (3) e respeita "Esconder fechados"', async () => {
+    const total = await abrirReport();
+    expect(within(total).getAllByRole('cell').pop()).toHaveTextContent('3');
+    // Sem classificação: nenhum dos contratos de teste tem temperatura.
+    expect(screen.getByRole('row', { name: /Sem classificação/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/Esconder fechados/));   // passa a incluir fechados (6)
+    await waitFor(() => expect(within(screen.getByRole('row', { name: /^Total/ })).getAllByRole('cell').pop()).toHaveTextContent('6'));
+  });
+
+  it('muda a dimensão: por fase, cada fase aberta aparece com o seu total', async () => {
+    await abrirReport();
+    fireEvent.click(screen.getByRole('button', { name: 'Fase' }));
+    for (const f of ['Pendente', 'Contactado', 'Negociação']) {
+      expect(screen.getByRole('row', { name: new RegExp(`^${f}`) })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('row', { name: /^Renovado/ })).not.toBeInTheDocument();
+  });
+});
+
