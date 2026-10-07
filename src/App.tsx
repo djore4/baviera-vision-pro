@@ -36,6 +36,7 @@ import AngariacaoPage from "./pages/AngariacaoPage";
 import StockPage from "./pages/StockPage";
 import EscalaVuPage from "./pages/EscalaVuPage";
 import EndOfTermPage from "./pages/EndOfTermPage";
+import ImportacaoPage from "./pages/ImportacaoPage";
 import { EasterEggs } from "@/components/EasterEggs";
 import { PermissionsProvider, RequireTab } from "@/contexts/PermissionsContext";
 import { ProspecProvider } from "@/contexts/ProspecContext";
@@ -94,6 +95,7 @@ const App = () => (
               <Route path="/retails" element={tab('retails', <RetailsPage />)} />
               <Route path="/producao" element={tab('producao', <ProducaoPage />)} />
               <Route path="/carteira" element={tab('carteira', <CarteiraPage />)} />
+              <Route path="/importacao" element={tab('importacao', <ImportacaoPage />)} />
               <Route path="/end-of-term" element={tab('end-of-term', <EndOfTermPage />)} />
               <Route path="/pendentes" element={tab('pendentes', <PendentesPage />)} />
               <Route path="/escala" element={tab('escala', <EscalaPage />)} />

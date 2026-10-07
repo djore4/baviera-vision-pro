@@ -66,6 +66,7 @@ const ALL_TABS: TabDef[] = [
   { key: 'angariacao', label: 'Angariação', path: '/angariacao', area: 'vu' },
   { key: 'stock', label: 'Stock', path: '/stock', area: 'vu' },
   { key: 'escala-vu', label: 'Escala', path: '/escala-vu', area: 'vu' },
+  { key: 'importacao', label: 'Importação', path: '/importacao', area: 'vu' },
   // ── Após-Venda ──────────────────────────────────────────────────────────────
   { key: 'lavagem', label: 'Lavagem', path: '/lavagem', area: 'apv' },
   // ── Administração ───────────────────────────────────────────────────────────
