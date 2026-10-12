@@ -54,6 +54,13 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   (nem ao administrador); `@admin`, só aos administradores (o Finance, com visão total
   do tab, não); `all` e por área como antes. Não geram aviso: atribuir a si próprio,
   largar o dono, alterar outros campos, atividades de administradores e do service role.
+- **Demos — custo e margem só para o administrador** (`20261012120000`): a
+  `viaturas` é partilhada com a Caetano Sales Force, que escreve `inputs` e `stats`
+  (MGB, ESF, PAC, DEM, SUP, depreciações, margem), por isso os dados ficam na tabela.
+  A leitura direta de `viaturas` é só do administrador (e da Sales Force, pela sua
+  política); a plataforma lê por `demos_viaturas()`, que a quem não é administrador
+  devolve `inputs` e `stats` apenas com as chaves de preço (lista branca). Aplicar a
+  migração **depois** de o código novo estar em produção.
 - **Outras aplicações no mesmo projeto:** a Caetano Sales Force partilha este
   projeto e tem as suas próprias políticas (`salesforce_users*` em `historico`,
   `viaturas`, `utilizadores`; ver `20260930141317`). As políticas somam-se (OR) e

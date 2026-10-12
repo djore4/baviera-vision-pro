@@ -1685,6 +1685,36 @@ export type Database = {
       access_rank: { Args: { p_tab: string }; Returns: number }
       app_capabilities: { Args: Record<PropertyKey, never>; Returns: Json }
       can_write_excel_file: { Args: { p_name: string }; Returns: boolean }
+      demos_viaturas: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          chassis: string
+          data_matricula: string | null
+          encomenda: string | null
+          estado_entrega: string | null
+          estado_negocio: string | null
+          inputs: Json | null
+          iva_dedutivel: boolean
+          kms: number | null
+          link_fotos: string | null
+          local: Json | null
+          marca: string | null
+          matricula: string | null
+          modelo: string | null
+          observacoes: string | null
+          reserva_expira: string | null
+          reserva_user: string | null
+          stats: Json | null
+          tipologia: Json | null
+          versao: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "viaturas"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       eot_contract_link: { Args: { p_contrato: string }; Returns: string }
       has_access: { Args: { p_level?: string; p_tab: string }; Returns: boolean }
       has_any_access: { Args: { p_level?: string; p_tabs: string[] }; Returns: boolean }
