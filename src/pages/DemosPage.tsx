@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import { client } from '@/clients';
+import DescontosMaxTable from '@/components/DescontosMaxTable';
 import { chassisCurto, formatMatricula, matriculaCompacta, parseNum } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 
@@ -750,13 +751,7 @@ export default function DemosPage() {
       )}
 
       {/* Tabela de descontos máximos (referência rápida, só administradores) */}
-      {isAdmin && (
-        <img
-          src="/clients/baviera/descontos-max.jpg"
-          alt="Descontos máximos por modelo (BEV, PHEV, ICE)"
-          className="w-full h-auto rounded-lg border border-border bg-white"
-        />
-      )}
+      {isAdmin && <DescontosMaxTable />}
 
       {selected && (
         <ShareCard
