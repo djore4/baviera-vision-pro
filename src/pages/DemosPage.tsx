@@ -749,6 +749,15 @@ export default function DemosPage() {
         </p>
       )}
 
+      {/* Tabela de descontos máximos (referência rápida, só administradores) */}
+      {isAdmin && (
+        <img
+          src="/clients/baviera/descontos-max.jpg"
+          alt="Descontos máximos por modelo (BEV, PHEV, ICE)"
+          className="w-full h-auto rounded-lg border border-border bg-white"
+        />
+      )}
+
       {selected && (
         <ShareCard
           row={selected}
