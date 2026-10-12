@@ -71,6 +71,11 @@ function idadeDias(dataMatricula: string | null): number {
   return diff > 0 ? Math.floor(diff / (1000 * 60 * 60 * 24)) : 0;
 }
 
+/* Só demonstradores (VD) e carros: sem viaturas usadas (VU) nem motas. Mesma regra
+ * da Caetano Sales Force: é VU só com estado_negocio 'VU', o resto conta como VD. */
+const isMota = (v: Viatura) => getArr(v.marca).some(m => m.trim().toLowerCase().includes('motorrad'));
+const isDemo = (v: Viatura) => v.estado_negocio !== 'VU' && !isMota(v);
+
 function isReservado(v: Viatura): boolean {
   return !!v.reserva_expira && new Date(v.reserva_expira).getTime() > Date.now();
 }
@@ -384,7 +389,7 @@ export default function DemosPage() {
       ]);
       if (!alive) return;
       if (viaturasRes.error) { setError(viaturasRes.error.message); setRows([]); setLoading(false); return; }
-      const mapped: Row[] = ((viaturasRes.data as Viatura[]) ?? []).map(v => {
+      const mapped: Row[] = ((viaturasRes.data as Viatura[]) ?? []).filter(isDemo).map(v => {
         const tipologia = getArr(v.tipologia);
         const tipo = tipoFlags(tipologia);
         const inps = getInps(v.inputs);
@@ -592,7 +597,7 @@ export default function DemosPage() {
 
       {/* Filtros (chips de seleção múltipla; "Todas" = sem filtro) */}
       <div className="bg-card border border-border rounded-lg p-3 grid gap-3">
-        <ChipFilter label="Marca" options={marcas} selected={fMarcas} onToggle={toggleIn(setFMarcas)} onClear={() => setFMarcas(new Set())} />
+        {marcas.length > 1 && <ChipFilter label="Marca" options={marcas} selected={fMarcas} onToggle={toggleIn(setFMarcas)} onClear={() => setFMarcas(new Set())} />}
         <ChipFilter label="Local" options={locais} selected={fLocais} onToggle={toggleIn(setFLocais)} onClear={() => setFLocais(new Set())} />
         <ChipFilter label="Tipologia" options={tipologias} selected={fTipologia} onToggle={toggleIn(setFTipologia)} onClear={() => setFTipologia(new Set())} />
         <ChipFilter label="Modelo" options={modelos} selected={fModelos} onToggle={toggleIn(setFModelos)} onClear={() => setFModelos(new Set())} />
