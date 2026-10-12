@@ -636,6 +636,57 @@ select t.check('sales force: sem acesso ao resto da plataforma',
 select t.back();
 commit;
 
+-- ── Demos: custo e margem só para o administrador (20261012120000) ──────────
+-- A tabela viaturas tem a linha semeada; dá-lhe inputs/stats completos (como a Caetano
+-- os grava) e confirma que quem só tem o tab Demos recebe apenas as chaves de preço.
+update public.viaturas set
+  inputs = '{"pvb": 50000, "opc": 5000, "bsi": 0, "eco": 0, "leg": 300, "isv": 0, "pvp_desc": 60000,
+             "mgb": 0.07, "esf": 0.05, "pac": 0.02, "dem": 0.03, "sup": 0.01, "depreciacoes": 1500}'::jsonb,
+  stats  = '{"pvp_bruto": 68000, "pvp_final": 60000, "mg": 4200, "mg_perc": 0.07, "preco_minimo": 55800,
+             "desc_perc": 0.18, "desc_eur": 9900, "idade": 2, "idade_dias": 70, "penetracao": 0.1,
+             "iva": 12600, "s_iva": 48780}'::jsonb;
+insert into public.app_roles (name, is_admin, permissions) values ('Demos', false, '{"demos": "view"}') on conflict (name) do nothing;
+insert into public.app_users (nome, email, perfil) values ('Demos', 'demos@x.pt', 'Demos') on conflict (email) do nothing;
+
+begin;
+select t.as_user('admin_pa@x.pt');
+select t.check('demos_viaturas/admin: vê custo e margem',
+  (select bool_and(inputs ? 'mgb' and inputs ? 'depreciacoes' and stats ? 'mg' and stats ? 'preco_minimo')
+     from public.demos_viaturas() where inputs ? 'pvb')
+  and (select count(*) from public.demos_viaturas()) > 0
+  and t.n('viaturas') > 0);
+select t.back();
+commit;
+begin;
+select t.as_user('demos@x.pt');
+select t.check('demos_viaturas/Demos=view: recebe as viaturas',
+  (select count(*) from public.demos_viaturas()) > 0);
+select t.check('demos_viaturas/Demos=view: inputs só com chaves de preço',
+  (select bool_and(inputs - array['pvb', 'opc', 'bsi', 'eco', 'leg', 'isv', 'pvp_desc'] = '{}'::jsonb
+                   and (inputs ->> 'pvb') is not null)
+     from public.demos_viaturas() where inputs ? 'pvb'));
+select t.check('demos_viaturas/Demos=view: sem MGB, ESF, PAC, DEM, SUP nem depreciações',
+  not exists (select 1 from public.demos_viaturas()
+              where inputs ?| array['mgb', 'esf', 'pac', 'dem', 'sup', 'depreciacoes']));
+select t.check('demos_viaturas/Demos=view: stats sem margem, preço mínimo nem descontos',
+  (select bool_and(stats - array['pvp_bruto', 'pvp_final', 'idade', 'idade_dias', 'penetracao', 'iva', 's_iva'] = '{}'::jsonb
+                   and (stats ->> 'pvp_final') is not null)
+     from public.demos_viaturas() where stats ? 'pvp_final'));
+select t.check('Demos=view: já não lê a tabela viaturas diretamente',
+  t.n('viaturas') = 0 and t.dml($q$ update public.viaturas set marca = marca $q$) = 0);
+select t.back();
+commit;
+begin;
+select t.as_user('VN@x.pt');   -- sem o tab Demos
+select t.check('demos_viaturas/sem o tab Demos: nada', (select count(*) from public.demos_viaturas()) = 0 and t.n('viaturas') = 0);
+select t.back();
+commit;
+begin;
+select t.as_anon();
+select t.check('demos_viaturas/anon: sem execute', t.dml($q$ select * from public.demos_viaturas() $q$) = -1);
+select t.back();
+commit;
+
 -- ── Resultado ───────────────────────────────────────────────────────────────
 do $$
 declare total int := (select count(*) from t.results);

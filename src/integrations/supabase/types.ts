@@ -23,6 +23,7 @@ export type Database = {
           v_compra: number | null
           version: string | null
         }
+        ComputedFields: never
         Insert: {
           angar?: string | null
           ano?: number | null
@@ -60,6 +61,7 @@ export type Database = {
           level: string
           tab: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           email: string
@@ -82,6 +84,7 @@ export type Database = {
           permissions: NonNullable<Json>
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           is_admin?: boolean
@@ -110,6 +113,7 @@ export type Database = {
           perfil: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           email?: string | null
@@ -156,6 +160,7 @@ export type Database = {
           updated_at: string
           wash_type: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -212,6 +217,7 @@ export type Database = {
           snapshot: Json | null
           wash_type: string | null
         }
+        ComputedFields: never
         Insert: {
           action: string
           actor?: string | null
@@ -272,6 +278,7 @@ export type Database = {
           week198: string | null
           xev: number | null
         }
+        ComputedFields: never
         Insert: {
           app?: string | null
           bev?: number | null
@@ -386,6 +393,7 @@ export type Database = {
           week198: string | null
           xev: number | null
         }
+        ComputedFields: never
         Insert: {
           a360?: number | null
           app?: string | null
@@ -481,6 +489,7 @@ export type Database = {
           resp: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           body: string
           cliente?: string | null
@@ -519,6 +528,7 @@ export type Database = {
           title: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           body?: string | null
           cliente?: string | null
@@ -557,6 +567,7 @@ export type Database = {
           created_at: string
           pessoa_id: string
         }
+        ComputedFields: never
         Insert: {
           chassis: string
           created_at?: string
@@ -584,6 +595,7 @@ export type Database = {
           updated_by: string | null
           url: string
         }
+        ComputedFields: never
         Insert: {
           chassis: string
           updated_at?: string
@@ -613,6 +625,7 @@ export type Database = {
           tipo: string
           updated_at: string | null
         }
+        ComputedFields: never
         Insert: {
           alocado_nome: string
           cliente_nif?: string | null
@@ -657,6 +670,7 @@ export type Database = {
           id: string
           nome: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -713,6 +727,7 @@ export type Database = {
           versao: string | null
           xev: string | null
         }
+        ComputedFields: never
         Insert: {
           bev?: string | null
           bsi?: string | null
@@ -816,6 +831,7 @@ export type Database = {
           tipo: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           autor?: string | null
           contrato: string
@@ -889,6 +905,7 @@ export type Database = {
           valor_total: number | null
           vendedor: string | null
         }
+        ComputedFields: never
         Insert: {
           cliente?: string | null
           codigo_postal?: string | null
@@ -968,6 +985,7 @@ export type Database = {
           registo_id: string
           tabela: string
         }
+        ComputedFields: never
         Insert: {
           acao: string
           data_hora?: string | null
@@ -994,6 +1012,7 @@ export type Database = {
           name: string
           value: number
         }
+        ComputedFields: never
         Insert: {
           active?: boolean | null
           created_at?: string | null
@@ -1016,6 +1035,7 @@ export type Database = {
           read_at: string
           user_email: string
         }
+        ComputedFields: never
         Insert: {
           notification_id: string
           read_at?: string
@@ -1048,6 +1068,7 @@ export type Database = {
           recipient_email: string | null
           title: string
         }
+        ComputedFields: never
         Insert: {
           audience?: string
           body?: string | null
@@ -1082,6 +1103,7 @@ export type Database = {
           tipo: string
           updated_at: string | null
         }
+        ComputedFields: never
         Insert: {
           ano: number
           created_at?: string | null
@@ -1112,6 +1134,7 @@ export type Database = {
           responsavel: string
           updated_at: string | null
         }
+        ComputedFields: never
         Insert: {
           ano: number
           created_at?: string | null
@@ -1143,6 +1166,7 @@ export type Database = {
           resp: string
           value: number
         }
+        ComputedFields: never
         Insert: {
           created_at?: string | null
           cycle_id?: number
@@ -1180,6 +1204,7 @@ export type Database = {
           notes: string | null
           started_at: string | null
         }
+        ComputedFields: never
         Insert: {
           ended_at?: string | null
           id: number
@@ -1199,6 +1224,7 @@ export type Database = {
           created_at: string
           email: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           email: string
@@ -1226,6 +1252,7 @@ export type Database = {
           setor: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           created_by?: string | null
@@ -1272,6 +1299,7 @@ export type Database = {
           telefone: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           account_id: string
           cargo?: string | null
@@ -1314,6 +1342,7 @@ export type Database = {
           occurred_at: string
           tipo: string
         }
+        ComputedFields: never
         Insert: {
           account_id: string
           autor?: string | null
@@ -1349,6 +1378,7 @@ export type Database = {
           sent_at: string
           user_email: string
         }
+        ComputedFields: never
         Insert: {
           day_key: string
           ref: string
@@ -1374,6 +1404,7 @@ export type Database = {
           ua: string | null
           user_email: string | null
         }
+        ComputedFields: never
         Insert: {
           auth: string
           created_at?: string
@@ -1411,6 +1442,7 @@ export type Database = {
           type: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           account_id?: string | null
           created_at?: string
@@ -1464,6 +1496,7 @@ export type Database = {
           vendedor: string
           year: number
         }
+        ComputedFields: never
         Insert: {
           assiduidade?: number
           atendimento?: number
@@ -1516,6 +1549,7 @@ export type Database = {
           quilometragem: number | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           arquivada?: boolean
           arquivada_at?: string | null
@@ -1571,6 +1605,7 @@ export type Database = {
           password: string | null
           perfil: string | null
         }
+        ComputedFields: never
         Insert: {
           email?: string | null
           id?: number
@@ -1615,6 +1650,7 @@ export type Database = {
           tipologia: Json | null
           versao: string | null
         }
+        ComputedFields: never
         Insert: {
           chassis: string
           data_matricula?: string | null
@@ -1665,6 +1701,7 @@ export type Database = {
           mes: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           faturas?: number
           mes: string
@@ -1685,6 +1722,36 @@ export type Database = {
       access_rank: { Args: { p_tab: string }; Returns: number }
       app_capabilities: { Args: Record<PropertyKey, never>; Returns: Json }
       can_write_excel_file: { Args: { p_name: string }; Returns: boolean }
+      demos_viaturas: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          chassis: string
+          data_matricula: string | null
+          encomenda: string | null
+          estado_entrega: string | null
+          estado_negocio: string | null
+          inputs: Json | null
+          iva_dedutivel: boolean
+          kms: number | null
+          link_fotos: string | null
+          local: Json | null
+          marca: string | null
+          matricula: string | null
+          modelo: string | null
+          observacoes: string | null
+          reserva_expira: string | null
+          reserva_user: string | null
+          stats: Json | null
+          tipologia: Json | null
+          versao: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "viaturas"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       eot_contract_link: { Args: { p_contrato: string }; Returns: string }
       has_access: { Args: { p_level?: string; p_tab: string }; Returns: boolean }
       has_any_access: { Args: { p_level?: string; p_tabs: string[] }; Returns: boolean }

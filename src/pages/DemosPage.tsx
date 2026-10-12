@@ -71,6 +71,11 @@ function idadeDias(dataMatricula: string | null): number {
   return diff > 0 ? Math.floor(diff / (1000 * 60 * 60 * 24)) : 0;
 }
 
+/* Só demonstradores (VD) e carros: sem viaturas usadas (VU) nem motas. Mesma regra
+ * da Caetano Sales Force: é VU só com estado_negocio 'VU', o resto conta como VD. */
+const isMota = (v: Viatura) => getArr(v.marca).some(m => m.trim().toLowerCase().includes('motorrad'));
+const isDemo = (v: Viatura) => v.estado_negocio !== 'VU' && !isMota(v);
+
 function isReservado(v: Viatura): boolean {
   return !!v.reserva_expira && new Date(v.reserva_expira).getTime() > Date.now();
 }
@@ -118,6 +123,10 @@ interface Col {
 /* Campos que se podem simular na tabela. Só em memória: nada é escrito no Supabase. */
 type EditField = 'mgb' | 'esf' | 'pac' | 'dem' | 'sup' | 'depreciacoes' | 'pvp_desc';
 type Overrides = Record<string, Partial<Record<EditField, number>>>;
+
+/* Descontos/apoios, custo e margem: só o administrador. A base de dados (demos_viaturas)
+ * já nem envia estes valores aos restantes; isto evita colunas vazias na tabela. */
+const ADMIN_ONLY_GROUPS: Group[] = ['desc', 'custo'];
 
 /* Só há margem com preço de venda e custo conhecidos (sem PVB o custo não tem significado). */
 const temMargem = (r: Row) => r._p.pvp_desc > 0 && r._inps.pvb > 0;
@@ -313,17 +322,47 @@ function AgeBadge({ dias }: { dias: number }) {
   );
 }
 
+/* Filtro em chips de seleção múltipla: vazio = todos (o chip "Todas" fica ativo). */
+function ChipFilter({ label, options, selected, onToggle, onClear }: {
+  label: string;
+  options: string[];
+  selected: Set<string>;
+  onToggle: (v: string) => void;
+  onClear: () => void;
+}) {
+  if (options.length === 0) return null;
+  const chip = (on: boolean) =>
+    `px-3 py-1 text-[11px] font-semibold rounded-md border transition-colors ${
+      on ? 'bg-brand-primary text-white border-brand-primary' : 'bg-background text-muted-foreground border-border hover:text-foreground hover:border-brand-primary/50'
+    }`;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</span>
+      <div className="flex flex-wrap gap-1.5">
+        <button onClick={onClear} aria-pressed={selected.size === 0} className={chip(selected.size === 0)}>Todas</button>
+        {options.map(o => (
+          <button key={o} onClick={() => onToggle(o)} aria-pressed={selected.has(o)} className={chip(selected.has(o))}>{o}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DemosPage() {
   const { session } = useAuth();
-  const { canEdit } = usePermissions();
+  const { canEdit, isAdmin } = usePermissions();
+  const groups = useMemo(() => GROUPS.filter(g => isAdmin || !ADMIN_ONLY_GROUPS.includes(g.key)), [isAdmin]);
+  const cols = useMemo(() => COLS.filter(c => isAdmin || !ADMIN_ONLY_GROUPS.includes(c.group)), [isAdmin]);
   const [rows, setRows] = useState<Row[]>([]);
   const [capas, setCapas] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [fModelo, setFModelo] = useState('Todos');
+  // Filtros em chips de seleção múltipla (vazio = todos), como no Caetano Sales Force.
+  const [fMarcas, setFMarcas] = useState<Set<string>>(new Set());
+  const [fModelos, setFModelos] = useState<Set<string>>(new Set());
   // Por defeito, o parque abre filtrado por Aveiro.
-  const [fLocal, setFLocal] = useState('Aveiro');
+  const [fLocais, setFLocais] = useState<Set<string>>(new Set(['Aveiro']));
   const localInit = useRef(false);
   const [fTipologia, setFTipologia] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
@@ -337,13 +376,20 @@ export default function DemosPage() {
     let alive = true;
     (async () => {
       setLoading(true);
+      // demos_viaturas() só devolve descontos, custo e margem ao administrador.
+      // Sem a função (migração 20261012120000 por aplicar) lê-se a tabela, como antes.
+      let viaturasQ = await supabase.rpc('demos_viaturas');
+      if (viaturasQ.error && (viaturasQ.error as { code?: string }).code === 'PGRST202') {
+        console.warn('demos_viaturas() em falta na base de dados: a ler a tabela viaturas. Aplicar a migração 20261012120000.');
+        viaturasQ = await supabase.from('viaturas').select('*') as unknown as typeof viaturasQ;
+      }
       const [viaturasRes, capasRes] = await Promise.all([
-        supabase.from('viaturas').select('*'),
+        Promise.resolve(viaturasQ),
         supabase.from('demo_capas').select('chassis, url'),
       ]);
       if (!alive) return;
       if (viaturasRes.error) { setError(viaturasRes.error.message); setRows([]); setLoading(false); return; }
-      const mapped: Row[] = ((viaturasRes.data as Viatura[]) ?? []).map(v => {
+      const mapped: Row[] = ((viaturasRes.data as Viatura[]) ?? []).filter(isDemo).map(v => {
         const tipologia = getArr(v.tipologia);
         const tipo = tipoFlags(tipologia);
         const inps = getInps(v.inputs);
@@ -375,17 +421,18 @@ export default function DemosPage() {
       return next;
     });
 
-  const modelos = useMemo(() => ['Todos', ...[...new Set(rows.map(r => (r.modelo ?? '').trim()).filter(Boolean))].sort()], [rows]);
-  const locais = useMemo(() => ['Todas', ...[...new Set(rows.flatMap(r => getArr(r.local)))].sort()], [rows]);
+  const marcas = useMemo(() => [...new Set(rows.flatMap(r => getArr(r.marca)))].sort(), [rows]);
+  const modelos = useMemo(() => [...new Set(rows.map(r => (r.modelo ?? '').trim()).filter(Boolean))].sort(), [rows]);
+  const locais = useMemo(() => [...new Set(rows.flatMap(r => getArr(r.local)))].sort(), [rows]);
   const tipologias = useMemo(() => [...new Set(rows.flatMap(r => r._tipologia))].sort(), [rows]);
 
-  // Se o parque não tiver "Aveiro" (default), reverte para "Todas" — só uma vez,
+  // Se o parque não tiver "Aveiro" (default), limpa o filtro de local — só uma vez,
   // para não mostrar uma tabela vazia por causa do filtro inicial.
   useEffect(() => {
     if (localInit.current || rows.length === 0) return;
     localInit.current = true;
-    if (fLocal === 'Aveiro' && !locais.includes('Aveiro')) setFLocal('Todas');
-  }, [rows, locais, fLocal]);
+    if (!locais.includes('Aveiro')) setFLocais(prev => (prev.has('Aveiro') ? new Set() : prev));
+  }, [rows, locais]);
 
   const viewRows = useMemo(() => rows.map(r => applyOverrides(r, overrides[r.chassis])), [rows, overrides]);
   const selected = selectedChassis ? viewRows.find(r => r.chassis === selectedChassis) ?? null : null;
@@ -426,10 +473,10 @@ export default function DemosPage() {
     });
 
   // Com um só local filtrado, a coluna Local seria sempre igual: esconde-se.
-  const hideLocal = fLocal !== 'Todas';
+  const hideLocal = fLocais.size === 1;
   const visibleCols = useMemo(
-    () => COLS.filter(c => (!collapsed.has(c.group) || c.summary) && !(hideLocal && c.key === 'local')),
-    [collapsed, hideLocal],
+    () => cols.filter(c => (!collapsed.has(c.group) || c.summary) && !(hideLocal && c.key === 'local')),
+    [cols, collapsed, hideLocal],
   );
 
   // Local e Modelo ficam fixas à esquerda ao deslizar a tabela (essencial em mobile).
@@ -460,8 +507,9 @@ export default function DemosPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = viewRows.filter(r => {
-      if (fModelo !== 'Todos' && (r.modelo ?? '').trim() !== fModelo) return false;
-      if (fLocal !== 'Todas' && !getArr(r.local).includes(fLocal)) return false;
+      if (fMarcas.size && !getArr(r.marca).some(m => fMarcas.has(m))) return false;
+      if (fModelos.size && !fModelos.has((r.modelo ?? '').trim())) return false;
+      if (fLocais.size && !getArr(r.local).some(l => fLocais.has(l))) return false;
       if (fTipologia.size && !r._tipologia.some(t => fTipologia.has(t))) return false;
       if (!q) return true;
       return [r.modelo, r.versao, r.chassis, r.matricula, formatMatricula(r.matricula), r.encomenda, r._local]
@@ -485,7 +533,7 @@ export default function DemosPage() {
       });
     }
     return list;
-  }, [viewRows, search, fModelo, fLocal, fTipologia, sort]);
+  }, [viewRows, search, fMarcas, fModelos, fLocais, fTipologia, sort]);
 
   // Totais do que está filtrado (como a linha de totais de uma tabela Excel).
   const totals = useMemo(() => {
@@ -494,8 +542,8 @@ export default function DemosPage() {
     return { n: priced.length, pvpDesc: sum(r => r._p.pvp_desc), margem: sum(r => r._p.margem), pCusto: sum(r => r._p.p_custo) };
   }, [filtered]);
 
-  const toggleTip = (t: string) =>
-    setFTipologia(prev => { const n = new Set(prev); if (n.has(t)) n.delete(t); else n.add(t); return n; });
+  const toggleIn = (set: React.Dispatch<React.SetStateAction<Set<string>>>) => (v: string) =>
+    set(prev => { const n = new Set(prev); if (n.has(v)) n.delete(v); else n.add(v); return n; });
 
   const toggleSort = (key: string) =>
     setSort(prev => {
@@ -504,9 +552,9 @@ export default function DemosPage() {
       return null; // terceiro clique limpa
     });
 
-  const filtersActive = !!search || fModelo !== 'Todos' || fLocal !== 'Todas' || fTipologia.size > 0;
+  const filtersActive = !!search || fMarcas.size > 0 || fModelos.size > 0 || fLocais.size > 0 || fTipologia.size > 0;
   const resetFilters = () => {
-    setSearch(''); setFModelo('Todos'); setFLocal('Todas'); setFTipologia(new Set());
+    setSearch(''); setFMarcas(new Set()); setFModelos(new Set()); setFLocais(new Set()); setFTipologia(new Set());
   };
 
   const alignCls = (a?: 'right' | 'center') => a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left';
@@ -547,56 +595,12 @@ export default function DemosPage() {
         )}
       </div>
 
-      {/* Filtros */}
-      <div className="bg-card border border-border rounded-lg p-3 grid gap-3 md:grid-cols-2">
-        {/* Local */}
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Local</span>
-          <select
-            value={fLocal}
-            onChange={e => setFLocal(e.target.value)}
-            className="w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {locais.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </label>
-
-        {/* Modelo */}
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Modelo</span>
-          <select
-            value={fModelo}
-            onChange={e => setFModelo(e.target.value)}
-            className="w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {modelos.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </label>
-
-        {/* Tipologia */}
-        {tipologias.length > 0 && (
-          <div className="flex flex-col gap-1.5 md:col-span-2">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Tipologia</span>
-            <div className="flex flex-wrap gap-1.5">
-              {tipologias.map(t => {
-                const on = fTipologia.has(t);
-                return (
-                  <button
-                    key={t}
-                    onClick={() => toggleTip(t)}
-                    aria-pressed={on}
-                    className={`px-3 py-1 text-[11px] font-semibold rounded-md border transition-colors ${
-                      on ? 'bg-brand-primary text-white border-brand-primary' : 'bg-background text-muted-foreground border-border hover:text-foreground hover:border-brand-primary/50'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
+      {/* Filtros (chips de seleção múltipla; "Todas" = sem filtro) */}
+      <div className="bg-card border border-border rounded-lg p-3 grid gap-3">
+        {marcas.length > 1 && <ChipFilter label="Marca" options={marcas} selected={fMarcas} onToggle={toggleIn(setFMarcas)} onClear={() => setFMarcas(new Set())} />}
+        <ChipFilter label="Local" options={locais} selected={fLocais} onToggle={toggleIn(setFLocais)} onClear={() => setFLocais(new Set())} />
+        <ChipFilter label="Tipologia" options={tipologias} selected={fTipologia} onToggle={toggleIn(setFTipologia)} onClear={() => setFTipologia(new Set())} />
+        <ChipFilter label="Modelo" options={modelos} selected={fModelos} onToggle={toggleIn(setFModelos)} onClear={() => setFModelos(new Set())} />
       </div>
 
       {error && (
@@ -613,7 +617,7 @@ export default function DemosPage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-muted/30">
-                {GROUPS.map((g, i) => {
+                {groups.map((g, i) => {
                   const isCollapsed = collapsed.has(g.key);
                   return (
                     <th
