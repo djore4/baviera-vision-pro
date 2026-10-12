@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import { client } from '@/clients';
+import DescontosMaxTable from '@/components/DescontosMaxTable';
 import { chassisCurto, formatMatricula, matriculaCompacta, parseNum } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 
@@ -748,6 +749,9 @@ export default function DemosPage() {
           MGB, ESF, PAC, DEM, SUP, DEP e PVP Desc podem ser simulados (clique no valor). A simulação é local: nada é gravado no parque.
         </p>
       )}
+
+      {/* Tabela de descontos máximos (referência rápida, só administradores) */}
+      {isAdmin && <DescontosMaxTable />}
 
       {selected && (
         <ShareCard
