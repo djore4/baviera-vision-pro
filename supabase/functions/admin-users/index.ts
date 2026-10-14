@@ -89,9 +89,14 @@ Deno.serve(async (req) => {
     if (action === "update") {
       const { id, patch, password } = body;
       if (!id) return json({ error: "id em falta." }, 400);
-      const { data: row, error: e1 } = await admin.from("app_users")
-        .update(patch ?? {}).eq("id", id).select(USER_COLS).single();
+      // Um update com patch vazio não devolve linhas (e o .single() falha), por
+      // isso só atualizamos quando há campos; caso contrário apenas lemos o utilizador.
+      const hasPatch = patch && Object.keys(patch).length > 0;
+      const { data: row, error: e1 } = hasPatch
+        ? await admin.from("app_users").update(patch).eq("id", id).select(USER_COLS).maybeSingle()
+        : await admin.from("app_users").select(USER_COLS).eq("id", id).maybeSingle();
       if (e1) return json({ error: e1.message }, 400);
+      if (!row) return json({ error: "Utilizador não encontrado." }, 404);
       if (password && row?.email) {
         const authUser = await findAuthUserByEmail(admin, row.email);
         if (authUser) await admin.auth.admin.updateUserById(authUser.id, { password });
