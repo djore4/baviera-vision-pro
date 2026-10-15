@@ -25,8 +25,8 @@ export function eotIsDirector(i: EotDirectorInput): boolean {
   return !!i.roleName && EOT_FULL_ACCESS_ROLES.has(i.roleName);
 }
 
-/* Chefe de equipa local: perfil com a permissão 'end-of-term:local'. Vê e atribui
- * os contratos do(s) seu(s) local(is) e gere os responsáveis desse(s) local(is).
+/* Chefe de equipa: perfil com a permissão 'end-of-term:local'. Vê os contratos da sua
+ * equipa (os responsáveis que o têm como chefe, em eot_owners) e gere essa equipa.
  * Só existe depois da migração dos responsáveis (capabilities.eotResponsaveis).
  * Quem já é diretor não é "chefe local": tem a visão total. */
 export function eotIsLocalLead(i: EotDirectorInput): boolean {

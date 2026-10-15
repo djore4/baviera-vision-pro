@@ -134,8 +134,8 @@ const ALL_SUB_PERMISSIONS: SubPermissionDef[] = [
   { key: 'end-of-term:todos', parent: 'end-of-term', label: 'Ver todos os contratos',
     hint: 'Ver e controlar os contratos de todos os vendedores, incluindo os sem responsável, e atribuir responsáveis. Sem isto, cada pessoa só vê os contratos que lhe estão afetos.',
     capability: 'eotGranular' },
-  { key: 'end-of-term:local', parent: 'end-of-term', label: 'Chefe de equipa local',
-    hint: 'Ver e atribuir os contratos do(s) seu(s) local(is) e gerir os responsáveis desse(s) local(is). O local vem da sua ficha em Responsáveis (End-of-Term). Sem isto, cada pessoa só vê os contratos que lhe estão afetos.',
+  { key: 'end-of-term:local', parent: 'end-of-term', label: 'Chefe de equipa',
+    hint: 'Ver os contratos da sua equipa (os responsáveis que lhe estão atribuídos no tab Responsáveis do End-of-Term), passá-los entre eles e gerir essa equipa. Não vê os contratos sem responsável. Sem isto, cada pessoa só vê os contratos que lhe estão afetos.',
     capability: 'eotResponsaveis' },
 ];
 

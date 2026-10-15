@@ -121,8 +121,8 @@ export interface EotActivity {
   updated_at: string;
 }
 
-/* Escopo de leitura: o diretor (chefe de vendas) vê tudo; o chefe de equipa local vê o(s)
- * seu(s) local(is) (a base de dados já devolve só esses); o vendedor só o seu. */
+/* Escopo de leitura: o diretor (chefe de vendas) vê tudo; o chefe de equipa vê os
+ * contratos da sua equipa (a base de dados já devolve só esses); o vendedor só o seu. */
 export interface Scope {
   isDirector: boolean;
   isLocalLead?: boolean;
@@ -130,7 +130,7 @@ export interface Scope {
 }
 
 /* Só o vendedor comum é filtrado por responsável no cliente; o diretor e o chefe
- * local confiam na RLS (que, para o chefe, junta os contratos do local aos seus). */
+ * de equipa confiam na RLS (que, para o chefe, devolve os contratos da equipa). */
 const ownOnly = (scope: Scope) => !scope.isDirector && !scope.isLocalLead && !!scope.email;
 
 /* ── Parser do ficheiro (mapa de terminações) ────────────────────────────────── */
@@ -329,7 +329,13 @@ export async function listEotVendedores(scope: Scope): Promise<string[]> {
 /* ── Responsáveis (a quem se atribuem contratos) ──────────────────────────────── */
 
 /* `nome` é o texto que fica no contrato (owner_nome): "RD · Rui Duarte". */
-export interface EotOwner { email: string; nome: string; iniciais?: string; locais?: string[]; }
+export interface EotOwner {
+  email: string; nome: string; iniciais?: string;
+  /** Onde trabalha (só para sugerir quem atribuir). */
+  locais?: string[];
+  /** Chefe de equipa (email): o chefe vê os contratos da sua equipa. */
+  chefe_email?: string | null;
+}
 
 /* Lista que existia no código, antes de os responsáveis passarem a ser geridos na
  * base de dados (tabela eot_owners). Só se usa enquanto a migração não estiver
@@ -359,7 +365,7 @@ async function userNames(): Promise<Map<string, string | null>> {
 /** Responsáveis possíveis, com o nome resolvido na tabela de utilizadores. */
 export async function listEotOwners(): Promise<EotOwner[]> {
   const [{ data, error }, names] = await Promise.all([
-    supabase.from('eot_owners').select('email, iniciais, locais').order('iniciais'),
+    supabase.from('eot_owners').select('email, iniciais, locais, chefe_email').order('iniciais'),
     userNames(),
   ]);
   if (error) {
@@ -371,17 +377,18 @@ export async function listEotOwners(): Promise<EotOwner[]> {
   return (data ?? [])
     .filter(o => names.has(o.email))   // sem conta já não é utilizador: não se lhe atribui
     .map(o => ({
-      email: o.email, iniciais: o.iniciais, locais: o.locais ?? [],
+      email: o.email, iniciais: o.iniciais, locais: o.locais ?? [], chefe_email: o.chefe_email,
       nome: ownerLabel(o.iniciais, names.get(o.email), o.email),
     }));
 }
 
-/** Cria ou atualiza um responsável (iniciais e local(is) onde trabalha). */
-export async function saveEotOwner(o: { email: string; iniciais: string; locais: string[] }): Promise<void> {
+/** Cria ou atualiza um responsável (iniciais, local(is) onde trabalha e chefe de equipa). */
+export async function saveEotOwner(o: { email: string; iniciais: string; locais: string[]; chefe_email: string | null }): Promise<void> {
   const row = {
     email: o.email.trim().toLowerCase(),
     iniciais: o.iniciais.trim().toUpperCase(),
     locais: [...new Set(o.locais.map(l => l.trim()).filter(Boolean))],
+    chefe_email: o.chefe_email ? o.chefe_email.trim().toLowerCase() : null,
     updated_at: new Date().toISOString(),
   };
   if (!row.iniciais) throw new Error('Indique as iniciais do responsável.');

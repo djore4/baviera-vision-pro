@@ -21,25 +21,26 @@ import {
 } from '@/lib/eot';
 
 /* Gestão dos responsáveis do End-of-Term e da tabela de conversão dos nomes do Excel.
- * Quem gere tudo (administrador, end-of-term:todos) mexe em qualquer local; o chefe de
- * equipa local só nos responsáveis dos seus locais (a base de dados impõe o mesmo). */
+ * Quem gere tudo (administrador, end-of-term:todos) mexe em todos e define as equipas; o
+ * chefe de equipa só na sua equipa (a base de dados impõe o mesmo). */
 
 interface Props {
   contracts: EotContract[];
   owners: EotOwner[];
   ownerMap: EotVendedorMapRow[];
-  /** null = sem restrição (gere todos os locais); senão, só estes locais. */
-  limitLocais: string[] | null;
+  /** Email do chefe de equipa; null = gere todos (administrador, end-of-term:todos). */
+  leadEmail: string | null;
   onChanged: () => void;
 }
 
 const ownerName = (o: EotOwner) => o.nome;
+const NO_CHEFE = '__none__';
 const initialsFrom = (nome: string | null, email: string) => {
   const parts = (nome || email.split('@')[0]).split(/[\s.]+/).filter(Boolean);
   return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 };
 
-export function OwnersPanel({ contracts, owners, ownerMap, limitLocais, onChanged }: Props) {
+export function OwnersPanel({ contracts, owners, ownerMap, leadEmail, onChanged }: Props) {
   const [dialog, setDialog] = useState<{ mode: 'new' } | { mode: 'edit'; owner: EotOwner } | null>(null);
   const [removing, setRemoving] = useState<EotOwner | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,12 +52,13 @@ export function OwnersPanel({ contracts, owners, ownerMap, limitLocais, onChange
     const set = new Set<string>();
     contracts.forEach(c => { const l = contractLocal(c); if (l !== '—') set.add(l); });
     owners.forEach(o => o.locais?.forEach(l => set.add(l)));
-    const all = [...set].sort((a, b) => a.localeCompare(b, 'pt'));
-    return limitLocais ? all.filter(l => limitLocais.includes(l)) : all;
-  }, [contracts, owners, limitLocais]);
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt'));
+  }, [contracts, owners]);
 
-  const canTouch = (o: EotOwner) => !limitLocais || (o.locais ?? []).some(l => limitLocais.includes(l));
-  const manageable = useMemo(() => owners.filter(canTouch), [owners, limitLocais]); // eslint-disable-line react-hooks/exhaustive-deps
+  // O chefe só mexe nos responsáveis da sua equipa (não na sua ficha nem na de outros chefes).
+  const canTouch = (o: EotOwner) => !leadEmail || o.chefe_email?.toLowerCase() === leadEmail.toLowerCase();
+  const manageable = useMemo(() => owners.filter(canTouch), [owners, leadEmail]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ownerByEmail = useMemo(() => new Map(owners.map(o => [o.email.toLowerCase(), o])), [owners]);
 
   const assignedCount = useMemo(() => {
     const m = new Map<string, number>();
@@ -110,7 +112,8 @@ export function OwnersPanel({ contracts, owners, ownerMap, limitLocais, onChange
             <h2 className="text-sm font-semibold">Responsáveis</h2>
             <p className="text-xs text-muted-foreground max-w-xl">
               Quem pode receber contratos. Têm de ter login (tab Utilizadores) e acesso ao End-of-Term.
-              O local é onde a pessoa trabalha e serve para sugerir responsáveis nos contratos dessa concessão.
+              O chefe de equipa vê os contratos da sua equipa. O local é onde a pessoa trabalha e serve para sugerir
+              responsáveis nos contratos dessa concessão.
             </p>
           </div>
           <Button size="sm" onClick={() => setDialog({ mode: 'new' })}><Plus className="h-4 w-4 mr-1" />Adicionar responsável</Button>
@@ -123,13 +126,14 @@ export function OwnersPanel({ contracts, owners, ownerMap, limitLocais, onChange
                 <th className="px-3 py-2 text-left font-medium">Iniciais</th>
                 <th className="px-3 py-2 text-left font-medium">Responsável</th>
                 <th className="px-3 py-2 text-left font-medium">Local</th>
+                <th className="px-3 py-2 text-left font-medium">Chefe de equipa</th>
                 <th className="px-3 py-2 text-right font-medium">Contratos</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>
               {owners.length === 0 && (
-                <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Ainda não há responsáveis.</td></tr>
+                <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Ainda não há responsáveis.</td></tr>
               )}
               {owners.map(o => (
                 <tr key={o.email} className="border-t border-border">
@@ -142,6 +146,9 @@ export function OwnersPanel({ contracts, owners, ownerMap, limitLocais, onChange
                     {(o.locais ?? []).length === 0
                       ? <span className="text-xs text-muted-foreground">—</span>
                       : <div className="flex flex-wrap gap-1">{o.locais!.map(l => <Chip key={l}>{l}</Chip>)}</div>}
+                  </td>
+                  <td className="px-3 py-2 text-xs">
+                    {o.chefe_email ? (ownerByEmail.get(o.chefe_email.toLowerCase())?.iniciais ?? o.chefe_email) : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{assignedCount.get(o.email) ?? 0}</td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -242,7 +249,7 @@ export function OwnersPanel({ contracts, owners, ownerMap, limitLocais, onChange
       {dialog && (
         <OwnerDialog
           key={dialog.mode === 'edit' ? dialog.owner.email : 'new'}
-          state={dialog} owners={owners} knownLocais={knownLocais} limitLocais={limitLocais}
+          state={dialog} owners={owners} knownLocais={knownLocais} leadEmail={leadEmail}
           onClose={() => setDialog(null)}
           onSaved={() => { setDialog(null); onChanged(); }}
         />
@@ -277,11 +284,11 @@ function Chip({ children, strong }: { children: React.ReactNode; strong?: boolea
   );
 }
 
-function OwnerDialog({ state, owners, knownLocais, limitLocais, onClose, onSaved }: {
+function OwnerDialog({ state, owners, knownLocais, leadEmail, onClose, onSaved }: {
   state: { mode: 'new' } | { mode: 'edit'; owner: EotOwner };
   owners: EotOwner[];
   knownLocais: string[];
-  limitLocais: string[] | null;
+  leadEmail: string | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -289,7 +296,9 @@ function OwnerDialog({ state, owners, knownLocais, limitLocais, onClose, onSaved
   const [users, setUsers] = useState<AppUser[] | null>(null);
   const [email, setEmail] = useState(edit?.email ?? '');
   const [iniciais, setIniciais] = useState(edit?.iniciais ?? '');
-  const [locais, setLocais] = useState<string[]>(edit?.locais ?? (limitLocais?.length === 1 ? limitLocais : []));
+  const [locais, setLocais] = useState<string[]>(edit?.locais ?? []);
+  // O chefe só cria gente na sua equipa; quem gere tudo escolhe o chefe (ou nenhum).
+  const [chefe, setChefe] = useState<string>(leadEmail ?? edit?.chefe_email ?? NO_CHEFE);
   const [extra, setExtra] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -311,7 +320,6 @@ function OwnerDialog({ state, owners, knownLocais, limitLocais, onClose, onSaved
   const addExtra = () => {
     const l = extra.trim();
     if (!l) return;
-    if (limitLocais && !limitLocais.includes(l)) { toast.error('Só pode usar os seus locais.'); return; }
     setLocais(p => p.includes(l) ? p : [...p, l]);
     setExtra('');
   };
@@ -325,7 +333,7 @@ function OwnerDialog({ state, owners, knownLocais, limitLocais, onClose, onSaved
   const save = async () => {
     setSaving(true);
     try {
-      await saveEotOwner({ email, iniciais, locais });
+      await saveEotOwner({ email, iniciais, locais, chefe_email: chefe === NO_CHEFE ? null : chefe });
       toast.success(edit ? 'Responsável atualizado.' : 'Responsável adicionado.');
       onSaved();
     } catch (e) { toast.error((e as Error).message); }
@@ -383,11 +391,27 @@ function OwnerDialog({ state, owners, knownLocais, limitLocais, onClose, onSaved
             </div>
             <p className="text-[11px] text-muted-foreground">Use o mesmo nome do local nos contratos (ex.: Aveiro, Viseu).</p>
           </div>
+
+          {!leadEmail && (
+            <div className="space-y-1.5">
+              <Label>Chefe de equipa</Label>
+              <Select value={chefe} onValueChange={setChefe}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_CHEFE}>Sem chefe</SelectItem>
+                  {owners.filter(o => o.email !== email).map(o => <SelectItem key={o.email} value={o.email}>{o.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                O chefe vê os contratos desta pessoa. O chefe precisa de ter o perfil com a permissão "Chefe de equipa" e de estar nesta lista.
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={save} disabled={saving || !email || !iniciais.trim() || (!!limitLocais && locais.length === 0)}>
+          <Button onClick={save} disabled={saving || !email || !iniciais.trim()}>
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}Guardar
           </Button>
         </DialogFooter>

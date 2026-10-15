@@ -41,6 +41,8 @@ interface Props {
   isDirector: boolean;
   /** Pode atribuir responsáveis: o diretor e o chefe de equipa local. Por omissão, o diretor. */
   canAssign?: boolean;
+  /** Pode largar o responsável (deixar o contrato sem dono). O chefe de equipa não: devolve-se ao Finance. Por omissão, sim. */
+  canUnassign?: boolean;
   owners: EotOwner[];
   /** Tabela de conversão dos nomes do Excel, para sugerir o responsável. */
   ownerMap?: EotVendedorMapRow[];
@@ -51,7 +53,7 @@ interface Props {
 
 const UNASSIGNED = '__none__';
 
-export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirector, canAssign = isDirector, owners, ownerMap = [], autor, ownerEmail, onChanged }: Props) {
+export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirector, canAssign = isDirector, canUnassign = true, owners, ownerMap = [], autor, ownerEmail, onChanged }: Props) {
   const [fase, setFase] = useState<Fase>('pendente');
   const [obs, setObs] = useState('');
   const [savingState, setSavingState] = useState(false);
@@ -214,7 +216,7 @@ export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirect
                 <SelectValue placeholder="Sem responsável" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={UNASSIGNED}>Sem responsável</SelectItem>
+                {canUnassign && <SelectItem value={UNASSIGNED}>Sem responsável</SelectItem>}
                 {ownerGroups.map(g => g.list.length > 0 && (
                   <SelectGroup key={g.label}>
                     <SelectLabel>{g.label}</SelectLabel>

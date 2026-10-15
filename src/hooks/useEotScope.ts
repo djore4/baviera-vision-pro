@@ -6,8 +6,8 @@ import type { Scope } from '@/lib/eot';
 
 /* Escopo de acesso ao End-of-Term:
  *  - administrador e quem tem a permissão 'end-of-term:todos' (ex.: Finance) → veem tudo;
- *  - chefe de equipa local ('end-of-term:local') → os contratos do(s) seu(s) local(is), que a
- *    base de dados já devolve (RLS); por isso não se filtra por owner_email no cliente;
+ *  - chefe de equipa ('end-of-term:local') → os contratos da sua equipa, que a base de
+ *    dados já devolve (RLS); por isso não se filtra por owner_email no cliente;
  *  - vendedores → apenas os contratos de que são responsáveis (owner_email).
  * Ver eotIsDirector (regra, com a compatibilidade com a base ainda não migrada). */
 export function useEotScope() {
