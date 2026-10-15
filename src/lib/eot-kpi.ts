@@ -3,12 +3,12 @@ import { daysToEnd, isFechada, type EotContract } from '@/lib/eot';
 /* Contadores no topo do End-of-Term. Cada um é, ao mesmo tempo, o número que se
  * mostra e o filtro que se aplica à lista ao clicar — definidos num só sítio
  * (kpiMatch) para o número do cartão e as linhas da lista nunca discordarem. */
-export type KpiKey = 'ativos' | 'ate30' | 'ate60' | 'fechados';
+export type KpiKey = 'ativos' | 'ate30' | 'acompanhamento' | 'fechados';
 
 export const KPI_LABELS: Record<KpiKey, string> = {
   ativos: 'Contratos ativos',
   ate30: 'A terminar ≤ 30 dias',
-  ate60: 'A terminar ≤ 60 dias',
+  acompanhamento: 'Em acompanhamento',
   fechados: 'Renovados / Retomados',
 };
 
@@ -22,16 +22,17 @@ export function kpiMatch(c: Pick<EotContract, 'fase' | 'data_fim'>, key: KpiKey)
   switch (key) {
     case 'ativos':   return !isFechada(c.fase);
     case 'ate30':    return !isFechada(c.fase) && endsWithin(c as EotContract, 30);
-    case 'ate60':    return !isFechada(c.fase) && endsWithin(c as EotContract, 60);
+    case 'acompanhamento': return c.fase !== 'pendente';
     case 'fechados': return c.fase === 'renovado' || c.fase === 'retomado';
   }
 }
 
-/** Valor de cada contador, sobre os contratos que cumprem os filtros. */
-export function kpiCounts(contracts: Pick<EotContract, 'fase' | 'data_fim'>[]): Record<KpiKey, number> {
-  const out: Record<KpiKey, number> = { ativos: 0, ate30: 0, ate60: 0, fechados: 0 };
+/** Valor de cada contador, sobre os contratos que cumprem os filtros; `total` é o
+ *  denominador de "Em acompanhamento" (todos os contratos, qualquer fase). */
+export function kpiCounts(contracts: Pick<EotContract, 'fase' | 'data_fim'>[]): Record<KpiKey, number> & { total: number } {
+  const out = { ativos: 0, ate30: 0, acompanhamento: 0, fechados: 0, total: contracts.length };
   for (const c of contracts) {
-    (Object.keys(out) as KpiKey[]).forEach(k => { if (kpiMatch(c, k)) out[k]++; });
+    (['ativos', 'ate30', 'acompanhamento', 'fechados'] as KpiKey[]).forEach(k => { if (kpiMatch(c, k)) out[k]++; });
   }
   return out;
 }

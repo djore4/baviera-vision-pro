@@ -325,7 +325,7 @@ export default function EndOfTermPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Kpi label={KPI_LABELS.ativos} value={kpis.ativos} active={kpi === 'ativos'} onClick={() => toggleKpi('ativos')} />
         <Kpi label={KPI_LABELS.ate30} value={kpis.ate30} tone={kpis.ate30 > 0 ? 'warn' : 'default'} active={kpi === 'ate30'} onClick={() => toggleKpi('ate30')} />
-        <Kpi label={KPI_LABELS.ate60} value={kpis.ate60} active={kpi === 'ate60'} onClick={() => toggleKpi('ate60')} />
+        <Kpi label={KPI_LABELS.acompanhamento} value={`${kpis.acompanhamento} / ${kpis.total}`} active={kpi === 'acompanhamento'} onClick={() => toggleKpi('acompanhamento')} />
         <Kpi label={KPI_LABELS.fechados} value={kpis.fechados} tone="good" active={kpi === 'fechados'} onClick={() => toggleKpi('fechados')} />
       </div>
 
@@ -542,7 +542,7 @@ function SortTh({ k, label, sort, onSort, className, align = 'left' }: {
 
 /* Contador clicável: filtra a lista de contratos (e volta a clicar para limpar). */
 function Kpi({ label, value, tone = 'default', active = false, onClick }: {
-  label: string; value: number; tone?: 'default' | 'warn' | 'good'; active?: boolean; onClick: () => void;
+  label: string; value: number | string; tone?: 'default' | 'warn' | 'good'; active?: boolean; onClick: () => void;
 }) {
   return (
     <button
