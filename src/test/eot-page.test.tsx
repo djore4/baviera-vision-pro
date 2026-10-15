@@ -62,7 +62,7 @@ describe('EndOfTermPage — contadores clicáveis', () => {
     await rodape(3);
     expect(kpi(/Contratos ativos/)).toHaveTextContent('3');
     expect(kpi(/A terminar ≤ 30 dias/)).toHaveTextContent('1');
-    expect(kpi(/Em acompanhamento/)).toHaveTextContent('5 / 6');
+    expect(kpi(/Em acompanhamento/)).toHaveTextContent('83%');
     expect(kpi(/Renovados \/ Retomados/)).toHaveTextContent('2');
     expect(screen.queryAllByRole('button', { pressed: true })).toHaveLength(0);   // nenhum contador ativo
   });
@@ -114,7 +114,7 @@ describe('EndOfTermPage — contadores clicáveis', () => {
     fireEvent.click(kpi(/A terminar ≤ 30 dias/));
     await rodape(1);
     expect(kpi(/Contratos ativos/)).toHaveTextContent('3');
-    expect(kpi(/Em acompanhamento/)).toHaveTextContent('5 / 6');
+    expect(kpi(/Em acompanhamento/)).toHaveTextContent('83%');
     expect(kpi(/Renovados \/ Retomados/)).toHaveTextContent('2');
   });
 
@@ -154,7 +154,7 @@ describe('EndOfTermPage — contadores clicáveis', () => {
     fireEvent.change(screen.getByPlaceholderText(/Cliente, matrícula ou contrato/), { target: { value: 'Cliente B' } });
     await rodape(1);
     expect(kpi(/Contratos ativos/)).toHaveTextContent('1');
-    expect(kpi(/Em acompanhamento/)).toHaveTextContent('1 / 1');
+    expect(kpi(/Em acompanhamento/)).toHaveTextContent('100%');
     expect(kpi(/Renovados \/ Retomados/)).toHaveTextContent('0');
     fireEvent.click(kpi(/Em acompanhamento/));
     await rodape(1);
