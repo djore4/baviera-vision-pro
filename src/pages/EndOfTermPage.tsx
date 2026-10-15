@@ -16,7 +16,7 @@ import { ContractDialog } from '@/components/eot/ContractDialog';
 import { TemperaturaPicker } from '@/components/eot/TemperaturaPicker';
 import { EotReport } from '@/components/eot/EotReport';
 import { toast } from 'sonner';
-import { applyKpi, kpiCounts, pctAcompanhamento, toneAcompanhamento, KPI_LABELS, type KpiKey } from '@/lib/eot-kpi';
+import { applyKpi, kpiCounts, pctAcompanhamento, toneAcompanhamento, KPI_LABELS, KPI_FILTER_LABELS, type KpiKey } from '@/lib/eot-kpi';
 import { EmptyState, relativeLabel } from '@/components/prospecao/ui';
 import {
   listEotContracts, listEotVendedores, listAgenda, listEotOwners,
@@ -327,7 +327,7 @@ export default function EndOfTermPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Kpi label={KPI_LABELS.ativos} value={kpis.ativos} active={kpi === 'ativos'} onClick={() => toggleKpi('ativos')} />
         <Kpi label={KPI_LABELS.ate30} value={kpis.ate30} tone={kpis.ate30 > 0 ? 'warn' : 'default'} active={kpi === 'ate30'} onClick={() => toggleKpi('ate30')} />
-        <Kpi label={KPI_LABELS.acompanhamento} value={pctAcomp == null ? '—' : `${pctAcomp}%`} detail={`${kpis.acompanhamento} / ${kpis.total}`} tone={toneAcompanhamento(pctAcomp)} active={kpi === 'acompanhamento'} onClick={() => toggleKpi('acompanhamento')} />
+        <Kpi label={KPI_LABELS.acompanhamento} title="Mostrar os contratos pendentes" value={pctAcomp == null ? '—' : `${pctAcomp}%`} detail={`${kpis.acompanhamento} / ${kpis.total}`} tone={toneAcompanhamento(pctAcomp)} active={kpi === 'acompanhamento'} onClick={() => toggleKpi('acompanhamento')} />
         <Kpi label={KPI_LABELS.fechados} value={kpis.fechados} tone="good" active={kpi === 'fechados'} onClick={() => toggleKpi('fechados')} />
       </div>
 
@@ -346,7 +346,7 @@ export default function EndOfTermPage() {
           {kpi && (
             <div className="flex items-center gap-2 text-xs">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary font-medium pl-2.5 pr-1 py-0.5">
-                A mostrar: {KPI_LABELS[kpi]} · {filtered.length}
+                A mostrar: {KPI_FILTER_LABELS[kpi]} · {filtered.length}
                 <button type="button" onClick={() => setKpi(null)} aria-label="Limpar o filtro do contador"
                   className="rounded-full p-0.5 hover:bg-primary/20"><X className="h-3 w-3" /></button>
               </span>
@@ -543,13 +543,13 @@ function SortTh({ k, label, sort, onSort, className, align = 'left' }: {
 }
 
 /* Contador clicável: filtra a lista de contratos (e volta a clicar para limpar). */
-function Kpi({ label, value, detail, tone = 'default', active = false, onClick }: {
-  label: string; value: number | string; detail?: string; tone?: 'default' | 'warn' | 'good' | 'amber' | 'bad'; active?: boolean; onClick: () => void;
+function Kpi({ label, title, value, detail, tone = 'default', active = false, onClick }: {
+  label: string; title?: string; value: number | string; detail?: string; tone?: 'default' | 'warn' | 'good' | 'amber' | 'bad'; active?: boolean; onClick: () => void;
 }) {
   return (
     <button
       type="button" onClick={onClick} aria-pressed={active}
-      title={active ? 'Clique para limpar o filtro' : `Mostrar: ${label}`}
+      title={active ? 'Clique para limpar o filtro' : title ?? `Mostrar: ${label}`}
       className={cn(
         'rounded-xl border bg-card px-3.5 py-3 shadow-sm text-left transition-all cursor-pointer',
         'hover:border-primary/50 hover:shadow-md active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',

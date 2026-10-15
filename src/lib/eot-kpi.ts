@@ -2,7 +2,8 @@ import { daysToEnd, isFechada, type EotContract } from '@/lib/eot';
 
 /* Contadores no topo do End-of-Term. Cada um é, ao mesmo tempo, o número que se
  * mostra e o filtro que se aplica à lista ao clicar — definidos num só sítio
- * (kpiMatch) para o número do cartão e as linhas da lista nunca discordarem. */
+ * (kpiMatch) para o número do cartão e as linhas da lista nunca discordarem (exceto "Em acompanhamento",
+ * que filtra pelo inverso — ver kpiListMatch). */
 export type KpiKey = 'ativos' | 'ate30' | 'acompanhamento' | 'fechados';
 
 export const KPI_LABELS: Record<KpiKey, string> = {
@@ -15,6 +16,12 @@ export const KPI_LABELS: Record<KpiKey, string> = {
 const endsWithin = (c: EotContract, days: number): boolean => {
   const d = daysToEnd(c.data_fim);
   return d != null && d >= 0 && d <= days;
+};
+
+/** O que a lista mostra ao clicar no contador (para as etiquetas do aviso "A mostrar"). */
+export const KPI_FILTER_LABELS: Record<KpiKey, string> = {
+  ...KPI_LABELS,
+  acompanhamento: 'Pendentes (por acompanhar)',
 };
 
 /** O contrato pertence ao contador? */
@@ -49,12 +56,18 @@ export function toneAcompanhamento(pct: number | null): 'default' | 'good' | 'am
   return pct >= 90 ? 'good' : pct >= 75 ? 'amber' : 'bad';
 }
 
+/** Os contadores filtram pelos seus contratos, exceto "Em acompanhamento": o cartão conta os
+ *  não pendentes, mas ao clicar interessa ver o que falta tratar, os pendentes. */
+export function kpiListMatch(c: Pick<EotContract, 'fase' | 'data_fim'>, key: KpiKey): boolean {
+  return key === 'acompanhamento' ? c.fase === 'pendente' : kpiMatch(c, key);
+}
+
 /** Lista a mostrar: com um contador ativo, os contratos desse contador (incluindo
  *  os "fechados" para o contador Renovados/Retomados, apesar de "Esconder
  *  fechados"); sem contador, o comportamento de sempre. */
 export function applyKpi<T extends Pick<EotContract, 'fase' | 'data_fim'>>(
   scoped: T[], kpi: KpiKey | null, hideClosed: boolean,
 ): T[] {
-  if (kpi) return scoped.filter(c => kpiMatch(c, kpi));
+  if (kpi) return scoped.filter(c => kpiListMatch(c, kpi));
   return hideClosed ? scoped.filter(c => !isFechada(c.fase)) : scoped;
 }
