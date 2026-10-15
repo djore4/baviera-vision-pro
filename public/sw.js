@@ -26,7 +26,7 @@ self.addEventListener('push', (event) => {
     data = { title: 'Prospeção', body: event.data ? event.data.text() : '' };
   }
   const title = data.title || 'Prospeção';
-  const icon = new URL('favicon.ico', self.registration.scope).href;
+  const icon = new URL('icons/icon-192.png', self.registration.scope).href;
   const options = {
     body: data.body || '',
     icon,

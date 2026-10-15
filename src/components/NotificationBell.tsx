@@ -119,7 +119,7 @@ export function NotificationBell() {
     if (fresh.length === 0) return;
     const body = fresh.length === 1 ? fresh[0].title : `${fresh.length} notificações novas`;
     try {
-      const n = new Notification(client.title, { body, tag: 'app-notif', icon: `${import.meta.env.BASE_URL}favicon.ico` });
+      const n = new Notification(client.title, { body, tag: 'app-notif', icon: `${import.meta.env.BASE_URL}icons/icon-192.png` });
       n.onclick = () => { window.focus(); n.close(); };
     } catch { /* ignora */ }
     fresh.forEach(n => notified.add(n.id));

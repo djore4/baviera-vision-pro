@@ -22,7 +22,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 p-8 bg-card border border-border rounded-xl shadow-lg">
         <div className="flex flex-col items-center gap-3">
-          <img src={client.logo.src} alt={client.logo.alt} className="h-12 w-12" />
+          <img src={client.logo.src} alt={client.logo.alt} className="h-12 w-auto" />
           <div className="text-center">
             <h1 className="text-lg font-bold text-foreground">
               {client.name}{client.nameAccent && <> <span className="text-primary">{client.nameAccent}</span></>}
