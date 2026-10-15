@@ -4,12 +4,12 @@ import logo from './logo.png';
 const config: ClientConfig = {
   id: 'baviera',
   name: 'Caetano',
-  nameAccent: 'BMW',
+  nameAccent: 'M Pro',
   tagline: 'BMW Dealer Dashboard',
-  title: 'Caetano BMW',
+  title: 'Caetano M Pro',
   loginSubtitle: 'Acesso restrito à equipa de Aveiro',
   documentHeader: 'Caetano BMW Aveiro',
-  logo: { src: logo, alt: 'BMW' },
+  logo: { src: logo, alt: 'Caetano M Pro' },
   theme: {
     primary: '214 77% 47%', // #1C69D4
     dark: '222 47% 11%',    // #0F172A
