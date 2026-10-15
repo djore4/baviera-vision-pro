@@ -952,7 +952,7 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
             />
           ) : (
             <div className="flex flex-col items-center gap-2 text-white/90">
-              <img src={client.logo.src} alt={client.logo.alt} className="h-12 w-auto opacity-90" />
+              <img src={client.logo.src} alt={client.logo.alt} className="h-12 w-12 opacity-90" />
               <span className="text-lg font-black tracking-tight text-center px-4">{[row.modelo, row.versao].filter(Boolean).join(' ')}</span>
               {!share && (canEdit
                 ? <span className="flex items-center gap-1 text-[10px] text-white/70"><Camera className="h-3 w-3" /> define uma foto de capa</span>
