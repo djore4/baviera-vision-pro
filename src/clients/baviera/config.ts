@@ -9,7 +9,7 @@ const config: ClientConfig = {
   title: 'Caetano M Pro',
   loginSubtitle: 'Acesso restrito à equipa de Aveiro',
   documentHeader: 'Caetano BMW Aveiro',
-  logo: { src: logo, alt: 'Caetano M Pro' },
+  logo: { src: logo, alt: 'BMW' },
   theme: {
     primary: '214 77% 47%', // #1C69D4
     dark: '222 47% 11%',    // #0F172A
