@@ -121,11 +121,17 @@ export interface EotActivity {
   updated_at: string;
 }
 
-/* Escopo de leitura: o diretor (chefe de vendas) vê tudo; o vendedor só o seu. */
+/* Escopo de leitura: o diretor (chefe de vendas) vê tudo; o chefe de equipa local vê o(s)
+ * seu(s) local(is) (a base de dados já devolve só esses); o vendedor só o seu. */
 export interface Scope {
   isDirector: boolean;
+  isLocalLead?: boolean;
   email: string | null;
 }
+
+/* Só o vendedor comum é filtrado por responsável no cliente; o diretor e o chefe
+ * local confiam na RLS (que, para o chefe, junta os contratos do local aos seus). */
+const ownOnly = (scope: Scope) => !scope.isDirector && !scope.isLocalLead && !!scope.email;
 
 /* ── Parser do ficheiro (mapa de terminações) ────────────────────────────────── */
 
@@ -281,7 +287,7 @@ export interface EotFilter {
 
 export async function listEotContracts(scope: Scope, filter?: EotFilter): Promise<EotContract[]> {
   let q = supabase.from(TABLE).select('*');
-  if (!scope.isDirector && scope.email) q = q.eq('owner_email', scope.email);
+  if (ownOnly(scope)) q = q.eq('owner_email', scope.email!);
   if (filter?.vendedor) q = q.eq('vendedor', filter.vendedor);
   if (filter?.fase) q = q.eq('fase', filter.fase);
   const { data, error } = await q
@@ -312,7 +318,7 @@ export async function updateEotContract(contrato: string, patch: EotContractPatc
 /** Lista de vendedores presentes nos contratos (para o filtro). */
 export async function listEotVendedores(scope: Scope): Promise<string[]> {
   let q = supabase.from(TABLE).select('vendedor');
-  if (!scope.isDirector && scope.email) q = q.eq('owner_email', scope.email);
+  if (ownOnly(scope)) q = q.eq('owner_email', scope.email!);
   const { data, error } = await q;
   if (error || !data) return [];
   const set = new Set<string>();
@@ -320,14 +326,15 @@ export async function listEotVendedores(scope: Scope): Promise<string[]> {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
-/* ── Responsáveis (vendedores a quem o chefe pode atribuir contratos) ─────────── */
-export interface EotOwner { email: string; nome: string; }
+/* ── Responsáveis (a quem se atribuem contratos) ──────────────────────────────── */
 
-/* Responsáveis possíveis: os mesmos da escala (BR, FS, NC, PM), o Francisco
- * Dias (FD), coordenador deste tipo de negócios, e o António Lourenço (AL), o
- * Marcos Pinto (MP) e o Rui Duarte (RD). Resolvidos por email na tabela
- * de utilizadores para o contrato atribuído aparecer no mapa da pessoa. */
-export const EOT_OWNERS: { initials: string; email: string }[] = [
+/* `nome` é o texto que fica no contrato (owner_nome): "RD · Rui Duarte". */
+export interface EotOwner { email: string; nome: string; iniciais?: string; locais?: string[]; }
+
+/* Lista que existia no código, antes de os responsáveis passarem a ser geridos na
+ * base de dados (tabela eot_owners). Só se usa enquanto a migração não estiver
+ * aplicada (listEotOwners cai aqui se a tabela não existir). */
+const LEGACY_OWNERS: { initials: string; email: string }[] = [
   { initials: 'BR', email: 'belmiro.resgate@caetano.pt' },
   { initials: 'FS', email: 'fernando.sousa@caetano.pt' },
   { initials: 'NC', email: 'nuno.conde@caetano.pt' },
@@ -338,17 +345,123 @@ export const EOT_OWNERS: { initials: string; email: string }[] = [
   { initials: 'RD', email: 'rui.duarte@caetano.pt' },
 ];
 
-export async function listEotOwners(): Promise<EotOwner[]> {
-  const { data, error } = await supabase.from('app_users').select('nome, email');
-  if (error || !data) return [];
-  const byEmail = new Map(
-    (data as { nome: string | null; email: string | null }[])
+const ownerLabel = (iniciais: string, nome: string | null | undefined, email: string) =>
+  `${iniciais} · ${nome || email}`;
+
+async function userNames(): Promise<Map<string, string | null>> {
+  const { data } = await supabase.from('app_users').select('nome, email');
+  return new Map(
+    ((data ?? []) as { nome: string | null; email: string | null }[])
       .filter(u => u.email).map(u => [u.email!.toLowerCase(), u.nome]),
   );
-  // Mantém a ordem definida acima; ignora quem não tenha conta.
-  return EOT_OWNERS
-    .filter(o => byEmail.has(o.email))
-    .map(o => ({ email: o.email, nome: `${o.initials} · ${byEmail.get(o.email) || o.email}` }));
+}
+
+/** Responsáveis possíveis, com o nome resolvido na tabela de utilizadores. */
+export async function listEotOwners(): Promise<EotOwner[]> {
+  const [{ data, error }, names] = await Promise.all([
+    supabase.from('eot_owners').select('email, iniciais, locais').order('iniciais'),
+    userNames(),
+  ]);
+  if (error) {
+    // Migração por aplicar: mantém a lista antiga (ignora quem não tenha conta).
+    return LEGACY_OWNERS
+      .filter(o => names.has(o.email))
+      .map(o => ({ email: o.email, iniciais: o.initials, nome: ownerLabel(o.initials, names.get(o.email), o.email) }));
+  }
+  return (data ?? [])
+    .filter(o => names.has(o.email))   // sem conta já não é utilizador: não se lhe atribui
+    .map(o => ({
+      email: o.email, iniciais: o.iniciais, locais: o.locais ?? [],
+      nome: ownerLabel(o.iniciais, names.get(o.email), o.email),
+    }));
+}
+
+/** Cria ou atualiza um responsável (iniciais e local(is) onde trabalha). */
+export async function saveEotOwner(o: { email: string; iniciais: string; locais: string[] }): Promise<void> {
+  const row = {
+    email: o.email.trim().toLowerCase(),
+    iniciais: o.iniciais.trim().toUpperCase(),
+    locais: [...new Set(o.locais.map(l => l.trim()).filter(Boolean))],
+    updated_at: new Date().toISOString(),
+  };
+  if (!row.iniciais) throw new Error('Indique as iniciais do responsável.');
+  const { error } = await supabase.from('eot_owners').upsert(row, { onConflict: 'email' });
+  if (error) throw new Error(`Não foi possível guardar o responsável: ${error.message}`);
+}
+
+/** Remove um responsável. Os contratos já atribuídos mantêm o responsável; os
+ *  seus mapeamentos de nomes do Excel desaparecem. */
+export async function deleteEotOwner(email: string): Promise<void> {
+  const { error } = await supabase.from('eot_owners').delete().eq('email', email.toLowerCase());
+  if (error) throw new Error(`Não foi possível remover o responsável: ${error.message}`);
+}
+
+/* ── Tabela de conversão: nome do VENDEDOR no Excel → responsável ──────────────── */
+
+export interface EotVendedorMapRow { raw_norm: string; owner_email: string; raw_exemplo: string | null; }
+
+/** Chave de comparação dos nomes do Excel: sem acentos, pontos nem maiúsculas e com
+ *  espaços simples — "Rui M. Duarte" e "RUI  M DUARTE" dão a mesma chave. */
+export function normVendedor(v: string | null | undefined): string {
+  return (v ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .trim();
+}
+
+export async function listEotVendedorMap(): Promise<EotVendedorMapRow[]> {
+  const { data, error } = await supabase.from('eot_vendedor_map').select('raw_norm, owner_email, raw_exemplo');
+  if (error) return [];
+  return (data ?? []) as EotVendedorMapRow[];
+}
+
+export async function addEotVendedorMap(rawExemplo: string, ownerEmail: string): Promise<void> {
+  const raw_norm = normVendedor(rawExemplo);
+  if (!raw_norm) throw new Error('Nome em branco.');
+  const { error } = await supabase.from('eot_vendedor_map')
+    .upsert({ raw_norm, owner_email: ownerEmail.toLowerCase(), raw_exemplo: rawExemplo.trim() }, { onConflict: 'raw_norm,owner_email' });
+  if (error) throw new Error(`Não foi possível guardar o mapeamento: ${error.message}`);
+}
+
+export async function removeEotVendedorMap(rawNorm: string, ownerEmail: string): Promise<void> {
+  const { error } = await supabase.from('eot_vendedor_map').delete()
+    .eq('raw_norm', rawNorm).eq('owner_email', ownerEmail.toLowerCase());
+  if (error) throw new Error(`Não foi possível remover o mapeamento: ${error.message}`);
+}
+
+/** Responsáveis sugeridos para um contrato: os mapeados para o nome do VENDEDOR. Se
+ *  houver mais de um (homónimos), prefere os que trabalham no local do contrato. */
+export function suggestOwners(
+  contract: Pick<EotContract, 'vendedor' | 'concessionario_resp' | 'concessionario'>,
+  owners: EotOwner[],
+  map: EotVendedorMapRow[],
+): EotOwner[] {
+  const key = normVendedor(contract.vendedor);
+  if (!key) return [];
+  const emails = new Set(map.filter(m => m.raw_norm === key).map(m => m.owner_email.toLowerCase()));
+  const found = owners.filter(o => emails.has(o.email.toLowerCase()));
+  if (found.length <= 1) return found;
+  const local = contractLocal(contract);
+  const inLocal = found.filter(o => o.locais?.includes(local));
+  return inLocal.length > 0 ? inLocal : found;
+}
+
+/** Ordena os responsáveis para atribuir: sugeridos, depois os do local do contrato, depois os restantes. */
+export function groupOwnersFor(
+  contract: Pick<EotContract, 'vendedor' | 'concessionario_resp' | 'concessionario'>,
+  owners: EotOwner[],
+  map: EotVendedorMapRow[],
+): { sugeridos: EotOwner[]; doLocal: EotOwner[]; outros: EotOwner[] } {
+  const sugeridos = suggestOwners(contract, owners, map);
+  const taken = new Set(sugeridos.map(o => o.email));
+  const local = contractLocal(contract);
+  const rest = owners.filter(o => !taken.has(o.email));
+  return {
+    sugeridos,
+    doLocal: rest.filter(o => o.locais?.includes(local)),
+    outros: rest.filter(o => !o.locais?.includes(local)),
+  };
 }
 
 /** Atribui (ou remove) o responsável de follow-up de um contrato. */
@@ -420,7 +533,7 @@ export interface AgendaItem extends EotActivity {
  *  vendas (e do vendedor). Junta o nome do cliente/vendedor do contrato. */
 export async function listAgenda(scope: Scope): Promise<AgendaItem[]> {
   let aq = supabase.from(ACT_TABLE).select('*').eq('done', false).not('due_at', 'is', null);
-  if (!scope.isDirector && scope.email) aq = aq.eq('owner_email', scope.email);
+  if (ownOnly(scope)) aq = aq.eq('owner_email', scope.email!);
   const { data: acts, error } = await aq.order('due_at', { ascending: true });
   if (error || !acts) return [];
   const activities = acts as EotActivity[];
@@ -448,7 +561,7 @@ export async function countOverdue(scope: Scope): Promise<number> {
     .select('id', { count: 'exact', head: true })
     .eq('done', false)
     .lt('due_at', new Date().toISOString());
-  if (!scope.isDirector && scope.email) q = q.eq('owner_email', scope.email);
+  if (ownOnly(scope)) q = q.eq('owner_email', scope.email!);
   const { count, error } = await q;
   if (error) return 0;
   return count ?? 0;

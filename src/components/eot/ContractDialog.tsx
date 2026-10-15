@@ -8,7 +8,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,9 +16,9 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import {
-  updateEotContract, assignEotOwner, TEMPERATURAS, tempDef, listActivities, createActivity, setActivityDone, deleteActivity,
-  FASES, faseLabel, faseCls, ACT_TIPOS, actTipoLabel, isOverdue, daysToEnd, eur,
-  type EotContract, type EotActivity, type EotOwner, type Fase, type ActTipo, type Temperatura,
+  updateEotContract, assignEotOwner, groupOwnersFor, TEMPERATURAS, tempDef, listActivities, createActivity, setActivityDone, deleteActivity,
+  FASES, faseLabel, faseCls, ACT_TIPOS, actTipoLabel, isOverdue, daysToEnd, eur, contractLocal,
+  type EotContract, type EotActivity, type EotOwner, type EotVendedorMapRow, type Fase, type ActTipo, type Temperatura,
 } from '@/lib/eot';
 import { relativeLabel } from '@/components/prospecao/ui';
 
@@ -39,7 +39,11 @@ interface Props {
   contract: EotContract | null;
   canEdit: boolean;
   isDirector: boolean;
+  /** Pode atribuir responsáveis: o diretor e o chefe de equipa local. Por omissão, o diretor. */
+  canAssign?: boolean;
   owners: EotOwner[];
+  /** Tabela de conversão dos nomes do Excel, para sugerir o responsável. */
+  ownerMap?: EotVendedorMapRow[];
   autor: string | null;
   ownerEmail: string | null;
   onChanged: () => void;
@@ -47,7 +51,7 @@ interface Props {
 
 const UNASSIGNED = '__none__';
 
-export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirector, owners, autor, ownerEmail, onChanged }: Props) {
+export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirector, canAssign = isDirector, owners, ownerMap = [], autor, ownerEmail, onChanged }: Props) {
   const [fase, setFase] = useState<Fase>('pendente');
   const [obs, setObs] = useState('');
   const [savingState, setSavingState] = useState(false);
@@ -107,6 +111,15 @@ export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirect
     } catch (e) { toast.error((e as Error).message); }
     finally { setSavingTemp(false); }
   };
+
+  const ownerGroups = (() => {
+    const g = groupOwnersFor(contract, owners, ownerMap);
+    return [
+      { label: 'Sugeridos (nome no Excel)', list: g.sugeridos },
+      { label: `Do local (${contractLocal(contract)})`, list: g.doLocal },
+      { label: 'Outros', list: g.outros },
+    ];
+  })();
 
   const changeOwner = async (value: string) => {
     setAssigning(true);
@@ -193,7 +206,7 @@ export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirect
 
         {/* Atribuição a um vendedor (só o chefe de vendas). O contrato passa a
             aparecer no "mapa" do vendedor e o follow-up é feito na vista dele. */}
-        {isDirector && (
+        {canAssign && (
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Responsável de follow-up</Label>
             <Select value={contract.owner_email ?? UNASSIGNED} onValueChange={changeOwner} disabled={assigning}>
@@ -202,15 +215,33 @@ export function ContractDialog({ open, onOpenChange, contract, canEdit, isDirect
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={UNASSIGNED}>Sem responsável</SelectItem>
-                {owners.map(o => <SelectItem key={o.email} value={o.email}>{o.nome}</SelectItem>)}
+                {ownerGroups.map(g => g.list.length > 0 && (
+                  <SelectGroup key={g.label}>
+                    <SelectLabel>{g.label}</SelectLabel>
+                    {g.list.map(o => <SelectItem key={o.email} value={o.email}>{o.nome}</SelectItem>)}
+                  </SelectGroup>
+                ))}
+                {/* Responsável já atribuído que entretanto saiu da lista: continua visível. */}
+                {contract.owner_email && !owners.some(o => o.email === contract.owner_email) && (
+                  <SelectItem value={contract.owner_email}>{contract.owner_nome || contract.owner_email}</SelectItem>
+                )}
               </SelectContent>
             </Select>
+            {!contract.owner_email && ownerGroups[0].list.length > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                Sugerido pelo nome do vendedor no Excel ({contract.vendedor}):{' '}
+                {ownerGroups[0].list.map(o => (
+                  <button key={o.email} type="button" disabled={assigning} onClick={() => changeOwner(o.email)}
+                    className="font-medium text-primary hover:underline mr-2">{o.nome}</button>
+                ))}
+              </p>
+            )}
             <p className="text-[11px] text-muted-foreground">
               Atribuir faz o contrato aparecer no mapa do vendedor. O vendedor precisa de acesso ao tab End-of-Term (tab Utilizadores).
             </p>
           </div>
         )}
-        {!isDirector && contract.owner_nome && (
+        {!canAssign && contract.owner_nome && (
           <p className="text-xs text-muted-foreground">Responsável: <span className="font-medium text-foreground">{contract.owner_nome}</span></p>
         )}
 

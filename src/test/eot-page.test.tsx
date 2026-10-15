@@ -22,7 +22,7 @@ const CONTRACTS = [
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
 // O hook real memoriza o scope; um objeto novo a cada render faria a página recarregar em ciclo.
 const SCOPE = { isDirector: true, email: 'a@x.pt' };
-const EOT_SCOPE = { scope: SCOPE, isDirector: true, isAdmin: true, myEmail: 'a@x.pt', myNome: 'A' };
+const EOT_SCOPE = { scope: SCOPE, isDirector: true, isLocalLead: false, canManage: true, isAdmin: true, myEmail: 'a@x.pt', myNome: 'A' };
 vi.mock('@/hooks/useEotScope', () => ({ useEotScope: () => EOT_SCOPE }));
 vi.mock('@/contexts/PermissionsContext', () => ({ usePermissions: () => ({ canEdit: () => true }) }));
 vi.mock('@/components/eot/ContractDialog', () => ({

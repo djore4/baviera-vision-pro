@@ -24,3 +24,12 @@ export function eotIsDirector(i: EotDirectorInput): boolean {
   // legacy: regra por nome de função (ver o comentário acima)
   return !!i.roleName && EOT_FULL_ACCESS_ROLES.has(i.roleName);
 }
+
+/* Chefe de equipa local: perfil com a permissão 'end-of-term:local'. Vê e atribui
+ * os contratos do(s) seu(s) local(is) e gere os responsáveis desse(s) local(is).
+ * Só existe depois da migração dos responsáveis (capabilities.eotResponsaveis).
+ * Quem já é diretor não é "chefe local": tem a visão total. */
+export function eotIsLocalLead(i: EotDirectorInput): boolean {
+  if (eotIsDirector(i)) return false;
+  return i.capabilities.eotResponsaveis && i.canView('end-of-term:local');
+}

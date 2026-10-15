@@ -77,14 +77,14 @@ describe('permissões finas (SUB_PERMISSIONS)', () => {
   });
 
   it('cada uma depende de uma capacidade que existe, para só aparecer com a migração aplicada', () => {
-    const known = ['lavagemGranular', 'eotGranular'];
+    const known = ['lavagemGranular', 'eotGranular', 'eotResponsaveis'];
     for (const sp of SUB_PERMISSIONS) expect(known).toContain(sp.capability);
   });
 
-  it('o End-of-Term tem a permissão "todos", ligada à sua capacidade', () => {
+  it('o End-of-Term tem as permissões "todos" e "local", ligadas às suas capacidades', () => {
     const eot = SUB_PERMISSIONS.filter(sp => sp.parent === 'end-of-term');
-    expect(eot.map(sp => sp.key)).toEqual(['end-of-term:todos']);
-    expect(eot[0].capability).toBe('eotGranular');
+    expect(eot.map(sp => sp.key)).toEqual(['end-of-term:todos', 'end-of-term:local']);
+    expect(eot.map(sp => sp.capability)).toEqual(['eotGranular', 'eotResponsaveis']);
   });
 
   it('a Lavagem tem as quatro ações que a RLS conhece', () => {
@@ -96,26 +96,28 @@ describe('permissões finas (SUB_PERMISSIONS)', () => {
 describe('getAppCapabilities', () => {
   it('lê as capacidades da base de dados', async () => {
     rpc.mockResolvedValue({ data: { lavagem_granular: true }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: false, eotResponsaveis: false });
     expect(rpc).toHaveBeenCalledWith('app_capabilities');
   });
 
   it('lê cada capacidade por separado', async () => {
     rpc.mockResolvedValue({ data: { lavagem_granular: true, eot_granular: true }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: true });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: true, eotResponsaveis: false });
     rpc.mockResolvedValue({ data: { eot_granular: true }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: true });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: true, eotResponsaveis: false });
+    rpc.mockResolvedValue({ data: { eot_responsaveis: true }, error: null });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: true });
   });
 
   it('sem a função (migração por aplicar) ou com erro: nenhuma capacidade', async () => {
     rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'missing' } });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false });
   });
 
   it('só um true explícito conta', async () => {
     rpc.mockResolvedValue({ data: { lavagem_granular: 'true' }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false });
     rpc.mockResolvedValue({ data: null, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false });
   });
 });
