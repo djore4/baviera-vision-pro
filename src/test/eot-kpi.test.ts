@@ -10,7 +10,7 @@ const c = (fase: Fase, dias: number | null) => ({ fase, data_fim: dias == null ?
 beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(NOW); });
 afterEach(() => { vi.useRealTimers(); });
 
-const KEYS: KpiKey[] = ['ativos', 'ate30', 'ate60', 'fechados'];
+const KEYS: KpiKey[] = ['ativos', 'ate30', 'acompanhamento', 'fechados'];
 
 describe('kpiMatch — o que cada contador conta', () => {
   it('ativos: tudo menos as fases fechadas', () => {
@@ -26,17 +26,16 @@ describe('kpiMatch — o que cada contador conta', () => {
     expect(kpiMatch(c('pendente', null), 'ate30')).toBe(false); // sem data de fim
   });
 
-  it('ate60 inclui os de ate30 e vai até 60 dias', () => {
-    expect(kpiMatch(c('negociacao', 30), 'ate60')).toBe(true);
-    expect(kpiMatch(c('negociacao', 60), 'ate60')).toBe(true);
-    expect(kpiMatch(c('negociacao', 61), 'ate60')).toBe(false);
-    expect(kpiMatch(c('negociacao', -5), 'ate60')).toBe(false);
+  it('acompanhamento: qualquer contrato que já não está pendente, seja qual for a data de fim', () => {
+    expect(kpiMatch(c('pendente', 10), 'acompanhamento')).toBe(false);
+    for (const f of ['contactado', 'proposta_enviada', 'negociacao', 'renovado', 'retomado', 'perdido', 'sem_interesse'] as Fase[]) {
+      expect(kpiMatch(c(f, null), 'acompanhamento')).toBe(true);
+    }
   });
 
-  it('os de prazo não contam fases fechadas', () => {
+  it('o de prazo não conta fases fechadas', () => {
     for (const f of ['renovado', 'retomado', 'perdido', 'sem_interesse'] as Fase[]) {
       expect(kpiMatch(c(f, 10), 'ate30')).toBe(false);
-      expect(kpiMatch(c(f, 10), 'ate60')).toBe(false);
     }
   });
 
@@ -63,7 +62,7 @@ describe('o número do cartão é o número de linhas da lista', () => {
   });
 
   it('valores esperados para esta lista', () => {
-    expect(kpiCounts(lista)).toEqual({ ativos: 10, ate30: 3, ate60: 6, fechados: 3 });
+    expect(kpiCounts(lista)).toEqual({ ativos: 10, ate30: 3, acompanhamento: 9, fechados: 3, total: 15 });
   });
 
   it('com um contador ativo, a lista são exatamente os contratos desse contador', () => {
