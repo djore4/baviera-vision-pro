@@ -134,6 +134,9 @@ const ALL_SUB_PERMISSIONS: SubPermissionDef[] = [
   { key: 'end-of-term:todos', parent: 'end-of-term', label: 'Ver todos os contratos',
     hint: 'Ver e controlar os contratos de todos os vendedores, incluindo os sem responsável, e atribuir responsáveis. Sem isto, cada pessoa só vê os contratos que lhe estão afetos.',
     capability: 'eotGranular' },
+  { key: 'end-of-term:local', parent: 'end-of-term', label: 'Chefe de equipa local',
+    hint: 'Ver e atribuir os contratos do(s) seu(s) local(is) e gerir os responsáveis desse(s) local(is). O local vem da sua ficha em Responsáveis (End-of-Term). Sem isto, cada pessoa só vê os contratos que lhe estão afetos.',
+    capability: 'eotResponsaveis' },
 ];
 
 /* Só as dos tabs que existem nesta instalação. */
@@ -206,9 +209,9 @@ export async function getMyAccessExceptions(email?: string | null): Promise<Reco
 /* Capacidades que a base de dados já tem (função app_capabilities, migração
  * lavagem_permissoes_granulares). Sem a função, nenhuma: a interface mantém as
  * regras antigas até a migração ser aplicada. */
-export interface AppCapabilities { lavagemGranular: boolean; eotGranular: boolean }
+export interface AppCapabilities { lavagemGranular: boolean; eotGranular: boolean; eotResponsaveis: boolean }
 
-export const NO_CAPABILITIES: AppCapabilities = { lavagemGranular: false, eotGranular: false };
+export const NO_CAPABILITIES: AppCapabilities = { lavagemGranular: false, eotGranular: false, eotResponsaveis: false };
 
 export async function getAppCapabilities(): Promise<AppCapabilities> {
   const { data, error } = await supabase.rpc('app_capabilities');
@@ -217,6 +220,7 @@ export async function getAppCapabilities(): Promise<AppCapabilities> {
   return {
     lavagemGranular: caps.lavagem_granular === true,
     eotGranular: caps.eot_granular === true,
+    eotResponsaveis: caps.eot_responsaveis === true,
   };
 }
 

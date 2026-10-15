@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   CalendarClock, Search, Loader2, RefreshCw, Filter as FilterIcon, MapPin,
-  ListChecks, CalendarDays, BarChart3, UserCheck, ArrowUp, ArrowDown, ArrowUpDown, X,
+  ListChecks, CalendarDays, BarChart3, UserCheck, Users, ArrowUp, ArrowDown, ArrowUpDown, X,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -15,13 +15,14 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import { ContractDialog } from '@/components/eot/ContractDialog';
 import { TemperaturaPicker } from '@/components/eot/TemperaturaPicker';
 import { EotReport } from '@/components/eot/EotReport';
+import { OwnersPanel } from '@/components/eot/OwnersPanel';
 import { toast } from 'sonner';
 import { applyKpi, kpiCounts, pctAcompanhamento, toneAcompanhamento, KPI_LABELS, type KpiKey } from '@/lib/eot-kpi';
 import { EmptyState, relativeLabel } from '@/components/prospecao/ui';
 import {
-  listEotContracts, listEotVendedores, listAgenda, listEotOwners,
+  listEotContracts, listEotVendedores, listAgenda, listEotOwners, listEotVendedorMap,
   FASES, TEMPERATURAS, tempDef, updateEotContract, faseLabel, faseCls, actTipoLabel, daysToEnd, eur, isOverdue, isFechada, contractLocal,
-  type EotContract, type AgendaItem, type EotOwner, type Fase, type Temperatura,
+  type EotContract, type AgendaItem, type EotOwner, type EotVendedorMapRow, type Fase, type Temperatura,
 } from '@/lib/eot';
 
 type UntilKey = 'all' | '30' | '60' | '90';
@@ -32,14 +33,17 @@ type SortKey = 'cliente' | 'viatura' | 'resp' | 'fim' | 'fase' | 'temp' | 'proxi
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
 
 export default function EndOfTermPage() {
-  const { scope, isDirector, isAdmin, myEmail, myNome } = useEotScope();
-  const { canEdit } = usePermissions();
+  const { scope, isDirector, isLocalLead, canManage, isAdmin, myEmail, myNome } = useEotScope();
+  const { canEdit, capabilities } = usePermissions();
+  // Gestão de responsáveis e do mapa de nomes: só com a migração aplicada (a tabela existir).
+  const ownersEnabled = !!capabilities?.eotResponsaveis;
   const editable = canEdit('end-of-term');
 
   const [contracts, setContracts] = useState<EotContract[]>([]);
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
   const [vendedores, setVendedores] = useState<string[]>([]);
   const [owners, setOwners] = useState<EotOwner[]>([]);
+  const [ownerMap, setOwnerMap] = useState<EotVendedorMapRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filtros
@@ -67,22 +71,24 @@ export default function EndOfTermPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, a, v, o] = await Promise.all([
+      const [c, a, v, o, om] = await Promise.all([
         listEotContracts(scope),
         listAgenda(scope),
         listEotVendedores(scope),
-        isDirector ? listEotOwners() : Promise.resolve([] as EotOwner[]),
+        canManage ? listEotOwners() : Promise.resolve([] as EotOwner[]),
+        canManage && ownersEnabled ? listEotVendedorMap() : Promise.resolve([] as EotVendedorMapRow[]),
       ]);
       setContracts(c);
       setAgenda(a);
       setVendedores(v);
       setOwners(o);
+      setOwnerMap(om);
       // Mantém o contrato aberto sincronizado após alterações.
       setSelected(prev => (prev ? c.find(x => x.contrato === prev.contrato) ?? prev : prev));
     } finally {
       setLoading(false);
     }
-  }, [scope, isDirector]);
+  }, [scope, canManage, ownersEnabled]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -135,11 +141,21 @@ export default function EndOfTermPage() {
   // Responsáveis do filtro: a gestão vê a lista de atribuição; o vendedor vê os
   // responsáveis presentes nos seus contratos.
   const ownerOptions = useMemo(() => {
-    if (isDirector) return owners;
+    if (canManage) return owners;
     const m = new Map<string, string>();
     contracts.forEach(c => { if (c.owner_email) m.set(c.owner_email, c.owner_nome || c.owner_email); });
     return [...m].map(([email, nome]) => ({ email, nome }));
-  }, [isDirector, owners, contracts]);
+  }, [canManage, owners, contracts]);
+
+  // Locais do chefe de equipa (da sua ficha de responsável): limitam o que pode atribuir e gerir.
+  const myLocais = useMemo<string[] | null>(
+    () => (isLocalLead ? owners.find(o => o.email.toLowerCase() === myEmail?.toLowerCase())?.locais ?? [] : null),
+    [isLocalLead, owners, myEmail],
+  );
+  const assignableOwners = useMemo(
+    () => (myLocais ? owners.filter(o => (o.locais ?? []).some(l => myLocais.includes(l))) : owners),
+    [owners, myLocais],
+  );
 
   const inLocal = useCallback(
     (c: EotContract) => local === 'all' || contractLocal(c) === local,
@@ -281,7 +297,7 @@ export default function EndOfTermPage() {
             <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[150px]"><SelectValue placeholder="Responsável" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Qualquer responsável</SelectItem>
-              {isDirector && <SelectItem value="none">Sem responsável</SelectItem>}
+              {canManage && <SelectItem value="none">Sem responsável</SelectItem>}
               {ownerOptions.map(o => <SelectItem key={o.email} value={o.email}>{o.nome}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -339,6 +355,9 @@ export default function EndOfTermPage() {
             {kpis.overdueFollow > 0 && <span className="ml-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 leading-tight">{kpis.overdueFollow}</span>}
           </TabsTrigger>
           <TabsTrigger value="report" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm"><BarChart3 className="h-4 w-4" />Report</TabsTrigger>
+          {canManage && ownersEnabled && (
+            <TabsTrigger value="responsaveis" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm"><Users className="h-4 w-4" />Responsáveis</TabsTrigger>
+          )}
         </TabsList>
 
         {/* ── Contratos ─────────────────────────────────────────────────────── */}
@@ -508,6 +527,15 @@ export default function EndOfTermPage() {
         <TabsContent value="report" className="mt-4">
           {loading ? <Loader /> : <EotReport contracts={reportContracts} nextTipo={nextTipo} />}
         </TabsContent>
+
+        {/* ── Responsáveis e nomes do Excel ───────────────────────────────────── */}
+        {canManage && ownersEnabled && (
+          <TabsContent value="responsaveis" className="mt-4">
+            {loading ? <Loader /> : (
+              <OwnersPanel contracts={contracts} owners={owners} ownerMap={ownerMap} limitLocais={myLocais} onChanged={load} />
+            )}
+          </TabsContent>
+        )}
       </Tabs>
 
       <ContractDialog
@@ -516,7 +544,9 @@ export default function EndOfTermPage() {
         contract={selected}
         canEdit={editable}
         isDirector={isDirector}
-        owners={owners}
+        canAssign={canManage}
+        owners={assignableOwners}
+        ownerMap={ownerMap}
         autor={myNome}
         ownerEmail={myEmail}
         onChanged={load}

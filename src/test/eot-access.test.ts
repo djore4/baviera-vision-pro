@@ -11,7 +11,7 @@ const oldRule = (isAdmin: boolean, roleName: string | null) =>
 const ROLES = ['Finance', 'Vendedor VN', 'Vendedor VU', 'APV', 'Secretaria', 'Genius', null];
 
 describe('eotIsDirector — base de dados ainda não migrada (regra antiga por nome)', () => {
-  const capabilities = { lavagemGranular: false, eotGranular: false };
+  const capabilities = { lavagemGranular: false, eotGranular: false, eotResponsaveis: false };
 
   it.each(ROLES)('%s: igual à regra antiga, admin ou não', roleName => {
     for (const isAdmin of [false, true]) {
@@ -26,7 +26,7 @@ describe('eotIsDirector — base de dados ainda não migrada (regra antiga por n
 });
 
 describe('eotIsDirector — base de dados migrada (permissão por função)', () => {
-  const capabilities = { lavagemGranular: true, eotGranular: true };
+  const capabilities = { lavagemGranular: true, eotGranular: true, eotResponsaveis: true };
 
   it('o nome da função deixa de contar: só a permissão "end-of-term:todos"', () => {
     expect(eotIsDirector({ isAdmin: false, roleName: 'Finance', capabilities, canView: view({ 'end-of-term': 'edit' }) })).toBe(false);
