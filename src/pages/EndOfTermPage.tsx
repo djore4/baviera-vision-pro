@@ -16,7 +16,7 @@ import { ContractDialog } from '@/components/eot/ContractDialog';
 import { TemperaturaPicker } from '@/components/eot/TemperaturaPicker';
 import { EotReport } from '@/components/eot/EotReport';
 import { toast } from 'sonner';
-import { applyKpi, kpiCounts, KPI_LABELS, type KpiKey } from '@/lib/eot-kpi';
+import { applyKpi, kpiCounts, pctAcompanhamento, toneAcompanhamento, KPI_LABELS, type KpiKey } from '@/lib/eot-kpi';
 import { EmptyState, relativeLabel } from '@/components/prospecao/ui';
 import {
   listEotContracts, listEotVendedores, listAgenda, listEotOwners,
@@ -229,6 +229,8 @@ export default function EndOfTermPage() {
     overdueFollow: agendaView.filter(a => isOverdue(a)).length,
   }), [scoped, agendaView]);
 
+  const pctAcomp = pctAcompanhamento(kpis.acompanhamento, kpis.total);
+
   // Clicar num contador filtra a lista (e leva ao separador Contratos); clicar outra vez limpa.
   const toggleKpi = (k: KpiKey) => {
     setKpi(prev => (prev === k ? null : k));
@@ -325,7 +327,7 @@ export default function EndOfTermPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Kpi label={KPI_LABELS.ativos} value={kpis.ativos} active={kpi === 'ativos'} onClick={() => toggleKpi('ativos')} />
         <Kpi label={KPI_LABELS.ate30} value={kpis.ate30} tone={kpis.ate30 > 0 ? 'warn' : 'default'} active={kpi === 'ate30'} onClick={() => toggleKpi('ate30')} />
-        <Kpi label={KPI_LABELS.acompanhamento} value={`${kpis.acompanhamento} / ${kpis.total}`} active={kpi === 'acompanhamento'} onClick={() => toggleKpi('acompanhamento')} />
+        <Kpi label={KPI_LABELS.acompanhamento} value={pctAcomp == null ? '—' : `${pctAcomp}%`} detail={`${kpis.acompanhamento} / ${kpis.total}`} tone={toneAcompanhamento(pctAcomp)} active={kpi === 'acompanhamento'} onClick={() => toggleKpi('acompanhamento')} />
         <Kpi label={KPI_LABELS.fechados} value={kpis.fechados} tone="good" active={kpi === 'fechados'} onClick={() => toggleKpi('fechados')} />
       </div>
 
@@ -541,8 +543,8 @@ function SortTh({ k, label, sort, onSort, className, align = 'left' }: {
 }
 
 /* Contador clicável: filtra a lista de contratos (e volta a clicar para limpar). */
-function Kpi({ label, value, tone = 'default', active = false, onClick }: {
-  label: string; value: number | string; tone?: 'default' | 'warn' | 'good'; active?: boolean; onClick: () => void;
+function Kpi({ label, value, detail, tone = 'default', active = false, onClick }: {
+  label: string; value: number | string; detail?: string; tone?: 'default' | 'warn' | 'good' | 'amber' | 'bad'; active?: boolean; onClick: () => void;
 }) {
   return (
     <button
@@ -556,8 +558,13 @@ function Kpi({ label, value, tone = 'default', active = false, onClick }: {
     >
       <div className={cn(
         'text-2xl font-bold tabular-nums leading-none',
-        tone === 'warn' ? 'text-destructive' : tone === 'good' ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground',
-      )}>{value}</div>
+        tone === 'warn' || tone === 'bad' ? 'text-destructive'
+          : tone === 'good' ? 'text-emerald-600 dark:text-emerald-400'
+          : tone === 'amber' ? 'text-amber-600 dark:text-amber-400' : 'text-foreground',
+      )}>
+        {value}
+        {detail && <span className="ml-1.5 text-xs font-medium text-muted-foreground">{detail}</span>}
+      </div>
       <div className="text-[11px] text-muted-foreground mt-1 leading-tight">{label}</div>
     </button>
   );

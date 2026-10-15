@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { applyKpi, kpiCounts, kpiMatch, KPI_LABELS, type KpiKey } from '@/lib/eot-kpi';
+import { applyKpi, kpiCounts, kpiMatch, pctAcompanhamento, toneAcompanhamento, KPI_LABELS, type KpiKey } from '@/lib/eot-kpi';
 import type { Fase } from '@/lib/eot';
 
 /* Hoje = 2026-10-04 (meio-dia UTC); as datas de fim são relativas a esse dia. */
@@ -92,6 +92,22 @@ describe('applyKpi — combinação com "Esconder fechados"', () => {
     const copia = [...lista];
     applyKpi(lista, 'ate30', true);
     expect(lista).toEqual(copia);
+  });
+});
+
+describe('% em acompanhamento — valor e cor', () => {
+  it('arredonda e não há % sem contratos', () => {
+    expect(pctAcompanhamento(5, 6)).toBe(83);
+    expect(pctAcompanhamento(0, 0)).toBeNull();
+  });
+  it('≥ 90 verde · 75–89 amarelo · < 75 vermelho (fronteiras incluídas)', () => {
+    expect(toneAcompanhamento(100)).toBe('good');
+    expect(toneAcompanhamento(90)).toBe('good');
+    expect(toneAcompanhamento(89)).toBe('amber');
+    expect(toneAcompanhamento(75)).toBe('amber');
+    expect(toneAcompanhamento(74)).toBe('bad');
+    expect(toneAcompanhamento(0)).toBe('bad');
+    expect(toneAcompanhamento(null)).toBe('default');
   });
 });
 

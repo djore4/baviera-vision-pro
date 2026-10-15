@@ -37,6 +37,18 @@ export function kpiCounts(contracts: Pick<EotContract, 'fase' | 'data_fim'>[]): 
   return out;
 }
 
+/** % de contratos em acompanhamento, arredondada (é o que se mostra e o que dá a cor);
+ *  sem contratos não há percentagem. */
+export function pctAcompanhamento(n: number, total: number): number | null {
+  return total > 0 ? Math.round((n / total) * 100) : null;
+}
+
+/** ≥ 90% verde · 75–89% amarelo · < 75% vermelho. */
+export function toneAcompanhamento(pct: number | null): 'default' | 'good' | 'amber' | 'bad' {
+  if (pct == null) return 'default';
+  return pct >= 90 ? 'good' : pct >= 75 ? 'amber' : 'bad';
+}
+
 /** Lista a mostrar: com um contador ativo, os contratos desse contador (incluindo
  *  os "fechados" para o contador Renovados/Retomados, apesar de "Esconder
  *  fechados"); sem contador, o comportamento de sempre. */
