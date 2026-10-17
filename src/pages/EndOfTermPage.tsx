@@ -45,6 +45,8 @@ export default function EndOfTermPage() {
   const [owners, setOwners] = useState<EotOwner[]>([]);
   const [ownerMap, setOwnerMap] = useState<EotVendedorMapRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // O tab Responsáveis não pode desmontar a cada recarga (perderia o diálogo aberto, p. ex. as credenciais de um utilizador acabado de criar).
+  const [loadedOnce, setLoadedOnce] = useState(false);
 
   // Filtros
   const [vendedor, setVendedor] = useState<string>('all');
@@ -87,6 +89,7 @@ export default function EndOfTermPage() {
       setSelected(prev => (prev ? c.find(x => x.contrato === prev.contrato) ?? prev : prev));
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
   }, [scope, canManage, ownersEnabled]);
 
@@ -529,7 +532,7 @@ export default function EndOfTermPage() {
         {/* ── Responsáveis e nomes do Excel ───────────────────────────────────── */}
         {canManage && ownersEnabled && (
           <TabsContent value="responsaveis" className="mt-4">
-            {loading ? <Loader /> : (
+            {loading && !loadedOnce ? <Loader /> : (
               <OwnersPanel contracts={contracts} owners={owners} ownerMap={ownerMap} leadEmail={isLocalLead ? myEmail : null} canCreateUsers={isAdmin} onChanged={load} />
             )}
           </TabsContent>
