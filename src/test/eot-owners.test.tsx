@@ -3,6 +3,13 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import type { EotContract, EotOwner, EotVendedorMapRow } from '@/lib/eot';
 import { eotIsDirector, eotIsLocalLead } from '@/lib/eot-access';
 
+const perms = vi.hoisted(() => ({
+  createUser: vi.fn(async () => ({})),
+  listRoles: vi.fn(async () => [
+    { name: 'Vendedor VN', is_admin: false, permissions: { 'end-of-term': 'edit' } },
+    { name: 'Lavador', is_admin: false, permissions: { lavagem: 'edit' } },
+  ]),
+}));
 const lib = vi.hoisted(() => ({
   addEotVendedorMap: vi.fn(async () => {}),
   removeEotVendedorMap: vi.fn(async () => {}),
@@ -16,6 +23,7 @@ vi.mock('@/lib/permissions', () => ({
   listUsers: vi.fn(async () => [
     { id: 1, nome: 'Rui Duarte', email: 'rui@x.pt' }, { id: 2, nome: 'Ana Sousa', email: 'ana@x.pt' },
   ]),
+  ...perms,
 }));
 vi.mock('@/lib/eot', async importOriginal => ({ ...(await importOriginal<typeof import('@/lib/eot')>()), ...lib }));
 
@@ -117,10 +125,10 @@ describe('OwnersPanel', () => {
     contract('Ana S.', 'Caetano Viseu', { contrato: '3' }),
   ];
   const onChanged = vi.fn();
-  beforeEach(() => { Object.values(lib).forEach(f => f.mockClear()); onChanged.mockClear(); });
+  beforeEach(() => { [...Object.values(lib), perms.createUser].forEach(f => f.mockClear()); onChanged.mockClear(); });
 
-  const panel = (lead: string | null = null, m: EotVendedorMapRow[] = []) =>
-    render(<OwnersPanel contracts={contracts} owners={[CHEFE, RD, AN, RD2]} ownerMap={m} leadEmail={lead} onChanged={onChanged} />);
+  const panel = (lead: string | null = null, m: EotVendedorMapRow[] = [], canCreateUsers = false) =>
+    render(<OwnersPanel contracts={contracts} owners={[CHEFE, RD, AN, RD2]} ownerMap={m} leadEmail={lead} canCreateUsers={canCreateUsers} onChanged={onChanged} />);
 
   it('agrupa as grafias do mesmo nome e conta contratos e os sem responsável', () => {
     panel();
@@ -186,5 +194,68 @@ describe('OwnersPanel', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Ana Sousa/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(lib.saveEotOwner).toHaveBeenCalledWith({ email: 'ana@x.pt', iniciais: 'AS', locais: [], chefe_email: 'chefe@x.pt' }));
+  });
+
+  it('só o administrador vê a opção de criar um utilizador novo', async () => {
+    const { unmount } = panel(null, [], false);
+    fireEvent.click(screen.getByText('Adicionar responsável'));
+    await screen.findByText('Escolher utilizador…');
+    expect(screen.queryByText(/ainda não tem utilizador/)).not.toBeInTheDocument();
+    unmount();
+    panel(null, [], true);
+    fireEvent.click(screen.getByText('Adicionar responsável'));
+    expect(await screen.findByText(/ainda não tem utilizador/)).toBeInTheDocument();
+  });
+
+  it('adiciona alguém que não está na lista: cria o utilizador, junta-o aos responsáveis e mostra as credenciais', async () => {
+    panel(null, [], true);
+    fireEvent.click(screen.getByText('Adicionar responsável'));
+    fireEvent.click(await screen.findByText(/ainda não tem utilizador/));
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Maria Costa' } });
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'Maria.Costa@Caetano.pt' } });
+    expect((screen.getByLabelText('Iniciais') as HTMLInputElement).value).toBe('MC');   // sugeridas do nome
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Função' }), { key: 'ArrowDown' });
+    // só aparecem funções com acesso ao End-of-Term
+    expect(await screen.findByRole('option', { name: 'Vendedor VN' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Lavador' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'Vendedor VN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Viseu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+
+    await waitFor(() => expect(perms.createUser).toHaveBeenCalledWith(expect.objectContaining({
+      nome: 'Maria Costa', email: 'maria.costa@caetano.pt', perfil: 'Vendedor VN',
+    })));
+    await waitFor(() => expect(lib.saveEotOwner).toHaveBeenCalledWith({
+      email: 'maria.costa@caetano.pt', iniciais: 'MC', locais: ['Viseu'], chefe_email: null,
+    }));
+    expect(await screen.findByText('Responsável criado')).toBeInTheDocument();
+    expect(screen.getByText('maria.costa@caetano.pt')).toBeInTheDocument();
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('se o utilizador já existe como responsável, não cria nada', async () => {
+    panel(null, [], true);
+    fireEvent.click(screen.getByText('Adicionar responsável'));
+    fireEvent.click(await screen.findByText(/ainda não tem utilizador/));
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Rui' } });
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'rd@x.pt' } });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Função' }), { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('option', { name: 'Vendedor VN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(perms.createUser).not.toHaveBeenCalled());
+  });
+
+  it('se a conta é criada mas juntar aos responsáveis falha, as credenciais mostram-se na mesma', async () => {
+    lib.saveEotOwner.mockRejectedValueOnce(new Error('sem permissão'));
+    panel(null, [], true);
+    fireEvent.click(screen.getByText('Adicionar responsável'));
+    fireEvent.click(await screen.findByText(/ainda não tem utilizador/));
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Maria Costa' } });
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'maria@caetano.pt' } });
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Função' }), { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('option', { name: 'Vendedor VN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    expect(await screen.findByText('Utilizador criado')).toBeInTheDocument();
+    expect(screen.getByText(/sem permissão/)).toBeInTheDocument();
   });
 });

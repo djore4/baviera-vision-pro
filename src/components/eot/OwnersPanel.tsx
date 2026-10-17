@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { Check, Copy, Loader2, Pencil, Plus, Search, Trash2, UserPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { listUsers, type AppUser } from '@/lib/permissions';
+import { listUsers, listRoles, createUser, type AppUser, type AppRole } from '@/lib/permissions';
+import { generatePassword } from '@/lib/password';
 import {
   saveEotOwner, deleteEotOwner, addEotVendedorMap, removeEotVendedorMap, normVendedor, contractLocal,
   type EotContract, type EotOwner, type EotVendedorMapRow,
@@ -30,6 +31,8 @@ interface Props {
   ownerMap: EotVendedorMapRow[];
   /** Email do chefe de equipa; null = gere todos (administrador, end-of-term:todos). */
   leadEmail: string | null;
+  /** Pode criar utilizadores novos (só o administrador). */
+  canCreateUsers?: boolean;
   onChanged: () => void;
 }
 
@@ -40,7 +43,7 @@ const initialsFrom = (nome: string | null, email: string) => {
   return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 };
 
-export function OwnersPanel({ contracts, owners, ownerMap, leadEmail, onChanged }: Props) {
+export function OwnersPanel({ contracts, owners, ownerMap, leadEmail, canCreateUsers = false, onChanged }: Props) {
   const [dialog, setDialog] = useState<{ mode: 'new' } | { mode: 'edit'; owner: EotOwner } | null>(null);
   const [removing, setRemoving] = useState<EotOwner | null>(null);
   const [busy, setBusy] = useState(false);
@@ -249,7 +252,8 @@ export function OwnersPanel({ contracts, owners, ownerMap, leadEmail, onChanged 
       {dialog && (
         <OwnerDialog
           key={dialog.mode === 'edit' ? dialog.owner.email : 'new'}
-          state={dialog} owners={owners} knownLocais={knownLocais} leadEmail={leadEmail}
+          state={dialog} owners={owners} knownLocais={knownLocais} leadEmail={leadEmail} canCreateUsers={canCreateUsers}
+          onRefresh={onChanged}
           onClose={() => setDialog(null)}
           onSaved={() => { setDialog(null); onChanged(); }}
         />
@@ -284,11 +288,14 @@ function Chip({ children, strong }: { children: React.ReactNode; strong?: boolea
   );
 }
 
-function OwnerDialog({ state, owners, knownLocais, leadEmail, onClose, onSaved }: {
+function OwnerDialog({ state, owners, knownLocais, leadEmail, canCreateUsers, onRefresh, onClose, onSaved }: {
   state: { mode: 'new' } | { mode: 'edit'; owner: EotOwner };
   owners: EotOwner[];
   knownLocais: string[];
   leadEmail: string | null;
+  canCreateUsers: boolean;
+  /** Recarrega a lista (sem fechar o diálogo): usado quando se cria a conta e se mostram as credenciais. */
+  onRefresh: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -302,12 +309,29 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, onClose, onSaved }
   const [extra, setExtra] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Pessoa que ainda não tem utilizador: o administrador cria a conta aqui mesmo.
+  const [novo, setNovo] = useState(false);
+  const [nome, setNome] = useState('');
+  const [perfil, setPerfil] = useState('');
+  const [password, setPassword] = useState(() => generatePassword());
+  const [roles, setRoles] = useState<AppRole[]>([]);
+  const [iniciaisTocadas, setIniciaisTocadas] = useState(false);
+  const [created, setCreated] = useState<{ email: string; password: string; ownerError: string | null } | null>(null);
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     if (edit) return;
     let alive = true;
     listUsers().then(u => { if (alive) setUsers(u); });
+    if (canCreateUsers) listRoles().then(r => { if (alive) setRoles(r); }).catch(() => {});
     return () => { alive = false; };
-  }, [edit]);
+  }, [edit, canCreateUsers]);
+
+  // Funções com acesso ao End-of-Term (as outras não dariam acesso à pessoa); se não houver, todas.
+  const roleOptions = useMemo(() => {
+    const withAccess = roles.filter(r => r.is_admin || r.permissions?.['end-of-term']);
+    return (withAccess.length > 0 ? withAccess : roles).map(r => r.name);
+  }, [roles]);
 
   const candidates = useMemo(() => {
     const taken = new Set(owners.map(o => o.email));
@@ -330,7 +354,46 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, onClose, onSaved }
     if (u && !iniciais) setIniciais(initialsFrom(u.nome, v));
   };
 
+  const changeNome = (v: string) => {
+    setNome(v);
+    if (!iniciaisTocadas) setIniciais(initialsFrom(v, email));
+  };
+
+  const createAndSave = async () => {
+    const mail = email.trim().toLowerCase();
+    if (!nome.trim()) { toast.error('Indique o nome.'); return; }
+    if (!/^\S+@\S+\.\S+$/.test(mail)) { toast.error('Indique um email válido.'); return; }
+    if (!perfil) { toast.error('Escolha a função.'); return; }
+    if (password.length < 6) { toast.error('A password deve ter pelo menos 6 caracteres.'); return; }
+    if (owners.some(o => o.email.toLowerCase() === mail)) { toast.error('Essa pessoa já é responsável.'); return; }
+    setSaving(true);
+    try {
+      await createUser({ nome: nome.trim(), email: mail, password, perfil });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Não foi possível criar o utilizador.');
+      setSaving(false);
+      return;
+    }
+    // A conta já existe: mesmo que o passo seguinte falhe, as credenciais têm de ser mostradas.
+    let ownerError: string | null = null;
+    try {
+      await saveEotOwner({ email: mail, iniciais, locais, chefe_email: chefe === NO_CHEFE ? null : chefe });
+    } catch (e) { ownerError = (e as Error).message; }
+    setCreated({ email: mail, password, ownerError });
+    setSaving(false);
+    onRefresh();
+  };
+
+  const copyCreds = async () => {
+    if (!created) return;
+    try {
+      await navigator.clipboard.writeText(`Email: ${created.email}\nPassword: ${created.password}`);
+      setCopied(true); setTimeout(() => setCopied(false), 1500);
+    } catch { toast.error('Não foi possível copiar.'); }
+  };
+
   const save = async () => {
+    if (novo) { await createAndSave(); return; }
     setSaving(true);
     try {
       await saveEotOwner({ email, iniciais, locais, chefe_email: chefe === NO_CHEFE ? null : chefe });
@@ -340,18 +403,77 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, onClose, onSaved }
     finally { setSaving(false); }
   };
 
+  if (created) {
+    return (
+      <Dialog open onOpenChange={v => { if (!v) onClose(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{created.ownerError ? 'Utilizador criado' : 'Responsável criado'}</DialogTitle>
+            <DialogDescription>Guarde estas credenciais agora: a password não volta a ser mostrada.</DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border bg-muted/30 p-3 text-sm font-mono space-y-1">
+            <div><span className="text-muted-foreground">Email:</span> {created.email}</div>
+            <div><span className="text-muted-foreground">Password:</span> {created.password}</div>
+          </div>
+          {created.ownerError && (
+            <p className="text-sm text-destructive">
+              A conta foi criada, mas não foi possível juntá-la aos responsáveis ({created.ownerError}). Adicione-a agora a partir da lista de utilizadores.
+            </p>
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={copyCreds} className="gap-1.5">
+              {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />} Copiar credenciais
+            </Button>
+            <Button onClick={onSaved}>Concluir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{edit ? `Editar ${edit.iniciais}` : 'Adicionar responsável'}</DialogTitle>
+          <DialogTitle>{edit ? `Editar ${edit.iniciais}` : novo ? 'Novo responsável (cria o utilizador)' : 'Adicionar responsável'}</DialogTitle>
           <DialogDescription>
-            {edit ? edit.email : 'Escolha um utilizador existente. Se a pessoa ainda não tem login, peça a um administrador para a criar no tab Utilizadores.'}
+            {edit ? edit.email
+              : novo ? 'Cria a conta de login e junta a pessoa aos responsáveis.'
+              : canCreateUsers ? 'Escolha um utilizador existente ou crie um novo.'
+              : 'Escolha um utilizador existente. Se a pessoa ainda não tem login, peça a um administrador para a criar.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {!edit && (
+          {!edit && novo && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="eot-nome">Nome</Label>
+                <Input id="eot-nome" value={nome} onChange={e => changeNome(e.target.value)} placeholder="Nome completo" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="eot-email">Email</Label>
+                <Input id="eot-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="nome@caetano.pt" autoComplete="off" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Função</Label>
+                <Select value={perfil} onValueChange={setPerfil}>
+                  <SelectTrigger aria-label="Função"><SelectValue placeholder="Escolher função…" /></SelectTrigger>
+                  <SelectContent>{roleOptions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Só aparecem funções com acesso ao End-of-Term.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="eot-pass">Password</Label>
+                <div className="flex gap-2">
+                  <Input id="eot-pass" value={password} onChange={e => setPassword(e.target.value)} className="font-mono" autoComplete="off" />
+                  <Button type="button" variant="outline" onClick={() => setPassword(generatePassword())}>Gerar</Button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {!edit && !novo && (
             <div className="space-y-1.5">
               <Label>Utilizador</Label>
               {users === null ? (
@@ -364,13 +486,23 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, onClose, onSaved }
                   </SelectContent>
                 </Select>
               )}
+              {canCreateUsers && (
+                <button type="button" onClick={() => { setNovo(true); setEmail(''); setIniciais(''); }}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                  <UserPlus className="h-3.5 w-3.5" />A pessoa ainda não tem utilizador? Criar
+                </button>
+              )}
             </div>
+          )}
+          {!edit && novo && (
+            <button type="button" onClick={() => { setNovo(false); setEmail(''); setIniciais(''); }}
+              className="text-xs font-medium text-primary hover:underline">← Escolher um utilizador existente</button>
           )}
 
           <div className="space-y-1.5">
             <Label htmlFor="eot-iniciais">Iniciais</Label>
             <Input id="eot-iniciais" value={iniciais} maxLength={4} className="w-24 uppercase"
-              onChange={e => setIniciais(e.target.value.toUpperCase())} />
+              onChange={e => { setIniciaisTocadas(true); setIniciais(e.target.value.toUpperCase()); }} />
           </div>
 
           <div className="space-y-1.5">

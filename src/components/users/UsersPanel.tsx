@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { createUser, updateUser, deleteUser, type AppUser } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
+import { generatePassword } from '@/lib/password';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,14 +24,6 @@ import {
 
 const SEM_FUNCAO = 'Sem função';
 const ALL = '__all__';
-
-/* Password legível: sem caracteres ambíguos (0/O, 1/l/I). */
-function generatePassword(len = 12) {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  const buf = new Uint32Array(len);
-  crypto.getRandomValues(buf);
-  return Array.from(buf, n => alphabet[n % alphabet.length]).join('');
-}
 
 const initialsOf = (u: AppUser) => {
   const base = (u.nome || u.email || '?').trim();
