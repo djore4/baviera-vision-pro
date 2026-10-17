@@ -883,7 +883,6 @@ export type Database = {
           fase: string
           imported_at: string
           kms_contratados: number | null
-          local: string | null
           manutencao: string | null
           manutencao_tipo: string | null
           marca: string | null
@@ -919,7 +918,6 @@ export type Database = {
           fase?: string
           imported_at?: string
           kms_contratados?: number | null
-          local?: string | null
           manutencao?: string | null
           manutencao_tipo?: string | null
           marca?: string | null
@@ -954,7 +952,6 @@ export type Database = {
           fase?: string
           imported_at?: string
           kms_contratados?: number | null
-          local?: string | null
           manutencao?: string | null
           manutencao_tipo?: string | null
           marca?: string | null
@@ -981,6 +978,7 @@ export type Database = {
       }
       eot_owners: {
         Row: {
+          chefe_email: string | null
           created_at: string
           email: string
           iniciais: string
@@ -989,6 +987,7 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          chefe_email?: string | null
           created_at?: string
           email: string
           iniciais: string
@@ -996,13 +995,22 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          chefe_email?: string | null
           created_at?: string
           email?: string
           iniciais?: string
           locais?: string[]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "eot_owners_chefe_email_fkey"
+            columns: ["chefe_email"]
+            isOneToOne: false
+            referencedRelation: "eot_owners"
+            referencedColumns: ["email"]
+          }
+        ]
       }
       eot_vendedor_map: {
         Row: {
@@ -1811,8 +1819,7 @@ export type Database = {
         }
       }
       eot_contract_link: { Args: { p_contrato: string }; Returns: string }
-      eot_local_of: { Args: { p_conc: string; p_resp: string }; Returns: string }
-      eot_my_locais: { Args: Record<PropertyKey, never>; Returns: string[] }
+      eot_my_team: { Args: Record<PropertyKey, never>; Returns: string[] }
       has_access: { Args: { p_level?: string; p_tab: string }; Returns: boolean }
       has_any_access: { Args: { p_level?: string; p_tabs: string[] }; Returns: boolean }
       has_any_tab: { Args: Record<PropertyKey, never>; Returns: boolean }

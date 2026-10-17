@@ -22,11 +22,12 @@ vi.mock('@/lib/eot', async importOriginal => ({ ...(await importOriginal<typeof 
 import { normVendedor, suggestOwners, groupOwnersFor, contractLocal } from '@/lib/eot';
 import { OwnersPanel } from '@/components/eot/OwnersPanel';
 
-const owner = (iniciais: string, email: string, locais: string[]): EotOwner =>
-  ({ email, iniciais, locais, nome: `${iniciais} · ${email.split('@')[0]}` });
-const RD = owner('RD', 'rd@x.pt', ['Aveiro']);
-const RD2 = owner('RX', 'rd2@x.pt', ['Viseu']);
-const AN = owner('AN', 'an@x.pt', ['Aveiro']);
+const owner = (iniciais: string, email: string, locais: string[], chefe_email: string | null = null): EotOwner =>
+  ({ email, iniciais, locais, chefe_email, nome: `${iniciais} · ${email.split('@')[0]}` });
+const CHEFE = owner('CH', 'chefe@x.pt', ['Aveiro']);
+const RD = owner('RD', 'rd@x.pt', ['Aveiro'], 'chefe@x.pt');
+const RD2 = owner('RX', 'rd2@x.pt', ['Viseu'], 'outro@x.pt');
+const AN = owner('AN', 'an@x.pt', ['Aveiro'], 'chefe@x.pt');
 const contract = (vendedor: string, resp = 'Caetano Aveiro', extra: Partial<EotContract> = {}) =>
   ({ contrato: `C-${vendedor}-${resp}`, vendedor, concessionario_resp: resp, concessionario: resp, owner_email: null, owner_nome: null, ...extra }) as EotContract;
 const map = (raw: string, email: string): EotVendedorMapRow => ({ raw_norm: normVendedor(raw), owner_email: email, raw_exemplo: raw });
@@ -92,9 +93,7 @@ describe('eotIsLocalLead', () => {
   });
 });
 
-describe('contractLocal e o local calculado na base de dados', () => {
-  // Estes casos são os mesmos de supabase/tests/eot-owners.test.sql (eot_local_of): as duas
-  // implementações têm de dar o mesmo resultado, porque a RLS do chefe local usa a da base de dados.
+describe('contractLocal', () => {
   it.each([
     ['Baviera Aveiro 2', 'Aveiro'], ['Caetano Aveiro', 'Aveiro'], ['Caetano Baviera - Viseu', 'Viseu'],
     ['Lisboa - M.G.Costa', 'Lisboa'], ['V. N. Gaia', 'Gaia'], ['Caetano', 'Caetano'],
@@ -120,8 +119,8 @@ describe('OwnersPanel', () => {
   const onChanged = vi.fn();
   beforeEach(() => { Object.values(lib).forEach(f => f.mockClear()); onChanged.mockClear(); });
 
-  const panel = (limit: string[] | null = null, m: EotVendedorMapRow[] = []) =>
-    render(<OwnersPanel contracts={contracts} owners={[RD, AN, RD2]} ownerMap={m} limitLocais={limit} onChanged={onChanged} />);
+  const panel = (lead: string | null = null, m: EotVendedorMapRow[] = []) =>
+    render(<OwnersPanel contracts={contracts} owners={[CHEFE, RD, AN, RD2]} ownerMap={m} leadEmail={lead} onChanged={onChanged} />);
 
   it('agrupa as grafias do mesmo nome e conta contratos e os sem responsável', () => {
     panel();
@@ -146,21 +145,46 @@ describe('OwnersPanel', () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
-  it('o chefe local só edita responsáveis dos seus locais', () => {
-    panel(['Aveiro']);
+  it('o chefe de equipa só edita a sua equipa: não a sua ficha, nem outros chefes, nem outras equipas', () => {
+    panel('chefe@x.pt');
     expect(screen.getByLabelText('Editar RD')).toBeInTheDocument();
+    expect(screen.getByLabelText('Editar AN')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Editar CH')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Editar RX')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Remover RX')).not.toBeInTheDocument();
+  });
+
+  it('quem gere tudo edita qualquer responsável e escolhe o chefe; o chefe não vê essa escolha', async () => {
+    const { unmount } = panel(null);
+    expect(screen.getByLabelText('Editar CH')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Editar RX'));
+    expect(await screen.findByText('Chefe de equipa', { selector: 'label' })).toBeInTheDocument();
+    unmount();
+    panel('chefe@x.pt');
+    fireEvent.click(screen.getByLabelText('Editar RD'));
+    await screen.findByLabelText('Iniciais');
+    expect(screen.queryByText('Chefe de equipa', { selector: 'label' })).not.toBeInTheDocument();
   });
 
   it('adiciona um responsável: utilizador existente, iniciais sugeridas e local', async () => {
     panel();
     fireEvent.click(screen.getByText('Adicionar responsável'));
-    fireEvent.keyDown(await screen.findByRole('combobox'), { key: 'ArrowDown' });
+    await screen.findByText('Escolher utilizador…');   // a lista de utilizadores já carregou
+    fireEvent.keyDown(screen.getAllByRole('combobox')[0], { key: 'ArrowDown' });
     fireEvent.click(await screen.findByRole('option', { name: /Ana Sousa/ }));
     expect((screen.getByLabelText('Iniciais') as HTMLInputElement).value).toBe('AS');
     fireEvent.click(screen.getByRole('button', { name: 'Viseu' }));
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
-    await waitFor(() => expect(lib.saveEotOwner).toHaveBeenCalledWith({ email: 'ana@x.pt', iniciais: 'AS', locais: ['Viseu'] }));
+    await waitFor(() => expect(lib.saveEotOwner).toHaveBeenCalledWith({ email: 'ana@x.pt', iniciais: 'AS', locais: ['Viseu'], chefe_email: null }));
+  });
+
+  it('o chefe de equipa acrescenta alguém: fica sempre na sua equipa', async () => {
+    panel('chefe@x.pt');
+    fireEvent.click(screen.getByText('Adicionar responsável'));
+    await screen.findByText('Escolher utilizador…');   // a lista de utilizadores já carregou
+    fireEvent.keyDown(screen.getAllByRole('combobox')[0], { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('option', { name: /Ana Sousa/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(lib.saveEotOwner).toHaveBeenCalledWith({ email: 'ana@x.pt', iniciais: 'AS', locais: [], chefe_email: 'chefe@x.pt' }));
   });
 });

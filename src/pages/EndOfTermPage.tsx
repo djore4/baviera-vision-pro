@@ -147,14 +147,12 @@ export default function EndOfTermPage() {
     return [...m].map(([email, nome]) => ({ email, nome }));
   }, [canManage, owners, contracts]);
 
-  // Locais do chefe de equipa (da sua ficha de responsável): limitam o que pode atribuir e gerir.
-  const myLocais = useMemo<string[] | null>(
-    () => (isLocalLead ? owners.find(o => o.email.toLowerCase() === myEmail?.toLowerCase())?.locais ?? [] : null),
-    [isLocalLead, owners, myEmail],
-  );
+  // Chefe de equipa: só atribui dentro da sua equipa (ele e quem o tem como chefe).
   const assignableOwners = useMemo(
-    () => (myLocais ? owners.filter(o => (o.locais ?? []).some(l => myLocais.includes(l))) : owners),
-    [owners, myLocais],
+    () => (isLocalLead
+      ? owners.filter(o => o.email.toLowerCase() === myEmail?.toLowerCase() || o.chefe_email?.toLowerCase() === myEmail?.toLowerCase())
+      : owners),
+    [isLocalLead, owners, myEmail],
   );
 
   const inLocal = useCallback(
@@ -532,7 +530,7 @@ export default function EndOfTermPage() {
         {canManage && ownersEnabled && (
           <TabsContent value="responsaveis" className="mt-4">
             {loading ? <Loader /> : (
-              <OwnersPanel contracts={contracts} owners={owners} ownerMap={ownerMap} limitLocais={myLocais} onChanged={load} />
+              <OwnersPanel contracts={contracts} owners={owners} ownerMap={ownerMap} leadEmail={isLocalLead ? myEmail : null} onChanged={load} />
             )}
           </TabsContent>
         )}
@@ -545,6 +543,7 @@ export default function EndOfTermPage() {
         canEdit={editable}
         isDirector={isDirector}
         canAssign={canManage}
+        canUnassign={isDirector}
         owners={assignableOwners}
         ownerMap={ownerMap}
         autor={myNome}
