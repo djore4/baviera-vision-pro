@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { FileDown, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
-import BonusBmwDialog from '@/components/BonusBmwDialog';
 
 /* ── Tradução exata da sheet "Ficha" (Ficha de Margem 3.0) ── */
 
@@ -233,10 +232,6 @@ export default function FichaMargemPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-4 animate-fade-in">
       <div className="flex items-center justify-end gap-2">
-        <BonusBmwDialog onApply={rate => {
-          setMgFixaPct(String(Math.round(rate * 1000) / 10));
-          toast.success(`MG. FIXA preenchida: ${pct(rate)}`);
-        }} />
         <button onClick={limpar} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
           <RotateCcw className="h-3.5 w-3.5" /> Limpar
         </button>
