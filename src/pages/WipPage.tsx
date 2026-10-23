@@ -16,7 +16,7 @@ import {
  * Realização vs Objetivo são na ótica das FATURAS e comparam-nas com dois valores
  * definidos no tab Objetivos: objetivo BMW e orçamento Caetano. Filtros à esquerda
  * (mesma organização da WIP VN): período (pelo mês da fatura, DFAT), responsável,
- * status e proveniência.
+ * e status.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const FATURA_COLOR = '#16A34A';
@@ -24,10 +24,23 @@ const CARTEIRA_COLOR = '#F59E0B';
 const BMW_COLOR = '#1C69D4';
 
 /* Método de pagamento (mesma paleta e formato da WIP VN). */
-const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', EXT: '#F59E0B', FEXT: '#F59E0B', FINT: '#8B5CF6' };
-const FIN_FALLBACK = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
-const finColor = (name: string, i: number) =>
-  name === 'N/A' ? '#94A3B8' : (FIN_COLORS[name.trim().toUpperCase()] ?? FIN_FALLBACK[i % FIN_FALLBACK.length]);
+const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', EXT: '#F59E0B', FEXT: '#EC4899', FINT: '#8B5CF6' };
+const FIN_FALLBACK = ['#DC2626', '#06B6D4', '#F97316', '#84CC16', '#14B8A6', '#A855F7', '#64748B'];
+const FIN_NA_COLOR = '#94A3B8';
+/* Uma cor por série, nunca repetida: usa a cor própria do método quando livre e,
+ * caso contrário (método desconhecido ou cor já ocupada), a próxima livre do fallback. */
+function finColorMap(names: string[]): Record<string, string> {
+  const used = new Set<string>([FIN_NA_COLOR]);
+  const out: Record<string, string> = {};
+  const free = () => FIN_FALLBACK.find(c => !used.has(c)) ?? FIN_FALLBACK[used.size % FIN_FALLBACK.length];
+  names.forEach(name => {
+    if (name === 'N/A') { out[name] = FIN_NA_COLOR; return; }
+    const own = FIN_COLORS[name.trim().toUpperCase()];
+    out[name] = own && !used.has(own) ? own : free();
+    used.add(out[name]);
+  });
+  return out;
+}
 
 /* Datas de garantia (DGARANT / GARANT 3S): o parser normaliza para ISO quando o
  * valor é uma data reconhecível; aqui formatamos dd/mm/aa. Enquanto o ficheiro
@@ -118,7 +131,6 @@ export default function WipPage() {
   const [fMonths, setFMonths] = useState<number[]>([]); // chave = ano*100 + mês
   const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null); // FATURA | CARTEIRA
-  const [selectedProv, setSelectedProv] = useState<string | null>(null);
   const [selectedRet, setSelectedRet] = useState<boolean | null>(null); // retoma: null=todos, true=com, false=sem
   const [selectedFin, setSelectedFin] = useState<string | null>(null); // método de pagamento (PP | FS | EXT | N/A)
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
@@ -168,12 +180,11 @@ export default function WipPage() {
     result = result.filter(inPeriod);
     if (selectedResps.size > 0) result = result.filter(r => selectedResps.has(r.resp || '—'));
     if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
-    if (selectedProv) result = result.filter(r => (r.prov || '').trim().toUpperCase() === selectedProv);
     if (selectedRet !== null) result = result.filter(r => (r.ret > 0) === selectedRet);
     if (selectedFin) result = result.filter(r => selectedFin === 'N/A' ? !r.fin : (r.fin || '').trim().toUpperCase() === selectedFin);
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [records, selectedMonthKeys, selectedResps, selectedStatus, selectedProv, selectedRet, selectedFin]);
+  }, [records, selectedMonthKeys, selectedResps, selectedStatus, selectedRet, selectedFin]);
 
   // Ordenação da tabela: 1.º clique ascendente, 2.º descendente, 3.º repõe a ordem original.
   const sorted = useMemo(() => {
@@ -196,12 +207,6 @@ export default function WipPage() {
   const resps = useMemo(() => {
     const set = new Set<string>();
     (records ?? []).forEach(r => set.add(r.resp || '—'));
-    return [...set].sort();
-  }, [records]);
-
-  const provs = useMemo(() => {
-    const set = new Set<string>();
-    (records ?? []).forEach(r => { const p = (r.prov || '').trim().toUpperCase(); if (p) set.add(p); });
     return [...set].sort();
   }, [records]);
 
@@ -240,10 +245,12 @@ export default function WipPage() {
     return entries;
   }, [filtered]);
 
+  const finColors = useMemo(() => finColorMap(finData.map(e => e.name)), [finData]);
+
   // Gauges — só ótica da fatura: atual = faturas do período; previsão = faturas +
   // carteira (esperadas). Os objetivos (BMW e Caetano) são do total VU por mês, por
   // isso comparam-se com o período e ignoram os restantes filtros (responsável,
-  // status, proveniência…), que só fariam sentido contra um objetivo por vendedor.
+  // status…), que só fariam sentido contra um objetivo por vendedor.
   const gauge = useMemo(() => {
     const noPeriodo = (records ?? []).filter(inPeriod);
     const atual = noPeriodo.filter(r => r.status === 'FATURA').length;
@@ -277,7 +284,7 @@ export default function WipPage() {
   const fmtD = (d: Date | null) => d ? new Date(d).toLocaleDateString('pt-PT') : '—';
 
   const activeFilters =
-    selectedResps.size + (selectedStatus ? 1 : 0) + (selectedProv ? 1 : 0)
+    selectedResps.size + (selectedStatus ? 1 : 0)
     + (selectedRet !== null ? 1 : 0) + (selectedFin ? 1 : 0) + fYears.length + fMonths.length;
 
   if (records === null) {
@@ -398,25 +405,6 @@ export default function WipPage() {
             <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
           </div>
 
-          {/* Proveniência */}
-          {provs.length > 0 && (
-            <div className="bg-card border border-border rounded-lg p-3 space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Proveniência</p>
-              <div className="flex flex-col gap-1">
-                {provs.map(p => {
-                  const active = selectedProv === p;
-                  return (
-                    <button key={p} onClick={() => setSelectedProv(prev => prev === p ? null : p)}
-                      className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] font-medium transition-all ${active ? 'border-primary ring-1 ring-primary bg-primary/10' : 'border-border bg-background hover:bg-accent'}`}>
-                      <span className="h-2.5 w-2.5 rounded-sm flex-shrink-0" style={{ background: provColor(p) }} />
-                      {p}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Filtros ativos */}
           {activeFilters > 0 && (
             <div className="flex flex-col gap-1">
@@ -427,7 +415,6 @@ export default function WipPage() {
                 </Badge>
               )}
               {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => setSelectedStatus(null)}>{selectedStatus === 'FATURA' ? 'Fatura' : 'Carteira'} ✕</Badge>}
-              {selectedProv && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => setSelectedProv(null)}>{selectedProv} ✕</Badge>}
               {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => setSelectedRet(null)}>Retoma: {selectedRet ? 'Com' : 'Sem'} ✕</Badge>}
               {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => setSelectedFin(null)}>FIN: {selectedFin} ✕</Badge>}
               {(fYears.length > 0 || fMonths.length > 0) && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={clearPeriod}>Período ✕</Badge>}
@@ -511,8 +498,8 @@ export default function WipPage() {
                     <p className="text-[9px] text-muted-foreground">Previsão (● no arco)</p>
                   </div>
                 </div>
-                {(selectedResps.size > 0 || selectedStatus || selectedProv || selectedRet !== null || selectedFin) && (
-                  <p className="mt-2 text-[10px] text-center text-muted-foreground">Gauges do total VU no período (ignoram os filtros de responsável, status, proveniência, retoma e pagamento).</p>
+                {(selectedResps.size > 0 || selectedStatus || selectedRet !== null || selectedFin) && (
+                  <p className="mt-2 text-[10px] text-center text-muted-foreground">Gauges do total VU no período (ignoram os filtros de responsável, status, retoma e pagamento).</p>
                 )}
                 {Object.keys(objMap).length === 0 && (
                   <p className="mt-2 text-[10px] text-center text-muted-foreground">Sem objetivos definidos — ver tab Objetivos.</p>
@@ -532,20 +519,20 @@ export default function WipPage() {
                           contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                         <Pie data={finData} dataKey="value" nameKey="name" outerRadius={48} stroke="hsl(var(--background))" strokeWidth={1.5}
                           onClick={(entry: { name?: string }) => entry?.name && setSelectedFin(prev => prev === entry.name ? null : entry.name!)} cursor="pointer">
-                          {finData.map((entry, i) => {
+                          {finData.map(entry => {
                             const isDimmed = selectedFin && selectedFin !== entry.name;
-                            return <Cell key={entry.name} fill={finColor(entry.name, i)} opacity={isDimmed ? 0.35 : 1} />;
+                            return <Cell key={entry.name} fill={finColors[entry.name]} opacity={isDimmed ? 0.35 : 1} />;
                           })}
                         </Pie>
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="space-y-1 flex-1">
-                      {finData.map((entry, i) => {
+                      {finData.map(entry => {
                         const isDimmed = selectedFin && selectedFin !== entry.name;
                         return (
                           <div key={entry.name} className="flex items-center gap-2 cursor-pointer" style={{ opacity: isDimmed ? 0.3 : 1 }}
                             onClick={() => setSelectedFin(prev => prev === entry.name ? null : entry.name)}>
-                            <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: finColor(entry.name, i) }} />
+                            <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: finColors[entry.name] }} />
                             <span className="text-[10px] font-medium w-9">{entry.name}</span>
                             <span className="text-[10px] font-semibold w-7 text-right">{entry.value}</span>
                             <span className="text-[10px] text-muted-foreground w-10 text-right">({entry.pct}%)</span>
