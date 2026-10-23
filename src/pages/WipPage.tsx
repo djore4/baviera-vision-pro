@@ -15,7 +15,7 @@ import {
  * carregado em Dados). Registos com STATUS = FATURA | CARTEIRA. Os gauges de
  * Realização vs Objetivo são na ótica das FATURAS e comparam-nas com dois valores
  * definidos no tab Objetivos: objetivo BMW e orçamento Caetano. Filtros à esquerda
- * (mesma organização da WIP VN): período (pelo mês da fatura, DFAT), responsável,
+ * (mesma organização da WIP VN): período (pelo mês da fatura, DFAT; a carteira está sempre no mês presente), responsável,
  * e status.
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -60,6 +60,12 @@ const provColor = (p: string) => PROV_COLORS[p.trim().toUpperCase()] ?? '#94A3B8
 const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 const monthKeyStr = (d: Date) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+/* Mês a que um registo pertence para efeitos de período: a FATURA conta no mês da
+ * fatura (DFAT); a CARTEIRA (viaturas ainda não entregues, sem DFAT) está sempre
+ * no mês presente. */
+const recordMonthKey = (r: VuRecord): string | null =>
+  r.status === 'CARTEIRA' ? monthKeyStr(new Date()) : r.dfat ? monthKeyStr(r.dfat) : null;
 
 /* Colunas da tabela: chave, título, alinhamento e valor de ordenação. */
 type SortKey = 'resp' | 'status' | 'type' | 'model' | 'version' | 'cliente' | 'mat' | 'prov' | 'ret' | 'fin' | 'a360' | 'dfat' | 'dgarant' | 'garant3s';
@@ -153,8 +159,9 @@ export default function WipPage() {
     const years = new Set<number>();
     const months = new Map<number, { year: number; month: number }>();
     (records ?? []).forEach(r => {
-      if (!r.dfat) return;
-      const y = r.dfat.getFullYear(), m = r.dfat.getMonth() + 1;
+      const key = recordMonthKey(r);
+      if (!key) return;
+      const [y, m] = key.split('/').map(Number);
       years.add(y); months.set(y * 100 + m, { year: y, month: m });
     });
     return {
@@ -173,7 +180,8 @@ export default function WipPage() {
 
   const inPeriod = (r: VuRecord) => {
     if (selectedMonthKeys.size === 0) return true;
-    return !!r.dfat && selectedMonthKeys.has(monthKeyStr(r.dfat));
+    const key = recordMonthKey(r);
+    return !!key && selectedMonthKeys.has(key);
   };
 
   const filtered = useMemo(() => {
