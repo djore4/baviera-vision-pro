@@ -127,8 +127,9 @@ export default function WipPage() {
   const [objMap, setObjMap] = useState<Record<string, VuObjetivo>>({});
 
   // Filtros (mesma organização da WIP VN).
-  const [fYears, setFYears] = useState<number[]>([]);
-  const [fMonths, setFMonths] = useState<number[]>([]); // chave = ano*100 + mês
+  // Arranca no mês e ano atuais (como na WIP VN).
+  const [fYears, setFYears] = useState<number[]>(() => [new Date().getFullYear()]);
+  const [fMonths, setFMonths] = useState<number[]>(() => { const n = new Date(); return [n.getFullYear() * 100 + n.getMonth() + 1]; }); // chave = ano*100 + mês
   const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null); // FATURA | CARTEIRA
   const [selectedRet, setSelectedRet] = useState<boolean | null>(null); // retoma: null=todos, true=com, false=sem
