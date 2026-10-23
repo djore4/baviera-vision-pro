@@ -62,6 +62,7 @@ const ALL_TABS: TabDef[] = [
   { key: 'demos', label: 'Demos', path: '/demos', area: 'vn' },
   // ── Vendas VU (em desenvolvimento) ──────────────────────────────────────────
   { key: 'wip', label: 'WIP', path: '/wip', area: 'vu' },
+  { key: 'objetivos-vu', label: 'Objetivos', path: '/objetivos-vu', area: 'vu' },
   { key: 'funil-vu', label: 'Funil', path: '/funil-vu', area: 'vu' },
   { key: 'angariacao', label: 'Angariação', path: '/angariacao', area: 'vu' },
   { key: 'stock', label: 'Stock', path: '/stock', area: 'vu' },

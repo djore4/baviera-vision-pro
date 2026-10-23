@@ -1763,17 +1763,20 @@ export type Database = {
       }
       vu_objetivos: {
         Row: {
+          bmw: number
           faturas: number
           mes: string
           updated_at: string
         }
         ComputedFields: never
         Insert: {
+          bmw?: number
           faturas?: number
           mes: string
           updated_at?: string
         }
         Update: {
+          bmw?: number
           faturas?: number
           mes?: string
           updated_at?: string
