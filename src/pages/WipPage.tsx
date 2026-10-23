@@ -278,6 +278,21 @@ export default function WipPage() {
     setFMonths(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key].sort((a, b) => a - b));
   };
   const clearPeriod = () => { setFYears([]); setFMonths([]); };
+  // Clique no gráfico (como na WIP VN): barra/eixo seleciona o responsável (Ctrl/Cmd
+  // acumula); legenda seleciona a série (Fatura | Carteira); novo clique desmarca.
+  const handleRespClick = (resp: string, multi = false) => {
+    setSelectedResps(prev => {
+      const next = new Set(prev);
+      if (multi) { if (next.has(resp)) next.delete(resp); else next.add(resp); }
+      else if (next.size === 1 && next.has(resp)) next.clear();
+      else { next.clear(); next.add(resp); }
+      return next;
+    });
+  };
+  const handleLegendClick = (e: { value?: string }) => {
+    const st = e?.value === 'Fatura' ? 'FATURA' : e?.value === 'Carteira' ? 'CARTEIRA' : null;
+    if (st) setSelectedStatus(prev => prev === st ? null : st);
+  };
   const toggleResp = (resp: string) => {
     setSelectedResps(prev => { const n = new Set(prev); if (n.has(resp)) n.delete(resp); else n.add(resp); return n; });
   };
@@ -383,24 +398,6 @@ export default function WipPage() {
             </div>
           </div>
 
-          {/* Status */}
-          <div className="bg-card border border-border rounded-lg p-3 space-y-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Status</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {(['FATURA', 'CARTEIRA'] as const).map(st => {
-                const active = selectedStatus === st;
-                const color = st === 'FATURA' ? FATURA_COLOR : CARTEIRA_COLOR;
-                return (
-                  <button key={st} onClick={() => setSelectedStatus(prev => prev === st ? null : st)}
-                    className={`rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-all ${active ? 'text-primary-foreground' : 'bg-background text-foreground hover:bg-accent border-border'}`}
-                    style={active ? { background: color, borderColor: color } : undefined}>
-                    {st === 'FATURA' ? 'Fatura' : 'Carteira'}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Retoma (tri-estado, como na WIP VN) */}
           <div className="bg-card border border-border rounded-lg p-3">
             <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
@@ -445,14 +442,22 @@ export default function WipPage() {
                 ) : (
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={statusByResp} margin={{ top: 16, right: 8, left: -8, bottom: 0 }}>
+                      <BarChart data={statusByResp} margin={{ top: 16, right: 8, left: -8, bottom: 0 }}
+                        onClick={(chartData: { activePayload?: { payload?: { resp?: string } }[] }, event: { ctrlKey?: boolean; metaKey?: boolean }) => {
+                          const resp = chartData?.activePayload?.[0]?.payload?.resp;
+                          if (resp) handleRespClick(resp, !!(event?.ctrlKey || event?.metaKey));
+                        }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="resp" tick={{ fontSize: 11 }} />
+                        <XAxis dataKey="resp" tick={{ fontSize: 11, cursor: 'pointer' }} />
                         <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                         <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                        <Legend wrapperStyle={{ fontSize: 10 }} />
-                        <Bar dataKey="Fatura" stackId="a" fill={FATURA_COLOR} />
-                        <Bar dataKey="Carteira" stackId="a" fill={CARTEIRA_COLOR}>
+                        <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
+                          formatter={(value: string) => {
+                            const st = value.toUpperCase();
+                            return <span style={{ opacity: selectedStatus && selectedStatus !== st ? 0.3 : 1, fontWeight: selectedStatus === st ? 'bold' : 'normal' }}>{value}</span>;
+                          }} />
+                        <Bar dataKey="Fatura" stackId="a" fill={FATURA_COLOR} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'FATURA' ? 0.2 : 1} />
+                        <Bar dataKey="Carteira" stackId="a" fill={CARTEIRA_COLOR} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'CARTEIRA' ? 0.2 : 1}>
                           <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                         </Bar>
                       </BarChart>
