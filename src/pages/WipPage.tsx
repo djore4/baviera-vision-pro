@@ -1,27 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Database, Filter, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
-import { toast } from 'sonner';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
   PieChart, Pie, Cell,
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { RetomaFilter } from '@/components/RetomaFilter';
-import { usePermissions } from '@/contexts/PermissionsContext';
 import {
-  loadControlVuFromDb, listVuObjetivos, setVuObjetivo, isVuWipStatus, type VuRecord,
+  loadControlVuFromDb, listVuObjetivos, isVuWipStatus, type VuRecord, type VuObjetivo,
 } from '@/lib/control-records-vu';
 
 /* ── WIP · Viaturas Usadas ─────────────────────────────────────────────────────
  * Dashboard da secção VU, alimentado pela tabela control_records_vu (ficheiro VU
- * carregado em Dados). Registos com STATUS = FATURA | CARTEIRA. O gauge de
- * Realização vs Objetivo é apenas na ótica das FATURAS. Filtros à esquerda (mesma
- * organização da WIP VN): período (pelo mês da fatura, DFAT), responsável, status
- * e proveniência.
+ * carregado em Dados). Registos com STATUS = FATURA | CARTEIRA. Os gauges de
+ * Realização vs Objetivo são na ótica das FATURAS e comparam-nas com dois valores
+ * definidos no tab Objetivos: objetivo BMW e orçamento Caetano. Filtros à esquerda
+ * (mesma organização da WIP VN): período (pelo mês da fatura, DFAT), responsável,
+ * status e proveniência.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const FATURA_COLOR = '#16A34A';
 const CARTEIRA_COLOR = '#F59E0B';
+const BMW_COLOR = '#1C69D4';
 
 /* Método de pagamento (mesma paleta e formato da WIP VN). */
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', EXT: '#F59E0B', FEXT: '#F59E0B', FINT: '#8B5CF6' };
@@ -47,7 +47,6 @@ const provColor = (p: string) => PROV_COLORS[p.trim().toUpperCase()] ?? '#94A3B8
 const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 const monthKeyStr = (d: Date) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-const periodLabel = (key: string) => { const [y, m] = key.split('/'); return `${MESES_PT[Number(m) - 1] ?? m} ${y}`; };
 
 /* Colunas da tabela: chave, título, alinhamento e valor de ordenação. */
 type SortKey = 'resp' | 'status' | 'type' | 'model' | 'version' | 'cliente' | 'mat' | 'prov' | 'ret' | 'fin' | 'a360' | 'dfat' | 'dgarant' | 'garant3s';
@@ -77,8 +76,12 @@ function Kpi({ label, value, color }: { label: string; value: number; color?: st
   );
 }
 
-/* Gauge semicircular (0–100%+). Arco de fundo + arco de valor + marca de previsão. */
-function Gauge({ pct, prevPct }: { pct: number; prevPct: number }) {
+/* Cor do gauge pelo grau de cumprimento (mesmos limiares da WIP VN). */
+const pctColor = (pct: number) => (pct >= 100 ? FATURA_COLOR : pct >= 80 ? CARTEIRA_COLOR : '#DC2626');
+
+/* Gauge semicircular (0–100%). Arco de fundo + arco de valor + marca de previsão.
+ * Sem objetivo definido mostra "—" em vez de 0%. */
+function Gauge({ pct, prevPct, hasObjetivo }: { pct: number; prevPct: number; hasObjetivo: boolean }) {
   const R = 80, CX = 100, CY = 100;
   const len = Math.PI * R;
   const clamp = (p: number) => Math.max(0, Math.min(100, p));
@@ -87,26 +90,28 @@ function Gauge({ pct, prevPct }: { pct: number; prevPct: number }) {
   const markAngle = Math.PI * (1 - clamp(prevPct) / 100);
   const mx = CX + R * Math.cos(markAngle);
   const my = CY - R * Math.sin(markAngle);
+  const color = pctColor(pct);
   return (
-    <svg viewBox="0 0 200 116" className="w-full max-w-[240px]">
+    <svg viewBox="0 0 200 116" className="w-full max-w-[200px]">
       <path d={arc} fill="none" stroke="hsl(var(--muted))" strokeWidth={16} strokeLinecap="round" />
-      <path d={arc} fill="none" stroke={FATURA_COLOR} strokeWidth={16} strokeLinecap="round"
-        pathLength={len} strokeDasharray={`${valLen} ${len}`} />
-      {/* marca da previsão (faturas + carteira) */}
-      <circle cx={mx} cy={my} r={5} fill="hsl(var(--foreground))" stroke="hsl(var(--card))" strokeWidth={2} />
-      <text x={CX} y={CY - 8} textAnchor="middle" className="fill-foreground" style={{ fontSize: 30, fontWeight: 800 }}>
-        {Math.round(pct)}%
+      {hasObjetivo && (
+        <>
+          <path d={arc} fill="none" stroke={color} strokeWidth={16} strokeLinecap="round"
+            pathLength={len} strokeDasharray={`${valLen} ${len}`} />
+          {/* marca da previsão (faturas + carteira) */}
+          <circle cx={mx} cy={my} r={5} fill="hsl(var(--foreground))" stroke="hsl(var(--card))" strokeWidth={2} />
+        </>
+      )}
+      <text x={CX} y={CY - 8} textAnchor="middle" style={{ fontSize: 30, fontWeight: 800, fill: hasObjetivo ? color : 'hsl(var(--muted-foreground))' }}>
+        {hasObjetivo ? `${Math.round(pct)}%` : '—'}
       </text>
-      <text x={CX} y={CY + 12} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 11 }}>Faturas</text>
     </svg>
   );
 }
 
 export default function WipPage() {
-  const { canEdit } = usePermissions();
-  const canEditWip = canEdit('wip');
   const [records, setRecords] = useState<VuRecord[] | null>(null);
-  const [objMap, setObjMap] = useState<Record<string, number>>({});
+  const [objMap, setObjMap] = useState<Record<string, VuObjetivo>>({});
 
   // Filtros (mesma organização da WIP VN).
   const [fYears, setFYears] = useState<number[]>([]);
@@ -116,17 +121,16 @@ export default function WipPage() {
   const [selectedProv, setSelectedProv] = useState<string | null>(null);
   const [selectedRet, setSelectedRet] = useState<boolean | null>(null); // retoma: null=todos, true=com, false=sem
   const [selectedFin, setSelectedFin] = useState<string | null>(null); // método de pagamento (PP | FS | EXT | N/A)
-  const [objDraft, setObjDraft] = useState<string>('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
 
   useEffect(() => {
     let alive = true;
-    Promise.all([loadControlVuFromDb(), listVuObjetivos()])
+    Promise.all([loadControlVuFromDb(), listVuObjetivos().catch((): VuObjetivo[] => [])])
       .then(([recs, objs]) => {
         if (!alive) return;
         // Os negócios do funil (FRIO/MORNO/QUENTE) não entram na WIP.
         setRecords(recs.filter(r => isVuWipStatus(r.status)));
-        setObjMap(Object.fromEntries(objs.map(o => [o.mes, o.faturas])));
+        setObjMap(Object.fromEntries(objs.map(o => [o.mes, o])));
       })
       .catch(() => { if (alive) setRecords([]); });
     return () => { alive = false; };
@@ -236,46 +240,36 @@ export default function WipPage() {
     return entries;
   }, [filtered]);
 
-  // Gauge — só ótica da fatura: atual = faturas do período; previsão = faturas +
-  // carteira (esperadas); objetivo = soma das metas dos meses selecionados.
+  // Gauges — só ótica da fatura: atual = faturas do período; previsão = faturas +
+  // carteira (esperadas). Os objetivos (BMW e Caetano) são do total VU por mês, por
+  // isso comparam-se com o período e ignoram os restantes filtros (responsável,
+  // status, proveniência…), que só fariam sentido contra um objetivo por vendedor.
   const gauge = useMemo(() => {
-    const atual = filtered.filter(r => r.status === 'FATURA').length;
-    const previsao = filtered.length;
-    const objetivo = selectedMonthKeys.size === 0
-      ? Object.values(objMap).reduce((s, v) => s + v, 0)
-      : [...selectedMonthKeys].reduce((s, k) => s + (objMap[k] ?? 0), 0);
-    const pct = objetivo > 0 ? (atual / objetivo) * 100 : 0;
-    const prevPct = objetivo > 0 ? (previsao / objetivo) * 100 : 0;
-    return { atual, previsao, objetivo, pct, prevPct };
-  }, [filtered, objMap, selectedMonthKeys]);
-
-  // Edição do objetivo: só faz sentido com um único mês selecionado.
-  const singleMonth = fMonths.length === 1 ? `${Math.floor(fMonths[0] / 100)}/${String(fMonths[0] % 100).padStart(2, '0')}` : null;
-
-  const saveObjetivo = async () => {
-    if (!singleMonth) return;
-    const v = Number(objDraft);
-    if (!Number.isFinite(v) || v < 0) { setObjDraft(''); return; }
-    try {
-      await setVuObjetivo(singleMonth, v);
-      setObjMap(prev => ({ ...prev, [singleMonth]: v }));
-      setObjDraft('');
-      toast.success('Objetivo VU atualizado.');
-    } catch (e) { toast.error('Falha ao guardar objetivo: ' + (e as Error).message); }
-  };
+    const noPeriodo = (records ?? []).filter(inPeriod);
+    const atual = noPeriodo.filter(r => r.status === 'FATURA').length;
+    const previsao = noPeriodo.length;
+    const keys = selectedMonthKeys.size === 0 ? Object.keys(objMap) : [...selectedMonthKeys];
+    const alvo = (campo: 'bmw' | 'caetano') => keys.reduce((s, k) => s + (objMap[k]?.[campo] ?? 0), 0);
+    const mk = (objetivo: number) => ({
+      objetivo,
+      pct: objetivo > 0 ? (atual / objetivo) * 100 : 0,
+      prevPct: objetivo > 0 ? (previsao / objetivo) * 100 : 0,
+      falta: Math.max(0, objetivo - atual),
+    });
+    return { atual, previsao, bmw: mk(alvo('bmw')), caetano: mk(alvo('caetano')) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [records, objMap, selectedMonthKeys]);
 
   const toggleYear = (year: number) => {
     setFYears(prev => prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year].sort());
     setFMonths(prev => prev.filter(k => Math.floor(k / 100) !== year));
-    setObjDraft('');
   };
   const toggleMonth = (year: number, month: number) => {
     const key = year * 100 + month;
     setFYears(prev => prev.includes(year) ? prev : [...prev, year].sort());
     setFMonths(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key].sort((a, b) => a - b));
-    setObjDraft('');
   };
-  const clearPeriod = () => { setFYears([]); setFMonths([]); setObjDraft(''); };
+  const clearPeriod = () => { setFYears([]); setFMonths([]); };
   const toggleResp = (resp: string) => {
     setSelectedResps(prev => { const n = new Set(prev); if (n.has(resp)) n.delete(resp); else n.add(resp); return n; });
   };
@@ -481,43 +475,47 @@ export default function WipPage() {
             </div>
 
             <div className="space-y-3">
-              {/* Realização vs Objetivo — só faturas */}
+              {/* Realização vs Objetivo — só faturas, contra objetivo BMW e orçamento Caetano */}
               <div className="rounded-xl border-2 border-primary/30 bg-gradient-to-br from-primary/5 to-primary/15 p-3 shadow-sm">
-                <p className="text-xs font-bold text-primary uppercase mb-1 tracking-wide text-center">Realização vs Objetivo · Faturas</p>
-                <div className="flex justify-center">
-                  <Gauge pct={gauge.pct} prevPct={gauge.prevPct} />
+                <p className="text-xs font-bold text-primary uppercase mb-2 tracking-wide text-center">Realização vs Objetivo · Faturas</p>
+                <div className="grid grid-cols-2">
+                  {([
+                    { label: 'Objetivo BMW', color: BMW_COLOR, g: gauge.bmw, border: 'pr-2 border-r-2 border-dashed border-primary/30' },
+                    { label: 'Orçamento Caetano', color: FATURA_COLOR, g: gauge.caetano, border: 'pl-2' },
+                  ] as const).map(({ label, color, g, border }) => (
+                    <div key={label} className={`flex flex-col items-center ${border}`}>
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-center" style={{ color }}>{label}</p>
+                      <Gauge pct={g.pct} prevPct={g.prevPct} hasObjetivo={g.objetivo > 0} />
+                      <div className="grid grid-cols-2 gap-1 w-full text-center">
+                        <div>
+                          <p className="text-base font-bold text-foreground tabular-nums">{g.objetivo || '—'}</p>
+                          <p className="text-[9px] text-muted-foreground">Objetivo</p>
+                        </div>
+                        <div>
+                          <p className="text-base font-bold tabular-nums" style={{ color: g.objetivo > 0 && g.falta === 0 ? FATURA_COLOR : undefined }}>
+                            {g.objetivo > 0 ? (g.falta === 0 ? '✓' : g.falta) : '—'}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground">Falta</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="grid grid-cols-3 gap-1 text-center mt-1">
-                  <div>
-                    <p className="text-base font-bold text-foreground tabular-nums">{gauge.objetivo || '—'}</p>
-                    <p className="text-[9px] text-muted-foreground">Objetivo</p>
-                  </div>
+                <div className="grid grid-cols-2 gap-1 text-center mt-2 pt-2 border-t border-primary/20">
                   <div>
                     <p className="text-base font-extrabold tabular-nums" style={{ color: FATURA_COLOR }}>{gauge.atual}</p>
                     <p className="text-[9px] text-muted-foreground">Faturas</p>
                   </div>
                   <div>
                     <p className="text-base font-bold tabular-nums" style={{ color: CARTEIRA_COLOR }}>{gauge.previsao}</p>
-                    <p className="text-[9px] text-muted-foreground">Previsão</p>
+                    <p className="text-[9px] text-muted-foreground">Previsão (● no arco)</p>
                   </div>
                 </div>
-                {/* Editar objetivo do mês (só com um único mês selecionado) */}
-                {!singleMonth ? (
-                  <p className="mt-2 text-[10px] text-center text-muted-foreground">Seleciona um único mês nos filtros para definir/editar o objetivo.</p>
-                ) : canEditWip ? (
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <input
-                      type="number" min={0}
-                      value={objDraft}
-                      onChange={e => setObjDraft(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && saveObjetivo()}
-                      placeholder={`Objetivo ${periodLabel(singleMonth)}…`}
-                      className="h-8 flex-1 min-w-0 rounded-md border border-input bg-background px-2 text-xs"
-                    />
-                    <button onClick={saveObjetivo} disabled={objDraft === ''} className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50">Guardar</button>
-                  </div>
-                ) : (
-                  <p className="mt-2 text-[10px] text-center text-muted-foreground">Objetivo definido pela gestão.</p>
+                {(selectedResps.size > 0 || selectedStatus || selectedProv || selectedRet !== null || selectedFin) && (
+                  <p className="mt-2 text-[10px] text-center text-muted-foreground">Gauges do total VU no período (ignoram os filtros de responsável, status, proveniência, retoma e pagamento).</p>
+                )}
+                {Object.keys(objMap).length === 0 && (
+                  <p className="mt-2 text-[10px] text-center text-muted-foreground">Sem objetivos definidos — ver tab Objetivos.</p>
                 )}
               </div>
 

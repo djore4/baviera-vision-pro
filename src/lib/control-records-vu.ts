@@ -226,18 +226,23 @@ export async function replaceControlRecordsVu(records: VuRecord[]): Promise<numb
   return replaceTableRows(TABLE, records.map(recordToDbRow), { label: 'registos VU' });
 }
 
-/* ── Objetivos de faturas VU (por mês) ── */
-export interface VuObjetivo { mes: string; faturas: number; }
+/* ── Objetivos de faturas VU (por mês, 'AAAA/MM') ──
+ * Dois valores por mês: objetivo BMW e orçamento Caetano. Na BD o orçamento
+ * Caetano é a coluna `faturas` (já existia) e o objetivo BMW a coluna `bmw`. */
+export interface VuObjetivo { mes: string; bmw: number; caetano: number; }
 
 export async function listVuObjetivos(): Promise<VuObjetivo[]> {
-  const { data, error } = await supabase.from('vu_objetivos').select('mes, faturas');
-  if (error || !data) return [];
-  return (data as { mes: string; faturas: number }[]).map(o => ({ mes: o.mes, faturas: Number(o.faturas) || 0 }));
+  const { data, error } = await supabase.from('vu_objetivos').select('mes, faturas, bmw');
+  if (error) throw error;
+  return ((data ?? []) as { mes: string; faturas: number; bmw: number }[])
+    .map(o => ({ mes: o.mes, bmw: Number(o.bmw) || 0, caetano: Number(o.faturas) || 0 }));
 }
 
-export async function setVuObjetivo(mes: string, faturas: number): Promise<void> {
+export async function saveVuObjetivos(rows: VuObjetivo[]): Promise<void> {
+  if (rows.length === 0) return;
+  const now = new Date().toISOString();
   const { error } = await supabase
     .from('vu_objetivos')
-    .upsert({ mes, faturas, updated_at: new Date().toISOString() }, { onConflict: 'mes' });
+    .upsert(rows.map(o => ({ mes: o.mes, bmw: o.bmw, faturas: o.caetano, updated_at: now })), { onConflict: 'mes' });
   if (error) throw error;
 }
