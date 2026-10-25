@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { applyKpi, kpiCounts, kpiMatch, pctAcompanhamento, toneAcompanhamento, KPI_LABELS, type KpiKey } from '@/lib/eot-kpi';
+import { applyKpi, kpiCounts, kpiMatch, kpiListMatch, pctAcompanhamento, toneAcompanhamento, KPI_LABELS, type KpiKey } from '@/lib/eot-kpi';
 import type { Fase } from '@/lib/eot';
 
 /* Hoje = 2026-10-04 (meio-dia UTC); as datas de fim são relativas a esse dia. */
@@ -55,7 +55,7 @@ describe('o número do cartão é o número de linhas da lista', () => {
     c('renovado', 10), c('retomado', null), c('renovado', -20), c('perdido', 5), c('sem_interesse', 40),
   ];
 
-  it.each(KEYS)('%s: kpiCounts == applyKpi(...).length, com "esconder fechados" ligado ou desligado', key => {
+  it.each(KEYS.filter(k => k !== 'acompanhamento'))('%s: kpiCounts == applyKpi(...).length, com "esconder fechados" ligado ou desligado', key => {
     const n = kpiCounts(lista)[key];
     expect(applyKpi(lista, key, true)).toHaveLength(n);
     expect(applyKpi(lista, key, false)).toHaveLength(n);
@@ -67,7 +67,26 @@ describe('o número do cartão é o número de linhas da lista', () => {
 
   it('com um contador ativo, a lista são exatamente os contratos desse contador', () => {
     for (const key of KEYS) {
-      for (const x of applyKpi(lista, key, true)) expect(kpiMatch(x, key)).toBe(true);
+      for (const x of applyKpi(lista, key, true)) expect(kpiListMatch(x, key)).toBe(true);
+    }
+  });
+});
+
+describe('Em acompanhamento — o número conta os não pendentes, a lista mostra os pendentes', () => {
+  const lista = [c('pendente', 10), c('pendente', null), c('contactado', 10), c('renovado', 10), c('perdido', 10)];
+
+  it('número = não pendentes; lista = pendentes (soma = total)', () => {
+    const { acompanhamento, total } = kpiCounts(lista);
+    const pend = applyKpi(lista, 'acompanhamento', true);
+    expect(acompanhamento).toBe(3);
+    expect(pend.map(x => x.fase)).toEqual(['pendente', 'pendente']);
+    expect(pend.length + acompanhamento).toBe(total);
+    expect(applyKpi(lista, 'acompanhamento', false)).toHaveLength(2);
+  });
+
+  it('kpiListMatch dos outros contadores é o kpiMatch', () => {
+    for (const k of KEYS.filter(k => k !== 'acompanhamento')) {
+      for (const x of lista) expect(kpiListMatch(x, k)).toBe(kpiMatch(x, k));
     }
   });
 });

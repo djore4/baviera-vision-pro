@@ -84,14 +84,15 @@ describe('EndOfTermPage — contadores clicáveis', () => {
     expect(screen.queryByText(/A mostrar:/)).not.toBeInTheDocument();
   });
 
-  it('"Em acompanhamento" mostra os não pendentes (incluindo fechados); "ativos" mostra os três ativos', async () => {
+  it('"Em acompanhamento" mostra os PENDENTES; "ativos" mostra os três ativos', async () => {
     renderPage();
     await rodape(3);
     fireEvent.click(kpi(/Em acompanhamento/));
-    await rodape(5);
-    expect(screen.getAllByText('Cliente B').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Cliente G').length).toBeGreaterThan(0);
-    expect(screen.queryByText('Cliente A')).not.toBeInTheDocument();
+    await rodape(1);
+    expect(screen.getByText(/A mostrar: Pendentes/)).toBeInTheDocument();
+    expect(screen.getAllByText('Cliente A').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Cliente B')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cliente G')).not.toBeInTheDocument();
     fireEvent.click(kpi(/Contratos ativos/));
     await rodape(3);
     expect(screen.getAllByText('Cliente C').length).toBeGreaterThan(0);
@@ -133,7 +134,7 @@ describe('EndOfTermPage — contadores clicáveis', () => {
     renderPage();
     await rodape(3);
     fireEvent.click(kpi(/Em acompanhamento/));
-    await rodape(5);
+    await rodape(1);
     fireEvent.click(screen.getByRole('button', { name: /Limpar o filtro do contador/ }));
     await rodape(3);
     expect(screen.queryByText(/A mostrar:/)).not.toBeInTheDocument();
@@ -151,10 +152,10 @@ describe('EndOfTermPage — contadores clicáveis', () => {
   it('os contadores seguem os outros filtros (a pesquisa reduz os números e a lista)', async () => {
     renderPage();
     await rodape(3);
-    fireEvent.change(screen.getByPlaceholderText(/Cliente, matrícula ou contrato/), { target: { value: 'Cliente B' } });
+    fireEvent.change(screen.getByPlaceholderText(/Cliente, matrícula ou contrato/), { target: { value: 'Cliente A' } });
     await rodape(1);
     expect(kpi(/Contratos ativos/)).toHaveTextContent('1');
-    expect(kpi(/Em acompanhamento/)).toHaveTextContent('100%');
+    expect(kpi(/Em acompanhamento/)).toHaveTextContent('0%');
     expect(kpi(/Renovados \/ Retomados/)).toHaveTextContent('0');
     fireEvent.click(kpi(/Em acompanhamento/));
     await rodape(1);
