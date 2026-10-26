@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { client } from '@/clients';
 import { isRetiredMember } from '@/lib/team';
+import EstacionamentoMap from '@/components/EstacionamentoMap';
 
 /* ── Escala mensal (equipa × tipologias) ───────────────────────────────────────
  * Componente partilhado entre a escala VN e VU. As diferenças (ficheiro de
@@ -738,6 +739,8 @@ export default function EscalaBoard({ config }: { config: EscalaConfig }) {
           </div>
         </div>
       </div>
+
+      <EstacionamentoMap />
     </div>
   );
 }
