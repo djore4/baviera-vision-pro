@@ -258,16 +258,35 @@ export function parseEotFile(buffer: ArrayBuffer): EotImportRow[] {
   return out;
 }
 
+/** Junta uma linha do ficheiro ao que já existe: o ficheiro manda quando traz
+ *  valor; uma célula vazia nunca apaga o valor atual (p.ex. um contacto corrigido
+ *  na app). */
+export function mergeEotRow(incoming: EotImportRow, existing?: Partial<EotImportRow>): EotImportRow {
+  if (!existing) return incoming;
+  const out = { ...incoming } as Record<string, unknown>;
+  for (const [k, v] of Object.entries(existing)) {
+    if (out[k] == null && v != null) out[k] = v;
+  }
+  return out as unknown as EotImportRow;
+}
+
 /** Importa o mapa: UPSERT por número de contrato das colunas-base. Preserva o
- *  estado de acompanhamento e o histórico dos contratos já existentes. Devolve
- *  o número de contratos importados. */
+ *  estado de acompanhamento e o histórico dos contratos já existentes, e não
+ *  apaga valores existentes com células vazias do ficheiro. Devolve o número de
+ *  contratos importados. */
 export async function importEotContracts(rows: EotImportRow[]): Promise<number> {
   if (rows.length === 0) {
     throw new Error('O ficheiro não tem contratos válidos — importação cancelada.');
   }
-  const BATCH = 500;
+  const BATCH = 200;
+  const baseCols = Object.keys(rows[0]).join(', ');
   for (let i = 0; i < rows.length; i += BATCH) {
-    const chunk = rows.slice(i, i + BATCH).map(r => ({ ...r, imported_at: new Date().toISOString() }));
+    const slice = rows.slice(i, i + BATCH);
+    const { data: current, error: readErr } = await supabase
+      .from(TABLE).select(baseCols).in('contrato', slice.map(r => r.contrato));
+    if (readErr) throw new Error(`Erro ao ler terminações existentes (lote ${i / BATCH + 1}): ${readErr.message}`);
+    const byContrato = new Map(((current ?? []) as unknown as EotImportRow[]).map(c => [c.contrato, c]));
+    const chunk = slice.map(r => ({ ...mergeEotRow(r, byContrato.get(r.contrato)), imported_at: new Date().toISOString() }));
     const { error } = await supabase.from(TABLE).upsert(chunk, { onConflict: 'contrato' });
     if (error) throw new Error(`Erro ao importar terminações (lote ${i / BATCH + 1}): ${error.message}`);
   }
