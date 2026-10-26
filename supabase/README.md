@@ -34,6 +34,12 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   `SUB_PERMISSIONS` (`src/lib/permissions.ts`) e impostas pela RLS
   (`20261003140000`). A BD não distingue "iniciar" de "qualidade" dentro de um
   update; a interface sim.
+- **Instalações** (`20261027120000`): ocorrências registadas sobre a planta (tabela
+  `instalacoes_ocorrencias`, piso + posição x/y em fração 0–1 da imagem). Tab
+  `instalacoes`: `view` lê, `edit` regista, altera e apaga. O histórico
+  (`instalacoes_historico`: criação, estado, interlocutor) é escrito por trigger e é só
+  de leitura para todos. As plantas são ficheiros do cliente
+  (`public/clients/<cliente>/plantas`, declarados em `plantas` no config do cliente).
 - **Diário (prospeção):** cada vendedor só vê e altera as suas contas e tarefas
   (`owner_email`, sem distinguir maiúsculas); contactos e interações herdam da
   conta. O administrador (diretor) vê e reatribui tudo (`20261003120000`).

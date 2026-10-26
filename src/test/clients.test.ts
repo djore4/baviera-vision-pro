@@ -22,7 +22,7 @@ describe('configuração por cliente', () => {
   });
 
   it.each(Object.values(CLIENTS))('$id só desativa tabs que existem', c => {
-    const known = new Set([...TABS.map(t => t.key), 'escala-repsol']);
+    const known = new Set([...TABS.map(t => t.key), 'escala-repsol', 'instalacoes']);
     for (const key of c.disabledTabs) expect(known.has(key)).toBe(true);
   });
 

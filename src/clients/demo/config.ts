@@ -17,7 +17,7 @@ const config: ClientConfig = {
     dark: '220 18% 13%',   // #1B1F27
   },
   matricula: { to: ['matriculas@autodemo.pt'], cc: [] },
-  disabledTabs: ['escala-repsol'],
+  disabledTabs: ['escala-repsol', 'instalacoes'],
 };
 
 export default config;

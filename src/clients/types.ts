@@ -33,6 +33,9 @@ export interface ClientConfig {
   font?: { family: string; faces: FontFace[] };
   /** Tabs que não existem nesta instalação (nem para administradores). */
   disabledTabs: string[];
+  /** Plantas das instalações (tab Instalações): uma imagem por piso, em
+   *  public/. O `id` é a chave gravada nas ocorrências — não mudar depois de usado. */
+  plantas?: { id: string; label: string; src: string }[];
   /** Destinatários do pedido de matrícula (texto copiado para email). */
   matricula: { to: string[]; cc: string[] };
   /** TEMPORÁRIO. Exceções de acesso por email que passaram para a tabela
