@@ -9,7 +9,7 @@ interface Spot { num: number; name: string; day: string }
 
 // Fila de cima (da esquerda para a direita)
 const ROW_TOP: Array<Spot | null> = [
-  { num: 67, name: 'João Duarte', day: '4ª feira' },
+  { num: 70, name: 'João Duarte', day: '4ª feira' },
   { num: 69, name: 'Gonçalo Pinto', day: '4ª feira' },
   { num: 68, name: 'Paula Abreu', day: '4ª feira' },
   { num: 67, name: 'Belmiro Resgate', day: '5ª feira' },
