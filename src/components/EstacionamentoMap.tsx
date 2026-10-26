@@ -7,10 +7,10 @@ const MAP_LABEL = 'Outubro 2026';
 
 interface Spot { num: number; name: string; day: string }
 
-// Fila de cima (da esquerda para a direita); `null` = lugar bloqueado
+// Fila de cima (da esquerda para a direita)
 const ROW_TOP: Array<Spot | null> = [
-  null,
-  { num: 69, name: 'João Duarte', day: '4ª feira' },
+  { num: 67, name: 'João Duarte', day: '4ª feira' },
+  { num: 69, name: 'Gonçalo Pinto', day: '4ª feira' },
   { num: 68, name: 'Paula Abreu', day: '4ª feira' },
   { num: 67, name: 'Belmiro Resgate', day: '5ª feira' },
   { num: 66, name: 'Pedro Ferreirinha', day: '3ª feira' },
@@ -73,10 +73,10 @@ export default function EstacionamentoMap() {
             LAVAGEM
           </div>
           <div className="grid grid-cols-8 gap-1">
-            {ROW_TOP.map((s, i) => <SpotCell key={s?.num ?? `x${i}`} spot={s} />)}
+            {ROW_TOP.map((s, i) => <SpotCell key={i} spot={s} />)}
           </div>
           <div className="grid grid-cols-8 gap-1">
-            {ROW_BOTTOM.map((s, i) => <SpotCell key={s?.num ?? `y${i}`} spot={s} />)}
+            {ROW_BOTTOM.map((s, i) => <SpotCell key={i} spot={s} />)}
           </div>
         </div>
       </div>
