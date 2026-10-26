@@ -28,7 +28,7 @@ export interface AreaDef {
 export const AREAS: AreaDef[] = [
   { key: 'vn', label: 'Vendas VN', style: 'normal' },
   { key: 'vu', label: 'Vendas VU', style: 'normal' },
-  { key: 'apv', label: 'Após-Venda', style: 'normal' },
+  { key: 'apv', label: 'Transversal', style: 'normal' },
   { key: 'admin', label: 'Administração', style: 'admin' },
 ];
 
@@ -67,8 +67,9 @@ const ALL_TABS: TabDef[] = [
   { key: 'angariacao', label: 'Angariação', path: '/angariacao', area: 'vu' },
   { key: 'stock', label: 'Stock', path: '/stock', area: 'vu' },
   { key: 'escala-vu', label: 'Escala', path: '/escala-vu', area: 'vu' },
-  // ── Após-Venda ──────────────────────────────────────────────────────────────
+  // ── Transversal (chave interna 'apv': é a chave que as áreas guardam) ───────
   { key: 'lavagem', label: 'Lavagem', path: '/lavagem', area: 'apv' },
+  { key: 'instalacoes', label: 'Instalações', path: '/instalacoes', area: 'apv' },
   // ── Administração ───────────────────────────────────────────────────────────
   { key: 'dados', label: 'Dados', path: '/dados', area: 'admin' },
   { key: 'arquivo', label: 'Arquivo', path: '/arquivo', area: 'admin' },

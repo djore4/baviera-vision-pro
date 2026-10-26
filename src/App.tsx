@@ -26,6 +26,7 @@ import EmprestimosPage from "./pages/EmprestimosPage";
 import ObjetivosPage from "./pages/ObjetivosPage";
 import VendedoresPage from "./pages/VendedoresPage";
 import LavagemPage from "./pages/LavagemPage";
+import InstalacoesPage from "./pages/InstalacoesPage";
 import UtilizadoresPage from "./pages/UtilizadoresPage";
 import ArquivoPage from "./pages/ArquivoPage";
 import DefinicoesPage from "./pages/DefinicoesPage";
@@ -109,6 +110,7 @@ const App = () => (
               <Route path="/objetivos" element={tab('objetivos', <ObjetivosPage />)} />
               <Route path="/vendedores" element={tab('vendedores', <VendedoresPage />)} />
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
+              <Route path="/instalacoes" element={tab('instalacoes', <InstalacoesPage />)} />
               <Route path="/wip" element={tab('wip', <WipPage />)} />
               <Route path="/objetivos-vu" element={tab('objetivos-vu', <ObjetivosVuPage />)} />
               <Route path="/funil-vu" element={tab('funil-vu', <FunilVuPage />)} />
