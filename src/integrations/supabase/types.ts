@@ -1095,6 +1095,109 @@ export type Database = {
         }
         Relationships: []
       }
+      instalacoes_historico: {
+        Row: {
+          autor: string | null
+          created_at: string
+          de: string | null
+          id: string
+          ocorrencia_id: string
+          para: string | null
+          tipo: string
+        }
+        ComputedFields: never
+        Insert: {
+          autor?: string | null
+          created_at?: string
+          de?: string | null
+          id?: string
+          ocorrencia_id: string
+          para?: string | null
+          tipo: string
+        }
+        Update: {
+          autor?: string | null
+          created_at?: string
+          de?: string | null
+          id?: string
+          ocorrencia_id?: string
+          para?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instalacoes_historico_ocorrencia_id_fkey"
+            columns: ["ocorrencia_id"]
+            isOneToOne: false
+            referencedRelation: "instalacoes_ocorrencias"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      instalacoes_ocorrencias: {
+        Row: {
+          categoria: string
+          created_at: string
+          criada_por: string | null
+          data_ocorrencia: string
+          data_reporte: string | null
+          estado: string
+          id: string
+          interlocutor: string | null
+          intervencao: string
+          obs: string | null
+          piso: string
+          prioridade: string
+          resolvida_em: string | null
+          titulo: string
+          updated_at: string
+          x: number
+          y: number
+          zona: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          categoria?: string
+          created_at?: string
+          criada_por?: string | null
+          data_ocorrencia?: string
+          data_reporte?: string | null
+          estado?: string
+          id?: string
+          interlocutor?: string | null
+          intervencao: string
+          obs?: string | null
+          piso: string
+          prioridade?: string
+          resolvida_em?: string | null
+          titulo: string
+          updated_at?: string
+          x: number
+          y: number
+          zona?: string | null
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          criada_por?: string | null
+          data_ocorrencia?: string
+          data_reporte?: string | null
+          estado?: string
+          id?: string
+          interlocutor?: string | null
+          intervencao?: string
+          obs?: string | null
+          piso?: string
+          prioridade?: string
+          resolvida_em?: string | null
+          titulo?: string
+          updated_at?: string
+          x?: number
+          y?: number
+          zona?: string | null
+        }
+        Relationships: []
+      }
       notification_reads: {
         Row: {
           notification_id: string

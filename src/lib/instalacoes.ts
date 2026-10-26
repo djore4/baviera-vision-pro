@@ -11,8 +11,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * string e as respostas são convertidas — mesmo padrão de eot.ts.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/* As tabelas ainda não constam dos tipos gerados (types.ts): cliente sem tipos só
- * para estas duas. Quando se regenerarem os tipos, basta usar o cliente tipado. */
+/* Cliente sem tipos de linha: no types.ts gerado, as colunas de estado/prioridade/
+ * categoria são `string`, e aqui interessam as uniões literais (Estado, Prioridade…). */
 const supabase = typedClient as unknown as SupabaseClient;
 
 const TABLE = 'instalacoes_ocorrencias';
