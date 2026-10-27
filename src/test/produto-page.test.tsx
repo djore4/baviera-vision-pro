@@ -8,7 +8,7 @@ vi.mock('@/lib/produto', async orig => ({
     { id: 'm1', codigo: 'A', nome_visual: 'xDrive40d' },
     { id: 'm2', codigo: 'B', nome_visual: 'xDrive50e' },
   ]),
-  getSpecs: vi.fn(async (id: string) => (id === 'm1' ? { Potência: '250', Lugares: '5' } : { Potência: '490', Lugares: '5' })),
+  getSpecs: vi.fn(async (id: string) => (id === 'm1' ? { Potência: '250', Lugares: '5', 'Potência combinada comunicada, cv': '250' } : { Potência: '490', Lugares: '5', 'Potência combinada comunicada, cv': '490' })),
   listOpModelos: vi.fn(async () => [{ id: 'x5', codigo: 'G05', nome: 'BMW X5' }]),
   listOpMotorizacoes: vi.fn(async () => [{ id: 'o1', nome: 'xDrive40d' }]),
   listOpcionais: vi.fn(async () => [
@@ -19,6 +19,9 @@ vi.mock('@/lib/produto', async orig => ({
 }));
 
 import ProdutoPage from '@/pages/ProdutoPage';
+
+// O Slider (Radix) mede-se com ResizeObserver, que o jsdom não tem.
+globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
 
 describe('Página Produto', () => {
   it('Dados Técnicos: série → modelo → motorizações, e destaca as diferenças', async () => {
@@ -52,5 +55,26 @@ describe('Página Produto', () => {
     fireEvent.click(screen.getByText('Pack M'));
     expect(await screen.findByText('Desportivo')).toBeTruthy();
     expect(screen.getByText('Preço c/ IVA')).toBeTruthy();
+  });
+
+  it('Comparador: escolhe duas viaturas e compara', async () => {
+    render(<ProdutoPage />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Comparador' }));
+    for (const mot of ['xDrive40d', 'xDrive50e']) {
+      fireEvent.click((await screen.findAllByRole('button', { name: /Adicionar viatura/ }))[0]);
+      fireEvent.click(await screen.findByRole('button', { name: /BMW X5/ }));
+      fireEvent.click(await screen.findByRole('button', { name: new RegExp(mot) }));
+      await waitFor(() => expect(screen.getAllByText('Pronto').length).toBeGreaterThan(0));
+    }
+    const linha = (await screen.findByText('Potência (cv)')).closest('tr')!;
+    expect(linha.querySelectorAll('td')[1].textContent).toBe('250');
+    expect(linha.querySelectorAll('td')[2].textContent).toBe('490');
+    expect(linha.querySelectorAll('td')[1].className).toContain('text-primary');
+  });
+
+  it('Calculadora: mostra o tempo com os valores por defeito', () => {
+    render(<ProdutoPage />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Calculadora' }));
+    expect(screen.getByTestId('calc-tempo').textContent).toBe('6h 8min');
   });
 });

@@ -8,6 +8,7 @@ import { useProspec } from '@/contexts/ProspecContext';
 import { AREAS, TABS, ARCHIVED_TAB_KEYS, navAreaFor } from '@/lib/permissions';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { InstallBanner } from '@/components/InstallBanner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { seasonalFlags } from '@/lib/seasonal';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -237,6 +238,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <InstallBanner />
     </div>
   );
 }

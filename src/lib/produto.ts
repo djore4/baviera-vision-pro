@@ -171,3 +171,128 @@ export async function listDisponibilidade(opcionalId: string): Promise<Disponibi
   return ((data ?? []) as unknown as { tipo: OpTipo; op_motorizacoes: { nome: string } | null }[])
     .map(d => ({ tipo: d.tipo, motorizacao: d.op_motorizacoes?.nome || '' }));
 }
+
+/* ── Comparador ───────────────────────────────────────────────────────────────
+ * Compara até 4 motorizações de QUALQUER modelo. As linhas "principais" são as
+ * que interessam numa conversa de venda; as chaves da base de dados variam de
+ * modelo para modelo (e de ano para ano), por isso cada linha aceita várias.
+ * Tudo o resto que exista nas motorizações escolhidas fica em "Outras
+ * especificações", para nunca se perder informação por falta de mapeamento.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export interface LinhaComparador { label: string; keys: string[] }
+
+export const LINHAS_COMPARADOR: LinhaComparador[] = [
+  { label: 'Código Modelo', keys: ['Código Modelo'] },
+  { label: 'Potência (cv)', keys: ['Potência combinada comunicada, cv', 'Potência do sistema motor (acumulado), cv', 'Potência do sistema motor (acumulado) 30 min, cv'] },
+  { label: '0-100 km/h (seg)', keys: ['0-100 km/h, seg.', '0-100Km/h, seg.', '0-100 km/h (arranque 1-ft), s'] },
+  { label: 'Velocidade Máxima (km/h)', keys: ['Velocidade máxima, km/h', 'Velocidade máxima em modo puramente elétrico, km/h', 'Velocidade Máxima'] },
+  { label: 'Tração', keys: ['Tração', 'Tracção'] },
+  { label: 'Autonomia WLTP (km)', keys: ['Alcance/Autonomia (WLTP), km', 'Alcance (WLTP), km', 'Autonomia (km)', 'Autonomia WLTP (km)'] },
+  { label: 'Consumo (kWh/100km)', keys: ['Consumo combinado de energia (WLTP), kWh/100 km', 'Consumo de energia combinado (WLTP), kWh/100 km', 'Consumo (kWh/100km)'] },
+  { label: 'Bateria líquida (kWh)', keys: ['Capacidade líquida da bateria de alta tensão, kWh'] },
+  { label: 'Bateria bruta (kWh)', keys: ['Bateria de Alta Tensão - Capacidade energética (bruta), kWh'] },
+  { label: 'Carga DC máx (kW)', keys: ['Potência máxima de carregamento DC, kW', 'Capacidade maxima de carga DC, kW'] },
+  { label: 'Carga AC série (kW)', keys: ['Capacidade maxima de carga AC standard, kW'] },
+  { label: 'Carga AC opcional (kW)', keys: ['Capacidade maxima de carga AC alta, kW', 'Capacidade maxima de carga AC alta (opcional), kW'] },
+];
+
+export interface SlotComparador { modelo: Modelo; mot: Motorizacao; specs: Specs }
+export interface LinhaValores { label: string; valores: string[]; difere: boolean }
+
+const vazio = (v: string | null | undefined) => v === null || v === undefined || v === '';
+
+export function valorLinha(specs: Specs, keys: string[]): string {
+  for (const k of keys) if (!vazio(specs[k])) return specs[k];
+  return '—';
+}
+
+/* Variações de carregamento (AC/DC 1..4) que existam nas motorizações escolhidas. */
+function linhasCarregamento(specs: Specs[]): LinhaComparador[] {
+  const out: LinhaComparador[] = [];
+  for (const [tipo, intervalo] of [['AC', '0-100%'], ['DC', '10-80%']] as const) {
+    for (const n of [1, 2, 3, 4]) {
+      const desc = specs.map(s => s[`Variação de carregamento ${tipo} ${n}`]).find(d => !vazio(d));
+      if (!desc) continue;
+      const nome = desc.replace(`${tipo} charging with `, `${tipo} `).replace(/\(.*\)/, '').replace(/EVSE limitation/, '').trim();
+      out.push({ label: `${intervalo} ${nome}`, keys: [`Tempo de carregamento ${tipo} ${n} (${intervalo}), h`] });
+    }
+  }
+  return out;
+}
+
+const linha = (l: LinhaComparador, specs: Specs[]): LinhaValores => {
+  const valores = specs.map(s => valorLinha(s, l.keys));
+  return { label: l.label, valores, difere: !valores.every(v => v === valores[0]) };
+};
+
+/* Linhas principais com algum valor + carregamento. Linhas sem nenhum valor
+ * (ex.: bateria num modelo a combustão) não aparecem. */
+export function linhasPrincipais(specs: Specs[]): LinhaValores[] {
+  return [...LINHAS_COMPARADOR, ...linhasCarregamento(specs)]
+    .map(l => linha(l, specs))
+    .filter(l => l.valores.some(v => v !== '—'));
+}
+
+/* Tudo o que não está coberto pelas linhas principais, pela ordem de aparição. */
+export function linhasOutras(specs: Specs[]): LinhaValores[] {
+  const usadas = new Set([...LINHAS_COMPARADOR, ...linhasCarregamento(specs)].flatMap(l => l.keys));
+  const chaves: string[] = [];
+  for (const s of specs) for (const k of Object.keys(s)) if (!usadas.has(k) && !chaves.includes(k)) chaves.push(k);
+  return chaves
+    .map(k => linha({ label: k, keys: [k] }, specs))
+    .filter(l => l.valores.some(v => v !== '—'));
+}
+
+/* ── Calculadora de carregamento ──────────────────────────────────────────── */
+
+export interface CalcInputs {
+  bateria: number;   // kWh
+  potencia: number;  // kW
+  socIni: number;    // %
+  socFin: number;    // %
+  precoKwh: number;  // €
+  km: number;
+  consumo: number;   // kWh/100 km
+}
+
+export const CALC_DEFAULTS: CalcInputs = { bateria: 75, potencia: 11, socIni: 10, socFin: 100, precoKwh: 0.15, km: 100, consumo: 20 };
+
+export interface CalcResult {
+  valido: boolean;
+  horas: number;
+  energia: number;        // kWh a carregar
+  custoCarga: number;
+  custoPor100km: number;
+  energiaViagem: number;
+  custoViagem: number;
+}
+
+export function calcular(i: CalcInputs): CalcResult {
+  const energiaViagem = (i.consumo / 100) * i.km;
+  const viagem = { energiaViagem, custoViagem: energiaViagem * i.precoKwh };
+  if (i.socFin <= i.socIni) return { valido: false, horas: 0, energia: 0, custoCarga: 0, custoPor100km: 0, ...viagem };
+  const energia = i.bateria * (i.socFin - i.socIni) / 100;
+  const custoCarga = energia * i.precoKwh;
+  const autonomia = (i.bateria / i.consumo) * 100;
+  return {
+    valido: true,
+    horas: energia / i.potencia,
+    energia,
+    custoCarga,
+    custoPor100km: autonomia > 0 ? (custoCarga / autonomia) * 100 : 0,
+    ...viagem,
+  };
+}
+
+export function formatarTempo(horas: number): string {
+  if (isNaN(horas) || horas <= 0) return '—';
+  const h = Math.floor(horas);
+  const m = Math.round((horas - h) * 60);
+  if (m === 60) return `${h + 1}h`;
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h}h` : `${h}h ${m}min`;
+}
+
+export const fmtNum = (n: number, dec = 2) =>
+  n.toLocaleString('pt-PT', { minimumFractionDigits: dec, maximumFractionDigits: dec });

@@ -21,13 +21,11 @@ import { applyKpi, kpiCounts, pctAcompanhamento, toneAcompanhamento, KPI_LABELS,
 import { EmptyState, relativeLabel } from '@/components/prospecao/ui';
 import {
   listEotContracts, listEotVendedores, listAgenda, listEotOwners, listEotVendedorMap,
-  FASES, TEMPERATURAS, tempDef, updateEotContract, faseLabel, faseCls, actTipoLabel, daysToEnd, eur, isOverdue, isFechada, contractLocal,
+  FASES, TEMPERATURAS, tempDef, updateEotContract, faseLabel, faseCls, actTipoLabel, daysToEnd, eur, isOverdue, isFechada, contractLocal, localPorOmissao,
   type EotContract, type AgendaItem, type EotOwner, type EotVendedorMapRow, type Fase, type Temperatura,
 } from '@/lib/eot';
 
 type UntilKey = 'all' | '30' | '60' | '90';
-
-const DEFAULT_LOCAL = 'Aveiro';
 
 type SortKey = 'cliente' | 'viatura' | 'resp' | 'fim' | 'fase' | 'temp' | 'proxima' | 'prestacao' | 'total';
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
@@ -55,7 +53,7 @@ export default function EndOfTermPage() {
   const [hideClosed, setHideClosed] = useState(true);
   const [ownerFilter, setOwnerFilter] = useState<string>('all'); // all | none | <email>
   const [q, setQ] = useState('');
-  const [local, setLocal] = useState<string>(DEFAULT_LOCAL); // all | <local>
+  const [local, setLocal] = useState<string>('all'); // all | <local>
   const [localTouched, setLocalTouched] = useState(false);
   const [sort, setSort] = useState<SortState>(null);
   // Contador ativo (clique num dos cartões do topo): filtra a lista de contratos.
@@ -132,12 +130,11 @@ export default function EndOfTermPage() {
     return list;
   }, [contracts, local]);
 
-  // Se o utilizador ainda não escolheu e o local por omissão não tem contratos
-  // (ex.: vendedor com contratos só noutro local), mostra todos em vez de vazio.
+  // Enquanto o utilizador não escolher, o local é o dele (ver localPorOmissao).
   useEffect(() => {
     if (loading || localTouched || contracts.length === 0) return;
-    if (!contracts.some(c => contractLocal(c) === DEFAULT_LOCAL)) setLocal('all');
-  }, [loading, localTouched, contracts]);
+    setLocal(localPorOmissao(contracts, owners, myEmail));
+  }, [loading, localTouched, contracts, owners, myEmail]);
 
   // Responsáveis do filtro: a gestão vê a lista de atribuição; o vendedor vê os
   // responsáveis presentes nos seus contratos.
