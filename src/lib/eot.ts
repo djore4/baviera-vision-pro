@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { toLocalIsoDay } from '@/lib/utils';
+import { canonicalLocal } from '@/lib/locations';
 
 /* ── End-of-Term (EoT) — controlo das terminações de contrato BMW FS ──────────
  * O ficheiro-base é o "MAPA DE CONTRATOS A TERMINAR NOS PRÓXIMOS 12 MESES"
@@ -598,6 +599,8 @@ export async function countOverdue(scope: Scope): Promise<number> {
 export function contractLocal(c: Pick<EotContract, 'concessionario_resp' | 'concessionario'>): string {
   const raw = (c.concessionario_resp || c.concessionario || '').trim();
   if (!raw) return '—';
+  const conhecido = canonicalLocal(raw); // local do grupo (client.locais), em nome canónico
+  if (conhecido) return conhecido;
   const s = raw
     .replace(/^(Caetano Baviera|Baviera|Caetano)\s*[–-]?\s*/i, '')
     .replace(/\s+\d+$/, '')
@@ -608,15 +611,18 @@ export function contractLocal(c: Pick<EotContract, 'concessionario_resp' | 'conc
 }
 
 /* Local que o filtro mostra por omissão, em vez de um fixo para toda a gente:
- *  1. o único local da ficha do utilizador em eot_owners (quando a conhece);
- *  2. senão, o único local dos contratos que lhe chegam (um vendedor de outro
+ *  1. os locais do perfil (escolhidos em Utilizadores): um só → esse; vários → todos;
+ *  2. senão, o único local da ficha do utilizador em eot_owners;
+ *  3. senão, o único local dos contratos que lhe chegam (um vendedor de outro
  *     stand só tem os seus);
- *  3. senão, todos. */
+ *  4. senão, todos. */
 export function localPorOmissao(
   contracts: Pick<EotContract, 'concessionario_resp' | 'concessionario'>[],
   owners: Pick<EotOwner, 'email' | 'locais'>[],
   myEmail: string | null,
+  perfilLocais: string[] = [],
 ): string {
+  if (perfilLocais.length > 0) return perfilLocais.length === 1 ? perfilLocais[0] : 'all';
   const mine = owners.find(o => !!myEmail && o.email.toLowerCase() === myEmail.toLowerCase());
   if (mine?.locais?.length === 1) return mine.locais[0];
   const locais = new Set(contracts.map(contractLocal));

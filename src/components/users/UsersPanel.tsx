@@ -8,6 +8,8 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import { createUser, updateUser, deleteUser, type AppUser } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import { generatePassword } from '@/lib/password';
+import { locaisDoGrupo, locaisDoPerfil } from '@/lib/locations';
+import { LocaisPicker } from '@/components/users/LocaisPicker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,6 +41,7 @@ export function UsersPanel({
   users: AppUser[]; loading: boolean; roleNames: string[]; onChanged: () => Promise<void>;
 }) {
   const { me } = usePermissions();
+  const comLocais = locaisDoGrupo().length > 0;
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>(ALL);
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'nome', dir: 'asc' });
@@ -88,6 +91,17 @@ export function UsersPanel({
     try {
       await updateUser(u.id, { perfil: newRole });
       toast.success(`${u.nome || u.email} → ${newRole}`);
+      await onChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível atualizar.');
+    } finally { setBusyId(null); }
+  };
+
+  const handleLocaisChange = async (u: AppUser, locais: string[]) => {
+    setBusyId(u.id);
+    try {
+      await updateUser(u.id, { local: locais.length ? locais : null });
+      toast.success(`${u.nome || u.email} → ${locais.length ? locais.join(', ') : 'todos os locais'}`);
       await onChanged();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível atualizar.');
@@ -147,17 +161,18 @@ export function UsersPanel({
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[560px]">
+            <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="border-b border-border bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                   <SortTh label="Utilizador" k="nome" sort={sort} onSort={toggleSort} />
                   <SortTh label="Função" k="perfil" sort={sort} onSort={toggleSort} />
+                  {comLocais && <th className="px-3 py-2 font-medium">Locais</th>}
                   <th className="px-3 py-2 text-right font-medium">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {visible.length === 0 && (
-                  <tr><td colSpan={3} className="py-10 text-center text-sm text-muted-foreground">Nenhum utilizador corresponde à pesquisa.</td></tr>
+                  <tr><td colSpan={comLocais ? 4 : 3} className="py-10 text-center text-sm text-muted-foreground">Nenhum utilizador corresponde à pesquisa.</td></tr>
                 )}
                 {visible.map(u => {
                   const isMe = !!me?.email && u.email?.toLowerCase() === me.email.toLowerCase();
@@ -183,6 +198,11 @@ export function UsersPanel({
                           </SelectContent>
                         </Select>
                       </td>
+                      {comLocais && (
+                        <td className="px-3 py-2">
+                          <LocaisPicker value={locaisDoPerfil(u.local)} onChange={l => handleLocaisChange(u, l)} disabled={busyId === u.id} className="w-[170px]" />
+                        </td>
+                      )}
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Repor password"
@@ -275,11 +295,12 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [perfil, setPerfil] = useState('');
+  const [locais, setLocais] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const reset = () => { setNome(''); setEmail(''); setPassword(''); setPerfil(''); setCreated(null); setCopied(false); };
+  const reset = () => { setNome(''); setEmail(''); setPassword(''); setPerfil(''); setLocais([]); setCreated(null); setCopied(false); };
   const close = (v: boolean) => { onOpenChange(v); if (!v) reset(); };
 
   const submit = async (e: React.FormEvent) => {
@@ -290,7 +311,7 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
     setSaving(true);
     try {
       const mail = email.trim().toLowerCase();
-      await createUser({ nome: nome.trim(), email: mail, password, perfil });
+      await createUser({ nome: nome.trim(), email: mail, password, perfil, local: locais.length ? locais : null });
       setCreated({ email: mail, password });
       await onCreated();
     } catch (err) {
@@ -312,7 +333,7 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
         <DialogHeader>
           <DialogTitle>{created ? 'Utilizador criado' : 'Novo utilizador'}</DialogTitle>
           <DialogDescription>
-            {created ? 'Guarda estas credenciais agora: a password não volta a ser mostrada.' : 'Cria a conta de login e atribui a função.'}
+            {created ? 'Guarda estas credenciais agora: a password não volta a ser mostrada.' : 'Cria a conta de login e atribui a função e os locais.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -346,6 +367,12 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
                 <SelectContent>{roleNames.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            {locaisDoGrupo().length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Locais em que opera</Label>
+                <LocaisPicker value={locais} onChange={setLocais} className="h-10" />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="u-pass">Password</Label>
               <PasswordField id="u-pass" value={password} onChange={setPassword} />
