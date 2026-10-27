@@ -70,6 +70,8 @@ const ALL_TABS: TabDef[] = [
   // ── Transversal (chave interna 'apv': é a chave que as áreas guardam) ───────
   { key: 'lavagem', label: 'Lavagem', path: '/lavagem', area: 'apv' },
   { key: 'instalacoes', label: 'Instalações', path: '/instalacoes', area: 'apv' },
+  // Catálogo BMW (dados técnicos e opcionais), migrado da plataforma Caetano.
+  { key: 'produto', label: 'Produto', path: '/produto', area: 'apv' },
   // ── Administração ───────────────────────────────────────────────────────────
   { key: 'dados', label: 'Dados', path: '/dados', area: 'admin' },
   { key: 'arquivo', label: 'Arquivo', path: '/arquivo', area: 'admin' },
