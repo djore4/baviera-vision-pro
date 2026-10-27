@@ -40,7 +40,7 @@ describe('Página Produto', () => {
 
   it('Opcionais: lista por secção e abre o detalhe', async () => {
     render(<ProdutoPage />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Opcionais' }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Opcionais' }));
     const x = (await screen.findAllByRole('button', { name: 'X' }));
     fireEvent.click(x[x.length - 1]);
     fireEvent.click((await screen.findAllByRole('button', { name: 'BMW X5' })).pop()!);
@@ -59,7 +59,7 @@ describe('Página Produto', () => {
 
   it('Comparador: escolhe duas viaturas e compara', async () => {
     render(<ProdutoPage />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Comparador' }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Comparador' }));
     for (const mot of ['xDrive40d', 'xDrive50e']) {
       fireEvent.click((await screen.findAllByRole('button', { name: /Adicionar viatura/ }))[0]);
       fireEvent.click(await screen.findByRole('button', { name: /BMW X5/ }));
@@ -74,7 +74,7 @@ describe('Página Produto', () => {
 
   it('Calculadora: mostra o tempo com os valores por defeito', () => {
     render(<ProdutoPage />);
-    fireEvent.click(screen.getByRole('tab', { name: 'Calculadora' }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Calculadora' }));
     expect(screen.getByTestId('calc-tempo').textContent).toBe('6h 8min');
   });
 });
