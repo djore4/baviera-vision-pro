@@ -3,6 +3,7 @@ import {
   UserPlus, Loader2, Trash2, KeyRound, Search, Copy, Check, Eye, EyeOff, Wand2,
   ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { createUser, updateUser, deleteUser, type AppUser } from '@/lib/permissions';
@@ -40,7 +41,8 @@ export function UsersPanel({
 }: {
   users: AppUser[]; loading: boolean; roleNames: string[]; onChanged: () => Promise<void>;
 }) {
-  const { me } = usePermissions();
+  const { me, setViewAs } = usePermissions();
+  const navigate = useNavigate();
   const comLocais = locaisDoGrupo().length > 0;
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>(ALL);
@@ -205,6 +207,11 @@ export function UsersPanel({
                       )}
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Ver como este utilizador"
+                            title={isMe ? 'Já és tu' : 'Ver como este utilizador'}
+                            onClick={() => { setViewAs(u.email); navigate('/'); }} disabled={busyId === u.id || isMe || !u.email}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Repor password"
                             onClick={() => setPwTarget(u)} disabled={busyId === u.id}>
                             <KeyRound className="h-4 w-4" />

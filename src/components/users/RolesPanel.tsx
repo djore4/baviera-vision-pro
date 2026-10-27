@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, Save, Trash2, ShieldCheck, Undo2, Copy } from 'lucide-react';
+import { Loader2, Plus, Save, Trash2, ShieldCheck, Undo2, Copy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
@@ -17,7 +17,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { saveRole, deleteRole } from '@/lib/permissions';
+import { saveRole, deleteRole, renameRole } from '@/lib/permissions';
 import { usePermissions } from '@/contexts/PermissionsContext';
 
 type Perms = Record<string, AccessLevel>;
@@ -70,6 +70,7 @@ export function RolesPanel({
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -206,6 +207,13 @@ export function RolesPanel({
                     </SelectContent>
                   </Select>
                   <Button
+                    variant="ghost" size="icon" className="h-8 w-8" aria-label="Renomear função"
+                    onClick={() => setRenameOpen(true)} disabled={isDirty(role.name)}
+                    title={isDirty(role.name) ? 'Guarda ou descarta as alterações antes de renomear' : 'Renomear função'}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
                     variant="ghost" size="icon" className="h-8 w-8 text-destructive"
                     onClick={() => setDelOpen(true)} disabled={members.length > 0}
                     title={members.length > 0 ? 'Muda primeiro a função destes utilizadores' : 'Eliminar função'}
@@ -301,6 +309,12 @@ export function RolesPanel({
         onCreated={async name => { await onSaved(); setSelected(name); }}
       />
 
+      <RenameRoleDialog
+        role={renameOpen ? role : null} allNames={roles.map(r => r.name)} memberCount={members.length}
+        onClose={() => setRenameOpen(false)}
+        onRenamed={async name => { await onSaved(); setSelected(name); }}
+      />
+
       <AlertDialog open={delOpen} onOpenChange={setDelOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -373,6 +387,71 @@ function CreateRoleDialog({ open, onOpenChange, roles, allNames, onCreated }: {
             <Button type="button" variant="ghost" onClick={() => close(false)}>Cancelar</Button>
             <Button type="submit" disabled={saving || !name.trim()} className="gap-1.5">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Criar
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* Funções com uma regra antiga ligada ao NOME (só vale enquanto as migrações de
+ * permissões não estiverem aplicadas; ver lavagem-access.ts e eot-access.ts). */
+const NOMES_COM_REGRA_ANTIGA = ['Lavador', 'Preparador', 'Vendedor', 'APV', 'Finance'];
+
+function RenameRoleDialog({ role, allNames, memberCount, onClose, onRenamed }: {
+  role: AppRole | null; allNames: string[]; memberCount: number;
+  onClose: () => void; onRenamed: (name: string) => Promise<void>;
+}) {
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { if (role) setName(role.name); }, [role]);
+
+  const n = name.trim();
+  const igual = !!role && n === role.name;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!role || !n || igual) return;
+    if (allNames.some(x => x !== role.name && x.toLowerCase() === n.toLowerCase())) { toast.error('Já existe uma função com esse nome.'); return; }
+    setSaving(true);
+    try {
+      await renameRole(role.name, n);
+      toast.success(`"${role.name}" passou a "${n}".`);
+      onClose();
+      await onRenamed(n);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível renomear a função.');
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Dialog open={!!role} onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Renomear função</DialogTitle>
+          <DialogDescription>
+            {memberCount > 0
+              ? `${memberCount === 1 ? 'O utilizador com esta função passa' : `Os ${memberCount} utilizadores com esta função passam`} para o novo nome; as permissões mantêm-se.`
+              : 'As permissões mantêm-se.'}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="role-rename">Novo nome</Label>
+            <Input id="role-rename" value={name} onChange={e => setName(e.target.value)} autoFocus />
+          </div>
+          {role && NOMES_COM_REGRA_ANTIGA.includes(role.name) && (
+            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+              "{role.name}" ainda tem uma regra antiga ligada ao nome (só em uso enquanto as migrações de permissões
+              não estiverem aplicadas). Se já estão aplicadas, não há impacto.
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+            <Button type="submit" disabled={saving || !n || igual} className="gap-1.5">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />} Renomear
             </Button>
           </DialogFooter>
         </form>

@@ -9,10 +9,10 @@ import type { Scope } from '@/lib/prospec';
  * tiverem acesso. */
 export function useProspecScope() {
   const { session } = useAuth();
-  const { isAdmin, me } = usePermissions();
+  const { isAdmin, me, effectiveEmail } = usePermissions();
 
-  const email = session?.user.email ?? null;
-  const nome = me?.nome ?? session?.user.email ?? null;
+  const email = effectiveEmail ?? session?.user.email ?? null;
+  const nome = me?.nome ?? email;
 
   const scope = useMemo<Scope>(() => ({ isDirector: isAdmin, email }), [isAdmin, email]);
 
