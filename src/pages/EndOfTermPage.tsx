@@ -49,6 +49,7 @@ export default function EndOfTermPage() {
   // Filtros
   const [vendedor, setVendedor] = useState<string>('all');
   const [fase, setFase] = useState<string>('all');
+  const [modelo, setModelo] = useState<string>('all'); // all | <modelo>
   const [temp, setTemp] = useState<string>('all'); // all | none | frio | morno | quente
   const [until, setUntil] = useState<UntilKey>('all');
   const [hideClosed, setHideClosed] = useState(true);
@@ -155,6 +156,12 @@ export default function EndOfTermPage() {
     [isLocalLead, owners, myEmail],
   );
 
+  const modelos = useMemo(
+    () => [...new Set(contracts.map(c => c.modelo?.trim()).filter((m): m is string => !!m))]
+      .sort((a, b) => a.localeCompare(b, 'pt')),
+    [contracts],
+  );
+
   const inLocal = useCallback(
     (c: EotContract) => local === 'all' || contractLocal(c) === local,
     [local],
@@ -173,6 +180,7 @@ export default function EndOfTermPage() {
       if (!inLocal(c)) return false;
       if (vendedor !== 'all' && c.vendedor !== vendedor) return false;
       if (fase !== 'all' && c.fase !== fase) return false;
+      if (modelo !== 'all' && c.modelo?.trim() !== modelo) return false;
       if (temp === 'none' && c.temperatura) return false;
       if (temp !== 'all' && temp !== 'none' && c.temperatura !== temp) return false;
       if (ownerFilter === 'none' && c.owner_email) return false;
@@ -186,7 +194,7 @@ export default function EndOfTermPage() {
       }
       return true;
     });
-  }, [contracts, inLocal, vendedor, fase, temp, until, ownerFilter, q]);
+  }, [contracts, inLocal, vendedor, fase, modelo, temp, until, ownerFilter, q]);
 
   const filtered = useMemo(() => applyKpi(scoped, kpi, hideClosed), [scoped, kpi, hideClosed]);
 
@@ -297,6 +305,13 @@ export default function EndOfTermPage() {
               <SelectItem value="all">Qualquer responsável</SelectItem>
               {canManage && <SelectItem value="none">Sem responsável</SelectItem>}
               {ownerOptions.map(o => <SelectItem key={o.email} value={o.email}>{o.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={modelo} onValueChange={setModelo}>
+            <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[130px]"><SelectValue placeholder="Modelo" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os modelos</SelectItem>
+              {modelos.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={fase} onValueChange={setFase}>
