@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { InstallCard } from '@/components/InstallCard';
 
 /* ── Tab Definições ────────────────────────────────────────────────────────────
  * Área pessoal, acessível a qualquer utilizador autenticado (fora da matriz de
@@ -174,6 +175,9 @@ export default function DefinicoesPage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* ── Instalar a app ──────────────────────────────────────────────────── */}
+      <InstallCard />
 
       {/* ── Sessão ──────────────────────────────────────────────────────────── */}
       <Card>
