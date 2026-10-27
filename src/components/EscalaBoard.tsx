@@ -79,6 +79,7 @@ export interface Member {
 export interface EscalaConfig {
   storagePath: string;      // ficheiro no bucket (VN e VU são distintos)
   defaultTeam: Member[];
+  addMembers?: Member[];    // juntos à equipa já guardada, se ainda não existirem (por iniciais)
   typologies: Typology[];   // colunas
   workTypologies: Typology[]; // contam como dia de trabalho / FDS
   hasGenius: boolean;       // coluna Genius + tipo de membro PG
@@ -136,6 +137,9 @@ function migrate(parsed: Record<string, unknown>, config: EscalaConfig): EscalaS
         kind: config.hasGenius && (m.kind === 'PG' || String(m.initials) === 'JD') ? 'PG' : 'VEND',
       }))
     : base.team;
+  for (const add of config.addMembers ?? []) {
+    if (!team.some(m => m.initials.trim().toUpperCase() === add.initials)) team.push({ ...add });
+  }
 
   const rawAssign = (parsed.assignments ?? {}) as Record<string, Record<string, unknown>>;
   const assignments: Assignments = {};
