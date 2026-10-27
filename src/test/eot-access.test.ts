@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { eotIsDirector } from '@/lib/eot-access';
+import { eotIsDirector, eotHasAdminRights } from '@/lib/eot-access';
 
 const view = (perms: Record<string, 'view' | 'edit'>, isAdmin = false) =>
   (tab: string) => isAdmin || perms[tab] !== undefined;
@@ -43,5 +43,17 @@ describe('eotIsDirector — base de dados migrada (permissão por função)', ()
 
   it('o administrador vê sempre tudo', () => {
     expect(eotIsDirector({ isAdmin: true, roleName: 'Administrador', capabilities, canView: view({}, true) })).toBe(true);
+  });
+});
+
+describe('eotHasAdminRights', () => {
+  it('administrador e Supervisor EoT têm direitos de administrador no tab', () => {
+    expect(eotHasAdminRights({ isAdmin: true, roleName: 'Administrador' })).toBe(true);
+    expect(eotHasAdminRights({ isAdmin: false, roleName: 'Supervisor EoT' })).toBe(true);
+  });
+  it('os restantes perfis não', () => {
+    for (const roleName of ['Finance', 'Vendedor VN', null]) {
+      expect(eotHasAdminRights({ isAdmin: false, roleName })).toBe(false);
+    }
   });
 });

@@ -25,6 +25,15 @@ export function eotIsDirector(i: EotDirectorInput): boolean {
   return !!i.roleName && EOT_FULL_ACCESS_ROLES.has(i.roleName);
 }
 
+/* Supervisor EoT: dentro do tab End-of-Term tem as mesmas permissões que o administrador
+ * (filtro por vendedor do mapa, criar utilizadores responsáveis). Fora deste tab não muda nada.
+ * A edge function admin-users impõe o mesmo nome de perfil para a criação de utilizadores. */
+export const EOT_SUPERVISOR_ROLE = 'Supervisor EoT';
+
+export function eotHasAdminRights(i: Pick<EotDirectorInput, 'isAdmin' | 'roleName'>): boolean {
+  return i.isAdmin || i.roleName === EOT_SUPERVISOR_ROLE;
+}
+
 /* Chefe de equipa: perfil com a permissão 'end-of-term:local'. Vê os contratos da sua
  * equipa (os responsáveis que o têm como chefe, em eot_owners) e gere essa equipa.
  * Só existe depois da migração dos responsáveis (capabilities.eotResponsaveis).

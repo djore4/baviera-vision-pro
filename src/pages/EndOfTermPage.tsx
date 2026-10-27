@@ -33,7 +33,7 @@ type SortKey = 'cliente' | 'viatura' | 'resp' | 'fim' | 'fase' | 'temp' | 'proxi
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
 
 export default function EndOfTermPage() {
-  const { scope, isDirector, isLocalLead, canManage, isAdmin, myEmail, myNome } = useEotScope();
+  const { scope, isDirector, isLocalLead, canManage, hasAdminRights, myEmail, myNome } = useEotScope();
   const { canEdit, capabilities } = usePermissions();
   // Gestão de responsáveis e do mapa de nomes: só com a migração aplicada (a tabela existir).
   const ownersEnabled = !!capabilities?.eotResponsaveis;
@@ -281,8 +281,8 @@ export default function EndOfTermPage() {
               {locals.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
             </SelectContent>
           </Select>
-          {/* Vendedor (do mapa): só o administrador. Os restantes filtram por Responsável. */}
-          {isAdmin && (
+          {/* Vendedor (do mapa): administrador e Supervisor EoT. Os restantes filtram por Responsável. */}
+          {hasAdminRights && (
             <Select value={vendedor} onValueChange={setVendedor}>
               <SelectTrigger className="h-9 w-full sm:w-auto sm:min-w-[140px] gap-1"><FilterIcon className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Vendedor" /></SelectTrigger>
               <SelectContent>
@@ -530,7 +530,7 @@ export default function EndOfTermPage() {
         {canManage && ownersEnabled && (
           <TabsContent value="responsaveis" className="mt-4">
             {loading ? <Loader /> : (
-              <OwnersPanel contracts={contracts} owners={owners} ownerMap={ownerMap} leadEmail={isLocalLead ? myEmail : null} canCreateUsers={isAdmin} onChanged={load} />
+              <OwnersPanel contracts={contracts} owners={owners} ownerMap={ownerMap} leadEmail={isLocalLead ? myEmail : null} canCreateUsers={hasAdminRights} onChanged={load} />
             )}
           </TabsContent>
         )}
