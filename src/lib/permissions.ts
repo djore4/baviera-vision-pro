@@ -293,6 +293,20 @@ export async function saveRole(
   return res.role;
 }
 
+/* Renomeia uma função: os utilizadores que a têm passam para o novo nome. */
+export async function renameRole(name: string, newName: string): Promise<AppRole> {
+  try {
+    const res = await invokeAdmin<{ role: AppRole }>({ action: 'rename_role', name, new_name: newName });
+    return res.role;
+  } catch (e) {
+    // A edge function ainda não foi atualizada no Supabase (não conhece a ação).
+    if (e instanceof Error && e.message === 'Ação desconhecida.') {
+      throw new Error('Falta publicar a versão nova da função admin-users no Supabase (supabase functions deploy admin-users).');
+    }
+    throw e;
+  }
+}
+
 export async function deleteRole(name: string): Promise<void> {
   await invokeAdmin({ action: 'delete_role', name });
 }

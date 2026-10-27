@@ -122,6 +122,34 @@ Deno.serve(async (req) => {
       return json({ role: row });
     }
 
+    if (action === "rename_role") {
+      const { name, new_name } = body;
+      const to = String(new_name ?? "").trim();
+      if (!name || !to) return json({ error: "Nome da função em falta." }, 400);
+      if (to === name) return json({ error: "O novo nome é igual ao atual." }, 400);
+      const { data: old } = await admin.from("app_roles")
+        .select("name, is_admin, permissions").eq("name", name).maybeSingle();
+      if (!old) return json({ error: "Função não encontrada." }, 404);
+      const { data: all } = await admin.from("app_roles").select("name");
+      if ((all ?? []).some((r) => r.name !== name && String(r.name).toLowerCase() === to.toLowerCase())) {
+        return json({ error: "Já existe uma função com esse nome." }, 400);
+      }
+      // O nome é a chave da função e é o que os utilizadores guardam em `perfil`, por
+      // isso: 1) cria a função com o novo nome, 2) passa os utilizadores, 3) apaga a
+      // antiga. Se o passo 2 falhar, desfaz o 1 e nada muda.
+      const { error: cErr } = await admin.from("app_roles")
+        .insert({ name: to, permissions: old.permissions, is_admin: old.is_admin });
+      if (cErr) return json({ error: cErr.message }, 400);
+      const { error: uErr } = await admin.from("app_users").update({ perfil: to }).eq("perfil", name);
+      if (uErr) {
+        await admin.from("app_roles").delete().eq("name", to);
+        return json({ error: uErr.message }, 400);
+      }
+      const { error: dErr } = await admin.from("app_roles").delete().eq("name", name);
+      if (dErr) return json({ error: `Renomeada, mas não foi possível remover o nome antigo: ${dErr.message}` }, 500);
+      return json({ role: { name: to, permissions: old.permissions, is_admin: old.is_admin } });
+    }
+
     if (action === "delete_role") {
       const { name } = body;
       if (!name) return json({ error: "Nome da função em falta." }, 400);
