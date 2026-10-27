@@ -9,8 +9,8 @@ interface Spot { num: number; name: string; day: string }
 
 // Fila de cima (da esquerda para a direita)
 const ROW_TOP: Array<Spot | null> = [
-  { num: 70, name: 'João Duarte', day: '4ª feira' },
-  { num: 69, name: 'Gonçalo Pinto', day: '4ª feira' },
+  null,
+  { num: 69, name: 'Marcos Pinto', day: '2ª feira' },
   { num: 68, name: 'Paula Abreu', day: '4ª feira' },
   { num: 67, name: 'Belmiro Resgate', day: '5ª feira' },
   { num: 66, name: 'Pedro Ferreirinha', day: '3ª feira' },
@@ -24,11 +24,11 @@ const ROW_BOTTOM: Array<Spot | null> = [
   { num: 55, name: 'António Lourenço', day: '2ª feira' },
   { num: 56, name: 'Rui Duarte', day: '5ª feira' },
   { num: 57, name: 'Ismael Ferreira', day: '5ª feira' },
-  { num: 58, name: 'Pivot PGO', day: '4ª feira' },
+  { num: 58, name: 'João C Duarte', day: '4ª feira' },
   { num: 59, name: 'Salomão Pinto', day: '3ª feira' },
   { num: 60, name: 'Tiago Santos', day: '5ª feira' },
-  { num: 61, name: 'Marcos Pinto', day: '2ª feira' },
-  { num: 62, name: 'João C Duarte', day: '3ª feira' },
+  { num: 61, name: 'Gonçalo Pinto', day: '4ª feira' },
+  { num: 62, name: 'João Duarte', day: '3ª feira' },
 ];
 
 const DAYS: Array<{ label: string; names: string }> = [
