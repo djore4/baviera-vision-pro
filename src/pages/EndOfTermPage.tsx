@@ -362,14 +362,14 @@ export default function EndOfTermPage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="h-10 p-1 bg-muted/60 w-full sm:w-auto">
-          <TabsTrigger value="contratos" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm"><ListChecks className="h-4 w-4" />Contratos</TabsTrigger>
-          <TabsTrigger value="agenda" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm">
+          <TabsTrigger value="contratos" className="flex-1 sm:flex-none gap-1 px-2 sm:gap-1.5 sm:px-3 data-[state=active]:shadow-sm"><ListChecks className="h-4 w-4" />Contratos</TabsTrigger>
+          <TabsTrigger value="agenda" className="flex-1 sm:flex-none gap-1 px-2 sm:gap-1.5 sm:px-3 data-[state=active]:shadow-sm">
             <CalendarDays className="h-4 w-4" />Agenda
             {kpis.overdueFollow > 0 && <span className="ml-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 leading-tight">{kpis.overdueFollow}</span>}
           </TabsTrigger>
-          <TabsTrigger value="report" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm"><BarChart3 className="h-4 w-4" />Report</TabsTrigger>
+          <TabsTrigger value="report" className="flex-1 sm:flex-none gap-1 px-2 sm:gap-1.5 sm:px-3 data-[state=active]:shadow-sm"><BarChart3 className="h-4 w-4" />Report</TabsTrigger>
           {canManage && ownersEnabled && (
-            <TabsTrigger value="responsaveis" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm"><Users className="h-4 w-4" />Responsáveis</TabsTrigger>
+            <TabsTrigger value="responsaveis" className="flex-1 sm:flex-none gap-1 px-2 sm:gap-1.5 sm:px-3 data-[state=active]:shadow-sm"><Users className="h-4 w-4" />Users</TabsTrigger>
           )}
         </TabsList>
 
