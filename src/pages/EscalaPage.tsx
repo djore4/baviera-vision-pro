@@ -10,6 +10,7 @@ const VN_CONFIG: EscalaConfig = {
     { id: 'NC', initials: 'NC', kind: 'VEND' },
     { id: 'PM', initials: 'PM', kind: 'VEND' },
   ],
+  addMembers: [{ id: 'PF', initials: 'PF', kind: 'VEND' }], // Pedro Ferreirinha (entra no lugar do TS)
   typologies: ['Genius', 'STAND', 'APOIO', 'LIVRE', 'FOLGAS', 'FÉRIAS', 'FORMAÇÃO'],
   workTypologies: ['Genius', 'STAND', 'APOIO', 'LIVRE'],
   hasGenius: true,
