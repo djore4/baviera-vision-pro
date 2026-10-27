@@ -62,14 +62,29 @@ Deno.serve(async (req) => {
         isAdmin = !!r?.is_admin;
       }
     }
-    if (!isAdmin) return json({ error: "Sem permissão de administrador." }, 403);
+    // O Supervisor EoT só pode criar utilizadores (a partir do tab End-of-Term), e apenas
+    // com funções não-administrador que tenham acesso ao End-of-Term.
+    let isEotSupervisor = false;
+    if (!isAdmin && user.email) {
+      const { data: u } = await admin.from("app_users").select("perfil").ilike("email", user.email).maybeSingle();
+      isEotSupervisor = u?.perfil === "Supervisor EoT";
+    }
+    if (!isAdmin && !isEotSupervisor) return json({ error: "Sem permissão de administrador." }, 403);
 
     const body = await req.json().catch(() => ({}));
     const action = body?.action as string;
 
+    if (!isAdmin && action !== "create") return json({ error: "Sem permissão de administrador." }, 403);
+
     if (action === "create") {
       const { nome, email, password, perfil, local, negocio, marca } = body;
       if (!email || !password) return json({ error: "Email e password são obrigatórios." }, 400);
+      if (!isAdmin) {
+        const { data: r } = await admin.from("app_roles").select("is_admin, permissions").eq("name", perfil ?? "").maybeSingle();
+        if (!r || r.is_admin || !(r.permissions as Record<string, unknown> | null)?.["end-of-term"]) {
+          return json({ error: "Função não permitida." }, 403);
+        }
+      }
 
       const { data: created, error: cErr } = await admin.auth.admin.createUser({
         email, password, email_confirm: true, user_metadata: { nome, perfil },
