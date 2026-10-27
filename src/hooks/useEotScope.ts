@@ -12,10 +12,11 @@ import type { Scope } from '@/lib/eot';
  * Ver eotIsDirector (regra, com a compatibilidade com a base ainda não migrada). */
 export function useEotScope() {
   const { session } = useAuth();
-  const { isAdmin, roleName, me, canView, capabilities } = usePermissions();
+  const { isAdmin, roleName, me, canView, capabilities, effectiveEmail } = usePermissions();
 
-  const email = session?.user.email ?? null;
-  const nome = me?.nome ?? session?.user.email ?? null;
+  // Em "ver como", o escopo é o do utilizador simulado (a interface filtra pelo email dele).
+  const email = effectiveEmail ?? session?.user.email ?? null;
+  const nome = me?.nome ?? email;
 
   const isDirector = eotIsDirector({ isAdmin, roleName, capabilities, canView });
 

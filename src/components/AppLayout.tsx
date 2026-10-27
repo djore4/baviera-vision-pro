@@ -9,6 +9,7 @@ import { AREAS, TABS, ARCHIVED_TAB_KEYS, navAreaFor } from '@/lib/permissions';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { InstallBanner } from '@/components/InstallBanner';
+import { ViewAsBanner } from '@/components/ViewAsBanner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { seasonalFlags } from '@/lib/seasonal';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -200,6 +201,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
+        <ViewAsBanner />
         <header className="h-11 border-b border-border bg-card flex items-center justify-between px-3 sm:px-4 flex-shrink-0">
           <div className="flex items-center gap-2 sm:gap-3">
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-muted-foreground hover:text-foreground">
