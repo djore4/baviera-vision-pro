@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { canonicalLocal, locaisDoPerfil } from '@/lib/locations';
 import {
   Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
   ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, RotateCcw, ImageOff,
@@ -57,6 +58,9 @@ function getArr(v: unknown): string[] {
   }
   return [];
 }
+
+/* Locais de uma viatura em nomes canónicos ("Caetano Aveiro" e "Aveiro" são o mesmo). */
+const localsOfRow = (r: { local: unknown }): string[] => getArr(r.local).map(l => canonicalLocal(l) ?? l);
 
 function getInps(v: unknown): PricingInputs {
   if (!v) return { ...TEMPLATE_INPUTS };
@@ -351,7 +355,7 @@ function ChipFilter({ label, options, selected, onToggle, onClear }: {
 
 export default function DemosPage() {
   const { session } = useAuth();
-  const { canEdit, isAdmin } = usePermissions();
+  const { canEdit, isAdmin, me } = usePermissions();
   const groups = useMemo(() => GROUPS.filter(g => isAdmin || !ADMIN_ONLY_GROUPS.includes(g.key)), [isAdmin]);
   const cols = useMemo(() => COLS.filter(c => isAdmin || !ADMIN_ONLY_GROUPS.includes(c.group)), [isAdmin]);
   const [rows, setRows] = useState<Row[]>([]);
@@ -362,8 +366,8 @@ export default function DemosPage() {
   // Filtros em chips de seleção múltipla (vazio = todos), como no Caetano Sales Force.
   const [fMarcas, setFMarcas] = useState<Set<string>>(new Set());
   const [fModelos, setFModelos] = useState<Set<string>>(new Set());
-  // Por defeito, o parque abre filtrado por Aveiro.
-  const [fLocais, setFLocais] = useState<Set<string>>(new Set(['Aveiro']));
+  // Por defeito, o parque abre filtrado pelos locais do perfil (escolhidos em Utilizadores).
+  const [fLocais, setFLocais] = useState<Set<string>>(() => new Set(locaisDoPerfil(me?.local)));
   const localInit = useRef(false);
   const [fTipologia, setFTipologia] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
@@ -424,15 +428,15 @@ export default function DemosPage() {
 
   const marcas = useMemo(() => [...new Set(rows.flatMap(r => getArr(r.marca)))].sort(), [rows]);
   const modelos = useMemo(() => [...new Set(rows.map(r => (r.modelo ?? '').trim()).filter(Boolean))].sort(), [rows]);
-  const locais = useMemo(() => [...new Set(rows.flatMap(r => getArr(r.local)))].sort(), [rows]);
+  const locais = useMemo(() => [...new Set(rows.flatMap(localsOfRow))].sort(), [rows]);
   const tipologias = useMemo(() => [...new Set(rows.flatMap(r => r._tipologia))].sort(), [rows]);
 
-  // Se o parque não tiver "Aveiro" (default), limpa o filtro de local — só uma vez,
+  // Se o parque não tiver nenhum dos locais do filtro inicial, limpa-o — só uma vez,
   // para não mostrar uma tabela vazia por causa do filtro inicial.
   useEffect(() => {
     if (localInit.current || rows.length === 0) return;
     localInit.current = true;
-    if (!locais.includes('Aveiro')) setFLocais(prev => (prev.has('Aveiro') ? new Set() : prev));
+    setFLocais(prev => ([...prev].some(l => locais.includes(l)) ? prev : new Set()));
   }, [rows, locais]);
 
   const viewRows = useMemo(() => rows.map(r => applyOverrides(r, overrides[r.chassis])), [rows, overrides]);
@@ -510,7 +514,7 @@ export default function DemosPage() {
     const list = viewRows.filter(r => {
       if (fMarcas.size && !getArr(r.marca).some(m => fMarcas.has(m))) return false;
       if (fModelos.size && !fModelos.has((r.modelo ?? '').trim())) return false;
-      if (fLocais.size && !getArr(r.local).some(l => fLocais.has(l))) return false;
+      if (fLocais.size && !localsOfRow(r).some(l => fLocais.has(l))) return false;
       if (fTipologia.size && !r._tipologia.some(t => fTipologia.has(t))) return false;
       if (!q) return true;
       return [r.modelo, r.versao, r.chassis, r.matricula, formatMatricula(r.matricula), r.encomenda, r._local]

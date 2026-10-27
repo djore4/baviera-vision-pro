@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useEotScope } from '@/hooks/useEotScope';
+import { locaisDoPerfil } from '@/lib/locations';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { ContractDialog } from '@/components/eot/ContractDialog';
 import { TemperaturaPicker } from '@/components/eot/TemperaturaPicker';
@@ -32,7 +33,7 @@ type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
 
 export default function EndOfTermPage() {
   const { scope, isDirector, isLocalLead, canManage, isAdmin, myEmail, myNome } = useEotScope();
-  const { canEdit, capabilities } = usePermissions();
+  const { canEdit, capabilities, me } = usePermissions();
   // Gestão de responsáveis e do mapa de nomes: só com a migração aplicada (a tabela existir).
   const ownersEnabled = !!capabilities?.eotResponsaveis;
   const editable = canEdit('end-of-term');
@@ -133,8 +134,8 @@ export default function EndOfTermPage() {
   // Enquanto o utilizador não escolher, o local é o dele (ver localPorOmissao).
   useEffect(() => {
     if (loading || localTouched || contracts.length === 0) return;
-    setLocal(localPorOmissao(contracts, owners, myEmail));
-  }, [loading, localTouched, contracts, owners, myEmail]);
+    setLocal(localPorOmissao(contracts, owners, myEmail, locaisDoPerfil(me?.local)));
+  }, [loading, localTouched, contracts, owners, myEmail, me]);
 
   // Responsáveis do filtro: a gestão vê a lista de atribuição; o vendedor vê os
   // responsáveis presentes nos seus contratos.

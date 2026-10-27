@@ -27,6 +27,13 @@ const config: ClientConfig = {
     { id: 'piso-0', label: 'Piso 0', src: '/clients/baviera/plantas/piso-0.png' },
     { id: 'piso-1', label: 'Piso 1', src: '/clients/baviera/plantas/piso-1.png' },
   ],
+  locais: [
+    { nome: 'Maia' },
+    { nome: 'Porto' },
+    { nome: 'Gaia', aliases: ['V. N. Gaia', 'Vila Nova de Gaia'] },
+    { nome: 'Feira', aliases: ['Santa Maria da Feira', 'S. Maria da Feira', 'Sta Maria da Feira'] },
+    { nome: 'Aveiro' },
+  ],
   matricula: {
     to: ['sonia.carvalho@caetano.pt', 'lurdes.aguiar@caetano.pt'],
     cc: ['jose.mesquita@caetano.pt', 'joaocarlos.duarte@caetano.pt'],
