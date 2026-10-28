@@ -72,7 +72,7 @@ const SCHEMA = {
 const SYSTEM = `Lês documentos de venda automóvel (contratos e propostas BMW de um concessionário português) e extrais os valores económicos para uma Ficha de Margem.
 
 Regras:
-- Devolve SEMPRE através da ferramenta registar_ficha.
+- Responde SEMPRE chamando a ferramenta registar_ficha, sem texto antes nem depois.
 - Extrai apenas o que está escrito no documento. Se um campo não existe ou não é legível, devolve null. NUNCA inventes nem estimes valores.
 - Valores monetários: números em euros, ponto como separador decimal, sem símbolo nem milhares (ex.: 31450.5). Percentagens: o número (ex.: 5 para 5 %).
 - PVB, OPC, BSI, ECO, LEG/TR e ISV são valores SEM IVA. precoVenda é o preço final pago pelo cliente COM IVA.
@@ -136,7 +136,9 @@ Deno.serve(async (req) => {
           description: "Regista os valores extraídos do documento para a Ficha de Margem.",
           input_schema: SCHEMA,
         }],
-        tool_choice: { type: "tool", name: "registar_ficha" },
+        // Este modelo não aceita forçar a ferramenta (tool_choice "tool"/"any" dá 400): fica em
+        // "auto" e o SYSTEM manda chamar sempre registar_ficha.
+        tool_choice: { type: "auto" },
         messages: [{
           role: "user",
           content: [fileBlock, { type: "text", text: "Extrai os dados deste documento para a Ficha de Margem." }],
@@ -158,12 +160,19 @@ Deno.serve(async (req) => {
       }, 502);
     }
     const out = await resp.json();
-    const tool = (out?.content ?? []).find((b: { type: string }) => b.type === "tool_use");
-    if (!tool?.input) {
-      console.error(`ficha-extrair: sem tool_use (stop_reason=${out?.stop_reason})`);
+    const blocos: { type: string; input?: unknown; text?: string }[] = out?.content ?? [];
+    let campos = blocos.find((b) => b.type === "tool_use")?.input as Record<string, unknown> | undefined;
+    if (!campos) {
+      // Rede de segurança: o modelo respondeu em texto com um objeto JSON.
+      const texto = blocos.filter((b) => b.type === "text").map((b) => b.text ?? "").join("\n");
+      const m = texto.match(/\{[\s\S]*\}/);
+      try { campos = m ? JSON.parse(m[0]) : undefined; } catch { campos = undefined; }
+    }
+    if (!campos || typeof campos !== "object") {
+      console.error(`ficha-extrair: sem dados (stop_reason=${out?.stop_reason})`);
       return json({ error: "ERRO_LEITURA", message: "Não foi possível ler o documento.", detalhe: `stop_reason=${out?.stop_reason ?? "?"}` }, 502);
     }
-    return json({ campos: tool.input });
+    return json({ campos });
   } catch (_e) {
     return json({ error: "ERRO_LEITURA", message: "Erro inesperado ao ler o documento." }, 500);
   }
