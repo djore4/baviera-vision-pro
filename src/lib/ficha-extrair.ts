@@ -8,11 +8,12 @@ import { supabase } from '@/integrations/supabase/client';
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /* Chaves da ficha = nomes do estado de FichaMargemPage = propriedades do esquema da
- * edge function (um teste garante que batem). */
-export const TEXTO_KEYS = ['docNum', 'modelo', 'encChass', 'matricula', 'apoioLabel'] as const;
+ * edge function (um teste garante que batem). O "APOIO" genérico (descrição + valor) NÃO
+ * se preenche a partir do documento: fica sempre em branco para o utilizador. */
+export const TEXTO_KEYS = ['docNum', 'modelo', 'encChass', 'matricula'] as const;
 export const NUMERO_KEYS = [
   'pvb', 'opc', 'bsi', 'eco', 'legTr', 'isv', 'recond', 'ofertas', 'precoVenda',
-  'ivaPct', 'mgFixaPct', 'mgVarPct', 'pacPct', 'apoioFrotaPct', 'apoioDemoPct', 'deprec', 'bonusMPct', 'apoioValor',
+  'ivaPct', 'mgFixaPct', 'mgVarPct', 'pacPct', 'apoioFrotaPct', 'apoioDemoPct', 'deprec', 'bonusMPct',
 ] as const;
 export const ENUM_OPCOES = {
   docTipo: ['Proposta', 'Contrato'],
@@ -99,14 +100,14 @@ export async function extrairFicha(file: File): Promise<CamposExtraidos> {
 
   const { data: res, error } = await supabase.functions.invoke('ficha-extrair', { body: { media_type: file.type, data } });
   if (error) {
-    let corpo: { error?: string; message?: string } | null = null;
+    let corpo: { error?: string; message?: string; detalhe?: string } | null = null;
     try {
       const ctx = (error as { context?: Response }).context;
       corpo = ctx && typeof ctx.json === 'function' ? await ctx.json() : null;
     } catch { /* ignora */ }
     if (corpo?.error === 'SEM_CHAVE') throw new Error('A leitura automática ainda não está configurada (falta a chave da API).');
     if ((error as { context?: Response }).context?.status === 404) throw new Error('A leitura automática ainda não está publicada.');
-    throw new Error(corpo?.message ?? corpo?.error ?? 'Não foi possível ler o documento.');
+    throw new Error([corpo?.message ?? corpo?.error ?? 'Não foi possível ler o documento.', corpo?.detalhe].filter(Boolean).join(' — '));
   }
   const campos = (res as { campos?: CamposExtraidos } | null)?.campos;
   if (!campos) throw new Error('Não foi possível ler o documento.');

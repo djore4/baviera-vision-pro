@@ -57,8 +57,6 @@ const SCHEMA = {
     apoioDemoPct: num("Apoio demo, em % sobre PVB+OPC."),
     deprec: num("Depreciações, em euros (valor absoluto)."),
     bonusMPct: num("Bónus M, em % sobre PVB+OPC."),
-    apoioLabel: txt("Descrição de um apoio adicional, se existir."),
-    apoioValor: num("Valor de um apoio/desconto adicional, em euros (valor absoluto)."),
     incerto: {
       type: "array",
       items: { type: "string" },
@@ -72,11 +70,12 @@ const SCHEMA = {
 const SYSTEM = `Lês documentos de venda automóvel (contratos e propostas BMW de um concessionário português) e extrais os valores económicos para uma Ficha de Margem.
 
 Regras:
-- Devolve SEMPRE através da ferramenta registar_ficha.
+- Responde SEMPRE chamando a ferramenta registar_ficha, sem texto antes nem depois.
 - Extrai apenas o que está escrito no documento. Se um campo não existe ou não é legível, devolve null. NUNCA inventes nem estimes valores.
 - Valores monetários: números em euros, ponto como separador decimal, sem símbolo nem milhares (ex.: 31450.5). Percentagens: o número (ex.: 5 para 5 %).
 - PVB, OPC, BSI, ECO, LEG/TR e ISV são valores SEM IVA. precoVenda é o preço final pago pelo cliente COM IVA.
 - Privacidade: NÃO devolvas nome, NIF, morada, contactos nem qualquer dado pessoal. Do cliente só interessa se é Particular ou Empresa. Da identificação só o número do contrato.
+- NÃO preenchas apoios adicionais nem descontos: esses campos não existem na ferramenta e ficam em branco na ficha.
 - Se um campo for ambíguo (vários valores possíveis, texto cortado, ilegível), devolve o melhor palpite E acrescenta o nome do campo a "incerto".`;
 
 Deno.serve(async (req) => {
@@ -136,7 +135,9 @@ Deno.serve(async (req) => {
           description: "Regista os valores extraídos do documento para a Ficha de Margem.",
           input_schema: SCHEMA,
         }],
-        tool_choice: { type: "tool", name: "registar_ficha" },
+        // Este modelo não aceita forçar a ferramenta (tool_choice "tool"/"any" dá 400): fica em
+        // "auto" e o SYSTEM manda chamar sempre registar_ficha.
+        tool_choice: { type: "auto" },
         messages: [{
           role: "user",
           content: [fileBlock, { type: "text", text: "Extrai os dados deste documento para a Ficha de Margem." }],
@@ -145,13 +146,32 @@ Deno.serve(async (req) => {
     });
 
     if (!resp.ok) {
-      // Não se devolve nem regista o corpo (pode conter excertos do documento).
-      return json({ error: "ERRO_LEITURA", message: `O serviço de leitura falhou (${resp.status}).` }, 502);
+      // Só se regista e devolve o TIPO e a mensagem de erro da API (descrevem o pedido, não
+      // o documento); o corpo do pedido e o conteúdo do ficheiro nunca.
+      const err = await resp.json().catch(() => null);
+      const tipo = String(err?.error?.type ?? "");
+      const detalhe = String(err?.error?.message ?? "").slice(0, 300);
+      console.error(`ficha-extrair: API ${resp.status} ${tipo}: ${detalhe}`);
+      return json({
+        error: "ERRO_LEITURA",
+        message: `O serviço de leitura falhou (${resp.status}${tipo ? " " + tipo : ""}).`,
+        detalhe,
+      }, 502);
     }
     const out = await resp.json();
-    const tool = (out?.content ?? []).find((b: { type: string }) => b.type === "tool_use");
-    if (!tool?.input) return json({ error: "ERRO_LEITURA", message: "Não foi possível ler o documento." }, 502);
-    return json({ campos: tool.input });
+    const blocos: { type: string; input?: unknown; text?: string }[] = out?.content ?? [];
+    let campos = blocos.find((b) => b.type === "tool_use")?.input as Record<string, unknown> | undefined;
+    if (!campos) {
+      // Rede de segurança: o modelo respondeu em texto com um objeto JSON.
+      const texto = blocos.filter((b) => b.type === "text").map((b) => b.text ?? "").join("\n");
+      const m = texto.match(/\{[\s\S]*\}/);
+      try { campos = m ? JSON.parse(m[0]) : undefined; } catch { campos = undefined; }
+    }
+    if (!campos || typeof campos !== "object") {
+      console.error(`ficha-extrair: sem dados (stop_reason=${out?.stop_reason})`);
+      return json({ error: "ERRO_LEITURA", message: "Não foi possível ler o documento.", detalhe: `stop_reason=${out?.stop_reason ?? "?"}` }, 502);
+    }
+    return json({ campos });
   } catch (_e) {
     return json({ error: "ERRO_LEITURA", message: "Erro inesperado ao ler o documento." }, 500);
   }
