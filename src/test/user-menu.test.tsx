@@ -36,6 +36,7 @@ describe('Menu do utilizador', () => {
     expect(screen.getByText('Comercial')).toBeTruthy();
     expect(screen.getByRole('menuitem', { name: /Definições/ }).getAttribute('href')).toBe('/definicoes');
     expect(screen.getByRole('menuitem', { name: /Instalar a app/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Sugerir melhoria/ })).toBeTruthy();
     fireEvent.click(screen.getByRole('menuitem', { name: /Terminar sessão/ }));
     expect(signOut).toHaveBeenCalled();
   });
@@ -64,6 +65,12 @@ describe('Menu do utilizador', () => {
     await act(async () => { await Promise.resolve(); });
     expect(abriu).toBe(true);
     expect(screen.queryByText(/Instalar aplicação/)).toBeNull();
+  });
+
+  it('"Sugerir melhoria" abre o formulário de sugestão', async () => {
+    abrir();
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Sugerir melhoria/ }));
+    expect(await screen.findByText('Sugerir uma melhoria')).toBeTruthy();
   });
 
   it('em "ver como" mostra a identidade real (email e Administrador), não a simulada', async () => {

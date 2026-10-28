@@ -6,7 +6,8 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { RetomaFilter } from '@/components/RetomaFilter';
-import { formatDate, getDeliveryMonth } from '@/lib/excel-parser';
+import { formatDate, getCurrentWeek, getDeliveryMonth } from '@/lib/excel-parser';
+import { seasonalFlags } from '@/lib/seasonal';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle, Download } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -489,7 +490,12 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
   return (
     <div className="bg-card border border-border rounded-lg">
       <div className="px-2 py-1.5 border-b border-border flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Detalhe ({tableData.length})</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Detalhe ({tableData.length})</h3>
+          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary sm:text-[11px]">
+            Semana {getCurrentWeek()}{seasonalFlags().fridayPM && <span className="hidden sm:inline"> · Bom fim de semana 🎉</span>}
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           <div className="relative w-full sm:w-48">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />

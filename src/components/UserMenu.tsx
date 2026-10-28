@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Download, LogOut, Settings } from 'lucide-react';
+import { Check, Download, Lightbulb, LogOut, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -8,6 +8,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { InstallDialog } from '@/components/InstallDialog';
+import { SugestaoDialog } from '@/components/SugestaoDialog';
 import { instalar, modoInstalar, subscrever } from '@/lib/install-prompt';
 
 const initialsOf = (base: string) => {
@@ -22,6 +23,7 @@ export function UserMenu() {
   const { session } = useAuth();
   const { me, viewingAs, realIsAdmin, roleName } = usePermissions();
   const [instalarAberto, setInstalarAberto] = useState(false);
+  const [sugestaoAberta, setSugestaoAberta] = useState(false);
   const [, forcar] = useState(0);
   useEffect(() => subscrever(() => forcar(n => n + 1)), []);
 
@@ -57,6 +59,9 @@ export function UserMenu() {
           <DropdownMenuItem asChild>
             <Link to="/definicoes" className="cursor-pointer"><Settings className="mr-2 h-4 w-4" /> Definições</Link>
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setSugestaoAberta(true)} className="cursor-pointer">
+            <Lightbulb className="mr-2 h-4 w-4" /> Sugerir melhoria
+          </DropdownMenuItem>
           {modo === 'instalada' ? (
             <DropdownMenuItem disabled><Check className="mr-2 h-4 w-4" /> App instalada</DropdownMenuItem>
           ) : (
@@ -72,6 +77,7 @@ export function UserMenu() {
       </DropdownMenu>
 
       <InstallDialog open={instalarAberto} onOpenChange={setInstalarAberto} />
+      <SugestaoDialog open={sugestaoAberta} onOpenChange={setSugestaoAberta} />
     </>
   );
 }

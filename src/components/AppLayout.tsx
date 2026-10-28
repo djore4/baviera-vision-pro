@@ -1,6 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, CalendarClock, Filter, Calculator, Users, Droplets, Building2, Package, UserCog, Archive, Target, Car, CarFront, ClipboardList, Handshake, ChevronDown, type LucideIcon } from 'lucide-react';
-import { getCurrentWeek } from '@/lib/excel-parser';
+import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, CalendarClock, Filter, Calculator, Users, Droplets, Building2, Package, UserCog, Archive, Target, Car, CarFront, ClipboardList, Handshake, Lightbulb, ChevronDown, type LucideIcon } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { useProspec } from '@/contexts/ProspecContext';
@@ -39,6 +38,7 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   dados: Database,
   arquivo: Archive,
   utilizadores: UserCog,
+  sugestoes: Lightbulb,
 };
 
 /* Definições: área pessoal, fora da matriz de permissões. Abre-se pelo menu do
@@ -55,7 +55,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { overdue: prospecOverdue } = useProspec();
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
-  const week = getCurrentWeek();
   const season = seasonalFlags();
 
   // Navegação agrupada por área macro. Exclui os tabs arrumados no Arquivo e os
@@ -208,9 +207,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 <div className="flex items-center gap-2.5">
             <NotificationBell />
-            <div className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
-              Semana {week}{season.fridayPM && <span className="hidden sm:inline"> · Bom fim de semana 🎉</span>}
-            </div>
             <UserMenu />
           </div>
         </header>
