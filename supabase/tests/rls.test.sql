@@ -324,11 +324,20 @@ select t.check('cv: lê angariação e retomas',    t.n('angariacoes_vu') > 0 an
 select t.check('cv: escreve retomas (stock edit)', t.can_insert('retomas') and t.dml($q$ update public.retomas set updated_at = now() $q$) is not null);
 select t.check('cv: dados=view → NÃO importa control/VU/angariação',
   not t.can_insert('control_records') and not t.can_insert('control_records_vu')
-  and not t.can_insert('angariacoes_vu') and not t.can_insert('vu_objetivos')
+  and not t.can_insert('angariacoes_vu')
   and t.dml($q$ delete from public.control_records_vu $q$) = 0);
+-- Objetivos VU (migração 20261023120000): a escrita aceita 'objetivos-vu' (edit), além de 'dados'.
+select t.check('cv: objetivos-vu=edit → escreve os objetivos VU (vu_objetivos)', t.can_insert('vu_objetivos'));
 select t.check('cv: escreve escala VU, não o backup',
   t.can_insert_obj('excel-files', 'escala-vu.json') and not t.can_insert_obj('excel-files', 'bmw-business-control.xlsx'));
 select t.check('cv: NÃO lê eot',                 t.n('eot_contracts') = 0);
+select t.back();
+commit;
+
+-- Vendedor VU: objetivos-vu=view → vê, não escreve (a escrita pede 'edit' em objetivos-vu ou dados)
+begin;
+select t.as_user('vu@x.pt');
+select t.check('vu: objetivos-vu=view → NÃO escreve os objetivos VU', not t.can_insert('vu_objetivos'));
 select t.back();
 commit;
 

@@ -1,6 +1,8 @@
-import { useState, useMemo } from 'react';
-import { FileDown, RotateCcw } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { FileDown, Loader2, RotateCcw, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePermissions } from '@/contexts/PermissionsContext';
+import { extrairFicha, paraFicha, type FichaKey } from '@/lib/ficha-extrair';
 
 /* ── Tradução exata da sheet "Ficha" (Ficha de Margem 3.0) ── */
 
@@ -19,18 +21,18 @@ const pct = (v: number | null) =>
 const num = (s: string) => { const n = parseFloat(String(s).replace(',', '.')); return isFinite(n) ? n : 0; };
 
 /* Inputs */
-function EurInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function EurInput({ value, onChange, campo, mark = '' }: { value: string; onChange: (v: string) => void; campo?: string; mark?: string }) {
   return (
-    <input type="number" inputMode="decimal" value={value} onChange={e => onChange(e.target.value)}
-      className="w-full text-right px-2 py-1 text-xs rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500"
+    <input type="number" inputMode="decimal" value={value} onChange={e => onChange(e.target.value)} data-campo={campo}
+      className={`w-full text-right px-2 py-1 text-xs rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500${mark}`}
       placeholder="0,00" />
   );
 }
-function PctInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function PctInput({ value, onChange, campo, mark = '' }: { value: string; onChange: (v: string) => void; campo?: string; mark?: string }) {
   return (
     <div className="relative">
-      <input type="number" inputMode="decimal" value={value} onChange={e => onChange(e.target.value)}
-        className="w-full text-right pr-5 pl-2 py-1 text-xs rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500"
+      <input type="number" inputMode="decimal" value={value} onChange={e => onChange(e.target.value)} data-campo={campo}
+        className={`w-full text-right pr-5 pl-2 py-1 text-xs rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500${mark}`}
         placeholder="0" />
       <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">%</span>
     </div>
@@ -75,6 +77,40 @@ export default function FichaMargemPage() {
   const [apoioValor, setApoioValor] = useState(''); // valor absoluto em € (desconto adicional)
 
   const [mediaMovel, setMediaMovel] = useState('4 ou +');
+
+  // Preenchimento a partir de um contrato (piloto: só administradores).
+  const { isAdmin } = usePermissions();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [lendo, setLendo] = useState(false);
+  const [marks, setMarks] = useState<Partial<Record<FichaKey, 'ok' | 'rever'>>>({});
+  const [origem, setOrigem] = useState<string | null>(null);
+  const mk = (k: FichaKey) => (marks[k] === 'rever' ? ' ring-2 ring-orange-500' : marks[k] === 'ok' ? ' ring-2 ring-emerald-500' : '');
+
+  const setters: Record<FichaKey, (v: string) => void> = {
+    docTipo: setDocTipo, natureza: setNatureza, pagamento: setPagamento, tipoCliente: setTipoCliente,
+    dataMatricula: setDataMatricula, docNum: setDocNum, modelo: setModelo, encChass: setEncChass, matricula: setMatricula,
+    apoioLabel: setApoioLabel, pvb: setPvb, opc: setOpc, bsi: setBsi, eco: setEco, legTr: setLegTr, isv: setIsv,
+    recond: setRecond, ofertas: setOfertas, precoVenda: setPrecoVenda, ivaPct: setIvaPct, mgFixaPct: setMgFixaPct,
+    mgVarPct: setMgVarPct, pacPct: setPacPct, apoioFrotaPct: setApoioFrotaPct, apoioDemoPct: setApoioDemoPct,
+    deprec: setDeprec, bonusMPct: setBonusMPct, apoioValor: setApoioValor,
+  };
+
+  async function carregarDocumento(file: File) {
+    setLendo(true);
+    try {
+      const { valores, incertos } = paraFicha(await extrairFicha(file));
+      const chaves = Object.keys(valores) as FichaKey[];
+      if (chaves.length === 0) { toast.error('Não consegui ler valores neste documento.'); return; }
+      chaves.forEach(k => setters[k](valores[k]!));
+      const novas: Partial<Record<FichaKey, 'ok' | 'rever'>> = {};
+      chaves.forEach(k => { novas[k] = incertos.includes(k) ? 'rever' : 'ok'; });
+      setMarks(novas);
+      setOrigem(file.name);
+      toast.success(`${chaves.length} campos preenchidos. Revê-os antes de usar.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Não foi possível ler o documento.');
+    } finally { setLendo(false); if (fileRef.current) fileRef.current.value = ''; }
+  }
 
   const c = useMemo(() => {
     const _pvb = num(pvb), _opc = num(opc), _bsi = num(bsi), _eco = num(eco), _legTr = num(legTr), _isv = num(isv);
@@ -133,6 +169,7 @@ export default function FichaMargemPage() {
     setIvaPct('23'); setMgFixaPct(''); setMgVarPct('5'); setPacPct(''); setApoioFrotaPct(''); setApoioDemoPct(''); setDeprec(''); setBonusMPct('');
     setApoioLabel(''); setApoioValor('');
     setMediaMovel('4 ou +');
+    setMarks({}); setOrigem(null);
     toast.success('Ficha limpa.');
   }
 
@@ -232,6 +269,17 @@ export default function FichaMargemPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-4 animate-fade-in">
       <div className="flex items-center justify-end gap-2">
+        {isAdmin && (
+          <>
+            <input ref={fileRef} type="file" accept="application/pdf,image/png,image/jpeg" className="hidden" data-testid="ficha-ficheiro"
+              onChange={e => { const f = e.target.files?.[0]; if (f) void carregarDocumento(f); }} />
+            <button onClick={() => fileRef.current?.click()} disabled={lendo}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-primary/40 text-primary rounded hover:bg-primary/5 transition-colors disabled:opacity-60">
+              {lendo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              {lendo ? 'A ler…' : 'Carregar contrato'}
+            </button>
+          </>
+        )}
         <button onClick={limpar} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
           <RotateCcw className="h-3.5 w-3.5" /> Limpar
         </button>
@@ -240,6 +288,20 @@ export default function FichaMargemPage() {
         </button>
       </div>
 
+      {origem && Object.keys(marks).length > 0 && (
+        <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs">
+          <span className="font-semibold">Preenchido a partir de "{origem}".</span>
+          <span className="text-muted-foreground">
+            <span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm ring-2 ring-emerald-500 align-middle" /> lido
+            <span className="mx-1 ml-3 inline-block h-2.5 w-2.5 rounded-sm ring-2 ring-orange-500 align-middle" /> rever com atenção.
+            Confirma sempre os valores com o documento.
+          </span>
+          <button type="button" onClick={() => { setMarks({}); setOrigem(null); }} className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-foreground">
+            <X className="h-3 w-3" /> Remover destaques
+          </button>
+        </div>
+      )}
+
       <div className="space-y-4">
           {/* Cabeçalho (condensado) */}
           <div className="rounded-lg border border-border overflow-hidden">
@@ -247,13 +309,13 @@ export default function FichaMargemPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2 p-2.5 items-end">
               <div>
                 <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">NATUREZA</label>
-                <select value={natureza} onChange={e => setNatureza(e.target.value)}
-                  className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
+                <select value={natureza} onChange={e => setNatureza(e.target.value)} data-campo="natureza"
+                  className={`w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500${mk('natureza')}`}>
                   <option value="VN">VN</option>
                   <option value="VD">VD</option>
                 </select>
               </div>
-              <Field label="MODELO" value={modelo} onChange={setModelo} />
+              <Field label="MODELO" value={modelo} onChange={setModelo} campo="modelo" mark={mk('modelo')} />
               <div>
                 <div className="mb-0.5 flex h-4 rounded-sm overflow-hidden border border-border">
                   {['Proposta', 'Contrato'].map(t => (
@@ -265,15 +327,15 @@ export default function FichaMargemPage() {
                     </button>
                   ))}
                 </div>
-                <input value={docNum} onChange={e => setDocNum(e.target.value)}
+                <input value={docNum} onChange={e => setDocNum(e.target.value)} data-campo="docNum"
                   placeholder={`Nº ${docTipo.toLowerCase()}`}
-                  className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                  className={`w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500${mk('docNum')}`} />
               </div>
-              <Field label="ENC / CHASS" value={encChass} onChange={setEncChass} />
+              <Field label="ENC / CHASS" value={encChass} onChange={setEncChass} campo="encChass" mark={mk('encChass')} />
               <div>
                 <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">PAGAMENTO</label>
-                <select value={pagamento} onChange={e => setPagamento(e.target.value)}
-                  className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
+                <select value={pagamento} onChange={e => setPagamento(e.target.value)} data-campo="pagamento"
+                  className={`w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500${mk('pagamento')}`}>
                   <option value="">—</option>
                   <option value="BMW FS">BMW FS</option>
                   <option value="Financiamento Interno">Financiamento Interno</option>
@@ -283,18 +345,18 @@ export default function FichaMargemPage() {
               </div>
               <div>
                 <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">TIPO</label>
-                <select value={tipoCliente} onChange={e => setTipoCliente(e.target.value)}
-                  className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
+                <select value={tipoCliente} onChange={e => setTipoCliente(e.target.value)} data-campo="tipoCliente"
+                  className={`w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500${mk('tipoCliente')}`}>
                   <option value="Particular">Particular</option>
                   <option value="Empresa">Empresa</option>
                 </select>
               </div>
-              {isVD && <Field label="MATRÍCULA" value={matricula} onChange={setMatricula} />}
+              {isVD && <Field label="MATRÍCULA" value={matricula} onChange={setMatricula} campo="matricula" mark={mk('matricula')} />}
               {isVD && (
                 <div>
                   <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">DATA MATRÍCULA</label>
-                  <input type="date" value={dataMatricula} onChange={e => setDataMatricula(e.target.value)}
-                    className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                  <input type="date" value={dataMatricula} onChange={e => setDataMatricula(e.target.value)} data-campo="dataMatricula"
+                    className={`w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500${mk('dataMatricula')}`} />
                 </div>
               )}
               {isVD && (
@@ -317,40 +379,40 @@ export default function FichaMargemPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                <Row label="PVB"><Dash /><td className="px-2 py-1"><EurInput value={pvb} onChange={setPvb} /></td></Row>
-                <Row label="OPC"><Auto>{pct(c.opcPctAuto)}</Auto><td className="px-2 py-1"><EurInput value={opc} onChange={setOpc} /></td></Row>
-                <Row label="BSI"><Dash /><td className="px-2 py-1"><EurInput value={bsi} onChange={setBsi} /></td></Row>
-                <Row label="ECO"><Dash /><td className="px-2 py-1"><EurInput value={eco} onChange={setEco} /></td></Row>
-                <Row label="LEG / TR"><Dash /><td className="px-2 py-1"><EurInput value={legTr} onChange={setLegTr} /></td></Row>
-                <Row label="ISV"><Dash /><td className="px-2 py-1"><EurInput value={isv} onChange={setIsv} /></td></Row>
-                <Row label="IVA"><td className="px-2 py-1"><PctInput value={ivaPct} onChange={setIvaPct} /></td><Auto>{eur(c.ivaEur)}</Auto></Row>
+                <Row label="PVB"><Dash /><td className="px-2 py-1"><EurInput value={pvb} onChange={setPvb} campo="pvb" mark={mk('pvb')} /></td></Row>
+                <Row label="OPC"><Auto>{pct(c.opcPctAuto)}</Auto><td className="px-2 py-1"><EurInput value={opc} onChange={setOpc} campo="opc" mark={mk('opc')} /></td></Row>
+                <Row label="BSI"><Dash /><td className="px-2 py-1"><EurInput value={bsi} onChange={setBsi} campo="bsi" mark={mk('bsi')} /></td></Row>
+                <Row label="ECO"><Dash /><td className="px-2 py-1"><EurInput value={eco} onChange={setEco} campo="eco" mark={mk('eco')} /></td></Row>
+                <Row label="LEG / TR"><Dash /><td className="px-2 py-1"><EurInput value={legTr} onChange={setLegTr} campo="legTr" mark={mk('legTr')} /></td></Row>
+                <Row label="ISV"><Dash /><td className="px-2 py-1"><EurInput value={isv} onChange={setIsv} campo="isv" mark={mk('isv')} /></td></Row>
+                <Row label="IVA"><td className="px-2 py-1"><PctInput value={ivaPct} onChange={setIvaPct} campo="ivaPct" mark={mk('ivaPct')} /></td><Auto>{eur(c.ivaEur)}</Auto></Row>
                 <Row label="PVP" highlight><Dash /><Auto strong>{eur(c.pvp)}</Auto></Row>
 
-                <Row label="MG. FIXA"><td className="px-2 py-1"><PctInput value={mgFixaPct} onChange={setMgFixaPct} /></td><Auto>{eur(c.mgFixaEur)}</Auto></Row>
-                <Row label="MG. VARIÁVEL"><td className="px-2 py-1"><PctInput value={mgVarPct} onChange={setMgVarPct} /></td><Auto>{eur(c.mgVarEur)}</Auto></Row>
-                <Row label="PAC"><td className="px-2 py-1"><PctInput value={pacPct} onChange={setPacPct} /></td><Auto>{eur(c.pacEur)}</Auto></Row>
-                <Row label="APOIO FROTA"><td className="px-2 py-1"><PctInput value={apoioFrotaPct} onChange={setApoioFrotaPct} /></td><Auto>{eur(c.apoioFrotaEur)}</Auto></Row>
-                <Row label="APOIO DEMO"><td className="px-2 py-1"><PctInput value={apoioDemoPct} onChange={setApoioDemoPct} /></td><Auto>{eur(c.apoioDemoEur)}</Auto></Row>
-                <Row label="DEPRECIAÇÕES"><Auto>{pct(c.deprecPctAuto)}</Auto><td className="px-2 py-1"><EurInput value={deprec} onChange={setDeprec} /></td></Row>
-                <Row label="BÓNUS M"><td className="px-2 py-1"><PctInput value={bonusMPct} onChange={setBonusMPct} /></td><Auto>{eur(c.bonusMEur)}</Auto></Row>
+                <Row label="MG. FIXA"><td className="px-2 py-1"><PctInput value={mgFixaPct} onChange={setMgFixaPct} campo="mgFixaPct" mark={mk('mgFixaPct')} /></td><Auto>{eur(c.mgFixaEur)}</Auto></Row>
+                <Row label="MG. VARIÁVEL"><td className="px-2 py-1"><PctInput value={mgVarPct} onChange={setMgVarPct} campo="mgVarPct" mark={mk('mgVarPct')} /></td><Auto>{eur(c.mgVarEur)}</Auto></Row>
+                <Row label="PAC"><td className="px-2 py-1"><PctInput value={pacPct} onChange={setPacPct} campo="pacPct" mark={mk('pacPct')} /></td><Auto>{eur(c.pacEur)}</Auto></Row>
+                <Row label="APOIO FROTA"><td className="px-2 py-1"><PctInput value={apoioFrotaPct} onChange={setApoioFrotaPct} campo="apoioFrotaPct" mark={mk('apoioFrotaPct')} /></td><Auto>{eur(c.apoioFrotaEur)}</Auto></Row>
+                <Row label="APOIO DEMO"><td className="px-2 py-1"><PctInput value={apoioDemoPct} onChange={setApoioDemoPct} campo="apoioDemoPct" mark={mk('apoioDemoPct')} /></td><Auto>{eur(c.apoioDemoEur)}</Auto></Row>
+                <Row label="DEPRECIAÇÕES"><Auto>{pct(c.deprecPctAuto)}</Auto><td className="px-2 py-1"><EurInput value={deprec} onChange={setDeprec} campo="deprec" mark={mk('deprec')} /></td></Row>
+                <Row label="BÓNUS M"><td className="px-2 py-1"><PctInput value={bonusMPct} onChange={setBonusMPct} campo="bonusMPct" mark={mk('bonusMPct')} /></td><Auto>{eur(c.bonusMEur)}</Auto></Row>
                 <tr>
                   <td className="px-2 py-1 whitespace-nowrap text-muted-foreground">
                     <div className="flex items-center gap-1.5">
                       <span>APOIO</span>
-                      <input value={apoioLabel} onChange={e => setApoioLabel(e.target.value)} placeholder="descrição" size={1}
-                        className="flex-1 min-w-0 px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                      <input value={apoioLabel} onChange={e => setApoioLabel(e.target.value)} placeholder="descrição" size={1} data-campo="apoioLabel"
+                        className={`flex-1 min-w-0 px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500${mk('apoioLabel')}`} />
                     </div>
                   </td>
                   <Auto>{pct(c.apoioPctAuto)}</Auto>
-                  <td className="px-2 py-1"><EurInput value={apoioValor} onChange={setApoioValor} /></td>
+                  <td className="px-2 py-1"><EurInput value={apoioValor} onChange={setApoioValor} campo="apoioValor" mark={mk('apoioValor')} /></td>
                 </tr>
                 <Row label="DESC. TOTAL" highlight><Auto strong>{pct(c.descTotalPct)}</Auto><Auto strong>{eur(c.descTotalEur)}</Auto></Row>
 
-                <Row label="RECONDICIONAMENTO"><Dash /><td className="px-2 py-1"><EurInput value={recond} onChange={setRecond} /></td></Row>
-                <Row label="OFERTAS"><Dash /><td className="px-2 py-1"><EurInput value={ofertas} onChange={setOfertas} /></td></Row>
+                <Row label="RECONDICIONAMENTO"><Dash /><td className="px-2 py-1"><EurInput value={recond} onChange={setRecond} campo="recond" mark={mk('recond')} /></td></Row>
+                <Row label="OFERTAS"><Dash /><td className="px-2 py-1"><EurInput value={ofertas} onChange={setOfertas} campo="ofertas" mark={mk('ofertas')} /></td></Row>
                 <Row label="PREÇO CUSTO" highlight><Dash /><Auto strong>{eur(c.precoCusto)}</Auto></Row>
 
-                <Row label="PREÇO VENDA"><Dash /><td className="px-2 py-1"><EurInput value={precoVenda} onChange={setPrecoVenda} /></td></Row>
+                <Row label="PREÇO VENDA"><Dash /><td className="px-2 py-1"><EurInput value={precoVenda} onChange={setPrecoVenda} campo="precoVenda" mark={mk('precoVenda')} /></td></Row>
                 <Row label="PREÇO VENDA (S/ IVA)"><Dash /><Auto>{eur(c.precoVendaSemIva)}</Auto></Row>
                 <Row label="MARGEM" accent><Auto strong>{pct(c.margemPct)}</Auto><Auto strong>{eur(c.margemEur)}</Auto></Row>
               </tbody>
@@ -394,12 +456,12 @@ function Row({ label, children, highlight, accent }: { label: string; children: 
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function Field({ label, value, onChange, campo, mark = '' }: { label: string; value: string; onChange: (v: string) => void; campo?: string; mark?: string }) {
   return (
     <div>
       <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">{label}</label>
-      <input value={value} onChange={e => onChange(e.target.value)}
-        className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+      <input value={value} onChange={e => onChange(e.target.value)} data-campo={campo}
+        className={`w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500${mark}`} />
     </div>
   );
 }

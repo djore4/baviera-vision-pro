@@ -4,3 +4,7 @@ project_id = "yifxgiwmibjaornighvt"
 # Validação de JWT feita dentro da função (getUser), para evitar o erro de
 # verificação no gateway com chaves de assinatura ES256.
 verify_jwt = false
+
+[functions.ficha-extrair]
+# Validação do JWT feita dentro da função (getUser), como em admin-users.
+verify_jwt = false
