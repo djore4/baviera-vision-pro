@@ -89,12 +89,23 @@ Deno.serve(async (req) => {
     if (action === "update") {
       const { id, patch, password } = body;
       if (!id) return json({ error: "id em falta." }, 400);
-      const { data: row, error: e1 } = await admin.from("app_users")
-        .update(patch ?? {}).eq("id", id).select(USER_COLS).single();
+
+      // Reposição de password envia só { id, password } (patch vazio). Um UPDATE vazio
+      // não devolve linhas e o .single() falhava com "Cannot coerce the result to a
+      // single JSON object". Sem alterações, só lemos a linha.
+      const hasPatch = !!patch && typeof patch === "object" && Object.keys(patch).length > 0;
+      const { data: row, error: e1 } = hasPatch
+        ? await admin.from("app_users").update(patch).eq("id", id).select(USER_COLS).maybeSingle()
+        : await admin.from("app_users").select(USER_COLS).eq("id", id).maybeSingle();
       if (e1) return json({ error: e1.message }, 400);
-      if (password && row?.email) {
+      if (!row) return json({ error: "Utilizador não encontrado." }, 400);
+
+      if (password) {
+        if (String(password).length < 6) return json({ error: "A password deve ter pelo menos 6 caracteres." }, 400);
         const authUser = await findAuthUserByEmail(admin, row.email);
-        if (authUser) await admin.auth.admin.updateUserById(authUser.id, { password });
+        if (!authUser) return json({ error: "Este utilizador não tem login de acesso." }, 400);
+        const { error: pErr } = await admin.auth.admin.updateUserById(authUser.id, { password: String(password) });
+        if (pErr) return json({ error: "Erro ao alterar a password: " + pErr.message }, 400);
       }
       return json({ user: row });
     }

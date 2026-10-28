@@ -91,3 +91,31 @@ export async function instalar(): Promise<boolean> {
   } catch { /* ignora */ }
   return false;
 }
+
+/* ── Service worker e estado, para a faixa e para Definições ─────────────────── */
+
+/* Regista o service worker logo no arranque (antes só se registava ao ativar as
+ * notificações do Diário). Sem ele, alguns Chrome em Android nunca disparam o
+ * evento de instalação. Não faz cache: ver public/sw.js. */
+export function registarServiceWorker() {
+  if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
+  const base = import.meta.env.BASE_URL || '/';
+  const registar = () => { navigator.serviceWorker.register(`${base}sw.js`, { scope: base }).catch(() => { /* ignora */ }); };
+  if (document.readyState === 'complete') registar();
+  else window.addEventListener('load', registar, { once: true });
+}
+
+export type ModoInstalar = 'instalada' | 'nativo' | 'ios' | 'manual';
+
+/* O que se pode oferecer ao utilizador neste momento. */
+export function modoInstalar(): ModoInstalar {
+  if (appJaInstalada()) return 'instalada';
+  if (temPedido()) return 'nativo';
+  return plataformaMovel(navigator.userAgent, navigator.maxTouchPoints) === 'ios' ? 'ios' : 'manual';
+}
+
+/* A sugestão do topo já foi dispensada (ou marcada como instalada) e não volta sozinha. */
+export const sugestaoSilenciada = () => !faixaDevida(lerEstado());
+
+/* Volta a mostrar a sugestão do topo. */
+export function reporSugestao() { guardarEstado({}); avisar(); }

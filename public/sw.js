@@ -1,4 +1,4 @@
-/* Service worker — apenas Web Push da Prospeção.
+/* Service worker — Web Push da Prospeção e requisito de instalabilidade da PWA.
  * Não faz cache nem intercepta pedidos (não transforma a app numa PWA offline);
  * limita-se a mostrar as notificações push e a abrir a página ao clicar. */
 
@@ -9,6 +9,11 @@ self.addEventListener('install', () => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
+
+// Handler de fetch vazio: não intercepta nem guarda nada (os pedidos seguem pela
+// rede, como sem SW). Existe porque alguns Chrome em Android só consideram a app
+// instalável — e só disparam a sugestão de instalar — com um SW que o tenha.
+self.addEventListener('fetch', () => {});
 
 // Constrói o URL a abrir a partir do scope do SW (que já inclui a subpasta,
 // ex.: /baviera-vision-pro/) e da rota hash da app (HashRouter).
