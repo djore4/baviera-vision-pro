@@ -8,8 +8,9 @@ import { supabase } from '@/integrations/supabase/client';
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /* Chaves da ficha = nomes do estado de FichaMargemPage = propriedades do esquema da
- * edge function (um teste garante que batem). O "APOIO" genérico (descrição + valor) NÃO
- * se preenche a partir do documento: fica sempre em branco para o utilizador. */
+ * edge function (um teste garante que batem). O "APOIO" genérico (descrição + valor) e o TIPO
+ * de cliente (Particular/Frotista) NÃO se preenchem a partir do documento: ficam sempre
+ * em branco para o utilizador. */
 export const TEXTO_KEYS = ['docNum', 'modelo', 'encChass', 'matricula'] as const;
 export const NUMERO_KEYS = [
   'pvb', 'opc', 'bsi', 'eco', 'legTr', 'isv', 'recond', 'ofertas', 'precoVenda',
@@ -19,10 +20,9 @@ export const ENUM_OPCOES = {
   docTipo: ['Proposta', 'Contrato'],
   natureza: ['VN', 'VD'],
   pagamento: ['BMW FS', 'Financiamento Interno', 'Financiamento Externo', 'Pronto Pagamento'],
-  tipoCliente: ['Particular', 'Empresa'],
 } as const;
 export const FICHA_KEYS = [
-  'docTipo', 'natureza', 'pagamento', 'tipoCliente', 'dataMatricula',
+  'docTipo', 'natureza', 'pagamento', 'dataMatricula',
   ...TEXTO_KEYS, ...NUMERO_KEYS,
 ] as const;
 export type FichaKey = (typeof FICHA_KEYS)[number];

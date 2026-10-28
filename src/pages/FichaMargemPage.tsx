@@ -48,7 +48,7 @@ export default function FichaMargemPage() {
   const [docNum, setDocNum] = useState('');
   const [encChass, setEncChass] = useState('');
   const [pagamento, setPagamento] = useState('');
-  const [tipoCliente, setTipoCliente] = useState('Particular'); // Particular | Empresa
+  const [tipoCliente, setTipoCliente] = useState(''); // Particular | Frotista — preenchido pelo utilizador (nunca pela leitura do contrato)
   const [matricula, setMatricula] = useState('');
   const [dataMatricula, setDataMatricula] = useState('');
   const isVD = natureza === 'VD';
@@ -87,7 +87,7 @@ export default function FichaMargemPage() {
   const mk = (k: FichaKey) => (marks[k] === 'rever' ? ' ring-2 ring-orange-500' : marks[k] === 'ok' ? ' ring-2 ring-emerald-500' : '');
 
   const setters: Record<FichaKey, (v: string) => void> = {
-    docTipo: setDocTipo, natureza: setNatureza, pagamento: setPagamento, tipoCliente: setTipoCliente,
+    docTipo: setDocTipo, natureza: setNatureza, pagamento: setPagamento,
     dataMatricula: setDataMatricula, docNum: setDocNum, modelo: setModelo, encChass: setEncChass, matricula: setMatricula,
     pvb: setPvb, opc: setOpc, bsi: setBsi, eco: setEco, legTr: setLegTr, isv: setIsv,
     recond: setRecond, ofertas: setOfertas, precoVenda: setPrecoVenda, ivaPct: setIvaPct, mgFixaPct: setMgFixaPct,
@@ -164,7 +164,7 @@ export default function FichaMargemPage() {
 
   function limpar() {
     setNatureza('VN');
-    setModelo(''); setDocTipo('Proposta'); setDocNum(''); setEncChass(''); setPagamento(''); setTipoCliente('Particular'); setMatricula(''); setDataMatricula('');
+    setModelo(''); setDocTipo('Proposta'); setDocNum(''); setEncChass(''); setPagamento(''); setTipoCliente(''); setMatricula(''); setDataMatricula('');
     setPvb(''); setOpc(''); setBsi(''); setEco(''); setLegTr(''); setIsv(''); setRecond(''); setOfertas(''); setPrecoVenda('');
     setIvaPct('23'); setMgFixaPct(''); setMgVarPct('5'); setPacPct(''); setApoioFrotaPct(''); setApoioDemoPct(''); setDeprec(''); setBonusMPct('');
     setApoioLabel(''); setApoioValor('');
@@ -345,10 +345,11 @@ export default function FichaMargemPage() {
               </div>
               <div>
                 <label className="flex items-end h-4 leading-none text-[9px] font-medium text-muted-foreground mb-0.5">TIPO</label>
-                <select value={tipoCliente} onChange={e => setTipoCliente(e.target.value)} data-campo="tipoCliente"
-                  className={`w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500${mk('tipoCliente')}`}>
+                <select value={tipoCliente} onChange={e => setTipoCliente(e.target.value)}
+                  className="w-full px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
+                  <option value="">—</option>
                   <option value="Particular">Particular</option>
-                  <option value="Empresa">Empresa</option>
+                  <option value="Frotista">Frotista</option>
                 </select>
               </div>
               {isVD && <Field label="MATRÍCULA" value={matricula} onChange={setMatricula} campo="matricula" mark={mk('matricula')} />}
