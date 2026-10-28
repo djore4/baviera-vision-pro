@@ -40,6 +40,12 @@ describe('paraFicha', () => {
     expect(r.valores).toEqual({ matricula: '00-AA-00', dataMatricula: '2024-05-10', natureza: 'VD' });
   });
 
+  it('o APOIO genérico nunca se preenche, mesmo que a leitura o devolva', () => {
+    const r = paraFicha({ pvb: 1000, apoioValor: 500, apoioLabel: 'Apoio X', incerto: ['apoioValor'] } as never);
+    expect(r.valores).toEqual({ pvb: '1000' });
+    expect(r.incertos).toEqual([]);
+  });
+
   it('valida o ficheiro', () => {
     expect(validarFicheiro({ type: 'application/pdf', size: 1000 })).toBeNull();
     expect(validarFicheiro({ type: 'image/png', size: 1000 })).toBeNull();

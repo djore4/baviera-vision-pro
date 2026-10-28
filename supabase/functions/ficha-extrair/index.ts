@@ -57,8 +57,6 @@ const SCHEMA = {
     apoioDemoPct: num("Apoio demo, em % sobre PVB+OPC."),
     deprec: num("Depreciações, em euros (valor absoluto)."),
     bonusMPct: num("Bónus M, em % sobre PVB+OPC."),
-    apoioLabel: txt("Descrição de um apoio adicional, se existir."),
-    apoioValor: num("Valor de um apoio/desconto adicional, em euros (valor absoluto)."),
     incerto: {
       type: "array",
       items: { type: "string" },
@@ -77,6 +75,7 @@ Regras:
 - Valores monetários: números em euros, ponto como separador decimal, sem símbolo nem milhares (ex.: 31450.5). Percentagens: o número (ex.: 5 para 5 %).
 - PVB, OPC, BSI, ECO, LEG/TR e ISV são valores SEM IVA. precoVenda é o preço final pago pelo cliente COM IVA.
 - Privacidade: NÃO devolvas nome, NIF, morada, contactos nem qualquer dado pessoal. Do cliente só interessa se é Particular ou Empresa. Da identificação só o número do contrato.
+- NÃO preenchas apoios adicionais nem descontos: esses campos não existem na ferramenta e ficam em branco na ficha.
 - Se um campo for ambíguo (vários valores possíveis, texto cortado, ilegível), devolve o melhor palpite E acrescenta o nome do campo a "incerto".`;
 
 Deno.serve(async (req) => {

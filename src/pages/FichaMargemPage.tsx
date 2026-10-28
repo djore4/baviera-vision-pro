@@ -89,10 +89,10 @@ export default function FichaMargemPage() {
   const setters: Record<FichaKey, (v: string) => void> = {
     docTipo: setDocTipo, natureza: setNatureza, pagamento: setPagamento, tipoCliente: setTipoCliente,
     dataMatricula: setDataMatricula, docNum: setDocNum, modelo: setModelo, encChass: setEncChass, matricula: setMatricula,
-    apoioLabel: setApoioLabel, pvb: setPvb, opc: setOpc, bsi: setBsi, eco: setEco, legTr: setLegTr, isv: setIsv,
+    pvb: setPvb, opc: setOpc, bsi: setBsi, eco: setEco, legTr: setLegTr, isv: setIsv,
     recond: setRecond, ofertas: setOfertas, precoVenda: setPrecoVenda, ivaPct: setIvaPct, mgFixaPct: setMgFixaPct,
     mgVarPct: setMgVarPct, pacPct: setPacPct, apoioFrotaPct: setApoioFrotaPct, apoioDemoPct: setApoioDemoPct,
-    deprec: setDeprec, bonusMPct: setBonusMPct, apoioValor: setApoioValor,
+    deprec: setDeprec, bonusMPct: setBonusMPct,
   };
 
   async function carregarDocumento(file: File) {
@@ -399,12 +399,12 @@ export default function FichaMargemPage() {
                   <td className="px-2 py-1 whitespace-nowrap text-muted-foreground">
                     <div className="flex items-center gap-1.5">
                       <span>APOIO</span>
-                      <input value={apoioLabel} onChange={e => setApoioLabel(e.target.value)} placeholder="descrição" size={1} data-campo="apoioLabel"
-                        className={`flex-1 min-w-0 px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500${mk('apoioLabel')}`} />
+                      <input value={apoioLabel} onChange={e => setApoioLabel(e.target.value)} placeholder="descrição" size={1}
+                        className="flex-1 min-w-0 px-2 py-0.5 text-[11px] rounded bg-amber-100 dark:bg-amber-500/15 border border-amber-400/60 text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
                     </div>
                   </td>
                   <Auto>{pct(c.apoioPctAuto)}</Auto>
-                  <td className="px-2 py-1"><EurInput value={apoioValor} onChange={setApoioValor} campo="apoioValor" mark={mk('apoioValor')} /></td>
+                  <td className="px-2 py-1"><EurInput value={apoioValor} onChange={setApoioValor} /></td>
                 </tr>
                 <Row label="DESC. TOTAL" highlight><Auto strong>{pct(c.descTotalPct)}</Auto><Auto strong>{eur(c.descTotalEur)}</Auto></Row>
 

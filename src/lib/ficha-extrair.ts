@@ -8,11 +8,12 @@ import { supabase } from '@/integrations/supabase/client';
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /* Chaves da ficha = nomes do estado de FichaMargemPage = propriedades do esquema da
- * edge function (um teste garante que batem). */
-export const TEXTO_KEYS = ['docNum', 'modelo', 'encChass', 'matricula', 'apoioLabel'] as const;
+ * edge function (um teste garante que batem). O "APOIO" genérico (descrição + valor) NÃO
+ * se preenche a partir do documento: fica sempre em branco para o utilizador. */
+export const TEXTO_KEYS = ['docNum', 'modelo', 'encChass', 'matricula'] as const;
 export const NUMERO_KEYS = [
   'pvb', 'opc', 'bsi', 'eco', 'legTr', 'isv', 'recond', 'ofertas', 'precoVenda',
-  'ivaPct', 'mgFixaPct', 'mgVarPct', 'pacPct', 'apoioFrotaPct', 'apoioDemoPct', 'deprec', 'bonusMPct', 'apoioValor',
+  'ivaPct', 'mgFixaPct', 'mgVarPct', 'pacPct', 'apoioFrotaPct', 'apoioDemoPct', 'deprec', 'bonusMPct',
 ] as const;
 export const ENUM_OPCOES = {
   docTipo: ['Proposta', 'Contrato'],
