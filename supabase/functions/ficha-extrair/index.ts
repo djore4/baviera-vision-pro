@@ -145,12 +145,24 @@ Deno.serve(async (req) => {
     });
 
     if (!resp.ok) {
-      // Não se devolve nem regista o corpo (pode conter excertos do documento).
-      return json({ error: "ERRO_LEITURA", message: `O serviço de leitura falhou (${resp.status}).` }, 502);
+      // Só se regista e devolve o TIPO e a mensagem de erro da API (descrevem o pedido, não
+      // o documento); o corpo do pedido e o conteúdo do ficheiro nunca.
+      const err = await resp.json().catch(() => null);
+      const tipo = String(err?.error?.type ?? "");
+      const detalhe = String(err?.error?.message ?? "").slice(0, 300);
+      console.error(`ficha-extrair: API ${resp.status} ${tipo}: ${detalhe}`);
+      return json({
+        error: "ERRO_LEITURA",
+        message: `O serviço de leitura falhou (${resp.status}${tipo ? " " + tipo : ""}).`,
+        detalhe,
+      }, 502);
     }
     const out = await resp.json();
     const tool = (out?.content ?? []).find((b: { type: string }) => b.type === "tool_use");
-    if (!tool?.input) return json({ error: "ERRO_LEITURA", message: "Não foi possível ler o documento." }, 502);
+    if (!tool?.input) {
+      console.error(`ficha-extrair: sem tool_use (stop_reason=${out?.stop_reason})`);
+      return json({ error: "ERRO_LEITURA", message: "Não foi possível ler o documento.", detalhe: `stop_reason=${out?.stop_reason ?? "?"}` }, 502);
+    }
     return json({ campos: tool.input });
   } catch (_e) {
     return json({ error: "ERRO_LEITURA", message: "Erro inesperado ao ler o documento." }, 500);
