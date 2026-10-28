@@ -34,7 +34,13 @@ import { ViewAsBanner } from '@/components/ViewAsBanner';
 
 let ctx: ReturnType<typeof usePermissions>;
 const Probe = () => { ctx = usePermissions(); return <span data-testid="role">{ctx.roleName}</span>; };
-const mount = () => render(<PermissionsProvider><Probe /></PermissionsProvider>);
+// `ctx` guarda o último valor do contexto: tem de começar vazio em cada montagem, senão um
+// `waitFor` passa logo com o valor da montagem anterior (e o `setViewAs` seria o de um
+// componente já desmontado). Em máquinas lentas (CI) isto falhava.
+const mount = () => {
+  ctx = undefined as unknown as typeof ctx;
+  return render(<PermissionsProvider><Probe /></PermissionsProvider>);
+};
 
 beforeEach(() => { sessionStorage.clear(); SESSION_EMAIL = 'admin@x.pt'; });
 
