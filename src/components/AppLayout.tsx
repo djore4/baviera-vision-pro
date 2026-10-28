@@ -1,6 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, CalendarClock, Filter, LogOut, Calculator, Users, Droplets, Building2, Package, UserCog, Archive, Settings, Target, Car, CarFront, ClipboardList, Handshake, ChevronDown, type LucideIcon } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, CalendarClock, Filter, Calculator, Users, Droplets, Building2, Package, UserCog, Archive, Target, Car, CarFront, ClipboardList, Handshake, ChevronDown, type LucideIcon } from 'lucide-react';
 import { getCurrentWeek } from '@/lib/excel-parser';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -10,6 +9,7 @@ import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { InstallBanner } from '@/components/InstallBanner';
 import { ViewAsBanner } from '@/components/ViewAsBanner';
+import { UserMenu } from '@/components/UserMenu';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { seasonalFlags } from '@/lib/seasonal';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -41,8 +41,10 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   utilizadores: UserCog,
 };
 
-/* Sempre disponível (área pessoal, fora da matriz de permissões). */
-const SETTINGS_NAV_ITEM = { path: '/definicoes', label: 'DEFINIÇÕES', icon: Settings };
+/* Definições: área pessoal, fora da matriz de permissões. Abre-se pelo menu do
+ * utilizador (canto superior direito); aqui só serve o título do cabeçalho. */
+const SETTINGS_PATH = '/definicoes';
+const SETTINGS_LABEL = 'DEFINIÇÕES';
 
 const ARCHIVED = new Set(ARCHIVED_TAB_KEYS);
 
@@ -179,21 +181,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             );
           })}
-
-          {/* Definições — sempre visível (área pessoal). */}
-          <div className="pt-2 mt-2 border-t border-white/10">
-            <Link
-              to={SETTINGS_NAV_ITEM.path}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                location.pathname === SETTINGS_NAV_ITEM.path
-                  ? 'bg-brand-primary text-white'
-                  : 'text-white/60 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <SETTINGS_NAV_ITEM.icon className="h-4 w-4" />
-              {SETTINGS_NAV_ITEM.label}
-            </Link>
-          </div>
         </nav>
         <div className="px-4 py-3 border-t border-white/10">
           <span className="text-[10px] text-white/40 uppercase tracking-wider">{client.tagline}</span>
@@ -214,7 +201,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               )}
             </button>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {(location.pathname === SETTINGS_NAV_ITEM.path ? SETTINGS_NAV_ITEM.label : null)
+              {(location.pathname === SETTINGS_PATH ? SETTINGS_LABEL : null)
                 || TABS.find(t => t.path === location.pathname)?.label
                 || 'Dashboard'}
             </span>
@@ -224,9 +211,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
               Semana {week}{season.fridayPM && <span className="hidden sm:inline"> · Bom fim de semana 🎉</span>}
             </div>
-            <button onClick={() => supabase.auth.signOut()} className="text-muted-foreground hover:text-foreground">
-              <LogOut className="h-4 w-4" />
-            </button>
+            <UserMenu />
           </div>
         </header>
 
