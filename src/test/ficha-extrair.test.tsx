@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 describe('paraFicha', () => {
   it('converte para os inputs e descarta o que não é válido', () => {
     const r = paraFicha({
-      docTipo: 'Contrato', docNum: '  C-2026/123 ', natureza: 'VN', modelo: 'iX1 xDrive30', pagamento: 'BMW FS', tipoCliente: 'Empresa',
+      docTipo: 'Contrato', docNum: '  C-2026/123 ', natureza: 'VN', modelo: 'iX1 xDrive30', pagamento: 'BMW FS',
       pvb: 45000.456, opc: 3200, ivaPct: 23, mgVarPct: 5, precoVenda: 61234.5,
       legTr: -5,                 // negativo: descartado
       isv: Number.NaN,           // inválido: descartado
@@ -28,7 +28,7 @@ describe('paraFicha', () => {
       incerto: ['pvb', 'naoExiste', 'bsi'], notas: 'x',
     });
     expect(r.valores).toEqual({
-      docTipo: 'Contrato', docNum: 'C-2026/123', natureza: 'VN', modelo: 'iX1 xDrive30', pagamento: 'BMW FS', tipoCliente: 'Empresa',
+      docTipo: 'Contrato', docNum: 'C-2026/123', natureza: 'VN', modelo: 'iX1 xDrive30', pagamento: 'BMW FS',
       pvb: '45000.46', opc: '3200', ivaPct: '23', mgVarPct: '5', precoVenda: '61234.5',
     });
     // só conta como incerto o que foi preenchido e é um campo da ficha
@@ -36,7 +36,7 @@ describe('paraFicha', () => {
   });
 
   it('opções desconhecidas e nulos ficam de fora; matrícula implica viatura usada', () => {
-    const r = paraFicha({ pagamento: 'Cheque', tipoCliente: null, matricula: '00-AA-00', dataMatricula: '2024-05-10', natureza: null });
+    const r = paraFicha({ pagamento: 'Cheque', matricula: '00-AA-00', dataMatricula: '2024-05-10', natureza: null });
     expect(r.valores).toEqual({ matricula: '00-AA-00', dataMatricula: '2024-05-10', natureza: 'VD' });
   });
 
@@ -44,6 +44,11 @@ describe('paraFicha', () => {
     const r = paraFicha({ pvb: 1000, apoioValor: 500, apoioLabel: 'Apoio X', incerto: ['apoioValor'] } as never);
     expect(r.valores).toEqual({ pvb: '1000' });
     expect(r.incertos).toEqual([]);
+  });
+
+  it('o TIPO de cliente nunca se preenche: é do utilizador (Particular/Frotista)', () => {
+    const r = paraFicha({ pvb: 1000, tipoCliente: 'Frotista' } as never);
+    expect(r.valores).toEqual({ pvb: '1000' });
   });
 
   it('valida o ficheiro', () => {
@@ -111,6 +116,21 @@ describe('Ficha de Margem — carregar contrato', () => {
     fireEvent.change(screen.getByTestId('ficha-ficheiro'), { target: { files: [ficheiro()] } });
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Não consegui ler valores neste documento.'));
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('TIPO começa por preencher e só admite Particular ou Frotista; a leitura não lhe toca', async () => {
+    extrairFicha.mockResolvedValue({ pvb: 30000, tipoCliente: 'Frotista' });
+    const { container } = render(<FichaMargemPage />);
+    const tipo = () => (screen.getByText('TIPO').parentElement!.querySelector('select') as HTMLSelectElement);
+    expect(tipo().value).toBe('');
+    expect([...tipo().options].map(o => o.value)).toEqual(['', 'Particular', 'Frotista']);
+    fireEvent.change(screen.getByTestId('ficha-ficheiro'), { target: { files: [ficheiro()] } });
+    await waitFor(() => expect(campo(container, 'pvb').value).toBe('30000'));
+    expect(tipo().value).toBe('');
+    fireEvent.change(tipo(), { target: { value: 'Frotista' } });
+    expect(tipo().value).toBe('Frotista');
+    fireEvent.click(screen.getByRole('button', { name: /Limpar/ }));
+    expect(tipo().value).toBe('');
   });
 
   it('piloto: só os administradores veem o botão', () => {

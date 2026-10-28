@@ -37,7 +37,6 @@ const SCHEMA = {
     modelo: txt("Modelo e versão da viatura, em texto curto."),
     encChass: txt("Número de encomenda e/ou chassis."),
     pagamento: { type: ["string", "null"], enum: ["BMW FS", "Financiamento Interno", "Financiamento Externo", "Pronto Pagamento", null], description: "Forma de pagamento." },
-    tipoCliente: { type: ["string", "null"], enum: ["Particular", "Empresa", null], description: "Só o tipo de comprador. NÃO devolvas o nome." },
     matricula: txt("Matrícula (só viaturas usadas)."),
     dataMatricula: txt("Data da primeira matrícula, formato AAAA-MM-DD (só viaturas usadas)."),
     pvb: num("PVB: preço base da viatura, sem IVA, em euros."),
@@ -74,7 +73,7 @@ Regras:
 - Extrai apenas o que está escrito no documento. Se um campo não existe ou não é legível, devolve null. NUNCA inventes nem estimes valores.
 - Valores monetários: números em euros, ponto como separador decimal, sem símbolo nem milhares (ex.: 31450.5). Percentagens: o número (ex.: 5 para 5 %).
 - PVB, OPC, BSI, ECO, LEG/TR e ISV são valores SEM IVA. precoVenda é o preço final pago pelo cliente COM IVA.
-- Privacidade: NÃO devolvas nome, NIF, morada, contactos nem qualquer dado pessoal. Do cliente só interessa se é Particular ou Empresa. Da identificação só o número do contrato.
+- Privacidade: NÃO devolvas nome, NIF, morada, contactos nem qualquer dado pessoal. Do cliente não devolvas nada (o tipo de cliente é preenchido pelo utilizador). Da identificação só o número do contrato.
 - NÃO preenchas apoios adicionais nem descontos: esses campos não existem na ferramenta e ficam em branco na ficha.
 - Se um campo for ambíguo (vários valores possíveis, texto cortado, ilegível), devolve o melhor palpite E acrescenta o nome do campo a "incerto".`;
 
