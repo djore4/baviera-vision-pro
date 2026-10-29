@@ -7,8 +7,6 @@ vi.mock('@/lib/ficha-extrair', async orig => ({
   ...(await orig<typeof import('@/lib/ficha-extrair')>()),
   extrairFicha: (...a: unknown[]) => extrairFicha(...a),
 }));
-let ADMIN = true;
-vi.mock('@/contexts/PermissionsContext', () => ({ usePermissions: () => ({ isAdmin: ADMIN }) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
 
@@ -78,7 +76,7 @@ const ficheiro = () => new File(['%PDF-1.4'], 'contrato.pdf', { type: 'applicati
 const campo = (c: HTMLElement, k: string) => c.querySelector(`[data-campo="${k}"]`) as HTMLInputElement;
 
 describe('Ficha de Margem — carregar contrato', () => {
-  beforeEach(() => { vi.clearAllMocks(); ADMIN = true; });
+  beforeEach(() => { vi.clearAllMocks(); });
 
   it('preenche os campos, destaca os lidos e os incertos, e as contas usam os valores', async () => {
     extrairFicha.mockResolvedValue({ docTipo: 'Contrato', docNum: 'C-77', modelo: 'X5', pvb: 50000, opc: 5000, precoVenda: 70000, incerto: ['opc'] });
@@ -133,10 +131,9 @@ describe('Ficha de Margem — carregar contrato', () => {
     expect(tipo().value).toBe('');
   });
 
-  it('piloto: só os administradores veem o botão', () => {
-    ADMIN = false;
+  it('o botão está disponível a quem abre a Ficha de Margem (já não é só para administradores)', () => {
     render(<FichaMargemPage />);
-    expect(screen.queryByRole('button', { name: /Carregar contrato/ })).toBeNull();
-    expect(screen.queryByTestId('ficha-ficheiro')).toBeNull();
+    expect(screen.getByRole('button', { name: /Carregar contrato/ })).toBeTruthy();
+    expect(screen.getByTestId('ficha-ficheiro')).toBeTruthy();
   });
 });

@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { FileDown, Loader2, RotateCcw, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { usePermissions } from '@/contexts/PermissionsContext';
 import { extrairFicha, paraFicha, type FichaKey } from '@/lib/ficha-extrair';
 
 /* ── Tradução exata da sheet "Ficha" (Ficha de Margem 3.0) ── */
@@ -78,8 +77,7 @@ export default function FichaMargemPage() {
 
   const [mediaMovel, setMediaMovel] = useState('4 ou +');
 
-  // Preenchimento a partir de um contrato (piloto: só administradores).
-  const { isAdmin } = usePermissions();
+  // Preenchimento a partir de um contrato (para quem tem acesso à Ficha de Margem).
   const fileRef = useRef<HTMLInputElement>(null);
   const [lendo, setLendo] = useState(false);
   const [marks, setMarks] = useState<Partial<Record<FichaKey, 'ok' | 'rever'>>>({});
@@ -269,17 +267,13 @@ export default function FichaMargemPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-4 animate-fade-in">
       <div className="flex items-center justify-end gap-2">
-        {isAdmin && (
-          <>
-            <input ref={fileRef} type="file" accept="application/pdf,image/png,image/jpeg" className="hidden" data-testid="ficha-ficheiro"
-              onChange={e => { const f = e.target.files?.[0]; if (f) void carregarDocumento(f); }} />
-            <button onClick={() => fileRef.current?.click()} disabled={lendo}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-primary/40 text-primary rounded hover:bg-primary/5 transition-colors disabled:opacity-60">
-              {lendo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-              {lendo ? 'A ler…' : 'Carregar contrato'}
-            </button>
-          </>
-        )}
+        <input ref={fileRef} type="file" accept="application/pdf,image/png,image/jpeg" className="hidden" data-testid="ficha-ficheiro"
+          onChange={e => { const f = e.target.files?.[0]; if (f) void carregarDocumento(f); }} />
+        <button onClick={() => fileRef.current?.click()} disabled={lendo}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-primary/40 text-primary rounded hover:bg-primary/5 transition-colors disabled:opacity-60">
+          {lendo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          {lendo ? 'A ler…' : 'Carregar contrato'}
+        </button>
         <button onClick={limpar} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">
           <RotateCcw className="h-3.5 w-3.5" /> Limpar
         </button>

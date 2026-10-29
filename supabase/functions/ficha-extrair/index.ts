@@ -5,7 +5,7 @@
 // NÃO se regista em log. O modelo é instruído a devolver apenas o número do contrato e
 // valores económicos — nunca nomes, NIF, moradas ou contactos de pessoas.
 //
-// Piloto: só administradores. Precisa do segredo ANTHROPIC_API_KEY.
+// Acesso: quem tem o tab Ficha de Margem. Precisa do segredo ANTHROPIC_API_KEY.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -83,7 +83,6 @@ Deno.serve(async (req) => {
 
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
 
@@ -94,20 +93,10 @@ Deno.serve(async (req) => {
     const { data: { user }, error: uErr } = await asUser.auth.getUser(token);
     if (uErr || !user?.email) return json({ error: "Não autenticado." }, 401);
 
-    // Piloto: só administradores (email em platform_admins OU perfil com is_admin).
-    const admin = createClient(url, serviceKey);
-    let isAdmin = false;
-    const { data: pa } = await admin.from("platform_admins").select("email")
-      .eq("email", user.email.toLowerCase()).maybeSingle();
-    isAdmin = !!pa;
-    if (!isAdmin) {
-      const { data: u } = await admin.from("app_users").select("perfil").ilike("email", user.email).maybeSingle();
-      if (u?.perfil) {
-        const { data: r } = await admin.from("app_roles").select("is_admin").eq("name", u.perfil).maybeSingle();
-        isAdmin = !!r?.is_admin;
-      }
-    }
-    if (!isAdmin) return json({ error: "Sem permissão (funcionalidade em piloto)." }, 403);
+    // Quem pode usar: quem tem acesso ao tab Ficha de Margem (a mesma regra da base de dados:
+    // administradores, função e exceções), avaliada com o token de quem chama.
+    const { data: autorizado, error: aErr } = await asUser.rpc("has_access", { p_tab: "ficha-margem", p_level: "view" });
+    if (aErr || autorizado !== true) return json({ error: "Sem acesso à Ficha de Margem." }, 403);
 
     if (!apiKey) return json({ error: "SEM_CHAVE", message: "Falta configurar a chave da API (ANTHROPIC_API_KEY)." }, 500);
 
