@@ -8,6 +8,13 @@ create schema auth;
 create function auth.jwt() returns jsonb language sql stable as
   $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
 
+create table auth.users (
+  id uuid primary key default gen_random_uuid(),
+  email text,
+  last_sign_in_at timestamptz,
+  created_at timestamptz default now()
+);
+
 create schema storage;
 create table storage.buckets (id text primary key, name text not null, public boolean default false);
 create table storage.objects (
