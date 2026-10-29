@@ -40,6 +40,16 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   (`instalacoes_historico`: criação, estado, interlocutor) é escrito por trigger e é só
   de leitura para todos. As plantas são ficheiros do cliente
   (`public/clients/<cliente>/plantas`, declarados em `plantas` no config do cliente).
+- **Campanha i3** (`20261029120000`, área Vendas VN): oportunidades de contacto de uma
+  campanha (`campanha_i3_leads`). O administrador importa (a tabela colada ou Excel/CSV;
+  repetir é seguro: a `chave` — email, senão telefone, senão nome — é única) e delega cada
+  uma num vendedor (`owner_email`). Tab `campanha-i3`: cada vendedor só vê as suas; com
+  `edit` altera apenas o acompanhamento (estado, ponto de situação, observações, próximo
+  contacto) — o trigger repõe o resto, mesmo através da consola. Importar, delegar e apagar
+  são só do administrador. O histórico (`campanha_i3_historico`) e o aviso ao vendedor ao
+  receber oportunidades (um por vendedor e operação, trigger por instrução com tabelas de
+  transição) são escritos na base de dados. A migração dá `edit` no tab à função
+  'Vendedor VN'; as outras funções atribuem-se na matriz (Utilizadores → Funções).
 - **Diário (prospeção):** cada vendedor só vê e altera as suas contas e tarefas
   (`owner_email`, sem distinguir maiúsculas); contactos e interações herdam da
   conta. O administrador (diretor) vê e reatribui tudo (`20261003120000`).

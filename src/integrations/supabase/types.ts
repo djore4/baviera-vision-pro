@@ -138,6 +138,112 @@ export type Database = {
         }
         Relationships: []
       }
+      campanha_i3_historico: {
+        Row: {
+          autor: string | null
+          created_at: string
+          de: string | null
+          id: string
+          lead_id: string
+          para: string | null
+          tipo: string
+        }
+        ComputedFields: never
+        Insert: {
+          autor?: string | null
+          created_at?: string
+          de?: string | null
+          id?: string
+          lead_id: string
+          para?: string | null
+          tipo: string
+        }
+        Update: {
+          autor?: string | null
+          created_at?: string
+          de?: string | null
+          id?: string
+          lead_id?: string
+          para?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campanha_i3_historico_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "campanha_i3_leads"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      campanha_i3_leads: {
+        Row: {
+          atribuido_em: string | null
+          atribuido_por: string | null
+          chave: string
+          contacto: string | null
+          created_at: string
+          data_contacto: string | null
+          email: string | null
+          estado: string
+          id: string
+          importado_por: string | null
+          nome: string
+          observacoes: string | null
+          owner_email: string | null
+          owner_nome: string | null
+          polo: string | null
+          ponto_situacao: string | null
+          proximo_contacto: string | null
+          ultima_atualizacao: string | null
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          atribuido_em?: string | null
+          atribuido_por?: string | null
+          chave?: string
+          contacto?: string | null
+          created_at?: string
+          data_contacto?: string | null
+          email?: string | null
+          estado?: string
+          id?: string
+          importado_por?: string | null
+          nome: string
+          observacoes?: string | null
+          owner_email?: string | null
+          owner_nome?: string | null
+          polo?: string | null
+          ponto_situacao?: string | null
+          proximo_contacto?: string | null
+          ultima_atualizacao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          atribuido_em?: string | null
+          atribuido_por?: string | null
+          chave?: string
+          contacto?: string | null
+          created_at?: string
+          data_contacto?: string | null
+          email?: string | null
+          estado?: string
+          id?: string
+          importado_por?: string | null
+          nome?: string
+          observacoes?: string | null
+          owner_email?: string | null
+          owner_nome?: string | null
+          polo?: string | null
+          ponto_situacao?: string | null
+          proximo_contacto?: string | null
+          ultima_atualizacao?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       car_wash_cycles: {
         Row: {
           created_at: string
