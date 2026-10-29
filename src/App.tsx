@@ -29,6 +29,8 @@ import LavagemPage from "./pages/LavagemPage";
 import InstalacoesPage from "./pages/InstalacoesPage";
 import ProdutoPage from "./pages/ProdutoPage";
 import SugestoesPage from "./pages/SugestoesPage";
+import LogsPage from "./pages/LogsPage";
+import { ActivityTracker } from "@/components/ActivityTracker";
 import UtilizadoresPage from "./pages/UtilizadoresPage";
 import ArquivoPage from "./pages/ArquivoPage";
 import DefinicoesPage from "./pages/DefinicoesPage";
@@ -94,6 +96,7 @@ const App = () => (
           <ProspecProvider>
           <EasterEggs />
           <HashRouter>
+            <ActivityTracker />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/retails" element={tab('retails', <RetailsPage />)} />
@@ -125,6 +128,7 @@ const App = () => (
               <Route path="/arquivo" element={tab('arquivo', <ArquivoPage />)} />
               <Route path="/prospecao" element={tab('prospecao', <ProspecaoPage />)} />
               <Route path="/sugestoes" element={tab('sugestoes', <SugestoesPage />)} />
+              <Route path="/logs" element={tab('logs', <LogsPage />)} />
               <Route path="/utilizadores" element={tab('utilizadores', <UtilizadoresPage />)} />
               {/* Definições — pessoal, acessível a qualquer utilizador (fora da matriz de permissões). */}
               <Route path="/definicoes" element={<AppLayout><DefinicoesPage /></AppLayout>} />

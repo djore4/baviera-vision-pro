@@ -138,6 +138,31 @@ export type Database = {
         }
         Relationships: []
       }
+      atividade: {
+        Row: {
+          created_at: string
+          email: string
+          id: number
+          pagina: string | null
+          tipo: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          email?: string
+          id?: never
+          pagina?: string | null
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: never
+          pagina?: string | null
+          tipo?: string
+        }
+        Relationships: []
+      }
       campanha_i3_historico: {
         Row: {
           autor: string | null
@@ -2041,6 +2066,19 @@ export type Database = {
     }
     Functions: {
       access_rank: { Args: { p_tab: string }; Returns: number }
+      admin_atividade_resumo: {
+        Args: { p_dias?: number }
+        Returns: {
+          email: string
+          nome: string
+          pagina_top: string
+          paginas: number
+          perfil: string
+          sessoes: number
+          ultima_atividade: string
+          ultimo_login: string
+        }[]
+      }
       app_capabilities: { Args: Record<PropertyKey, never>; Returns: Json }
       can_write_excel_file: { Args: { p_name: string }; Returns: boolean }
       demos_viaturas: {

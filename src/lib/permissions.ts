@@ -80,6 +80,8 @@ const ALL_TABS: TabDef[] = [
   { key: 'utilizadores', label: 'Utilizadores', path: '/utilizadores', area: 'admin' },
   // Sugestões e correções enviadas pelos utilizadores (qualquer um envia; este tab é a gestão).
   { key: 'sugestoes', label: 'Sugestões', path: '/sugestoes', area: 'admin' },
+  // Quem entrou e o que usa (último login, última atividade): só administradores.
+  { key: 'logs', label: 'Logs', path: '/logs', area: 'admin', adminOnly: true },
   // Arrumados dentro do Arquivo (fora da sidebar, ver ARCHIVED_TAB_KEYS).
   { key: 'pendentes', label: 'Pendentes', path: '/pendentes', area: 'admin' },
   { key: 'escala-repsol', label: 'Escala Repsol', path: '/escala-repsol', area: 'admin' },
