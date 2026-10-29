@@ -32,6 +32,37 @@ function numOrNull(val: unknown): number | null {
   return isNaN(n) ? null : n;
 }
 
+/* Colunas que, se estiverem fora do sítio, fazem o parser ler dados trocados sem dar
+ * erro (o parser lê por posição). Posições-base (layout sem RET), como em `col()`. */
+const CABECALHOS_ESPERADOS: [number, string][] = [
+  [1, 'STATUS'], [2, 'NEG'], [4, 'RESP'], [9, 'CHAS'], [10, 'MAT'], [11, 'MODEL'], [12, 'VERSION'],
+];
+
+const normHeader = (v: unknown) =>
+  str(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+
+/**
+ * Confirma que o cabeçalho da sheet CONTROL tem as colunas essenciais onde o parser as
+ * vai ler. Se alguém inserir ou mover uma coluna, a importação é recusada em vez de
+ * gravar (por cima dos dados bons) campos trocados. Devolve a lista de problemas.
+ */
+export function cabecalhosEmFalta(headerRow: unknown[], retIdx: number): string[] {
+  const col = (base: number) => (retIdx >= 0 && base >= retIdx ? base + 1 : base);
+  const problemas: string[] = [];
+  for (const [base, nome] of CABECALHOS_ESPERADOS) {
+    const encontrado = normHeader(headerRow[col(base)]);
+    if (encontrado !== nome) {
+      const onde = headerRow.findIndex(h => normHeader(h) === nome);
+      problemas.push(
+        onde >= 0
+          ? `${nome} está na coluna ${onde + 1}, não na ${col(base) + 1}`
+          : `falta a coluna ${nome} (na coluna ${col(base) + 1} está "${str(headerRow[col(base)]) || 'vazio'}")`,
+      );
+    }
+  }
+  return problemas;
+}
+
 export function parseExcel(buffer: ArrayBuffer): AppData {
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true, cellNF: false, cellText: false });
 
@@ -67,6 +98,13 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
   // no cabeçalho: qualquer coluna cujo índice-base seja >= retIdx lê-se +1.
   // Se RET não existir (ficheiro antigo), col() é a identidade.
   const col = (base: number) => (retIdx >= 0 && base >= retIdx ? base + 1 : base);
+
+  const problemas = cabecalhosEmFalta(headerRow, retIdx);
+  if (problemas.length > 0) {
+    throw new Error(
+      `A sheet CONTROL mudou de estrutura (${problemas.join('; ')}). Importação cancelada para não gravar dados trocados.`,
+    );
+  }
 
   const control: ControlRecord[] = [];
   for (let i = 1; i < controlRaw.length; i++) {

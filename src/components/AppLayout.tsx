@@ -12,6 +12,7 @@ import { UserMenu } from '@/components/UserMenu';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { seasonalFlags } from '@/lib/seasonal';
 import { NotificationBell } from '@/components/NotificationBell';
+import { ImportStamp } from '@/components/ImportStamp';
 import { client } from '@/clients';
 
 /* Ícone por tab (a camada de dados em permissions.ts mantém-se sem deps de UI). */
@@ -208,6 +209,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           </div>
 <div className="flex items-center gap-2.5">
+            <ImportStamp />
             <NotificationBell />
             <UserMenu />
           </div>

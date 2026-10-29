@@ -68,7 +68,10 @@ export async function replaceControlRecords(records: ControlRecord[]): Promise<n
  * única transação na base de dados (RPC `import_control_excel`): ou entra tudo,
  * ou fica tudo como estava. Devolve o número de registos de control importados.
  */
-export async function importControlExcel(parsed: AppData): Promise<number> {
+export async function importControlExcel(
+  parsed: AppData,
+  opts: { force?: boolean; ficheiro?: string } = {},
+): Promise<number> {
   if (parsed.control.length === 0) {
     throw new Error('A sheet CONTROL não tem registos — importação cancelada para não apagar os dados existentes.');
   }
@@ -77,6 +80,8 @@ export async function importControlExcel(parsed: AppData): Promise<number> {
     p_control: parsed.control.map(controlRecordToRow) as Json,
     p_orcamento: orcRows as unknown as Json,
     p_resp: respRows as unknown as Json,
+    ...(opts.force ? { p_force: true } : {}),
+    ...(opts.ficheiro ? { p_ficheiro: opts.ficheiro } : {}),
   });
   if (isMissingRpc(error)) {
     // Migração por aplicar: caminho antigo, em dois passos (sem atomicidade).

@@ -4,22 +4,27 @@ import { Button } from '@/components/ui/button';
 import { useData } from '@/contexts/DataContext';
 import { QualityManager } from '@/components/QualityManager';
 import { parseVuControl, replaceControlRecordsVu } from '@/lib/control-records-vu';
+import { parseExcel } from '@/lib/excel-parser';
+import { ImportConfirm, type ImportacaoPendente } from '@/components/ImportConfirm';
+import { ImportHistory } from '@/components/ImportHistory';
+import { isImportacaoSuspeita, motivoSuspeita, validarImportacao } from '@/lib/importacoes';
 import { parseVuAngariacao, replaceAngariacoesVu } from '@/lib/angariacao-vu';
 import { parseEotFile, importEotContracts } from '@/lib/eot';
 
 export default function DadosPage() {
-  const { uploadFile, loading, data } = useData();
+  const { uploadFile, refresh, loading, data } = useData();
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Importação do Excel -> tabela control_records (tab "database")
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingFile, setPendingFile] = useState<ImportacaoPendente | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importCount, setImportCount] = useState<number | null>(null);
 
   // Importação do Excel VU -> tabela control_records_vu (sheet CONTROL)
   const inputRefVu = useRef<HTMLInputElement>(null);
-  const [pendingFileVu, setPendingFileVu] = useState<File | null>(null);
+  const [pendingFileVu, setPendingFileVu] = useState<ImportacaoPendente | null>(null);
+  const [historyKey, setHistoryKey] = useState(0);   // força o histórico a recarregar depois de importar
   const [importingVu, setImportingVu] = useState(false);
   const [importErrorVu, setImportErrorVu] = useState<string | null>(null);
   const [importCountVu, setImportCountVu] = useState<number | null>(null);
@@ -59,18 +64,25 @@ export default function DadosPage() {
     }
   };
 
-  const handleChangeVu = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChangeVu = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (inputRefVu.current) inputRefVu.current.value = '';
     if (!file) return;
     setImportErrorVu(null);
     setImportCountVu(null);
-    setPendingFileVu(file);
+    try {
+      // Lê o ficheiro já: um erro de estrutura aparece antes de pedir confirmação.
+      const records = parseVuControl(await file.arrayBuffer());
+      const validacao = await validarImportacao('control_records_vu', records.length).catch(() => null);
+      setPendingFileVu({ file, linhas: records.length, validacao });
+    } catch (err) {
+      setImportErrorVu(err instanceof Error ? err.message : 'Erro ao ler o ficheiro VU');
+    }
   };
 
-  const confirmImportVu = async () => {
+  const confirmImportVu = async (force: boolean) => {
     if (!pendingFileVu) return;
-    const file = pendingFileVu;
+    const { file } = pendingFileVu;
     setPendingFileVu(null);
     setImportingVu(true);
     setImportErrorVu(null);
@@ -81,41 +93,54 @@ export default function DadosPage() {
       const records = parseVuControl(buffer);
       // Lê as duas sheets antes de gravar, para um erro numa não deixar a outra a meio.
       const angariacoes = parseVuAngariacao(buffer);
-      const n = await replaceControlRecordsVu(records);
-      if (angariacoes) setImportCountAng(await replaceAngariacoesVu(angariacoes));
+      const n = await replaceControlRecordsVu(records, { force, ficheiro: file.name });
+      if (angariacoes) setImportCountAng(await replaceAngariacoesVu(angariacoes, { ficheiro: file.name }));
       setImportCountVu(n);
     } catch (err) {
-      setImportErrorVu(err instanceof Error ? err.message : 'Erro ao importar dados VU');
+      setImportErrorVu(isImportacaoSuspeita(err)
+        ? `Ficheiro recusado: ${motivoSuspeita(err)}`
+        : err instanceof Error ? err.message : 'Erro ao importar dados VU');
     } finally {
       setImportingVu(false);
+      setHistoryKey(k => k + 1);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (inputRef.current) inputRef.current.value = '';
     if (!file) return;
-    // Pede confirmação antes de substituir os registos da base de dados.
     setImportError(null);
     setImportCount(null);
-    setPendingFile(file);
+    try {
+      // Lê o ficheiro já (a estrutura é validada) e compara com o que existe, para
+      // a confirmação mostrar números e avisos em vez de um "tem a certeza?" cego.
+      const parsed = parseExcel(await file.arrayBuffer());
+      const validacao = await validarImportacao('control_records', parsed.control.length).catch(() => null);
+      setPendingFile({ file, linhas: parsed.control.length, validacao });
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Erro ao ler o ficheiro');
+    }
   };
 
-  const confirmImport = async () => {
+  const confirmImport = async (force: boolean) => {
     if (!pendingFile) return;
-    const file = pendingFile;
+    const { file } = pendingFile;
     setPendingFile(null);
     setImporting(true);
     setImportError(null);
     setImportCount(null);
     try {
       // Importa control + objetivos do Excel para o Supabase ("gravar por cima").
-      const n = await uploadFile(file);
+      const n = await uploadFile(file, { force });
       setImportCount(n);
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Erro ao importar dados');
+      setImportError(isImportacaoSuspeita(err)
+        ? `Ficheiro recusado: ${motivoSuspeita(err)}`
+        : err instanceof Error ? err.message : 'Erro ao importar dados');
     } finally {
       setImporting(false);
+      setHistoryKey(k => k + 1);
     }
   };
 
@@ -235,6 +260,11 @@ export default function DadosPage() {
         </div>
       </div>
 
+      {/* Histórico das importações, com restauro. */}
+      <div className="border-t border-border pt-6">
+        <ImportHistory key={historyKey} onRestored={() => { void refresh(); }} />
+      </div>
+
       {/* Qualidade do Serviço — entrada de dados (migrado do antigo tab Qualidade). */}
       <div className="border-t border-border pt-6">
         <QualityManager />
@@ -242,47 +272,30 @@ export default function DadosPage() {
 
       {/* Confirmação da importação (substitui os registos da base de dados) */}
       {pendingFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-card border border-border rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-foreground">Importar para o tab database?</p>
-                <p className="text-xs text-muted-foreground">
-                  Vais importar de <span className="font-medium">{pendingFile.name}</span> a sheet <strong>CONTROL</strong> (registos)
-                  e os <strong>objetivos</strong>. Isto <strong>grava por cima</strong> dos dados atuais no tab database e no tab Objetivos.
-                  Esta ação não pode ser anulada.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setPendingFile(null)} className="px-4 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">Cancelar</button>
-              <button onClick={confirmImport} className="px-4 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">Importar e substituir</button>
-            </div>
-          </div>
-        </div>
+        <ImportConfirm
+          key={pendingFile.file.name + pendingFile.file.lastModified}
+          pendente={pendingFile}
+          titulo="Importar para o tab database?"
+          onCancel={() => setPendingFile(null)}
+          onConfirm={confirmImport}
+        >
+          Vais importar a sheet <strong>CONTROL</strong> (registos) e os <strong>objetivos</strong>. Isto <strong>grava por cima</strong> dos
+          dados atuais no tab database e no tab Objetivos. Fica guardada uma cópia dos registos atuais, para voltar atrás no histórico.
+        </ImportConfirm>
       )}
 
       {/* Confirmação da importação VU */}
       {pendingFileVu && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-card border border-border rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-foreground">Importar dados VU?</p>
-                <p className="text-xs text-muted-foreground">
-                  Vais importar de <span className="font-medium">{pendingFileVu.name}</span> as sheets <strong>CONTROL</strong> e <strong>ANGARIAÇÃO</strong>, que
-                  <strong> grava por cima</strong> dos dados VU atuais. Não afeta os dados VN. Esta ação não pode ser anulada.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setPendingFileVu(null)} className="px-4 py-1.5 text-xs border border-border rounded hover:bg-muted transition-colors">Cancelar</button>
-              <button onClick={confirmImportVu} className="px-4 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">Importar e substituir</button>
-            </div>
-          </div>
-        </div>
+        <ImportConfirm
+          key={pendingFileVu.file.name + pendingFileVu.file.lastModified}
+          pendente={pendingFileVu}
+          titulo="Importar dados VU?"
+          onCancel={() => setPendingFileVu(null)}
+          onConfirm={confirmImportVu}
+        >
+          Vais importar as sheets <strong>CONTROL</strong> e <strong>ANGARIAÇÃO</strong>, que <strong>grava por cima</strong> dos dados VU
+          atuais. Não afeta os dados VN. Fica guardada uma cópia dos registos atuais, para voltar atrás no histórico.
+        </ImportConfirm>
       )}
 
       {/* Confirmação da importação do mapa de terminações (EoT) */}

@@ -1201,6 +1201,76 @@ export type Database = {
         }
         Relationships: []
       }
+      importacoes: {
+        Row: {
+          avisos: NonNullable<Json>
+          created_at: string
+          ficheiro: string | null
+          forcada: boolean
+          id: number
+          linhas: number
+          linhas_anteriores: number
+          origem: string
+          por: string
+          tabela: string
+        }
+        ComputedFields: never
+        Insert: {
+          avisos?: NonNullable<Json>
+          created_at?: string
+          ficheiro?: string | null
+          forcada?: boolean
+          id?: never
+          linhas: number
+          linhas_anteriores: number
+          origem?: string
+          por?: string
+          tabela: string
+        }
+        Update: {
+          avisos?: NonNullable<Json>
+          created_at?: string
+          ficheiro?: string | null
+          forcada?: boolean
+          id?: never
+          linhas?: number
+          linhas_anteriores?: number
+          origem?: string
+          por?: string
+          tabela?: string
+        }
+        Relationships: []
+      }
+      importacoes_snapshot: {
+        Row: {
+          created_at: string
+          dados: NonNullable<Json>
+          importacao_id: number
+          tabela: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          dados: NonNullable<Json>
+          importacao_id: number
+          tabela: string
+        }
+        Update: {
+          created_at?: string
+          dados?: NonNullable<Json>
+          importacao_id?: number
+          tabela?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "importacoes_snapshot_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: true
+            referencedRelation: "importacoes"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       infractions: {
         Row: {
           active: boolean | null
@@ -2117,17 +2187,43 @@ export type Database = {
       has_any_access: { Args: { p_level?: string; p_tabs: string[] }; Returns: boolean }
       has_any_tab: { Args: Record<PropertyKey, never>; Returns: boolean }
       import_control_excel: {
-        Args: { p_control: Json; p_orcamento?: Json; p_resp?: Json }
+        Args: {
+          p_control: Json
+          p_ficheiro?: string
+          p_force?: boolean
+          p_orcamento?: Json
+          p_origem?: string
+          p_resp?: Json
+        }
         Returns: number
       }
+      importacao_regras: { Args: { p_anteriores: number; p_linhas: number }; Returns: Json }
+      importacao_validar: { Args: { p_linhas: number; p_tabela: string }; Returns: Json }
       is_app_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
       is_platform_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
       is_platform_user: { Args: Record<PropertyKey, never>; Returns: boolean }
       is_salesforce_user: { Args: Record<PropertyKey, never>; Returns: boolean }
       my_access_exceptions: { Args: Record<PropertyKey, never>; Returns: Json }
       replace_rows: {
-        Args: { p_allow_empty?: boolean; p_rows: Json; p_table: string }
+        Args: {
+          p_allow_empty?: boolean
+          p_ficheiro?: string
+          p_force?: boolean
+          p_origem?: string
+          p_rows: Json
+          p_table: string
+        }
         Returns: number
+      }
+      restaurar_importacao: { Args: { p_importacao_id: number }; Returns: number }
+      ultimas_importacoes: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          created_at: string
+          linhas: number
+          origem: string
+          tabela: string
+        }[]
       }
       url_encode: { Args: { p_text: string }; Returns: string }
     }

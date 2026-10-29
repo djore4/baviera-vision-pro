@@ -4,12 +4,14 @@ import { parseExcel, getDeliveryMonth } from '@/lib/excel-parser';
 import { supabase } from '@/integrations/supabase/client';
 import { importControlExcel } from '@/lib/control-records';
 import { loadObjetivos } from '@/lib/objetivos';
+import { ultimosCarimbos } from '@/lib/importacoes';
+import { fmtDataHora } from '@/lib/atividade';
 
 interface DataContextValue {
   data: AppData | null;
   loading: boolean;
   error: string | null;
-  uploadFile: (file: File) => Promise<number>;
+  uploadFile: (file: File, opts?: { force?: boolean }) => Promise<number>;
   refresh: () => Promise<void>;
   filter: PeriodFilter;
   setFilter: React.Dispatch<React.SetStateAction<PeriodFilter>>;
@@ -18,6 +20,12 @@ interface DataContextValue {
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
+
+/** Quando foi a última importação do control VN (a da base de dados, não a hora a que se abriu a página). */
+const carimboVn = (carimbos: Awaited<ReturnType<typeof ultimosCarimbos>>) => {
+  const c = carimbos.find(x => x.tabela === 'control_records');
+  return c ? fmtDataHora(c.created_at) : new Date().toLocaleString('pt-PT');
+};
 
 const BUCKET = 'excel-files';
 const FILE_PATH = 'bmw-business-control.xlsx';
@@ -108,9 +116,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [dbControl, dbObjetivos] = await Promise.all([
+      const [dbControl, dbObjetivos, carimbos] = await Promise.all([
         loadControlFromDb(),
         loadObjetivos(),
+        ultimosCarimbos(),
       ]);
 
       let control = dbControl;
@@ -133,7 +142,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           control,
           objetivosTotal,
           objetivosResp,
-          lastUpdated: new Date().toLocaleString('pt-PT'),
+          lastUpdated: carimboVn(carimbos),
         });
       }
     } catch {
@@ -148,7 +157,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Upload de Excel (apenas recurso): importa control + objetivos para o
   // Supabase ("gravar por cima") e recarrega os dados a partir da BD.
   // Devolve o número de registos de control importados.
-  const uploadFile = useCallback(async (file: File): Promise<number> => {
+  const uploadFile = useCallback(async (file: File, opts: { force?: boolean } = {}): Promise<number> => {
     setLoading(true);
     setError(null);
     try {
@@ -157,7 +166,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       // Importa para o Supabase (fonte de verdade única), registos e objetivos
       // numa só transação.
-      const count = await importControlExcel(parsed);
+      const count = await importControlExcel(parsed, { force: opts.force, ficheiro: file.name });
 
       // Guarda o Excel como cópia de segurança (já não é lido pela app).
       const { error: uploadError } = await supabase.storage
@@ -166,12 +175,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (uploadError) console.warn('Backup do Excel falhou:', uploadError.message);
 
       // Recarrega a partir do Supabase.
-      const [control, objetivos] = await Promise.all([loadControlFromDb(), loadObjetivos()]);
+      const [control, objetivos, carimbos] = await Promise.all([loadControlFromDb(), loadObjetivos(), ultimosCarimbos()]);
       setData({
         control,
         objetivosTotal: objetivos.objetivosTotal,
         objetivosResp: objetivos.objetivosResp,
-        lastUpdated: new Date().toLocaleString('pt-PT'),
+        lastUpdated: carimboVn(carimbos),
       });
       return count;
     } catch (e) {

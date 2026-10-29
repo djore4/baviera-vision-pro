@@ -219,11 +219,14 @@ export async function loadControlVuFromDb(): Promise<VuRecord[]> {
 }
 
 /** Substitui todos os registos VU pelos fornecidos (snapshot da sheet CONTROL). */
-export async function replaceControlRecordsVu(records: VuRecord[]): Promise<number> {
+export async function replaceControlRecordsVu(
+  records: VuRecord[],
+  opts: { force?: boolean; ficheiro?: string } = {},
+): Promise<number> {
   if (records.length === 0) {
     throw new Error('A sheet CONTROL não tem registos VU (FATURA/CARTEIRA/FRIO/MORNO/QUENTE) — importação cancelada para não apagar os dados existentes.');
   }
-  return replaceTableRows(TABLE, records.map(recordToDbRow), { label: 'registos VU' });
+  return replaceTableRows(TABLE, records.map(recordToDbRow), { label: 'registos VU', ...opts });
 }
 
 /* ── Objetivos de faturas VU (por mês, 'AAAA/MM') ──

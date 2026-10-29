@@ -132,12 +132,12 @@ export async function loadAngariacoesVu(): Promise<Angariacao[]> {
 }
 
 /** Substitui todas as angariações pelas da sheet (snapshot). */
-export async function replaceAngariacoesVu(rows: Angariacao[]): Promise<number> {
+export async function replaceAngariacoesVu(rows: Angariacao[], opts: { ficheiro?: string } = {}): Promise<number> {
   const payload = rows.map(a => ({
     dt_ang: isoDate(a.dtAng), resp: a.resp || null, cliente: a.cliente || null, angar: a.angar || null,
     mat: a.mat || null, model: a.model || null, version: a.version || null,
     ano: a.ano, kms: a.kms, v_compra: a.vCompra,
   }));
   // Ficheiro sem angariações esvazia a tabela (comportamento anterior).
-  return replaceTableRows(TABLE, payload, { allowEmpty: true, label: 'angariações' });
+  return replaceTableRows(TABLE, payload, { allowEmpty: true, label: 'angariações', ...opts });
 }

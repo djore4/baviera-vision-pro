@@ -39,13 +39,16 @@ async function legacyReplace(
 export async function replaceTableRows(
   table: SnapshotTable,
   rows: Record<string, unknown>[],
-  opts: { allowEmpty?: boolean; label?: string } = {},
+  opts: { allowEmpty?: boolean; label?: string; force?: boolean; ficheiro?: string } = {},
 ): Promise<number> {
   const what = opts.label ?? table;
   const { data, error } = await supabase.rpc('replace_rows', {
     p_table: table,
     p_rows: rows as Json,
     p_allow_empty: opts.allowEmpty ?? false,
+    // Só vão quando se usam: a base de dados antiga (sem a validação) não os conhece.
+    ...(opts.force ? { p_force: true } : {}),
+    ...(opts.ficheiro ? { p_ficheiro: opts.ficheiro } : {}),
   });
   if (isMissingRpc(error)) return legacyReplace(table, rows, what);
   if (error) throw new Error(`Erro ao importar ${what} (nada foi alterado): ${error.message}`);
