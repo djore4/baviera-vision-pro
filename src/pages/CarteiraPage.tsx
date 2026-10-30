@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 import { useData } from '@/contexts/DataContext';
-import { formatDate } from '@/lib/excel-parser';
+import { formatDate, isRetailType } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -32,7 +32,7 @@ export default function CarteiraPage() {
   const baseRecords = useMemo(() =>
     (data?.control ?? []).filter(r =>
       (r.status === 'Carteira' || r.status === 'Matricula') &&
-      (r.type === 'VN' || r.type === 'VD')
+      isRetailType(r.type)
     ), [data]);
 
   const filtered = useMemo(() => {

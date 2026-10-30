@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { Trophy, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
+import { isRetailType } from '@/lib/excel-parser';
 import { QualityRadarCard } from '@/components/QualityRadarCard';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList, Legend,
@@ -16,7 +17,7 @@ import {
  *  - Lead time Negócio→Retail: dias entre data de negócio e data de retail.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-const isVehicle = (t: string) => t === 'VN' || t === 'VD';
+const isVehicle = isRetailType;
 const CLOSED = new Set(['Carteira', 'Matricula', 'Retail']); // negócio fechado (entrou em carteira ou além)
 const OPEN = new Set(['Carteira', 'Matricula']); // carteira ainda por entregar
 

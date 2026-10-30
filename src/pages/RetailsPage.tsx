@@ -6,7 +6,7 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { RetomaFilter } from '@/components/RetomaFilter';
-import { formatDate, getCurrentWeek, getDeliveryMonth } from '@/lib/excel-parser';
+import { formatDate, getCurrentWeek, getDeliveryMonth, isRetailType } from '@/lib/excel-parser';
 import { seasonalFlags } from '@/lib/seasonal';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle, Download } from 'lucide-react';
 import {
@@ -47,7 +47,7 @@ export default function RetailsPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const baseRecords = useMemo(() =>
-    filteredControl.filter(r => ['Carteira', 'Matricula', 'Retail'].includes(r.status) && (r.type === 'VN' || r.type === 'VD')),
+    filteredControl.filter(r => ['Carteira', 'Matricula', 'Retail'].includes(r.status) && isRetailType(r.type)),
     [filteredControl]);
 
   const filtered = useMemo(() => {
@@ -105,8 +105,7 @@ export default function RetailsPage() {
     };
     const monthInPeriod = (key: string) => selectedMonthKeys.size === 0 || selectedMonthKeys.has(key);
     // Regra de negócio: os VP contam para FATURAS mas NÃO para RETAILS. Os
-    // retails são apenas VN/VD (igual ao resto da página — baseRecords/tabela).
-    const isRetailType = (t: string) => t === 'VN' || t === 'VD';
+    // retails são VN/VD/RMK (igual ao resto da página — baseRecords/tabela).
     // Faz parte da previsão: já realizado (date298 no período) ou carteira/
     // matrícula com mês de entrega previsto para o período.
     const inPrevisao = (r: typeof data.control[number]) => {
@@ -128,9 +127,9 @@ export default function RetailsPage() {
       && monthInPeriod(getDeliveryMonth(r));
 
     const faturas = data.control.filter(r => inPeriod(r.dfat)).length;                                  // todos (inclui VP)
-    const retails = data.control.filter(isRetailNoPeriodo).length;                                      // só VN/VD, estado Retail
+    const retails = data.control.filter(isRetailNoPeriodo).length;                                      // só VN/VD/RMK, estado Retail
     const faturasPrevisao = data.control.filter(inPrevisao).length;                                     // todos (inclui VP)
-    const retailsPrevisao = data.control.filter(isRetailPrevisto).length;                               // só VN/VD
+    const retailsPrevisao = data.control.filter(isRetailPrevisto).length;                               // só VN/VD/RMK
 
     // Faturas vs objetivo Caetano; Retails vs objetivo BMW.
     const faturasPct = targetCaetano ? Math.round((faturas / targetCaetano) * 100) : 0;

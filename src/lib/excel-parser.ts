@@ -183,8 +183,16 @@ export function getDeliveryMonth(record: ControlRecord): string {
   return mes1;
 }
 
+/* Tipos de viatura que contam para o resultado de retails (VP fica de fora:
+ * conta só para faturas). */
+export const RETAIL_TYPES = ['VN', 'VD', 'RMK'];
+
+export function isRetailType(t: string): boolean {
+  return RETAIL_TYPES.includes(t);
+}
+
 export function isRetailDelivery(r: ControlRecord): boolean {
-  return r.status === 'Retail' && (r.type === 'VN' || r.type === 'VD');
+  return r.status === 'Retail' && isRetailType(r.type);
 }
 
 export function isPipeline(r: ControlRecord): boolean {
