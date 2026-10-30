@@ -173,6 +173,8 @@ export interface AppUser {
   local: unknown;
   negocio: unknown;
   marca: unknown;
+  /** Só na resposta de createUser: o email já tinha login (p.ex. da Sales Force) e foi reutilizado. */
+  existing_login?: boolean;
 }
 
 /* ── Leitura (autenticado) ────────────────────────────────────────────────── */
@@ -273,8 +275,8 @@ export interface NewUser {
 }
 
 export async function createUser(input: NewUser): Promise<AppUser> {
-  const res = await invokeAdmin<{ user: AppUser }>({ action: 'create', ...input });
-  return res.user;
+  const res = await invokeAdmin<{ user: AppUser; existing_login?: boolean }>({ action: 'create', ...input });
+  return { ...res.user, existing_login: !!res.existing_login };
 }
 
 export async function updateUser(

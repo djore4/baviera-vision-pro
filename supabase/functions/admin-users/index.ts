@@ -5,6 +5,14 @@
 // Usa o service role para criar/eliminar utilizadores de autenticação e para
 // escrever nas tabelas app_users/app_roles (que só permitem leitura a
 // utilizadores autenticados). A tabela app_users é exclusiva desta plataforma.
+//
+// Este projeto Supabase é partilhado com a Caetano Sales Force: o login (auth.users)
+// é único por email nos dois lados, mas os PERFIS são separados (app_users/app_roles
+// aqui, utilizadores na Sales Force). Por isso:
+//  - criar com um email que já tem login (p.ex. criado pela Sales Force) liga esse login
+//    a um perfil novo desta plataforma, sem tocar na password nem nos dados da outra app;
+//  - eliminar remove o perfil daqui e só apaga o login se a outra app não o usar;
+//  - repor a password de um login partilhado é recusado (mudaria também o acesso à outra app).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -28,6 +36,12 @@ async function findAuthUserByEmail(admin: SupabaseClient, email: string) {
     if (data.users.length < 200) break;
   }
   return null;
+}
+
+// Login partilhado com a Sales Force = email com perfil em public.utilizadores.
+async function usedBySalesForce(admin: SupabaseClient, email: string) {
+  const { data } = await admin.from("utilizadores").select("id").ilike("email", email).limit(1);
+  return (data?.length ?? 0) > 0;
 }
 
 Deno.serve(async (req) => {
@@ -88,19 +102,31 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Se o email já tem login (p.ex. criado pela Sales Force) reutiliza-se: a password
+      // existente não é alterada e o perfil desta plataforma cria-se à parte.
+      let authUserId: string | null = null;
+      let existingLogin = false;
       const { data: created, error: cErr } = await admin.auth.admin.createUser({
         email, password, email_confirm: true, user_metadata: { nome, perfil },
       });
-      if (cErr || !created?.user) return json({ error: cErr?.message ?? "Falha a criar login." }, 400);
+      if (created?.user) {
+        authUserId = created.user.id;
+      } else {
+        const msg = (cErr?.message ?? "").toLowerCase();
+        const exists = cErr && (msg.includes("already") || msg.includes("registered") || msg.includes("exist"));
+        if (!exists) return json({ error: cErr?.message ?? "Falha a criar login." }, 400);
+        if (!(await findAuthUserByEmail(admin, email))) return json({ error: cErr?.message ?? "Falha a criar login." }, 400);
+        existingLogin = true;
+      }
 
       const { data: row, error: iErr } = await admin.from("app_users")
         .insert({ nome: nome ?? null, email, perfil: perfil ?? null, local: local ?? null, negocio: negocio ?? null, marca: marca ?? null })
         .select(USER_COLS).single();
       if (iErr) {
-        await admin.auth.admin.deleteUser(created.user.id); // rollback
+        if (authUserId) await admin.auth.admin.deleteUser(authUserId); // rollback (só do login criado agora)
         return json({ error: iErr.message }, 400);
       }
-      return json({ user: row });
+      return json({ user: row, existing_login: existingLogin });
     }
 
     if (action === "update") {
@@ -119,6 +145,9 @@ Deno.serve(async (req) => {
 
       if (password) {
         if (String(password).length < 6) return json({ error: "A password deve ter pelo menos 6 caracteres." }, 400);
+        if (await usedBySalesForce(admin, row.email)) {
+          return json({ error: "Este login é partilhado com a Caetano Sales Force: a password muda-se aí (ou pela própria pessoa), para não alterar o acesso às duas aplicações." }, 400);
+        }
         const authUser = await findAuthUserByEmail(admin, row.email);
         if (!authUser) return json({ error: "Este utilizador não tem login de acesso." }, 400);
         const { error: pErr } = await admin.auth.admin.updateUserById(authUser.id, { password: String(password) });
@@ -133,11 +162,17 @@ Deno.serve(async (req) => {
       const { data: row } = await admin.from("app_users").select("email").eq("id", id).maybeSingle();
       const { error: dErr } = await admin.from("app_users").delete().eq("id", id);
       if (dErr) return json({ error: dErr.message }, 400);
+      // O login só se apaga se a Sales Force não o usar; senão ficava a pessoa sem acesso lá.
+      let loginKept = false;
       if (row?.email) {
-        const authUser = await findAuthUserByEmail(admin, row.email);
-        if (authUser) await admin.auth.admin.deleteUser(authUser.id);
+        if (await usedBySalesForce(admin, row.email)) {
+          loginKept = true;
+        } else {
+          const authUser = await findAuthUserByEmail(admin, row.email);
+          if (authUser) await admin.auth.admin.deleteUser(authUser.id);
+        }
       }
-      return json({ ok: true });
+      return json({ ok: true, login_kept: loginKept });
     }
 
     if (action === "save_role") {

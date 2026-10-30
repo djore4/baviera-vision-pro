@@ -304,7 +304,7 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
   const [perfil, setPerfil] = useState('');
   const [locais, setLocais] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
+  const [created, setCreated] = useState<{ email: string; password: string; existing: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const reset = () => { setNome(''); setEmail(''); setPassword(''); setPerfil(''); setLocais([]); setCreated(null); setCopied(false); };
@@ -318,8 +318,8 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
     setSaving(true);
     try {
       const mail = email.trim().toLowerCase();
-      await createUser({ nome: nome.trim(), email: mail, password, perfil, local: locais.length ? locais : null });
-      setCreated({ email: mail, password });
+      const u = await createUser({ nome: nome.trim(), email: mail, password, perfil, local: locais.length ? locais : null });
+      setCreated({ email: mail, password, existing: !!u?.existing_login });
       await onCreated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível criar o utilizador.');
@@ -340,7 +340,9 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
         <DialogHeader>
           <DialogTitle>{created ? 'Utilizador criado' : 'Novo utilizador'}</DialogTitle>
           <DialogDescription>
-            {created ? 'Guarda estas credenciais agora: a password não volta a ser mostrada.' : 'Cria a conta de login e atribui a função e os locais.'}
+            {created ? (created.existing
+              ? 'Esta pessoa já tinha login (Caetano Sales Force): mantém a password que já usa. O acesso a esta plataforma é independente.'
+              : 'Guarda estas credenciais agora: a password não volta a ser mostrada.') : 'Cria a conta de login e atribui a função e os locais.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -348,12 +350,12 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
           <>
             <div className="rounded-md border bg-muted/30 p-3 text-sm font-mono space-y-1">
               <div><span className="text-muted-foreground">Email:</span> {created.email}</div>
-              <div><span className="text-muted-foreground">Password:</span> {created.password}</div>
+              {!created.existing && <div><span className="text-muted-foreground">Password:</span> {created.password}</div>}
             </div>
             <DialogFooter className="gap-2 sm:gap-2">
-              <Button variant="outline" onClick={copyCreds} className="gap-1.5">
+              {!created.existing && <Button variant="outline" onClick={copyCreds} className="gap-1.5">
                 {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />} Copiar credenciais
-              </Button>
+              </Button>}
               <Button onClick={() => close(false)}>Concluir</Button>
             </DialogFooter>
           </>
