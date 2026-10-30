@@ -31,13 +31,14 @@ interface Props {
   ownerMap: EotVendedorMapRow[];
   /** Email do chefe de equipa; null = gere todos (administrador, end-of-term:todos). */
   leadEmail: string | null;
-  /** Pode criar utilizadores novos (só o administrador). */
+  /** Pode criar utilizadores novos (administrador e quem vê todos os contratos). */
   canCreateUsers?: boolean;
   onChanged: () => void;
 }
 
 const ownerName = (o: EotOwner) => o.nome;
 const NO_CHEFE = '__none__';
+const NEW_USER = '__new__';
 const initialsFrom = (nome: string | null, email: string) => {
   const parts = (nome || email.split('@')[0]).split(/[\s.]+/).filter(Boolean);
   return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
@@ -329,8 +330,8 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, canCreateUsers, on
 
   // Funções com acesso ao End-of-Term (as outras não dariam acesso à pessoa); se não houver, todas.
   const roleOptions = useMemo(() => {
-    const withAccess = roles.filter(r => r.is_admin || r.permissions?.['end-of-term']);
-    return (withAccess.length > 0 ? withAccess : roles).map(r => r.name);
+    const withAccess = roles.filter(r => !r.is_admin && r.permissions?.['end-of-term'] && r.permissions['end-of-term'] !== 'none');
+    return withAccess.map(r => r.name);
   }, [roles]);
 
   const candidates = useMemo(() => {
@@ -479,10 +480,13 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, canCreateUsers, on
               {users === null ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />A carregar…</div>
               ) : (
-                <Select value={email} onValueChange={pick}>
+                <Select value={email} onValueChange={v => { if (v === NEW_USER) { setNovo(true); setEmail(''); setIniciais(''); } else pick(v); }}>
                   <SelectTrigger><SelectValue placeholder={candidates.length ? 'Escolher utilizador…' : 'Todos os utilizadores já são responsáveis'} /></SelectTrigger>
                   <SelectContent>
                     {candidates.map(u => <SelectItem key={u.email!} value={u.email!}>{u.nome ? `${u.nome} · ${u.email}` : u.email}</SelectItem>)}
+                    {canCreateUsers && (
+                      <SelectItem value={NEW_USER} className="font-medium text-primary">+ Criar novo utilizador…</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               )}
