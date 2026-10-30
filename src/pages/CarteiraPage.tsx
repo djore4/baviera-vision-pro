@@ -1,7 +1,11 @@
 import { useMemo, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { usePermissions } from '@/contexts/PermissionsContext';
+import { useRecordEditor } from '@/components/RecordEditor';
+import { RowDeleteButton } from '@/components/RowDeleteButton';
+import { toLocalIsoDay } from '@/lib/utils';
 import { formatDate, isRetailType } from '@/lib/excel-parser';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download, Plus } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LabelList,
@@ -19,6 +23,15 @@ type SortDir = 'asc' | 'desc';
 
 export default function CarteiraPage() {
   const { data } = useData();
+  const { openEditor, openNew, deleteRecord } = useRecordEditor();
+  // Espelha a política RLS de control_records: escreve quem edita Dados ou Database.
+  const { canEdit } = usePermissions();
+  const canEditRecords = canEdit('dados') || canEdit('database');
+  // Negócio novo entra já em Carteira e datado de hoje, para aparecer aqui e seguir o fluxo.
+  const novoNegocio = () => {
+    const h = new Date();
+    openNew({ status: 'Carteira', type: 'VN', neg: toLocalIsoDay(new Date(h.getFullYear(), h.getMonth(), h.getDate())) });
+  };
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
@@ -400,6 +413,11 @@ export default function CarteiraPage() {
             <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
               <Download className="h-3 w-3" />CSV
             </Button>
+            {canEditRecords && (
+              <Button size="sm" className="h-7 gap-1 text-[11px]" onClick={novoNegocio}>
+                <Plus className="h-3 w-3" />Novo negócio
+              </Button>
+            )}
           </div>
         </div>
         <div className="overflow-auto max-h-[35vh]">
@@ -411,11 +429,13 @@ export default function CarteiraPage() {
                     <span className="inline-flex items-center">{label}<SortIcon col={key} /></span>
                   </th>
                 ))}
+                {canEditRecords && <th className="h-9 w-8 bg-card" aria-label="Ações" />}
               </tr>
             </thead>
             <tbody>
               {tableData.map((r, i) => (
-                <tr key={i} className="text-[11px] border-b border-border transition-colors hover:bg-muted/50">
+                <tr key={i} onClick={() => canEditRecords && r.id && openEditor(r.id)} title={canEditRecords ? 'Clicar para editar' : undefined}
+                  className={`text-[11px] border-b border-border transition-colors hover:bg-muted/50${canEditRecords ? ' cursor-pointer' : ''}`}>
                   <td className="px-3 py-1 font-medium whitespace-nowrap">{r.resp}</td>
                   <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>
                   <td className="px-3 py-1 whitespace-nowrap">{r.mes1}</td>
@@ -429,6 +449,7 @@ export default function CarteiraPage() {
                   <td className="px-3 py-1 whitespace-nowrap">{r.chas}</td>
                   <td className="px-3 py-1 whitespace-nowrap">{r.mat}</td>
                   <td className="px-3 py-1">{r.week198}</td>
+                  {canEditRecords && <td className="px-2 py-1 text-right">{r.id && <RowDeleteButton onDelete={() => deleteRecord(r.id!)} />}</td>}
                 </tr>
               ))}
             </tbody>

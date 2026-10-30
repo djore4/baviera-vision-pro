@@ -9,6 +9,7 @@ import { PeriodFilter } from '@/components/PeriodFilter';
 import { RetomaFilter } from '@/components/RetomaFilter';
 import { formatDate } from '@/lib/excel-parser';
 import { toLocalIsoDay } from '@/lib/utils';
+import { RowDeleteButton } from '@/components/RowDeleteButton';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -26,14 +27,14 @@ type SortDir = 'asc' | 'desc';
 
 export default function ProducaoPage() {
   const { data, filter } = useData();
-  const { openEditor, openNew } = useRecordEditor();
+  const { openEditor, openNew, deleteRecord } = useRecordEditor();
   // Espelha a política RLS de control_records: escreve quem edita Dados ou Database.
   const { canEdit } = usePermissions();
   const canEditRecords = canEdit('dados') || canEdit('database');
   // Negócio novo entra já fechado (Carteira) e datado de hoje, para aparecer aqui e seguir o fluxo.
   const novoNegocio = () => {
     const h = new Date();
-    openNew({ status: 'Carteira', neg: toLocalIsoDay(new Date(h.getFullYear(), h.getMonth(), h.getDate())) });
+    openNew({ status: 'Carteira', type: 'VN', neg: toLocalIsoDay(new Date(h.getFullYear(), h.getMonth(), h.getDate())) });
   };
   const isMobile = useIsMobile();
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
@@ -401,7 +402,7 @@ export default function ProducaoPage() {
 
           {isMobile && (
             <div className="order-4 xl:order-none">
-              <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={canEditRecords ? openEditor : undefined} onNew={canEditRecords ? novoNegocio : undefined} />
+              <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={canEditRecords ? openEditor : undefined} onNew={canEditRecords ? novoNegocio : undefined} onDelete={canEditRecords ? deleteRecord : undefined} />
             </div>
           )}
 
@@ -463,7 +464,7 @@ export default function ProducaoPage() {
           </div>
 
           {!isMobile && (
-            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={canEditRecords ? openEditor : undefined} onNew={canEditRecords ? novoNegocio : undefined} />
+            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={canEditRecords ? openEditor : undefined} onNew={canEditRecords ? novoNegocio : undefined} onDelete={canEditRecords ? deleteRecord : undefined} />
           )}
         </div>
       </div>
@@ -471,11 +472,12 @@ export default function ProducaoPage() {
   );
 }
 
-function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, toggleSort, SortIcon, exportCSV, openEditor, onNew }: {
+function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, toggleSort, SortIcon, exportCSV, openEditor, onNew, onDelete }: {
   tableData: any[]; tableColumns: [SortKey, string][]; searchTerm: string; setSearchTerm: (v: string) => void;
   toggleSort: (k: SortKey) => void; SortIcon: React.FC<{ col: SortKey }>; exportCSV: () => void;
   openEditor?: (id: string) => void;
   onNew?: () => void;
+  onDelete?: (id: string) => Promise<unknown> | void;
 }) {
   return (
     <div className="bg-card border border-border rounded-lg">
@@ -505,6 +507,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                   <span className="inline-flex items-center">{label}<SortIcon col={key} /></span>
                 </th>
               ))}
+              {onDelete && <th className="h-9 w-8 bg-card" aria-label="Ações" />}
             </tr>
           </thead>
           <tbody>
@@ -525,6 +528,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.date298)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.dfat)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.app)}</td>
+                {onDelete && <td className="px-2 py-1 text-right">{r.id && <RowDeleteButton onDelete={() => onDelete(r.id)} />}</td>}
               </tr>
             ))}
           </tbody>

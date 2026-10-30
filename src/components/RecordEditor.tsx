@@ -70,6 +70,8 @@ interface RecordEditorValue {
   openEditor: (id: string) => void;
   /** `preset` pré-preenche campos do novo registo (ex.: estado e data de negócio). */
   openNew: (preset?: Partial<RecordForm>) => void;
+  /** Elimina um registo (usado pelos botões de eliminar das tabelas). Devolve se correu bem. */
+  deleteRecord: (id: string) => Promise<boolean>;
 }
 const RecordEditorContext = createContext<RecordEditorValue | null>(null);
 
@@ -155,13 +157,18 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
     await notifyChanged();
   }
 
+  async function deleteRecord(id: string): Promise<boolean> {
+    const { error } = await supabase.from('control_records').delete().eq('id', id);
+    if (error) { toast.error(`Não foi possível eliminar o registo: ${error.message}`); return false; }
+    await notifyChanged();
+    return true;
+  }
+
   async function remove() {
     if (!editId) return;
-    const { error } = await supabase.from('control_records').delete().eq('id', editId);
+    const id = editId;
     setConfirmDelete(false);
-    if (error) { toast.error(`Não foi possível eliminar o registo: ${error.message}`); return; }
-    setOpen(false);
-    await notifyChanged();
+    if (await deleteRecord(id)) setOpen(false);
   }
 
   function SelectField({ k, label, opts }: { k: keyof RecordForm; label: string; opts: string[] }) {
@@ -188,7 +195,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
   }
 
   return (
-    <RecordEditorContext.Provider value={{ openEditor, openNew }}>
+    <RecordEditorContext.Provider value={{ openEditor, openNew, deleteRecord }}>
       {children}
 
       {open && (
