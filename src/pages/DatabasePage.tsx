@@ -356,7 +356,7 @@ export default function DatabasePage() {
             </PopoverContent>
           </Popover>
 
-          <button onClick={openNew} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">
+          <button onClick={() => openNew()} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">
             <Plus className="h-3.5 w-3.5" /> Novo registo
           </button>
         </div>

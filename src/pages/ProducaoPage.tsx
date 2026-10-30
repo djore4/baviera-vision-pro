@@ -8,7 +8,8 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { RetomaFilter } from '@/components/RetomaFilter';
 import { formatDate } from '@/lib/excel-parser';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
+import { toLocalIsoDay } from '@/lib/utils';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -25,10 +26,15 @@ type SortDir = 'asc' | 'desc';
 
 export default function ProducaoPage() {
   const { data, filter } = useData();
-  const { openEditor } = useRecordEditor();
+  const { openEditor, openNew } = useRecordEditor();
   // Espelha a política RLS de control_records: escreve quem edita Dados ou Database.
   const { canEdit } = usePermissions();
   const canEditRecords = canEdit('dados') || canEdit('database');
+  // Negócio novo entra já fechado (Carteira) e datado de hoje, para aparecer aqui e seguir o fluxo.
+  const novoNegocio = () => {
+    const h = new Date();
+    openNew({ status: 'Carteira', neg: toLocalIsoDay(new Date(h.getFullYear(), h.getMonth(), h.getDate())) });
+  };
   const isMobile = useIsMobile();
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
@@ -395,7 +401,7 @@ export default function ProducaoPage() {
 
           {isMobile && (
             <div className="order-4 xl:order-none">
-              <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={canEditRecords ? openEditor : undefined} />
+              <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={canEditRecords ? openEditor : undefined} onNew={canEditRecords ? novoNegocio : undefined} />
             </div>
           )}
 
@@ -457,7 +463,7 @@ export default function ProducaoPage() {
           </div>
 
           {!isMobile && (
-            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={canEditRecords ? openEditor : undefined} />
+            <DetailTableBlock tableData={tableData} tableColumns={tableColumns} searchTerm={searchTerm} setSearchTerm={setSearchTerm} toggleSort={toggleSort} SortIcon={SortIcon} exportCSV={exportCSV} openEditor={canEditRecords ? openEditor : undefined} onNew={canEditRecords ? novoNegocio : undefined} />
           )}
         </div>
       </div>
@@ -465,10 +471,11 @@ export default function ProducaoPage() {
   );
 }
 
-function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, toggleSort, SortIcon, exportCSV, openEditor }: {
+function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, toggleSort, SortIcon, exportCSV, openEditor, onNew }: {
   tableData: any[]; tableColumns: [SortKey, string][]; searchTerm: string; setSearchTerm: (v: string) => void;
   toggleSort: (k: SortKey) => void; SortIcon: React.FC<{ col: SortKey }>; exportCSV: () => void;
   openEditor?: (id: string) => void;
+  onNew?: () => void;
 }) {
   return (
     <div className="bg-card border border-border rounded-lg">
@@ -482,6 +489,11 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
           <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
             <Download className="h-3 w-3" />CSV
           </Button>
+          {onNew && (
+            <Button size="sm" className="h-7 gap-1 text-[11px]" onClick={onNew}>
+              <Plus className="h-3 w-3" />Novo negócio
+            </Button>
+          )}
         </div>
       </div>
       <div className="overflow-auto max-h-[60vh] relative">
