@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/App';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { isRetailType } from '@/lib/excel-parser';
 import {
   QUALITY_METRICS, QUALITY_MIN, QUALITY_MAX, type QualityMetricKey, type QualityScores,
   type QualityRow, getMonthScores, saveVendedorScores, deleteVendedorScores, averageScores, emptyScores,
@@ -36,7 +37,7 @@ const PT_MONTHS = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
-const isVehicle = (t: string) => t === 'VN' || t === 'VD';
+const isVehicle = isRetailType;
 const RADIUS_TICKS = [0, 2, 4, 6, 8, 10];
 /* O recharts aceita números em `ticks`; a tipagem exige TickItem[]. */
 const RADIUS_TICKS_PROP = RADIUS_TICKS as unknown as ComponentProps<typeof PolarRadiusAxis>['ticks'];

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as XLSX from 'xlsx';
-import { parseExcel, getDeliveryMonth } from '@/lib/excel-parser';
+import { parseExcel, getDeliveryMonth, isRetailType, isRetailDelivery } from '@/lib/excel-parser';
 import type { ControlRecord } from '@/types/data';
 
 const baseRecord = (over: Partial<ControlRecord>): ControlRecord => ({
@@ -8,6 +8,17 @@ const baseRecord = (over: Partial<ControlRecord>): ControlRecord => ({
   chas: '', mat: '', model: '', version: '', gar: '', qor: 0, xev: 0, bev: 0, mPerf: 0,
   csc: 0, cme: null, ret: 0, fin: '', week198: '', dmat: null, date298: null, app: null,
   dfat: null, obs: '', ...over,
+});
+
+describe('tipos que contam para retails', () => {
+  it('VN, VD e RMK contam; VP não', () => {
+    expect(['VN', 'VD', 'RMK', 'VP'].map(isRetailType)).toEqual([true, true, true, false]);
+  });
+
+  it('RMK com estado Retail é uma entrega retail', () => {
+    expect(isRetailDelivery(baseRecord({ type: 'RMK', status: 'Retail' }))).toBe(true);
+    expect(isRetailDelivery(baseRecord({ type: 'VP', status: 'Retail' }))).toBe(false);
+  });
 });
 
 describe('getDeliveryMonth — MÊS1 manda no posicionamento', () => {

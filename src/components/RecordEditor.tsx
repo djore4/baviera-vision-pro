@@ -22,7 +22,7 @@ const EMPTY: RecordForm = {
 };
 
 const STATUS_OPTS = ['Frio','Morno','Quente','Carteira','Matricula','Retail','Adiado','Perdido'];
-const TYPE_OPTS   = ['VN','VD','VP'];
+const TYPE_OPTS   = ['VN','VD','RMK','VP'];
 const GAR_OPTS    = ['GAR','nGAR'];
 const FIN_OPTS    = ['PP','FS','Fint','Fext'];
 const CLASS_FLAGS  = ['qor','xev','bev','m','mpa','gkl','ret'] as const;
