@@ -14,6 +14,8 @@ export type FunilStatus = keyof typeof STATUS_CONFIG;
 export const FUNIL_STATUSES = Object.keys(STATUS_CONFIG) as FunilStatus[];
 
 export interface FunilRow {
+  /** Id do registo em control_records (só o funil VN o preenche). */
+  id?: string;
   status: FunilStatus;
   resp: string;
   version: string;
@@ -21,7 +23,7 @@ export interface FunilRow {
   obs: string;
 }
 
-export function FunilBoard({ records }: { records: FunilRow[] }) {
+export function FunilBoard({ records, onEdit }: { records: FunilRow[]; onEdit?: (id: string) => void }) {
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
 
   const responsaveis = useMemo(() => {
@@ -113,7 +115,12 @@ export function FunilBoard({ records }: { records: FunilRow[] }) {
                       </tr>
                     ) : (
                       rows.map((r, i) => (
-                        <tr key={i} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                        <tr
+                          key={r.id ?? i}
+                          onClick={() => r.id && onEdit?.(r.id)}
+                          title={onEdit && r.id ? 'Clicar para editar' : undefined}
+                          className={`border-b border-border/50 hover:bg-muted/30 transition-colors${onEdit && r.id ? ' cursor-pointer' : ''}`}
+                        >
                           <td className="px-2 py-1.5 font-semibold">{r.resp}</td>
                           <td className="px-2 py-1.5 whitespace-nowrap">{r.version}</td>
                           <td className="px-2 py-1.5 max-w-[120px] truncate">{r.cliente}</td>

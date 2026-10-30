@@ -1,8 +1,9 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useData } from '@/contexts/DataContext';
 import { X, Check, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { fetchDemoVehicles, demoLabel, demoToRecordPatch, type DemoVehicle } from '@/lib/demo-vehicles';
 
 /* ── Form shape (colunas de control_records) ── */
 export interface RecordForm {
@@ -67,7 +68,8 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
 /* ── Context ── */
 interface RecordEditorValue {
   openEditor: (id: string) => void;
-  openNew: () => void;
+  /** `preset` pré-preenche campos do novo registo (ex.: estado e data de negócio). */
+  openNew: (preset?: Partial<RecordForm>) => void;
 }
 const RecordEditorContext = createContext<RecordEditorValue | null>(null);
 
@@ -78,20 +80,42 @@ export function useRecordEditor() {
 }
 
 export function RecordEditorProvider({ children }: { children: React.ReactNode }) {
-  const { refresh } = useData();
+  const { refresh, data } = useData();
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<RecordForm>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [loadingRow, setLoadingRow] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Viaturas demo para pré-preencher um VD (carregam-se na primeira vez que o tipo é VD).
+  const [demos, setDemos] = useState<DemoVehicle[] | null>(null);
+  const [demosError, setDemosError] = useState<string | null>(null);
+  const [demoChassis, setDemoChassis] = useState('');
 
-  const openNew = useCallback(() => {
-    setForm(EMPTY); setEditId(null); setConfirmDelete(false); setOpen(true);
+  const openNew = useCallback((preset?: Partial<RecordForm>) => {
+    setForm({ ...EMPTY, ...preset }); setEditId(null); setConfirmDelete(false); setDemoChassis(''); setOpen(true);
   }, []);
 
+  useEffect(() => {
+    if (!open || form.type !== 'VD' || demos !== null) return;
+    let alive = true;
+    fetchDemoVehicles()
+      .then(v => { if (alive) { setDemos(v); setDemosError(null); } })
+      .catch(e => { if (alive) setDemosError(e instanceof Error ? e.message : 'Erro ao carregar demos'); });
+    return () => { alive = false; };
+  }, [open, form.type, demos]);
+
+  // Chassis já associados a um negócio, para avisar na lista de demos.
+  const demoEmUso = new Set((data?.control ?? []).filter(r => r.id !== editId && r.chas).map(r => r.chas.trim().toUpperCase()));
+
+  const escolherDemo = (chassis: string) => {
+    setDemoChassis(chassis);
+    const v = demos?.find(d => d.chassis === chassis);
+    if (v) setForm(f => ({ ...f, ...demoToRecordPatch(v) }));
+  };
+
   const openEditor = useCallback(async (id: string) => {
-    setEditId(id); setForm(EMPTY); setConfirmDelete(false); setOpen(true); setLoadingRow(true);
+    setEditId(id); setForm(EMPTY); setConfirmDelete(false); setDemoChassis(''); setOpen(true); setLoadingRow(true);
     const { data } = await supabase.from('control_records').select('*').eq('id', id).single();
     if (data) {
       const row = data as Record<string, unknown>;
@@ -197,10 +221,31 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                 <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Veículo</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <SelectField k="type" label="TYPE" opts={TYPE_OPTS} />
+                  {form.type === 'VD' && (
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-medium text-muted-foreground mb-1">Viatura demo (opcional)</label>
+                      <select value={demoChassis} onChange={e => escolherDemo(e.target.value)} disabled={demos === null && !demosError}
+                        className="w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary">
+                        <option value="">{demos === null && !demosError ? 'A carregar demos...' : '— escolher demo —'}</option>
+                        {(demos ?? []).map(d => (
+                          <option key={d.chassis} value={d.chassis}>
+                            {demoLabel(d)}{demoEmUso.has(d.chassis.trim().toUpperCase()) ? ' (já num negócio)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {demosError
+                          ? `Não foi possível carregar as demos: ${demosError}`
+                          : 'Preenche modelo, versão, chassis, matrícula, encomenda, data de matrícula e BEV/xEV/QoR/M. Podes ajustar depois.'}
+                      </p>
+                    </div>
+                  )}
                   <TextField k="model" label="MODEL" />
                   <TextField k="version" label="VERSION" />
                   <SelectField k="gar" label="GAR — Garantia de entrega" opts={GAR_OPTS} />
                   <TextField k="mat" label="MAT — Matrícula" />
+                  <TextField k="chas" label="CHAS — Chassis" />
+                  <TextField k="enc" label="ENC — Encomenda" />
                 </div>
               </div>
 

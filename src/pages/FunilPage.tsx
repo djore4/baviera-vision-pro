@@ -1,16 +1,22 @@
 import { useMemo } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { usePermissions } from '@/contexts/PermissionsContext';
+import { useRecordEditor } from '@/components/RecordEditor';
 import { FunilBoard, FUNIL_STATUSES, type FunilRow } from '@/components/funil/FunilBoard';
 
 export default function FunilPage() {
   const { data } = useData();
+  const { openEditor } = useRecordEditor();
+  // Espelha a política RLS de control_records: escreve quem edita Dados ou Database.
+  const { canEdit } = usePermissions();
+  const canEditRecords = canEdit('dados') || canEdit('database');
 
   const records = useMemo<FunilRow[]>(() =>
     (data?.control ?? [])
       .filter(r => (FUNIL_STATUSES as string[]).includes(r.status))
-      .map(r => ({ status: r.status as FunilRow['status'], resp: r.resp, version: r.version, cliente: r.cliente, obs: r.obs })),
+      .map(r => ({ id: r.id, status: r.status as FunilRow['status'], resp: r.resp, version: r.version, cliente: r.cliente, obs: r.obs })),
     [data]
   );
 
-  return <FunilBoard records={records} />;
+  return <FunilBoard records={records} onEdit={canEditRecords ? openEditor : undefined} />;
 }
