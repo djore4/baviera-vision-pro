@@ -66,17 +66,19 @@ export function FunilBoard({ records, onEdit, onNew, onDelete }: {
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
 
+      {/* Novo negócio — fora do quadro de filtros, no topo da página */}
+      {onNew && (
+        <div className="flex justify-end">
+          <button type="button" onClick={() => onNew(selectedResp)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">
+            <Plus className="h-3.5 w-3.5" />Novo negócio
+          </button>
+        </div>
+      )}
+
       {/* Filtro RESP */}
       <div className="order-1 bg-card border border-border rounded-lg p-3">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Responsável</p>
-          {onNew && (
-            <button type="button" onClick={() => onNew(selectedResp)}
-              className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">
-              <Plus className="h-3 w-3" />Novo negócio
-            </button>
-          )}
-        </div>
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Responsável</p>
         <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => setSelectedResp(null)}
