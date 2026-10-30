@@ -6,7 +6,7 @@ import { FunilBoard, FUNIL_STATUSES, type FunilRow } from '@/components/funil/Fu
 
 export default function FunilPage() {
   const { data } = useData();
-  const { openEditor } = useRecordEditor();
+  const { openEditor, openNew, deleteRecord } = useRecordEditor();
   // Espelha a política RLS de control_records: escreve quem edita Dados ou Database.
   const { canEdit } = usePermissions();
   const canEditRecords = canEdit('dados') || canEdit('database');
@@ -18,5 +18,15 @@ export default function FunilPage() {
     [data]
   );
 
-  return <FunilBoard records={records} onEdit={canEditRecords ? openEditor : undefined} />;
+  // Negócio novo entra no funil como Frio (do responsável filtrado, se houver) e segue o fluxo normal.
+  const novoNegocio = (resp: string | null) => openNew({ status: 'Frio', type: 'VN', ...(resp ? { resp } : {}) });
+
+  return (
+    <FunilBoard
+      records={records}
+      onEdit={canEditRecords ? openEditor : undefined}
+      onNew={canEditRecords ? novoNegocio : undefined}
+      onDelete={canEditRecords ? deleteRecord : undefined}
+    />
+  );
 }

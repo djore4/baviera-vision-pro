@@ -1,4 +1,6 @@
 import { useMemo, useState, useCallback } from 'react';
+import { Plus } from 'lucide-react';
+import { RowDeleteButton } from '@/components/RowDeleteButton';
 
 /* Funil de vendas (Frio → Morno → Quente) partilhado entre VN e VU. Cada página
  * fornece os seus negócios já normalizados; o board trata do filtro por
@@ -23,7 +25,13 @@ export interface FunilRow {
   obs: string;
 }
 
-export function FunilBoard({ records, onEdit }: { records: FunilRow[]; onEdit?: (id: string) => void }) {
+export function FunilBoard({ records, onEdit, onNew, onDelete }: {
+  records: FunilRow[];
+  onEdit?: (id: string) => void;
+  /** Recebe o responsável filtrado (se houver) para pré-preencher o negócio novo. */
+  onNew?: (resp: string | null) => void;
+  onDelete?: (id: string) => Promise<unknown> | void;
+}) {
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
 
   const responsaveis = useMemo(() => {
@@ -60,7 +68,15 @@ export function FunilBoard({ records, onEdit }: { records: FunilRow[]; onEdit?: 
 
       {/* Filtro RESP */}
       <div className="order-1 bg-card border border-border rounded-lg p-3">
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Responsável</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Responsável</p>
+          {onNew && (
+            <button type="button" onClick={() => onNew(selectedResp)}
+              className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">
+              <Plus className="h-3 w-3" />Novo negócio
+            </button>
+          )}
+        </div>
         <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => setSelectedResp(null)}
@@ -104,12 +120,13 @@ export function FunilBoard({ records, onEdit }: { records: FunilRow[]; onEdit?: 
                       <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">VERSÃO</th>
                       <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">CLIENTE</th>
                       <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">OBS</th>
+                      {onDelete && <th className="w-8" aria-label="Ações" />}
                     </tr>
                   </thead>
                   <tbody>
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">
+                        <td colSpan={onDelete ? 5 : 4} className="px-2 py-6 text-center text-muted-foreground">
                           Sem registos
                         </td>
                       </tr>
@@ -125,6 +142,11 @@ export function FunilBoard({ records, onEdit }: { records: FunilRow[]; onEdit?: 
                           <td className="px-2 py-1.5 whitespace-nowrap">{r.version}</td>
                           <td className="px-2 py-1.5 max-w-[120px] truncate">{r.cliente}</td>
                           <td className="px-2 py-1.5 max-w-[140px] truncate text-muted-foreground">{r.obs}</td>
+                          {onDelete && (
+                            <td className="px-1 py-1.5 text-right">
+                              {r.id && <RowDeleteButton onDelete={() => onDelete(r.id!)} />}
+                            </td>
+                          )}
                         </tr>
                       ))
                     )}
