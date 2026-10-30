@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useData } from '@/contexts/DataContext';
 import { X, Check, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { vendedorInitials } from '@/lib/team';
 import { fetchDemoVehicles, demoLabel, demoToRecordPatch, type DemoVehicle } from '@/lib/demo-vehicles';
 
 /* ── Form shape (colunas de control_records) ── */
@@ -61,6 +62,43 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
         <option value="">— sem ano —</option>
         {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
       </select>
+    </div>
+  );
+}
+
+/* ── RESP: lista de iniciais (evita erros de digitação) + "Outro…" para escrever ── */
+const OUTRO = '__outro__';
+export function ResponsavelField({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
+  const [outro, setOutro] = useState(false);
+  const typing = outro;
+  const fieldCls = 'w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary';
+  return (
+    <div>
+      <label className="block text-[10px] font-medium text-muted-foreground mb-1">RESP — Vendedor</label>
+      <select
+        aria-label="RESP — Vendedor"
+        value={typing ? OUTRO : value}
+        onChange={e => {
+          if (e.target.value === OUTRO) { setOutro(true); onChange(''); }
+          else { setOutro(false); onChange(e.target.value); }
+        }}
+        className={fieldCls}
+      >
+        <option value="">— seleccionar —</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+        <option value={OUTRO}>Outro… (escrever)</option>
+      </select>
+      {typing && (
+        <input
+          aria-label="Iniciais do vendedor"
+          autoFocus
+          maxLength={6}
+          value={value}
+          onChange={e => onChange(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+          placeholder="Iniciais"
+          className={`${fieldCls} mt-1.5 uppercase`}
+        />
+      )}
     </div>
   );
 }
@@ -214,7 +252,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                 <div className="grid grid-cols-2 gap-3">
                   <SelectField k="status" label="STATUS" opts={STATUS_OPTS} />
                   <TextField k="neg" label="NEG — Data de negócio" type="date" />
-                  <TextField k="resp" label="RESP — Vendedor" />
+                  <ResponsavelField key={editId ?? 'novo'} value={form.resp} options={vendedorInitials(data?.control ?? [], form.resp)} onChange={v => setField('resp', v)} />
                   <TextField k="id_cliente" label="ID — Cliente" />
                   <div className="col-span-2">
                     <label className="block text-[10px] font-medium text-muted-foreground mb-1">MÊS — Entrega (opcional)</label>
