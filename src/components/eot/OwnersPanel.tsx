@@ -317,7 +317,7 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, canCreateUsers, on
   const [password, setPassword] = useState(() => generatePassword());
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [iniciaisTocadas, setIniciaisTocadas] = useState(false);
-  const [created, setCreated] = useState<{ email: string; password: string; ownerError: string | null } | null>(null);
+  const [created, setCreated] = useState<{ email: string; password: string; existing: boolean; ownerError: string | null } | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -368,8 +368,10 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, canCreateUsers, on
     if (password.length < 6) { toast.error('A password deve ter pelo menos 6 caracteres.'); return; }
     if (owners.some(o => o.email.toLowerCase() === mail)) { toast.error('Essa pessoa já é responsável.'); return; }
     setSaving(true);
+    let existing = false;
     try {
-      await createUser({ nome: nome.trim(), email: mail, password, perfil });
+      const u = await createUser({ nome: nome.trim(), email: mail, password, perfil });
+      existing = !!u?.existing_login;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Não foi possível criar o utilizador.');
       setSaving(false);
@@ -380,7 +382,7 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, canCreateUsers, on
     try {
       await saveEotOwner({ email: mail, iniciais, locais, chefe_email: chefe === NO_CHEFE ? null : chefe });
     } catch (e) { ownerError = (e as Error).message; }
-    setCreated({ email: mail, password, ownerError });
+    setCreated({ email: mail, password, existing, ownerError });
     setSaving(false);
     onRefresh();
   };
@@ -414,7 +416,9 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, canCreateUsers, on
           </DialogHeader>
           <div className="rounded-md border bg-muted/30 p-3 text-sm font-mono space-y-1">
             <div><span className="text-muted-foreground">Email:</span> {created.email}</div>
-            <div><span className="text-muted-foreground">Password:</span> {created.password}</div>
+            {created.existing
+              ? <div className="text-xs text-muted-foreground">Já tinha login (Caetano Sales Force): mantém a password que já usa.</div>
+              : <div><span className="text-muted-foreground">Password:</span> {created.password}</div>}
           </div>
           {created.ownerError && (
             <p className="text-sm text-destructive">

@@ -81,6 +81,14 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   projeto e tem as suas próprias políticas (`salesforce_users*` em `historico`,
   `viaturas`, `utilizadores`; ver `20260930141317`). As políticas somam-se (OR) e
   `apply_rls` só apaga as que a plataforma gere — nunca as de outra aplicação.
+- **Login partilhado, perfis separados:** o login (`auth.users`) é único por email no projeto,
+  mas os perfis e as matrizes de permissões são independentes (`app_users`/`app_roles` aqui,
+  `utilizadores` na Sales Force) e cada app só dá acesso a quem tem perfil na sua tabela.
+  A edge function `admin-users` respeita isto: **criar** com um email que já tem login
+  (p.ex. da Sales Force) reutiliza-o sem alterar a password (`existing_login: true`);
+  **eliminar** só apaga o login se o email não estiver em `utilizadores`; **repor a password**
+  de um login partilhado é recusado (mudaria também o acesso à outra app). Precisa de deploy:
+  `supabase functions deploy admin-users`.
 - Ao acrescentar uma tabela nova: ativar RLS e dar-lhe políticas explícitas
   (sem políticas só o service role acede). Ao acrescentar um tab: dizer em que
   tabelas lê e escreve, e acrescentar o caso a `tests/rls.test.sql`.
