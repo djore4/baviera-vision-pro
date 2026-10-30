@@ -543,7 +543,7 @@ export default function EndOfTermPage() {
         {canManage && ownersEnabled && (
           <TabsContent value="responsaveis" className="mt-4">
             {loading ? <Loader /> : (
-              <OwnersPanel contracts={contracts} owners={owners} ownerMap={ownerMap} leadEmail={isLocalLead ? myEmail : null} canCreateUsers={isAdmin} onChanged={load} />
+              <OwnersPanel contracts={contracts} owners={owners} ownerMap={ownerMap} leadEmail={isLocalLead ? myEmail : null} canCreateUsers={isDirector} onChanged={load} />
             )}
           </TabsContent>
         )}
