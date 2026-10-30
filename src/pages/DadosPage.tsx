@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import { Upload, Loader2, FileSpreadsheet, CheckCircle2, Database, AlertTriangle } from 'lucide-react';
+import { Upload, Download, Loader2, FileSpreadsheet, CheckCircle2, Database, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/contexts/DataContext';
 import { QualityManager } from '@/components/QualityManager';
+import { exportControlExcel } from '@/lib/control-export';
 import { parseVuControl, replaceControlRecordsVu } from '@/lib/control-records-vu';
 import { parseVuAngariacao, replaceAngariacoesVu } from '@/lib/angariacao-vu';
 import { parseEotFile, importEotContracts } from '@/lib/eot';
@@ -142,6 +143,18 @@ export default function DadosPage() {
             {importing ? 'A importar...' : 'Carregar Excel VN'}
           </Button>
           <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleChange} />
+          <Button
+            variant="outline" size="lg" className="w-full gap-2"
+            onClick={() => data && exportControlExcel(data.control)}
+            disabled={loading || !data || data.control.length === 0}
+          >
+            <Download className="h-5 w-5" />
+            Descarregar Excel VN
+          </Button>
+          <p className="text-[11px] text-muted-foreground">
+            Cópia dos dados atuais (todos os registos, sem filtros) <strong>só para consulta</strong>. Não serve para voltar a carregar:
+            as alterações feitas no Excel descarregado não chegam à plataforma.
+          </p>
 
           {importError && (
             <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
