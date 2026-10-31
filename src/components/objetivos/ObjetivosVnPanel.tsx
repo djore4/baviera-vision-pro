@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useData } from '@/contexts/DataContext';
+import ObjetivosVnAnual from '@/components/objetivos/ObjetivosVnAnual';
 import { Save, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -18,6 +20,7 @@ const DEFAULT_VENDEDORES = ['Afonso', 'Bruno', 'Carolina', 'David', 'Filipe', 'G
  * Sem `editable` é só de consulta.
  * ──────────────────────────────────────────────────────────────────────────── */
 export default function ObjetivosVnPanel({ editable }: { editable: boolean }) {
+  const { refresh } = useData();
   const now = new Date();
   const [ano, setAno] = useState(now.getFullYear());
   const [mes, setMes] = useState(now.getMonth() + 1);
@@ -70,6 +73,8 @@ export default function ObjetivosVnPanel({ editable }: { editable: boolean }) {
     if (failed?.error) { toast.error(`Não foi possível guardar os objetivos: ${failed.error.message}`); return; }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+    // Atualiza os gauges e a vista anual com os objetivos acabados de guardar.
+    await refresh();
   }
 
   function addVendedor() {
@@ -126,7 +131,6 @@ export default function ObjetivosVnPanel({ editable }: { editable: boolean }) {
         <div className="bg-card border border-border rounded-xl p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Objetivos — {MONTHS_SHORT[mes - 1]} {ano}</h3>
-            <span className="text-xs text-muted-foreground">Total: <span className="font-semibold text-foreground">{totalObj} un.</span></span>
           </div>
           <div className="space-y-2">
             {vendedores.map(v => (
@@ -147,6 +151,12 @@ export default function ObjetivosVnPanel({ editable }: { editable: boolean }) {
               </div>
             ))}
           </div>
+          {/* Total de negócios objetivo do mês, evidenciado */}
+          <div className="flex items-center justify-between rounded-lg border border-primary/40 bg-primary/10 px-3 py-2">
+            <span className="text-xs font-bold uppercase tracking-wide">Total negócios</span>
+            <span className="text-base font-extrabold tabular-nums">{totalObj} un.</span>
+          </div>
+
           {/* Add vendedor */}
           {editable && <div className="flex gap-2 pt-1 border-t border-border">
             <input
@@ -168,25 +178,7 @@ export default function ObjetivosVnPanel({ editable }: { editable: boolean }) {
         </div>
       </div>
 
-      {/* Yearly overview */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Resumo anual — {ano}</h3>
-        <p className="text-xs text-muted-foreground">Clica num mês para o editar.</p>
-        <div className="grid grid-cols-6 sm:grid-cols-12 gap-1">
-          {MONTHS_SHORT.map((m, i) => {
-            const isSelected = i + 1 === mes;
-            return (
-              <button
-                key={m}
-                onClick={() => setMes(i + 1)}
-                className={`py-2 rounded text-[10px] font-medium transition-colors ${isSelected ? 'bg-amber-500 text-black' : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}
-              >
-                {m}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <ObjetivosVnAnual ano={ano} mes={mes} onSelectMes={setMes} />
 
       {editable && <button
         onClick={saveAll}
