@@ -15,7 +15,10 @@ export function SegmentedFilter<T>({ label, options, value, onChange, className 
       <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
-      <div className="grid w-full gap-0.5 rounded-lg bg-muted p-0.5" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+      <div
+        className="grid w-full gap-0.5 rounded-lg bg-muted p-0.5"
+        style={{ gridTemplateColumns: options.length > 3 ? `auto repeat(${options.length - 1}, minmax(0, 1fr))` : `repeat(${options.length}, minmax(0, 1fr))` }}
+      >
         {options.map((o) => {
           const active = value === o.value;
           return (
@@ -24,7 +27,7 @@ export function SegmentedFilter<T>({ label, options, value, onChange, className 
               type="button"
               onClick={() => onChange(o.value)}
               aria-pressed={active}
-              className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+              className={`rounded-md py-1 text-[11px] font-medium transition-colors ${options.length > 3 ? 'px-1.5' : 'px-2'} ${
                 active
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
@@ -79,7 +82,11 @@ export function GarantiaFilter({ value, onChange, className }: {
   );
 }
 
-/** Tipo de viatura (multi-seleção): sem nenhum escolhido = sem filtro. */
+/* Tipo de viatura e características usam a mesma lógica dos outros filtros: "Todos" explícito
+ * e uma escolha de cada vez. Os valores externos continuam a ser conjuntos/booleanos, porque
+ * os cartões em donut também os alteram; com mais de um ativo nenhum segmento fica marcado. */
+const MULTI = '__multi__';
+
 export const TIPOS_VIATURA = ['VN', 'VD', 'RMK', 'VP'] as const;
 
 export function TipoFilter({ value, onChange, className = '' }: {
@@ -87,64 +94,28 @@ export function TipoFilter({ value, onChange, className = '' }: {
   onChange: (v: Set<string>) => void;
   className?: string;
 }) {
-  const toggle = (t: string) => {
-    const next = new Set(value);
-    if (next.has(t)) next.delete(t); else next.add(t);
-    onChange(next);
-  };
+  const current = value.size === 0 ? null : value.size === 1 ? Array.from(value)[0] : MULTI;
   return (
-    <div className={className}>
-      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Tipo</span>
-      <div className="grid grid-cols-2 gap-0.5 rounded-lg bg-muted p-0.5">
-        {TIPOS_VIATURA.map(t => {
-          const active = value.has(t);
-          return (
-            <button
-              key={t}
-              type="button"
-              onClick={() => toggle(t)}
-              aria-pressed={active}
-              title={t === 'VP' ? 'VP conta para faturas, não para retails' : undefined}
-              className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
-                active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {t}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    <SegmentedFilter<string | null>
+      label="Tipo" className={className} value={current}
+      onChange={t => onChange(t ? new Set([t]) : new Set())}
+      options={[{ label: 'Todos', value: null }, ...TIPOS_VIATURA.map(t => ({ label: t, value: t as string | null }))]}
+    />
   );
 }
 
-/** Características (BEV / QoR / M) numa só linha: ligar um botão mostra só os que têm essa
- * característica; ligados vários, só os que têm todas. Desligado = sem filtro (não há "Não"). */
+/** BEV / QoR / M: escolher um mostra só os que têm essa característica. */
 export function FlagsFilter({ flags, className = '' }: {
   flags: { label: string; value: boolean | null; onChange: (v: boolean | null) => void }[];
   className?: string;
 }) {
+  const on = flags.filter(f => f.value === true);
+  const current = on.length === 0 ? null : on.length === 1 ? on[0].label : MULTI;
+  const select = (label: string | null) => flags.forEach(f => f.onChange(f.label === label ? true : null));
   return (
-    <div className={className}>
-      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Características</span>
-      <div className="grid gap-0.5 rounded-lg bg-muted p-0.5" style={{ gridTemplateColumns: `repeat(${flags.length}, minmax(0, 1fr))` }}>
-        {flags.map(f => {
-          const active = f.value === true;
-          return (
-            <button
-              key={f.label}
-              type="button"
-              onClick={() => f.onChange(active ? null : true)}
-              aria-pressed={active}
-              className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
-                active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {f.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    <SegmentedFilter<string | null>
+      label="Características" className={className} value={current} onChange={select}
+      options={[{ label: 'Todos', value: null }, ...flags.map(f => ({ label: f.label, value: f.label as string | null }))]}
+    />
   );
 }
