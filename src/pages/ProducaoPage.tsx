@@ -6,7 +6,7 @@ import { useData } from '@/contexts/DataContext';
 import { useRecordEditor } from '@/components/RecordEditor';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
-import { RetomaFilter } from '@/components/RetomaFilter';
+import { ExtraFilters, ExtraFilterChips, isParked, type ExtraFiltersState, type Garantia } from '@/components/ExtraFilters';
 import { formatDate } from '@/lib/excel-parser';
 import { toLocalIsoDay } from '@/lib/utils';
 import { RowDeleteButton } from '@/components/RowDeleteButton';
@@ -44,6 +44,9 @@ export default function ProducaoPage() {
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
   const [selectedM, setSelectedM] = useState<boolean | null>(null);
   const [selectedRet, setSelectedRet] = useState<boolean | null>(null);
+  const [selectedGar, setSelectedGar] = useState<Garantia>(null);
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
+  const [selectedPark, setSelectedPark] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('neg');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
@@ -69,8 +72,18 @@ export default function ProducaoPage() {
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
     if (selectedM !== null) result = result.filter(r => (r.mPerf === 1) === selectedM);
     if (selectedRet !== null) result = result.filter(r => (r.ret === 1) === selectedRet);
+    if (selectedGar) result = result.filter(r => r.gar === selectedGar);
+    if (selectedTypes.size > 0) result = result.filter(r => selectedTypes.has(r.type));
+    if (selectedPark) result = result.filter(isParked);
     return result;
-  }, [baseRecords, selectedResp, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet]);
+  }, [baseRecords, selectedResp, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedGar, selectedTypes, selectedPark]);
+
+  const extra: ExtraFiltersState = {
+    ret: selectedRet, setRet: setSelectedRet, gar: selectedGar, setGar: setSelectedGar,
+    types: selectedTypes, setTypes: setSelectedTypes, bev: selectedBev, setBev: setSelectedBev,
+    qor: selectedQor, setQor: setSelectedQor, m: selectedM, setM: setSelectedM, park: selectedPark, setPark: setSelectedPark,
+  };
+  const parkCount = useMemo(() => filtered.filter(isParked).length, [filtered]);
 
   const negByResp = useMemo(() => {
     if (!data) return [];
@@ -240,6 +253,9 @@ export default function ProducaoPage() {
     selectedBev !== null && 'BEV: Sim',
     selectedM !== null && 'M: Sim',
     selectedRet !== null && `Retoma: ${selectedRet ? 'Com' : 'Sem'}`,
+    selectedGar && `Garantia: ${selectedGar}`,
+    selectedTypes.size > 0 && `Tipo: ${Array.from(selectedTypes).join(', ')}`,
+    selectedPark && 'Parque',
   ].filter(Boolean) as string[];
 
   const clearFilter = (type: string) => {
@@ -295,7 +311,7 @@ export default function ProducaoPage() {
         <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
           <PeriodFilter>
             <div className="border-t border-border pt-3">
-              <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
+              <ExtraFilters s={extra} parkCount={parkCount} />
             </div>
           </PeriodFilter>
           {activeFilters.length > 0 && (
@@ -304,10 +320,7 @@ export default function ProducaoPage() {
               {selectedResp && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('resp')}>{selectedResp} x</Badge>}
               {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
               {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
-              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
-              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
-              {selectedM !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('m')}>M x</Badge>}
-              {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}
+              <ExtraFilterChips s={extra} />
             </div>
           )}
         </div>
