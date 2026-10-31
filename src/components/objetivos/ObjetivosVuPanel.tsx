@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { usePermissions } from '@/contexts/PermissionsContext';
 import { listVuObjetivos, saveVuObjetivos } from '@/lib/control-records-vu';
 
 /* ── Objetivos · Viaturas Usadas ───────────────────────────────────────────────
@@ -14,9 +13,7 @@ const monthKey = (ano: number, m: number) => `${ano}/${String(m).padStart(2, '0'
 
 type Draft = { bmw: string; caetano: string };
 
-export default function ObjetivosVuPage() {
-  const { canEdit } = usePermissions();
-  const editable = canEdit('objetivos-vu');
+export default function ObjetivosVuPanel({ editable }: { editable: boolean }) {
   const [ano, setAno] = useState(new Date().getFullYear());
   const [saved, setSaved] = useState<Record<string, Draft> | null>(null); // estado em BD
   const [draft, setDraft] = useState<Record<string, Draft>>({});          // estado em edição

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Archive, CalendarClock, Coins, Database, Car, Target, Fuel, AlertTriangle, ClipboardList, ChevronRight } from 'lucide-react';
+import { Archive, CalendarClock, Coins, Database, Car, Fuel, AlertTriangle, ClipboardList, ChevronRight } from 'lucide-react';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { Card } from '@/components/ui/card';
 
@@ -15,7 +15,6 @@ const ARCHIVED = [
   { key: 'multas', label: 'Multas', path: '/multas', icon: Coins, desc: 'Infrações e penalizações' },
   { key: 'database', label: 'Database', path: '/database', icon: Database, desc: 'Base de dados / registos' },
   { key: 'demos', label: 'Demos', path: '/demos', icon: Car, desc: 'Viaturas de demonstração' },
-  { key: 'objetivos', label: 'Objetivos', path: '/objetivos', icon: Target, desc: 'Objetivos e orçamentos' },
   { key: 'prospecao', label: 'Diário', path: '/prospecao', icon: ClipboardList, desc: 'Diário de bordo da prospeção' },
 ];
 

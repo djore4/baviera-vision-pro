@@ -64,7 +64,6 @@ const ALL_TABS: TabDef[] = [
   { key: 'demos', label: 'Demos', path: '/demos', area: 'vn' },
   // ── Vendas VU (em desenvolvimento) ──────────────────────────────────────────
   { key: 'wip', label: 'WIP', path: '/wip', area: 'vu' },
-  { key: 'objetivos-vu', label: 'Objetivos', path: '/objetivos-vu', area: 'vu' },
   { key: 'funil-vu', label: 'Funil', path: '/funil-vu', area: 'vu' },
   { key: 'angariacao', label: 'Angariação', path: '/angariacao', area: 'vu' },
   { key: 'stock', label: 'Stock', path: '/stock', area: 'vu' },
@@ -72,6 +71,8 @@ const ALL_TABS: TabDef[] = [
   // ── Transversal (chave interna 'apv': é a chave que as áreas guardam) ───────
   { key: 'lavagem', label: 'Lavagem', path: '/lavagem', area: 'apv' },
   { key: 'instalacoes', label: 'Instalações', path: '/instalacoes', area: 'apv' },
+  // Objetivos de Vendas VN e VU num só tab (antes: 'objetivos' no Arquivo e 'objetivos-vu' em VU).
+  { key: 'objetivos', label: 'Objetivos', path: '/objetivos', area: 'apv' },
   // Catálogo BMW (dados técnicos e opcionais), migrado da plataforma Caetano.
   { key: 'produto', label: 'Produto', path: '/produto', area: 'apv' },
   // ── Administração ───────────────────────────────────────────────────────────
@@ -88,7 +89,6 @@ const ALL_TABS: TabDef[] = [
   { key: 'emprestimos', label: 'Empréstimos', path: '/emprestimos', area: 'admin' },
   { key: 'multas', label: 'Multas', path: '/multas', area: 'admin' },
   { key: 'database', label: 'Database', path: '/database', area: 'admin' },
-  { key: 'objetivos', label: 'Objetivos', path: '/objetivos', area: 'admin' },
   // Diário arquivado "para já": só o admin acede, mesmo que a função ainda tenha a
   // chave 'prospecao'. Para o reativar, voltar a pô-lo na área 'vn' sem adminOnly.
   { key: 'prospecao', label: 'Diário', path: '/prospecao', area: 'admin', adminOnly: true },
@@ -109,7 +109,7 @@ export function navAreaFor(tab: TabDef, canView: (key: string) => boolean): Area
 }
 
 /* Tabs "arrumados" dentro do Arquivo (não aparecem diretamente na barra lateral). */
-export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'multas', 'database', 'objetivos', 'prospecao'];
+export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'multas', 'database', 'prospecao'];
 
 /* Tabs atribuíveis na matriz de permissões. Ficam de fora os desativados (já não
  * estão em TABS), os arrumados no Arquivo e os de acesso restrito a admin: esses

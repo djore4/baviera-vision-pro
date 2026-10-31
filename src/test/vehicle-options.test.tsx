@@ -88,3 +88,51 @@ describe('Editor — ordem dos campos do veículo', () => {
     expect(enc.compareDocumentPosition(mat) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+import { hojeIso } from '@/components/RecordEditor';
+
+describe('Editor — campos do ficheiro e data 298', () => {
+  function Opener() {
+    const { openNew } = useRecordEditor();
+    return <button onClick={() => openNew()}>abrir</button>;
+  }
+  const open = () => {
+    render(<RecordEditorProvider><Opener /></RecordEditorProvider>);
+    fireEvent.click(screen.getByText('abrir'));
+  };
+  const input = (label: string) => screen.getByText(label).parentElement!.querySelector('input')!;
+
+  it('tem BIZ, CSC, CME e DFAT', () => {
+    open();
+    ['BIZ — Bizagi', 'CSC', 'CME', 'DFAT — Data da fatura'].forEach(l => expect(screen.getByText(l)).toBeInTheDocument());
+  });
+
+  it('hojeIso devolve o dia local em AAAA-MM-DD', () => {
+    expect(hojeIso(new Date(2026, 9, 31, 23, 59))).toBe('2026-10-31');
+    expect(hojeIso(new Date(2026, 0, 5, 0, 1))).toBe('2026-01-05');
+  });
+
+  it('ao passar a Retail a data 298 fica a data de hoje e continua editável', () => {
+    open();
+    expect(input('298 — Retail / Entrega cliente')).toHaveValue('');
+    fireEvent.change(screen.getByText('STATUS').parentElement!.querySelector('select')!, { target: { value: 'Retail' } });
+    expect(input('298 — Retail / Entrega cliente')).toHaveValue(hojeIso());
+    fireEvent.change(input('298 — Retail / Entrega cliente'), { target: { value: '2026-10-15' } });
+    expect(input('298 — Retail / Entrega cliente')).toHaveValue('2026-10-15');
+  });
+
+  it('sempre que o estado muda para Retail, a 298 passa a hoje (mesmo com valor anterior)', () => {
+    open();
+    const status = screen.getByText('STATUS').parentElement!.querySelector('select')!;
+    fireEvent.change(input('298 — Retail / Entrega cliente'), { target: { value: '2026-01-02' } });
+    fireEvent.change(status, { target: { value: 'Retail' } });
+    expect(input('298 — Retail / Entrega cliente')).toHaveValue(hojeIso());
+  });
+
+  it('outras mudanças de estado não mexem na 298', () => {
+    open();
+    const status = screen.getByText('STATUS').parentElement!.querySelector('select')!;
+    fireEvent.change(status, { target: { value: 'Carteira' } });
+    expect(input('298 — Retail / Entrega cliente')).toHaveValue('');
+  });
+});
