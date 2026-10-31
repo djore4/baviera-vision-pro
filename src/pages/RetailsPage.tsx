@@ -5,7 +5,7 @@ import { useRecordEditor } from '@/components/RecordEditor';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
-import { RetomaFilter, TriStateFilter, GarantiaFilter, TipoFilter } from '@/components/RetomaFilter';
+import { RetomaFilter, FlagsFilter, GarantiaFilter, TipoFilter } from '@/components/RetomaFilter';
 import { formatDate, getCurrentWeek, getDeliveryMonth, isRetailType } from '@/lib/excel-parser';
 import { seasonalFlags } from '@/lib/seasonal';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle, Download } from 'lucide-react';
@@ -286,9 +286,9 @@ export default function RetailsPage() {
     selectedResps.size > 0 && `Resp: ${Array.from(selectedResps).join(', ')}`,
     selectedFin && `Fin: ${selectedFin}`,
     selectedModel && `Modelo: ${selectedModel}`,
-    selectedQor !== null && `QoR: ${selectedQor ? 'Sim' : 'Não'}`,
-    selectedBev !== null && `BEV: ${selectedBev ? 'Sim' : 'Não'}`,
-    selectedM !== null && `M: ${selectedM ? 'Sim' : 'Não'}`,
+    selectedQor !== null && 'QoR',
+    selectedBev !== null && 'BEV',
+    selectedM !== null && 'M',
     selectedRet !== null && `Retoma: ${selectedRet ? 'Com' : 'Sem'}`,
     selectedGar && `Garantia: ${selectedGar}`,
     selectedTypes.size > 0 && `Tipo: ${Array.from(selectedTypes).join(', ')}`,
@@ -341,9 +341,11 @@ export default function RetailsPage() {
               <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
               <TipoFilter value={selectedTypes} onChange={setSelectedTypes} />
               <GarantiaFilter value={selectedGar} onChange={setSelectedGar} />
-              <TriStateFilter label="BEV" value={selectedBev} onChange={setSelectedBev} />
-              <TriStateFilter label="QoR" value={selectedQor} onChange={setSelectedQor} />
-              <TriStateFilter label="M" value={selectedM} onChange={setSelectedM} />
+              <FlagsFilter flags={[
+                { label: 'BEV', value: selectedBev, onChange: setSelectedBev },
+                { label: 'QoR', value: selectedQor, onChange: setSelectedQor },
+                { label: 'M', value: selectedM, onChange: setSelectedM },
+              ]} />
             </div>
           </PeriodFilter>
 
@@ -357,9 +359,9 @@ export default function RetailsPage() {
               )}
               {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
               {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
-              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR: {selectedQor ? 'Sim' : 'Não'} x</Badge>}
-              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV: {selectedBev ? 'Sim' : 'Não'} x</Badge>}
-              {selectedM !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('m')}>M: {selectedM ? 'Sim' : 'Não'} x</Badge>}
+              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
+              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
+              {selectedM !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('m')}>M x</Badge>}
               {selectedTypes.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('tipo')}>Tipo: {Array.from(selectedTypes).join(', ')} x</Badge>}
               {selectedGar && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('gar')}>Garantia: {selectedGar} x</Badge>}
               {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}

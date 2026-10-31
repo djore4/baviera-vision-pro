@@ -117,3 +117,34 @@ export function TipoFilter({ value, onChange, className = '' }: {
     </div>
   );
 }
+
+/** Características (BEV / QoR / M) numa só linha: ligar um botão mostra só os que têm essa
+ * característica; ligados vários, só os que têm todas. Desligado = sem filtro (não há "Não"). */
+export function FlagsFilter({ flags, className = '' }: {
+  flags: { label: string; value: boolean | null; onChange: (v: boolean | null) => void }[];
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Características</span>
+      <div className="grid gap-0.5 rounded-lg bg-muted p-0.5" style={{ gridTemplateColumns: `repeat(${flags.length}, minmax(0, 1fr))` }}>
+        {flags.map(f => {
+          const active = f.value === true;
+          return (
+            <button
+              key={f.label}
+              type="button"
+              onClick={() => f.onChange(active ? null : true)}
+              aria-pressed={active}
+              className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
