@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { GarantiaFilter, TriStateFilter, RetomaFilter, FlagsFilter } from '@/components/RetomaFilter';
+import { GarantiaFilter, TriStateFilter, RetomaFilter } from '@/components/RetomaFilter';
 
 describe('filtros segmentados', () => {
   it('Garantia: Todos / GAR / nGAR e marca o ativo', () => {
@@ -36,49 +36,51 @@ describe('filtros segmentados', () => {
 import { TipoFilter } from '@/components/RetomaFilter';
 
 describe('TipoFilter', () => {
-  it('Todos + VN / VD / RMK / VP, uma escolha de cada vez', () => {
+  it('multi-seleção de VN, VD, RMK e VP', () => {
     const onChange = vi.fn();
     const { rerender } = render(<TipoFilter value={new Set()} onChange={onChange} />);
-    expect(screen.getByRole('button', { name: 'Todos' })).toHaveAttribute('aria-pressed', 'true');
+    ['VN', 'VD', 'RMK', 'VP'].forEach(t => expect(screen.getByRole('button', { name: t })).toHaveAttribute('aria-pressed', 'false'));
     fireEvent.click(screen.getByRole('button', { name: 'RMK' }));
     expect(Array.from(onChange.mock.calls[0][0])).toEqual(['RMK']);
-    rerender(<TipoFilter value={new Set(['RMK'])} onChange={onChange} />);
-    expect(screen.getByRole('button', { name: 'RMK' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Todos' })).toHaveAttribute('aria-pressed', 'false');
-    fireEvent.click(screen.getByRole('button', { name: 'Todos' }));
-    expect(onChange.mock.calls[1][0].size).toBe(0);
+    rerender(<TipoFilter value={new Set(['RMK', 'VP'])} onChange={onChange} />);
+    expect(screen.getByRole('button', { name: 'VP' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'RMK' }));
+    expect(Array.from(onChange.mock.calls[1][0])).toEqual(['VP']);
   });
 });
 
+import { FlagsFilter } from '@/components/RetomaFilter';
+
 describe('FlagsFilter (BEV / QoR / M)', () => {
-  const mk = (b: boolean | null, q: boolean | null, m: boolean | null, fns = { b: vi.fn(), q: vi.fn(), m: vi.fn() }) => ({
-    fns,
-    el: <FlagsFilter flags={[
-      { label: 'BEV', value: b, onChange: fns.b }, { label: 'QoR', value: q, onChange: fns.q }, { label: 'M', value: m, onChange: fns.m },
-    ]} />,
-  });
-
-  it('mesma lógica dos outros: Todos explícito e uma escolha de cada vez', () => {
-    const { fns, el } = mk(null, null, null);
-    render(el);
-    expect(screen.getByRole('button', { name: 'Todos' })).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(screen.getByRole('button', { name: 'QoR' }));
-    expect(fns.q).toHaveBeenLastCalledWith(true);
-    expect(fns.b).toHaveBeenLastCalledWith(null);
-    expect(fns.m).toHaveBeenLastCalledWith(null);
-  });
-
-  it('Todos limpa as três características', () => {
-    const { fns, el } = mk(true, null, null);
-    render(el);
+  it('uma linha: ligar mostra só os que têm a característica; desligar remove o filtro', () => {
+    const bev = vi.fn(), qor = vi.fn(), m = vi.fn();
+    const { rerender } = render(<FlagsFilter flags={[
+      { label: 'BEV', value: null, onChange: bev }, { label: 'QoR', value: null, onChange: qor }, { label: 'M', value: null, onChange: m },
+    ]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'BEV' }));
+    expect(bev).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByRole('button', { name: 'Não' })).toBeNull();
+    rerender(<FlagsFilter flags={[
+      { label: 'BEV', value: true, onChange: bev }, { label: 'QoR', value: null, onChange: qor }, { label: 'M', value: null, onChange: m },
+    ]} />);
     expect(screen.getByRole('button', { name: 'BEV' })).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(screen.getByRole('button', { name: 'Todos' }));
-    expect([fns.b, fns.q, fns.m].map(f => f.mock.lastCall![0])).toEqual([null, null, null]);
+    fireEvent.click(screen.getByRole('button', { name: 'BEV' }));
+    expect(bev).toHaveBeenLastCalledWith(null);
   });
+});
 
-  it('com mais de uma ativa (via cartões) nenhum segmento fica marcado', () => {
-    const { el } = mk(true, true, null);
-    render(el);
-    ['Todos', 'BEV', 'QoR', 'M'].forEach(n => expect(screen.getByRole('button', { name: n })).toHaveAttribute('aria-pressed', 'false'));
+describe('Tipo e Características — estilo azul dos botões do Período', () => {
+  it('ligado = azul (bg-primary); desligado = neutro; sem "Todos"', () => {
+    render(<>
+      <TipoFilter value={new Set(['VD'])} onChange={vi.fn()} />
+      <FlagsFilter flags={[
+        { label: 'BEV', value: true, onChange: vi.fn() }, { label: 'QoR', value: null, onChange: vi.fn() }, { label: 'M', value: null, onChange: vi.fn() },
+      ]} />
+    </>);
+    expect(screen.getByRole('button', { name: 'VD' })).toHaveClass('bg-primary', 'text-primary-foreground');
+    expect(screen.getByRole('button', { name: 'VN' })).not.toHaveClass('bg-primary');
+    expect(screen.getByRole('button', { name: 'BEV' })).toHaveClass('bg-primary');
+    expect(screen.getByRole('button', { name: 'QoR' })).not.toHaveClass('bg-primary');
+    expect(screen.queryByRole('button', { name: 'Todos' })).toBeNull();
   });
 });
