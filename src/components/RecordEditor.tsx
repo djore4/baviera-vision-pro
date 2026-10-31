@@ -317,9 +317,9 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                   <ChoiceOrTypeField key={`version-${editId ?? 'novo'}`} label="VERSION" inputLabel="Nova versão" placeholder="Versão"
                     value={form.version} options={versionOptions(data?.control ?? [], form.model, form.version)} onChange={v => setField('version', v)} />
                   <SelectField k="gar" label="GAR — Garantia de entrega" opts={GAR_OPTS} />
+                  <TextField k="enc" label="ENC — Encomenda" />
                   <TextField k="mat" label="MAT — Matrícula" />
                   <TextField k="chas" label="CHAS — Chassis" />
-                  <TextField k="enc" label="ENC — Encomenda" />
                 </div>
               </div>
 
