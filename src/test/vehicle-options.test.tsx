@@ -74,3 +74,17 @@ describe('Funil — cabeçalho com Novo negócio', () => {
     expect(screen.getByText('1 negócio')).toBeInTheDocument();
   });
 });
+
+describe('Editor — ordem dos campos do veículo', () => {
+  function Opener() {
+    const { openNew } = useRecordEditor();
+    return <button onClick={() => openNew()}>abrir</button>;
+  }
+  it('a encomenda aparece antes da matrícula', () => {
+    render(<RecordEditorProvider><Opener /></RecordEditorProvider>);
+    fireEvent.click(screen.getByText('abrir'));
+    const enc = screen.getByText('ENC — Encomenda');
+    const mat = screen.getByText('MAT — Matrícula');
+    expect(enc.compareDocumentPosition(mat) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
