@@ -48,3 +48,23 @@ describe('TipoFilter', () => {
     expect(Array.from(onChange.mock.calls[1][0])).toEqual(['VP']);
   });
 });
+
+import { FlagsFilter } from '@/components/RetomaFilter';
+
+describe('FlagsFilter (BEV / QoR / M)', () => {
+  it('uma linha: ligar mostra só os que têm a característica; desligar remove o filtro', () => {
+    const bev = vi.fn(), qor = vi.fn(), m = vi.fn();
+    const { rerender } = render(<FlagsFilter flags={[
+      { label: 'BEV', value: null, onChange: bev }, { label: 'QoR', value: null, onChange: qor }, { label: 'M', value: null, onChange: m },
+    ]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'BEV' }));
+    expect(bev).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByRole('button', { name: 'Não' })).toBeNull();
+    rerender(<FlagsFilter flags={[
+      { label: 'BEV', value: true, onChange: bev }, { label: 'QoR', value: null, onChange: qor }, { label: 'M', value: null, onChange: m },
+    ]} />);
+    expect(screen.getByRole('button', { name: 'BEV' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'BEV' }));
+    expect(bev).toHaveBeenLastCalledWith(null);
+  });
+});
