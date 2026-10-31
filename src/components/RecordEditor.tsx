@@ -14,14 +14,14 @@ export interface RecordForm {
   enc: string; chas: string; mat: string; model: string; version: string; gar: string;
   qor: number; xev: number; bev: number; m: number; mpa: number; gkl: number; ret: number;
   csc: number; cme: number | null;
-  fin: string; week198: string; dmat: string | null; date298: string | null; app: string | null; obs: string;
+  fin: string; week198: string; dmat: string | null; date298: string | null; app: string | null; dfat: string | null; obs: string;
 }
 
 const EMPTY: RecordForm = {
   status: '', neg: '', mes1: '', resp: '', id_cliente: '',
   type: '', biz: '', enc: '', chas: '', mat: '',
   model: '', version: '', gar: '', qor: 0, xev: 0, bev: 0, m: 0, mpa: 0, gkl: 0, ret: 0,
-  csc: 0, cme: null, fin: '', week198: '', dmat: '', date298: '', app: '', obs: '',
+  csc: 0, cme: null, fin: '', week198: '', dmat: '', date298: '', app: '', dfat: '', obs: '',
 };
 
 const STATUS_OPTS = ['Frio','Morno','Quente','Carteira','Matricula','Retail','Adiado','Perdido'];
@@ -31,6 +31,12 @@ const FIN_OPTS    = ['PP','FS','Fint','Fext'];
 const CLASS_FLAGS  = ['qor','xev','bev','m','mpa','gkl','ret'] as const;
 const CLASS_LABELS: Record<string, string> = { qor:'QoR', xev:'xEV', bev:'BEV', m:'M', mpa:'MPA', gkl:'GKL', ret:'Retoma' };
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+/** Data de hoje (dia local) em AAAA-MM-DD, para os campos de data. */
+export function hojeIso(d: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 
 /** Evento global emitido após criar/editar/eliminar um registo. */
 export const RECORDS_CHANGED_EVENT = 'control-records-changed';
@@ -217,8 +223,14 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
     setLoadingRow(false);
   }, []);
 
+  // Ao passar o estado para Retail, a data 298 (retail / entrega ao cliente) fica por defeito
+  // a data dessa alteração (hoje); continua editável no campo.
   const setField = <K extends keyof RecordForm>(key: K, val: RecordForm[K]) =>
-    setForm(f => ({ ...f, [key]: val }));
+    setForm(f => {
+      const next = { ...f, [key]: val };
+      if (key === 'status' && val === 'Retail' && f.status !== 'Retail') next.date298 = hojeIso();
+      return next;
+    });
 
   const notifyChanged = async () => {
     await refresh();
@@ -233,7 +245,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
       m: form.m ? 1 : 0, mpa: form.mpa ? 1 : 0, gkl: form.gkl ? 1 : 0, ret: form.ret ? 1 : 0,
       csc: Number(form.csc) || 0,
       cme: form.cme !== null && String(form.cme) !== '' ? Number(form.cme) : null,
-      neg: form.neg || null, dmat: form.dmat || null, date298: form.date298 || null, app: form.app || null,
+      neg: form.neg || null, dmat: form.dmat || null, date298: form.date298 || null, app: form.app || null, dfat: form.dfat || null,
     };
     const { error } = editId
       ? await supabase.from('control_records').update(payload).eq('id', editId)
@@ -281,6 +293,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                   <TextField k="neg" label="NEG — Data de negócio" type="date" />
                   <ResponsavelField key={editId ?? 'novo'} value={form.resp} options={vendedorInitials(data?.control ?? [], form.resp)} onChange={v => setField('resp', v)} />
                   <TextField k="id_cliente" label="ID — Cliente" />
+                  <TextField k="biz" label="BIZ — Bizagi" />
                   <div className="col-span-2">
                     <label className="block text-[10px] font-medium text-muted-foreground mb-1">MÊS — Entrega (opcional)</label>
                     <MonthPicker value={form.mes1} onChange={v => setField('mes1', v)} />
@@ -327,6 +340,8 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                 <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Pagamento</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <SelectField k="fin" label="FIN — Forma de pagamento" opts={FIN_OPTS} />
+                  <TextField k="csc" label="CSC" type="number" />
+                  <TextField k="cme" label="CME" type="number" />
                 </div>
               </div>
 
@@ -356,7 +371,9 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                   <TextField k="dmat" label="DMAT — Data da matrícula" type="date" />
                   <TextField k="date298" label="298 — Retail / Entrega cliente" type="date" />
                   <TextField k="app" label="APP — Data do Apping" type="date" />
+                  <TextField k="dfat" label="DFAT — Data da fatura" type="date" />
                 </div>
+                <p className="text-[10px] text-muted-foreground mt-1.5">Ao passar o estado para Retail, a data 298 fica preenchida com a data de hoje (podes alterá-la).</p>
               </div>
 
               <div>

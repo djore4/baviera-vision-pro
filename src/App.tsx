@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -37,7 +37,6 @@ import DefinicoesPage from "./pages/DefinicoesPage";
 import ProspecaoPage from "./pages/ProspecaoPage";
 import WipPage from "./pages/WipPage";
 import FunilVuPage from "./pages/FunilVuPage";
-import ObjetivosVuPage from "./pages/ObjetivosVuPage";
 import AngariacaoPage from "./pages/AngariacaoPage";
 import StockPage from "./pages/StockPage";
 import EscalaVuPage from "./pages/EscalaVuPage";
@@ -120,7 +119,7 @@ const App = () => (
               <Route path="/instalacoes" element={tab('instalacoes', <InstalacoesPage />)} />
               <Route path="/produto" element={tab('produto', <ProdutoPage />)} />
               <Route path="/wip" element={tab('wip', <WipPage />)} />
-              <Route path="/objetivos-vu" element={tab('objetivos-vu', <ObjetivosVuPage />)} />
+              <Route path="/objetivos-vu" element={<Navigate to="/objetivos" replace />} />
               <Route path="/funil-vu" element={tab('funil-vu', <FunilVuPage />)} />
               <Route path="/angariacao" element={tab('angariacao', <AngariacaoPage />)} />
               <Route path="/stock" element={tab('stock', <StockPage />)} />
