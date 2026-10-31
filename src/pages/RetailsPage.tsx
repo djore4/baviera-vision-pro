@@ -5,7 +5,7 @@ import { useRecordEditor } from '@/components/RecordEditor';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
-import { RetomaFilter, TriStateFilter, GarantiaFilter } from '@/components/RetomaFilter';
+import { RetomaFilter, TriStateFilter, GarantiaFilter, TipoFilter } from '@/components/RetomaFilter';
 import { formatDate, getCurrentWeek, getDeliveryMonth, isRetailType } from '@/lib/excel-parser';
 import { seasonalFlags } from '@/lib/seasonal';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle, Download } from 'lucide-react';
@@ -41,15 +41,18 @@ export default function RetailsPage() {
   const [selectedM, setSelectedM] = useState<boolean | null>(null);
   const [selectedRet, setSelectedRet] = useState<boolean | null>(null);
   const [selectedGar, setSelectedGar] = useState<'GAR' | 'nGAR' | null>(null);
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedPark, setSelectedPark] = useState<boolean>(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('date298');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // VP não conta para retails: só entra na lista quando é escolhido no filtro de tipo.
+  const includeVP = selectedTypes.has('VP');
   const baseRecords = useMemo(() =>
-    filteredControl.filter(r => ['Carteira', 'Matricula', 'Retail'].includes(r.status) && isRetailType(r.type)),
-    [filteredControl]);
+    filteredControl.filter(r => ['Carteira', 'Matricula', 'Retail'].includes(r.status) && (isRetailType(r.type) || (includeVP && r.type === 'VP'))),
+    [filteredControl, includeVP]);
 
   const filtered = useMemo(() => {
     let result = baseRecords;
@@ -61,10 +64,11 @@ export default function RetailsPage() {
     if (selectedM !== null) result = result.filter(r => (r.mPerf === 1) === selectedM);
     if (selectedRet !== null) result = result.filter(r => (r.ret === 1) === selectedRet);
     if (selectedGar) result = result.filter(r => r.gar === selectedGar);
+    if (selectedTypes.size > 0) result = result.filter(r => selectedTypes.has(r.type));
     if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail');
     if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
     return result;
-  }, [baseRecords, selectedResps, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedGar, selectedPark, selectedStatus]);
+  }, [baseRecords, selectedResps, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedGar, selectedTypes, selectedPark, selectedStatus]);
 
   const statusByResp = useMemo(() => {
     const map: Record<string, { resp: string; Carteira: number; Matricula: number; Retail: number; total: number }> = {};
@@ -287,6 +291,7 @@ export default function RetailsPage() {
     selectedM !== null && `M: ${selectedM ? 'Sim' : 'Não'}`,
     selectedRet !== null && `Retoma: ${selectedRet ? 'Com' : 'Sem'}`,
     selectedGar && `Garantia: ${selectedGar}`,
+    selectedTypes.size > 0 && `Tipo: ${Array.from(selectedTypes).join(', ')}`,
     selectedPark && 'Parque',
     selectedStatus && `Status: ${selectedStatus}`,
   ].filter(Boolean) as string[];
@@ -300,6 +305,7 @@ export default function RetailsPage() {
     if (type === 'm') setSelectedM(null);
     if (type === 'ret') setSelectedRet(null);
     if (type === 'gar') setSelectedGar(null);
+    if (type === 'tipo') setSelectedTypes(new Set());
     if (type === 'park') setSelectedPark(false);
     if (type === 'status') setSelectedStatus(null);
   };
@@ -333,6 +339,7 @@ export default function RetailsPage() {
               </button>
 
               <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
+              <TipoFilter value={selectedTypes} onChange={setSelectedTypes} />
               <GarantiaFilter value={selectedGar} onChange={setSelectedGar} />
               <TriStateFilter label="BEV" value={selectedBev} onChange={setSelectedBev} />
               <TriStateFilter label="QoR" value={selectedQor} onChange={setSelectedQor} />
@@ -353,6 +360,7 @@ export default function RetailsPage() {
               {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR: {selectedQor ? 'Sim' : 'Não'} x</Badge>}
               {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV: {selectedBev ? 'Sim' : 'Não'} x</Badge>}
               {selectedM !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('m')}>M: {selectedM ? 'Sim' : 'Não'} x</Badge>}
+              {selectedTypes.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('tipo')}>Tipo: {Array.from(selectedTypes).join(', ')} x</Badge>}
               {selectedGar && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('gar')}>Garantia: {selectedGar} x</Badge>}
               {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}
               {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('park')}>Parque x</Badge>}

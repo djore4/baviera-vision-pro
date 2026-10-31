@@ -32,3 +32,19 @@ describe('filtros segmentados', () => {
     expect(onChange).toHaveBeenLastCalledWith(true);
   });
 });
+
+import { TipoFilter } from '@/components/RetomaFilter';
+
+describe('TipoFilter', () => {
+  it('multi-seleção de VN, VD, RMK e VP', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<TipoFilter value={new Set()} onChange={onChange} />);
+    ['VN', 'VD', 'RMK', 'VP'].forEach(t => expect(screen.getByRole('button', { name: t })).toHaveAttribute('aria-pressed', 'false'));
+    fireEvent.click(screen.getByRole('button', { name: 'RMK' }));
+    expect(Array.from(onChange.mock.calls[0][0])).toEqual(['RMK']);
+    rerender(<TipoFilter value={new Set(['RMK', 'VP'])} onChange={onChange} />);
+    expect(screen.getByRole('button', { name: 'VP' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'RMK' }));
+    expect(Array.from(onChange.mock.calls[1][0])).toEqual(['VP']);
+  });
+});
