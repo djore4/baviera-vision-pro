@@ -4,6 +4,7 @@ import { useData } from '@/contexts/DataContext';
 import { X, Check, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { vendedorInitials } from '@/lib/team';
+import { modelOptions, versionOptions } from '@/lib/vehicle-options';
 import { fetchDemoVehicles, demoLabel, demoToRecordPatch, type DemoVehicle } from '@/lib/demo-vehicles';
 
 /* ── Form shape (colunas de control_records) ── */
@@ -66,23 +67,60 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
   );
 }
 
-/* ── RESP: lista de iniciais (evita erros de digitação) + "Outro…" para escrever ── */
-const OUTRO = '__outro__';
-export function ResponsavelField({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
-  const [outro, setOutro] = useState(false);
-  const typing = outro;
-  const fieldCls = 'w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary';
+/* ── Campos do formulário (nível do módulo, com contexto) ──────────────────────
+ * Têm de ficar fora do componente do editor: definidos lá dentro eram recriados a
+ * cada tecla e o input perdia o foco ao primeiro carácter escrito. */
+const FIELD_CLS = 'w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary';
+const LABEL_CLS = 'block text-[10px] font-medium text-muted-foreground mb-1';
+
+const FormCtx = createContext<{ form: RecordForm; setField: <K extends keyof RecordForm>(key: K, val: RecordForm[K]) => void } | null>(null);
+function useForm() {
+  const ctx = useContext(FormCtx);
+  if (!ctx) throw new Error('Campo fora do formulário');
+  return ctx;
+}
+
+function SelectField({ k, label, opts }: { k: keyof RecordForm; label: string; opts: string[] }) {
+  const { form, setField } = useForm();
   return (
     <div>
-      <label className="block text-[10px] font-medium text-muted-foreground mb-1">RESP — Vendedor</label>
+      <label className={LABEL_CLS}>{label}</label>
+      <select value={String(form[k] ?? '')} onChange={e => setField(k, e.target.value as RecordForm[typeof k])} className={FIELD_CLS}>
+        <option value="">— seleccionar —</option>
+        {opts.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function TextField({ k, label, type = 'text' }: { k: keyof RecordForm; label: string; type?: string }) {
+  const { form, setField } = useForm();
+  return (
+    <div>
+      <label className={LABEL_CLS}>{label}</label>
+      <input type={type} value={String(form[k] ?? '')} onChange={e => setField(k, e.target.value as RecordForm[typeof k])} className={FIELD_CLS} />
+    </div>
+  );
+}
+
+/* ── Lista de valores existentes (evita erros de digitação) + "Outro…" para escrever ── */
+const OUTRO = '__outro__';
+export function ChoiceOrTypeField({ label, inputLabel, value, options, onChange, placeholder, maxLength, normalize }: {
+  label: string; inputLabel: string; value: string; options: string[]; onChange: (v: string) => void;
+  placeholder?: string; maxLength?: number; normalize?: (v: string) => string;
+}) {
+  const [typing, setTyping] = useState(false);
+  return (
+    <div>
+      <label className={LABEL_CLS}>{label}</label>
       <select
-        aria-label="RESP — Vendedor"
+        aria-label={label}
         value={typing ? OUTRO : value}
         onChange={e => {
-          if (e.target.value === OUTRO) { setOutro(true); onChange(''); }
-          else { setOutro(false); onChange(e.target.value); }
+          if (e.target.value === OUTRO) { setTyping(true); onChange(''); }
+          else { setTyping(false); onChange(e.target.value); }
         }}
-        className={fieldCls}
+        className={FIELD_CLS}
       >
         <option value="">— seleccionar —</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -90,16 +128,27 @@ export function ResponsavelField({ value, options, onChange }: { value: string; 
       </select>
       {typing && (
         <input
-          aria-label="Iniciais do vendedor"
+          aria-label={inputLabel}
           autoFocus
-          maxLength={6}
+          maxLength={maxLength}
           value={value}
-          onChange={e => onChange(e.target.value.toUpperCase().replace(/\s+/g, ''))}
-          placeholder="Iniciais"
-          className={`${fieldCls} mt-1.5 uppercase`}
+          onChange={e => onChange(normalize ? normalize(e.target.value) : e.target.value)}
+          placeholder={placeholder}
+          className={`${FIELD_CLS} mt-1.5`}
         />
       )}
     </div>
+  );
+}
+
+/* RESP: iniciais em maiúsculas, sem espaços. */
+export function ResponsavelField({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
+  return (
+    <ChoiceOrTypeField
+      label="RESP — Vendedor" inputLabel="Iniciais do vendedor" placeholder="Iniciais" maxLength={6}
+      value={value} options={options} onChange={onChange}
+      normalize={v => v.toUpperCase().replace(/\s+/g, '')}
+    />
   );
 }
 
@@ -209,29 +258,6 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
     if (await deleteRecord(id)) setOpen(false);
   }
 
-  function SelectField({ k, label, opts }: { k: keyof RecordForm; label: string; opts: string[] }) {
-    return (
-      <div>
-        <label className="block text-[10px] font-medium text-muted-foreground mb-1">{label}</label>
-        <select value={String(form[k] ?? '')} onChange={e => setField(k, e.target.value as RecordForm[typeof k])}
-          className="w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary">
-          <option value="">— seleccionar —</option>
-          {opts.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
-      </div>
-    );
-  }
-
-  function TextField({ k, label, type = 'text' }: { k: keyof RecordForm; label: string; type?: string }) {
-    return (
-      <div>
-        <label className="block text-[10px] font-medium text-muted-foreground mb-1">{label}</label>
-        <input type={type} value={String(form[k] ?? '')} onChange={e => setField(k, e.target.value as RecordForm[typeof k])}
-          className="w-full px-2.5 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary" />
-      </div>
-    );
-  }
-
   return (
     <RecordEditorContext.Provider value={{ openEditor, openNew, deleteRecord }}>
       {children}
@@ -244,6 +270,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
               <button onClick={() => setOpen(false)}><X className="h-4 w-4 text-muted-foreground" /></button>
             </div>
 
+            <FormCtx.Provider value={{ form, setField }}>
             <div className="p-5 space-y-6">
               {loadingRow && <p className="text-xs text-muted-foreground">A carregar registo...</p>}
 
@@ -285,8 +312,10 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                       </p>
                     </div>
                   )}
-                  <TextField k="model" label="MODEL" />
-                  <TextField k="version" label="VERSION" />
+                  <ChoiceOrTypeField key={`model-${editId ?? 'novo'}`} label="MODEL" inputLabel="Novo modelo" placeholder="Modelo"
+                    value={form.model} options={modelOptions(data?.control ?? [], form.model)} onChange={v => setField('model', v)} />
+                  <ChoiceOrTypeField key={`version-${editId ?? 'novo'}`} label="VERSION" inputLabel="Nova versão" placeholder="Versão"
+                    value={form.version} options={versionOptions(data?.control ?? [], form.model, form.version)} onChange={v => setField('version', v)} />
                   <SelectField k="gar" label="GAR — Garantia de entrega" opts={GAR_OPTS} />
                   <TextField k="mat" label="MAT — Matrícula" />
                   <TextField k="chas" label="CHAS — Chassis" />
@@ -337,6 +366,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                   placeholder="Notas adicionais..." />
               </div>
             </div>
+            </FormCtx.Provider>
 
             <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border sticky bottom-0 bg-card">
               <div>

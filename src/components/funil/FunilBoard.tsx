@@ -66,12 +66,18 @@ export function FunilBoard({ records, onEdit, onNew, onDelete }: {
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
 
-      {/* Novo negócio — fora do quadro de filtros, no topo da página */}
+      {/* Cabeçalho da página: título e total à esquerda, "Novo negócio" à direita (largura toda em mobile) */}
       {onNew && (
-        <div className="flex justify-end">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Funil de vendas</h2>
+            <p className="text-[11px] text-muted-foreground">
+              {filtered.length} {filtered.length === 1 ? 'negócio' : 'negócios'}{selectedResp ? ` · ${selectedResp}` : ''}
+            </p>
+          </div>
           <button type="button" onClick={() => onNew(selectedResp)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500 text-black font-semibold rounded hover:bg-amber-400 transition-colors">
-            <Plus className="h-3.5 w-3.5" />Novo negócio
+            className="flex w-full sm:w-auto items-center justify-center gap-1.5 px-4 py-2.5 sm:py-1.5 text-sm sm:text-xs bg-amber-500 text-black font-semibold rounded-md hover:bg-amber-400 transition-colors">
+            <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />Novo negócio
           </button>
         </div>
       )}
