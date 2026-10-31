@@ -5,7 +5,7 @@ import { useRecordEditor } from '@/components/RecordEditor';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
-import { RetomaFilter } from '@/components/RetomaFilter';
+import { RetomaFilter, TriStateFilter, GarantiaFilter } from '@/components/RetomaFilter';
 import { formatDate, getCurrentWeek, getDeliveryMonth, isRetailType } from '@/lib/excel-parser';
 import { seasonalFlags } from '@/lib/seasonal';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle, Download } from 'lucide-react';
@@ -40,6 +40,7 @@ export default function RetailsPage() {
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
   const [selectedM, setSelectedM] = useState<boolean | null>(null);
   const [selectedRet, setSelectedRet] = useState<boolean | null>(null);
+  const [selectedGar, setSelectedGar] = useState<'GAR' | 'nGAR' | null>(null);
   const [selectedPark, setSelectedPark] = useState<boolean>(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('date298');
@@ -59,10 +60,11 @@ export default function RetailsPage() {
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
     if (selectedM !== null) result = result.filter(r => (r.mPerf === 1) === selectedM);
     if (selectedRet !== null) result = result.filter(r => (r.ret === 1) === selectedRet);
+    if (selectedGar) result = result.filter(r => r.gar === selectedGar);
     if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail');
     if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
     return result;
-  }, [baseRecords, selectedResps, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedPark, selectedStatus]);
+  }, [baseRecords, selectedResps, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedGar, selectedPark, selectedStatus]);
 
   const statusByResp = useMemo(() => {
     const map: Record<string, { resp: string; Carteira: number; Matricula: number; Retail: number; total: number }> = {};
@@ -280,10 +282,11 @@ export default function RetailsPage() {
     selectedResps.size > 0 && `Resp: ${Array.from(selectedResps).join(', ')}`,
     selectedFin && `Fin: ${selectedFin}`,
     selectedModel && `Modelo: ${selectedModel}`,
-    selectedQor !== null && 'QoR: Sim',
-    selectedBev !== null && 'BEV: Sim',
-    selectedM !== null && 'M: Sim',
+    selectedQor !== null && `QoR: ${selectedQor ? 'Sim' : 'Não'}`,
+    selectedBev !== null && `BEV: ${selectedBev ? 'Sim' : 'Não'}`,
+    selectedM !== null && `M: ${selectedM ? 'Sim' : 'Não'}`,
     selectedRet !== null && `Retoma: ${selectedRet ? 'Com' : 'Sem'}`,
+    selectedGar && `Garantia: ${selectedGar}`,
     selectedPark && 'Parque',
     selectedStatus && `Status: ${selectedStatus}`,
   ].filter(Boolean) as string[];
@@ -296,6 +299,7 @@ export default function RetailsPage() {
     if (type === 'bev') setSelectedBev(null);
     if (type === 'm') setSelectedM(null);
     if (type === 'ret') setSelectedRet(null);
+    if (type === 'gar') setSelectedGar(null);
     if (type === 'park') setSelectedPark(false);
     if (type === 'status') setSelectedStatus(null);
   };
@@ -329,6 +333,10 @@ export default function RetailsPage() {
               </button>
 
               <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
+              <GarantiaFilter value={selectedGar} onChange={setSelectedGar} />
+              <TriStateFilter label="BEV" value={selectedBev} onChange={setSelectedBev} />
+              <TriStateFilter label="QoR" value={selectedQor} onChange={setSelectedQor} />
+              <TriStateFilter label="M" value={selectedM} onChange={setSelectedM} />
             </div>
           </PeriodFilter>
 
@@ -342,9 +350,10 @@ export default function RetailsPage() {
               )}
               {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
               {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
-              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR x</Badge>}
-              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV x</Badge>}
-              {selectedM !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('m')}>M x</Badge>}
+              {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('qor')}>QoR: {selectedQor ? 'Sim' : 'Não'} x</Badge>}
+              {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('bev')}>BEV: {selectedBev ? 'Sim' : 'Não'} x</Badge>}
+              {selectedM !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('m')}>M: {selectedM ? 'Sim' : 'Não'} x</Badge>}
+              {selectedGar && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('gar')}>Garantia: {selectedGar} x</Badge>}
               {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}
               {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('park')}>Parque x</Badge>}
               {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('status')}>Status: {selectedStatus} x</Badge>}
