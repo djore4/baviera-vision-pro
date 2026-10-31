@@ -6,7 +6,7 @@ vi.mock('@/contexts/PermissionsContext', () => ({ usePermissions: () => ({ canEd
 vi.mock('@/components/objetivos/ObjetivosVnPanel', () => ({ default: ({ editable }: { editable: boolean }) => <div>painel-vn:{String(editable)}</div> }));
 vi.mock('@/components/objetivos/ObjetivosVuPanel', () => ({ default: ({ editable }: { editable: boolean }) => <div>painel-vu:{String(editable)}</div> }));
 
-import ObjetivosPage from '@/pages/ObjetivosPage';
+import ObjetivosPage, { OBJETIVOS_AREAS } from '@/pages/ObjetivosPage';
 import { TABS, PERMISSION_TABS, ARCHIVED_TAB_KEYS } from '@/lib/permissions';
 
 describe('tab único de Objetivos', () => {
@@ -37,5 +37,33 @@ describe('tab único de Objetivos', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Vendas VU' }));
     expect(screen.getByText('painel-vu:false')).toBeInTheDocument();
     expect(canEdit).toHaveBeenCalledWith('objetivos');
+  });
+});
+
+describe('Objetivos — áreas', () => {
+  it('Vendas VN, Vendas VU, Motorrad VN, Motorrad VU, Finance e APV, por esta ordem', () => {
+    expect(OBJETIVOS_AREAS.map(a => a.label)).toEqual([
+      'Vendas VN', 'Vendas VU', 'Vendas Motorrad VN', 'Vendas Motorrad VU', 'Finance', 'APV',
+    ]);
+  });
+
+  it('as novas áreas estão assinaladas em desenvolvimento e mostram o aviso', () => {
+    canEdit.mockReturnValue(true);
+    render(<ObjetivosPage />);
+    expect(screen.getAllByText('em desenvolvimento')).toHaveLength(4);
+    ['Vendas Motorrad VN', 'Vendas Motorrad VU', 'Finance', 'APV'].forEach(nome => {
+      fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${nome}`) }));
+      expect(screen.getByRole('status')).toHaveTextContent(`${nome}`);
+      expect(screen.getByRole('status')).toHaveTextContent(/em desenvolvimento/i);
+      expect(screen.queryByText(/painel-v[nu]/)).toBeNull();
+    });
+  });
+
+  it('VN e VU continuam sem aviso de desenvolvimento', () => {
+    canEdit.mockReturnValue(true);
+    render(<ObjetivosPage />);
+    expect(screen.queryByRole('status')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'Vendas VU' }));
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });
