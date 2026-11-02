@@ -135,4 +135,23 @@ describe('Editor — campos do ficheiro e data 298', () => {
     fireEvent.change(status, { target: { value: 'Carteira' } });
     expect(input('298 — Retail / Entrega cliente')).toHaveValue('');
   });
+
+  it('ao passar de Carteira para Matricula a DMAT fica a data de hoje e continua editável', () => {
+    open();
+    const status = screen.getByText('STATUS').parentElement!.querySelector('select')!;
+    fireEvent.change(status, { target: { value: 'Carteira' } });
+    expect(input('DMAT — Data da matrícula')).toHaveValue('');
+    fireEvent.change(status, { target: { value: 'Matricula' } });
+    expect(input('DMAT — Data da matrícula')).toHaveValue(hojeIso());
+    fireEvent.change(input('DMAT — Data da matrícula'), { target: { value: '2026-10-15' } });
+    expect(input('DMAT — Data da matrícula')).toHaveValue('2026-10-15');
+  });
+
+  it('mudar para Matricula a partir de outro estado não mexe na DMAT', () => {
+    open();
+    const status = screen.getByText('STATUS').parentElement!.querySelector('select')!;
+    fireEvent.change(status, { target: { value: 'Quente' } });
+    fireEvent.change(status, { target: { value: 'Matricula' } });
+    expect(input('DMAT — Data da matrícula')).toHaveValue('');
+  });
 });

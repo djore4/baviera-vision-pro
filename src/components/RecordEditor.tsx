@@ -225,10 +225,12 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
 
   // Ao passar o estado para Retail, a data 298 (retail / entrega ao cliente) fica por defeito
   // a data dessa alteração (hoje); continua editável no campo.
+  // Igualmente, a passagem de Carteira para Matricula regista a DMAT (data da matrícula) de hoje.
   const setField = <K extends keyof RecordForm>(key: K, val: RecordForm[K]) =>
     setForm(f => {
       const next = { ...f, [key]: val };
       if (key === 'status' && val === 'Retail' && f.status !== 'Retail') next.date298 = hojeIso();
+      if (key === 'status' && val === 'Matricula' && f.status === 'Carteira') next.dmat = hojeIso();
       return next;
     });
 
@@ -373,7 +375,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                   <TextField k="app" label="APP — Data do Apping" type="date" />
                   <TextField k="dfat" label="DFAT — Data da fatura" type="date" />
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-1.5">Ao passar o estado para Retail, a data 298 fica preenchida com a data de hoje (podes alterá-la).</p>
+                <p className="text-[10px] text-muted-foreground mt-1.5">Ao passar o estado para Retail, a data 298 fica preenchida com a data de hoje; ao passar de Carteira para Matricula, a DMAT (podes alterá-las).</p>
               </div>
 
               <div>
