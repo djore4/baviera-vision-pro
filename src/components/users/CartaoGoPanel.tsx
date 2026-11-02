@@ -3,8 +3,10 @@ import { Check, Loader2, Minus, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AppUser } from '@/lib/permissions';
 import {
-  apagarRegisto, isVendedorVN, listarRegistosDoMes, OBJETIVO_MENSAL, registarCartao, type CartaoGoRegisto,
+  apagarRegisto, aplicaCartaoGo, isVendedorVN, LOCAL_CARTAO_GO, listarRegistosDoMes, OBJETIVO_MENSAL, registarCartao,
+  type CartaoGoRegisto,
 } from '@/lib/cartao-go';
+import { locaisDoPerfil } from '@/lib/locations';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -24,8 +26,13 @@ export function CartaoGoPanel({ users, loading }: { users: AppUser[]; loading: b
 
   const vendedores = useMemo(
     () => users
-      .filter(u => isVendedorVN(u.perfil) && !!u.email)
+      .filter(u => aplicaCartaoGo(u) && !!u.email)
       .sort((a, b) => (a.nome || a.email || '').localeCompare(b.nome || b.email || '', 'pt', { sensitivity: 'base' })),
+    [users],
+  );
+  // 'Vendedor VN' sem local definido: não recebem o aviso até se lhes atribuir um local.
+  const semLocal = useMemo(
+    () => users.filter(u => isVendedorVN(u.perfil) && locaisDoPerfil(u.local).length === 0).length,
     [users],
   );
   const doVendedor = (email: string) =>
@@ -47,7 +54,7 @@ export function CartaoGoPanel({ users, loading }: { users: AppUser[]; loading: b
         <div>
           <h2 className="text-sm font-semibold">Cartão Caetano Go — {mes}</h2>
           <p className="text-xs text-muted-foreground">
-            Objetivo: {OBJETIVO_MENSAL} por vendedor VN. O aviso mantém-se até estarem registados aqui.
+            Objetivo: {OBJETIVO_MENSAL} por vendedor VN de {LOCAL_CARTAO_GO}. O aviso mantém-se até estarem registados aqui.
           </p>
         </div>
         <span className="text-xs text-muted-foreground">
@@ -55,12 +62,18 @@ export function CartaoGoPanel({ users, loading }: { users: AppUser[]; loading: b
         </span>
       </div>
 
+      {semLocal > 0 && (
+        <div className="rounded border border-amber-500/40 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:bg-amber-500/15 dark:text-amber-100">
+          {semLocal} “Vendedor VN” sem local definido ficam de fora. Se algum for de {LOCAL_CARTAO_GO}, atribui-lhe o local em Contas.
+        </div>
+      )}
+
       {erro && <div className="rounded border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">{erro}</div>}
 
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : vendedores.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">Não há utilizadores com a função “Vendedor VN”.</p>
+        <p className="py-6 text-center text-sm text-muted-foreground">Não há utilizadores “Vendedor VN” com o local {LOCAL_CARTAO_GO}.</p>
       ) : (
         <ul className="divide-y rounded-lg border bg-card">
           {vendedores.map(v => {

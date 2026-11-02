@@ -17,20 +17,21 @@ vi.mock('@/lib/cartao-go', async orig => ({
   listarRegistosDoMes: (...a: unknown[]) => listarRegistosDoMes(...a),
 }));
 let PERFIL: string | null = 'Vendedor VN';
+let LOCAL: unknown = ['Aveiro'];
 vi.mock('@/contexts/PermissionsContext', () => ({
-  usePermissions: () => ({ me: { perfil: PERFIL }, effectiveEmail: 'ana@x.pt' }),
+  usePermissions: () => ({ me: { perfil: PERFIL, local: LOCAL }, effectiveEmail: 'ana@x.pt' }),
 }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
 
 import { CartaoGoReminder } from '@/components/CartaoGoReminder';
-import { isVendedorVN, intervaloDoMes } from '@/lib/cartao-go';
+import { isVendedorVN, aplicaCartaoGo, intervaloDoMes } from '@/lib/cartao-go';
 
 let go: (to: string) => void;
 const Nav = () => { const n = useNavigate(); go = to => n(to); return null; };
 const mount = () => render(<MemoryRouter><Nav /><CartaoGoReminder /></MemoryRouter>);
 const dialog = () => screen.queryByRole('dialog');
 
-beforeEach(() => { PERFIL = 'Vendedor VN'; listarRegistosDoMes.mockReset(); });
+beforeEach(() => { PERFIL = 'Vendedor VN'; LOCAL = ['Aveiro']; listarRegistosDoMes.mockReset(); });
 
 describe('Cartão Caetano Go — aviso', () => {
   it('abre ao entrar, mostra o progresso e fecha', async () => {
@@ -91,6 +92,18 @@ describe('Cartão Caetano Go — aviso', () => {
     expect(listarRegistosDoMes).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['de outro local (Porto)', ['Porto']],
+    ['sem local definido', null],
+    ['com "Todas" (não é um local)', ['Todas']],
+  ])('Vendedor VN %s não vê o aviso nem consulta a base de dados', async (_, local) => {
+    LOCAL = local;
+    mount();
+    await new Promise(r => setTimeout(r, 20));
+    expect(dialog()).toBeNull();
+    expect(listarRegistosDoMes).not.toHaveBeenCalled();
+  });
+
   it('se não for possível saber (erro), fica calado', async () => {
     listarRegistosDoMes.mockRejectedValue(new Error('rede'));
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -108,6 +121,16 @@ describe('Cartão Caetano Go — regras', () => {
     expect(isVendedorVN('Vendedor VU')).toBe(false);
     expect(isVendedorVN('Vendedor')).toBe(false);
     expect(isVendedorVN(null)).toBe(false);
+  });
+
+  it('só Vendedor VN de Aveiro (local canónico, também em texto/alias)', () => {
+    expect(aplicaCartaoGo({ perfil: 'Vendedor VN', local: ['Aveiro'] })).toBe(true);
+    expect(aplicaCartaoGo({ perfil: 'Vendedor VN', local: ['Porto', 'Aveiro'] })).toBe(true);
+    expect(aplicaCartaoGo({ perfil: 'Vendedor VN', local: 'Caetano Aveiro 2' })).toBe(true);
+    expect(aplicaCartaoGo({ perfil: 'Vendedor VN', local: ['Porto'] })).toBe(false);
+    expect(aplicaCartaoGo({ perfil: 'Vendedor VN', local: null })).toBe(false);
+    expect(aplicaCartaoGo({ perfil: 'Vendedor VU', local: ['Aveiro'] })).toBe(false);
+    expect(aplicaCartaoGo(null)).toBe(false);
   });
 
   it('o mês conta de 1 a 1 (fronteiras certas, incluindo dezembro)', () => {

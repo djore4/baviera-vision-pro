@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { CreditCard } from 'lucide-react';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { isVendedorVN, listarRegistosDoMes, OBJETIVO_MENSAL } from '@/lib/cartao-go';
+import { aplicaCartaoGo, listarRegistosDoMes, OBJETIVO_MENSAL } from '@/lib/cartao-go';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-/* Lembrete do Cartão Caetano Go para o 'Vendedor VN'.
+/* Lembrete do Cartão Caetano Go para o 'Vendedor VN' de Aveiro.
  *
  * Insistência INTENCIONAL: não há "lembrar mais tarde" nem "já tenho". Fecha-se, mas volta
  * a abrir a cada entrada na plataforma, a cada mudança de página e sempre que o separador
@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 export function CartaoGoReminder() {
   const { me, effectiveEmail } = usePermissions();
   const { pathname } = useLocation();
-  const aplica = isVendedorVN(me?.perfil) && !!effectiveEmail;
+  const aplica = aplicaCartaoGo(me) && !!effectiveEmail;
   const [feitos, setFeitos] = useState(0);
   const [open, setOpen] = useState(false);
   const pedido = useRef(0);   // só conta a resposta mais recente

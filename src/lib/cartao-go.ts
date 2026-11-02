@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { toLocalIsoDay } from '@/lib/utils';
+import { locaisDoPerfil } from '@/lib/locations';
 
 /* ── Cartão Caetano Go ────────────────────────────────────────────────────────
  * Objetivo: cada 'Vendedor VN' faz OBJETIVO_MENSAL cartões por mês. Enquanto não os
@@ -12,8 +13,16 @@ export const OBJETIVO_MENSAL = 2;
 /** Função a quem o aviso se dirige (sem distinguir maiúsculas nem espaços à volta). */
 export const PERFIL_CARTAO_GO = 'Vendedor VN';
 
+/** Local (stand) a quem o aviso se dirige, em nome canónico (app_users.local). */
+export const LOCAL_CARTAO_GO = 'Aveiro';
+
 export const isVendedorVN = (perfil: string | null | undefined) =>
   (perfil ?? '').trim().toLowerCase() === PERFIL_CARTAO_GO.toLowerCase();
+
+/** O aviso e o acompanhamento são só dos 'Vendedor VN' do local LOCAL_CARTAO_GO.
+ *  Quem não tem local definido (ou tem outro) fica de fora — o local define-se em Utilizadores. */
+export const aplicaCartaoGo = (u: { perfil?: string | null; local?: unknown } | null | undefined) =>
+  !!u && isVendedorVN(u.perfil) && locaisDoPerfil(u.local).includes(LOCAL_CARTAO_GO);
 
 export interface CartaoGoRegisto {
   id: string;
