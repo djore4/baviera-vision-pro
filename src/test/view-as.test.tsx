@@ -7,14 +7,16 @@ import type { AppRole, AppUser } from '@/lib/permissions';
 
 const ROLES: AppRole[] = [
   { name: 'Admin', is_admin: true, permissions: {} },
-  { name: 'Vendedor', is_admin: false, permissions: { retails: 'view', funil: 'edit', produto: 'view' } },
+  { name: 'Vendedor', is_admin: false, permissions: { retails: 'view', funil: 'edit', produto: 'view', 'end-of-term': 'edit', 'end-of-term:todos': 'edit' } },
   { name: 'Outro admin', is_admin: true, permissions: {} },
 ];
 const user = (email: string, perfil: string | null, local: unknown = null): AppUser => ({
   id: email, nome: email.split('@')[0], email, perfil, local, negocio: null, marca: null,
 });
 const USERS = [
-  user('admin@x.pt', 'Admin'), user('vend@x.pt', 'Vendedor', ['Porto']),
+  user('admin@x.pt', 'Admin'), user('vend@x.pt', 'Vendedor', ['Aveiro']),
+  user('porto@x.pt', 'Vendedor', ['Porto']), user('semlocal@x.pt', 'Vendedor'), user('multi@x.pt', 'Vendedor', ['Porto', 'Aveiro']),
+  user('adminporto@x.pt', 'Outro admin', ['Porto']),
   user('semperfil@x.pt', null), user('chefe@x.pt', 'Outro admin'),
 ];
 
@@ -51,7 +53,7 @@ describe('Ver como', () => {
     expect(ctx.viewingAs).toBeNull();
     expect(ctx.canEdit('retails')).toBe(true);
     expect(ctx.canView('utilizadores')).toBe(true);
-    expect(ctx.allUsers).toHaveLength(4);
+    expect(ctx.allUsers).toHaveLength(8);
   });
 
   it('simula um vendedor: só o que a função dá, sem exceções do admin', async () => {
@@ -70,6 +72,45 @@ describe('Ver como', () => {
     expect(ctx.canView('dados')).toBe(false);
     expect(ctx.me?.email).toBe('vend@x.pt');
     expect(ctx.effectiveEmail).toBe('vend@x.pt');
+  });
+
+  describe('restrição por local: fora de Aveiro só o End-of-Term', () => {
+    const simular = async (email: string) => {
+      mount();
+      await waitFor(() => expect(ctx?.realIsAdmin).toBe(true));
+      act(() => ctx.setViewAs(email));
+      await waitFor(() => expect(ctx.viewingAs?.email).toBe(email));
+    };
+
+    it.each(['porto@x.pt', 'semlocal@x.pt'])('%s: só vê o End-of-Term, com o nível da função', async email => {
+      await simular(email);
+      expect(ctx.canView('retails')).toBe(false);
+      expect(ctx.canView('funil')).toBe(false);
+      expect(ctx.canView('produto')).toBe(false);
+      expect(ctx.canEdit('end-of-term')).toBe(true);
+      expect(ctx.canEdit('end-of-term:todos')).toBe(true);
+    });
+
+    it('nunca dá acesso: sem End-of-Term na função, não vê nada', async () => {
+      // 'Outro admin' é admin; usa-se o utilizador sem função como caso sem End-of-Term
+      await simular('semperfil@x.pt');
+      expect(ctx.canView('end-of-term')).toBe(false);
+    });
+
+    it('com Aveiro entre os locais, mantém o acesso normal da função', async () => {
+      await simular('multi@x.pt');
+      expect(ctx.canView('retails')).toBe(true);
+      expect(ctx.canEdit('funil')).toBe(true);
+      await simular('vend@x.pt');
+      expect(ctx.canView('retails')).toBe(true);
+    });
+
+    it('administradores ficam fora da regra, mesmo noutro local', async () => {
+      await simular('adminporto@x.pt');
+      expect(ctx.isAdmin).toBe(true);
+      expect(ctx.canEdit('retails')).toBe(true);
+      expect(ctx.canEdit('utilizadores')).toBe(true);
+    });
   });
 
   it('utilizador sem função não tem acesso a nada; simular um admin dá acesso total', async () => {
@@ -123,7 +164,7 @@ describe('Ver como', () => {
     render(<MemoryRouter><PermissionsProvider><Probe /><ViewAsBanner /></PermissionsProvider></MemoryRouter>);
     const faixa = await screen.findByRole('status');
     expect(faixa.textContent).toContain('A ver como');
-    expect(faixa.textContent).toContain('Vendedor · Porto');
+    expect(faixa.textContent).toContain('Vendedor · Aveiro');
     expect(faixa.textContent).toContain('gravações continuam a ser os do administrador');
     fireEvent.click(screen.getByRole('button', { name: /Sair do modo/ }));
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
