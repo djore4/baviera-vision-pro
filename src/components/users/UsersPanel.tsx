@@ -6,7 +6,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { createUser, updateUser, deleteUser, type AppUser } from '@/lib/permissions';
+import { createUser, updateUser, deleteUser, AdminError, type AppUser } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import { generatePassword } from '@/lib/password';
 import { locaisDoGrupo, locaisDoPerfil } from '@/lib/locations';
@@ -403,8 +403,10 @@ function ResetPasswordDialog({ target, onClose }: { target: AppUser | null; onCl
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  // Login partilhado com a Sales Force: a reposição também muda o acesso lá; pede confirmação.
+  const [shared, setShared] = useState(false);
 
-  const close = () => { onClose(); setPassword(''); setDone(false); };
+  const close = () => { onClose(); setPassword(''); setDone(false); setShared(false); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -412,11 +414,13 @@ function ResetPasswordDialog({ target, onClose }: { target: AppUser | null; onCl
     if (password.length < 6) { toast.error('A password deve ter pelo menos 6 caracteres.'); return; }
     setSaving(true);
     try {
-      await updateUser(target.id, {}, password);
+      await updateUser(target.id, {}, password, shared);   // `shared` só é true depois de confirmado
       setDone(true);
+      setShared(false);
       toast.success('Password reposta.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível repor a password.');
+      if (err instanceof AdminError && err.code === 'shared_login') setShared(true);
+      else toast.error(err instanceof Error ? err.message : 'Não foi possível repor a password.');
     } finally { setSaving(false); }
   };
 
@@ -430,14 +434,24 @@ function ResetPasswordDialog({ target, onClose }: { target: AppUser | null; onCl
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="r-pass">Nova password</Label>
-            <PasswordField id="r-pass" value={password} onChange={v => { setPassword(v); setDone(false); }} />
+            <PasswordField id="r-pass" value={password} onChange={v => { setPassword(v); setDone(false); setShared(false); }} />
             {done && <p className="text-xs text-emerald-600">Reposta. Copia a password e envia-a à pessoa.</p>}
           </div>
+          {shared && !done && (
+            <div role="alert" className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-100 p-3 text-xs text-amber-950 dark:bg-amber-500/15 dark:text-amber-100">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                Este login é <strong>partilhado com a Caetano Sales Force</strong>. Repor a password aqui muda-a
+                <strong> nas duas aplicações</strong>, e a pessoa vai precisar da nova password em ambas.
+              </p>
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={close}>{done ? 'Fechar' : 'Cancelar'}</Button>
             {!done && (
               <Button type="submit" disabled={saving || !password} className="gap-1.5">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} Repor
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                {shared ? 'Repor nas duas aplicações' : 'Repor'}
               </Button>
             )}
           </DialogFooter>
