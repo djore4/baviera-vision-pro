@@ -10,6 +10,36 @@ import { locaisDoPerfil } from '@/lib/locations';
 
 export const OBJETIVO_MENSAL = 2;
 
+/* Limite de insistência: no máximo MAX_ALERTAS_HORA pop-ups por janela de uma hora. */
+export const MAX_ALERTAS_HORA = 3;
+const JANELA_MS = 60 * 60 * 1000;
+const chaveAlertas = (email: string) => `cartao-go-alertas:${email.toLowerCase()}`;
+
+/** Instantes (ms) dos alertas que ainda contam na última hora. Puro e testável. */
+export const alertasNaJanela = (instantes: number[], agora: number): number[] =>
+  instantes.filter(t => Number.isFinite(t) && t <= agora && agora - t < JANELA_MS);
+
+export const podeAlertar = (instantes: number[], agora: number): boolean =>
+  alertasNaJanela(instantes, agora).length < MAX_ALERTAS_HORA;
+
+/* Histórico em localStorage (partilhado entre separadores). Se não estiver disponível,
+ * o limite aplica-se só enquanto o separador estiver aberto (fallback em memória). */
+const emMemoria = new Map<string, number[]>();
+
+export function lerAlertas(email: string, agora = Date.now()): number[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(chaveAlertas(email)) ?? '[]');
+    if (Array.isArray(raw)) return alertasNaJanela(raw.map(Number), agora);
+  } catch { /* indisponível ou corrompido */ }
+  return alertasNaJanela(emMemoria.get(email) ?? [], agora);
+}
+
+export function registarAlerta(email: string, agora = Date.now()): void {
+  const novos = [...lerAlertas(email, agora), agora];
+  emMemoria.set(email, novos);
+  try { localStorage.setItem(chaveAlertas(email), JSON.stringify(novos)); } catch { /* ignora */ }
+}
+
 /** Função a quem o aviso se dirige (sem distinguir maiúsculas nem espaços à volta). */
 export const PERFIL_CARTAO_GO = 'Vendedor VN';
 

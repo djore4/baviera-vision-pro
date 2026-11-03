@@ -24,14 +24,14 @@ vi.mock('@/contexts/PermissionsContext', () => ({
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
 
 import { CartaoGoReminder } from '@/components/CartaoGoReminder';
-import { isVendedorVN, aplicaCartaoGo, intervaloDoMes } from '@/lib/cartao-go';
+import { isVendedorVN, aplicaCartaoGo, intervaloDoMes, podeAlertar, MAX_ALERTAS_HORA } from '@/lib/cartao-go';
 
 let go: (to: string) => void;
 const Nav = () => { const n = useNavigate(); go = to => n(to); return null; };
 const mount = () => render(<MemoryRouter><Nav /><CartaoGoReminder /></MemoryRouter>);
 const dialog = () => screen.queryByRole('dialog');
 
-beforeEach(() => { PERFIL = 'Vendedor VN'; LOCAL = ['Aveiro']; listarRegistosDoMes.mockReset(); });
+beforeEach(() => { localStorage.clear(); PERFIL = 'Vendedor VN'; LOCAL = ['Aveiro']; listarRegistosDoMes.mockReset(); });
 
 describe('Cartão Caetano Go — aviso', () => {
   it('abre ao entrar, mostra o progresso e fecha', async () => {
@@ -121,6 +121,36 @@ describe('Cartão Caetano Go — aviso', () => {
     await waitFor(() => expect(listarRegistosDoMes).toHaveBeenCalled());
     expect(dialog()).toBeNull();
     err.mockRestore();
+  });
+});
+
+describe('Cartão Caetano Go — limite por hora', () => {
+  it('no máximo 3 alertas por hora; depois fica calado', async () => {
+    listarRegistosDoMes.mockResolvedValue(reg(0));
+    mount();
+    await waitFor(() => expect(dialog()).toBeTruthy());           // 1.º
+    for (const [i, to] of ['/a', '/b'].entries()) {
+      fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+      await waitFor(() => expect(dialog()).toBeNull());
+      act(() => go(to));
+      await waitFor(() => expect(dialog()).toBeTruthy());         // 2.º e 3.º
+      expect(i).toBeLessThan(2);
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+    await waitFor(() => expect(dialog()).toBeNull());
+    const chamadas = listarRegistosDoMes.mock.calls.length;
+    act(() => go('/c'));                                          // 4.º: bloqueado
+    await waitFor(() => expect(listarRegistosDoMes.mock.calls.length).toBeGreaterThan(chamadas));
+    expect(dialog()).toBeNull();
+  });
+
+  it('passada a hora, volta a poder alertar', () => {
+    const t0 = 1_000_000_000_000, h = 3_600_000;
+    const tres = [t0, t0 + 1000, t0 + 2000];
+    expect(MAX_ALERTAS_HORA).toBe(3);
+    expect(podeAlertar(tres, t0 + 10_000)).toBe(false);
+    expect(podeAlertar(tres, t0 + h + 1)).toBe(true);             // o 1.º já saiu da janela
+    expect(podeAlertar(tres.slice(0, 2), t0 + 10_000)).toBe(true);
   });
 });
 
