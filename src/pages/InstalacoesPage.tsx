@@ -323,7 +323,7 @@ export default function InstalacoesPage() {
   );
 
   return (
-    <div className="space-y-4 p-4 pb-24 md:p-6 md:pb-6">
+    <div className="min-w-0 max-w-full space-y-4 overflow-x-clip break-words p-4 pb-24 md:p-6 md:pb-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Building2 className="h-5 w-5 text-primary" />
@@ -359,7 +359,7 @@ export default function InstalacoesPage() {
       </div>
 
       {/* Planta */}
-      <div className="space-y-2">
+      <div className="min-w-0 space-y-2">
         <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="tablist" aria-label="Piso">
           {plantas.map(p => (
             <button
@@ -403,10 +403,10 @@ export default function InstalacoesPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Lista */}
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+        <div className="min-w-0 space-y-3">
+          <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:flex-wrap sm:items-center">
             <div className="relative col-span-2 min-w-[160px] flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar…" className="pl-8" aria-label="Pesquisar ocorrências" />
