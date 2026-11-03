@@ -6,6 +6,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { AnexosSection } from '@/components/instalacoes/AnexosSection';
 import {
   ESTADOS, categoriaLabel, diasDesde, estadoDef, fmtDia, historicoLabel, isAtiva, listHistorico, prioridadeDef,
   type Estado, type HistoricoItem, type Ocorrencia,
@@ -96,6 +97,8 @@ export function OcorrenciaDetail({ o, pisoLabel, canEdit, busy, historyKey, onEs
           <p className="whitespace-pre-wrap text-sm">{o.obs}</p>
         </section>
       )}
+
+      <AnexosSection ocorrenciaId={o.id} canEdit={canEdit} />
 
       {canEdit && (
         <section>

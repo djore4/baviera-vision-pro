@@ -155,6 +155,9 @@ export async function updateOcorrencia(id: string, patch: OcorrenciaPatch): Prom
 }
 
 export async function deleteOcorrencia(id: string): Promise<void> {
+  /* A base apaga as linhas dos anexos em cascata, mas não os ficheiros do bucket. */
+  const anexos = await listAnexos(id);
+  if (anexos.length) await supabase.storage.from(BUCKET).remove(anexos.map(a => a.path));
   const { error } = await supabase.from(TABLE).delete().eq('id', id);
   if (error) throw new Error(`Não foi possível apagar a ocorrência: ${error.message}`);
 }
@@ -165,6 +168,84 @@ export async function listHistorico(ocorrenciaId: string): Promise<HistoricoItem
     .order('created_at', { ascending: false });
   if (error) return [];
   return (data ?? []) as HistoricoItem[];
+}
+
+/* ── Anexos ──────────────────────────────────────────────────────────────────── */
+
+const BUCKET = 'instalacoes-anexos';
+const ANEXOS_TABLE = 'instalacoes_anexos';
+
+export const ANEXO_MAX_BYTES = 10 * 1024 * 1024;
+/* Extensões aceites: imagens, PDF, Office e texto. */
+export const ANEXO_ACCEPT = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv';
+const ANEXO_EXT = /\.(png|jpe?g|gif|webp|heic|heif|pdf|docx?|xlsx?|pptx?|txt|csv)$/i;
+
+export interface Anexo {
+  id: string;
+  ocorrencia_id: string;
+  path: string;
+  nome: string;
+  tipo: string | null;
+  tamanho: number | null;
+  criado_por: string | null;
+  created_at: string;
+}
+
+/** Mensagem de erro se o ficheiro não puder ser anexado; `null` se estiver ok. */
+export function validarAnexo(f: Pick<File, 'name' | 'size'>): string | null {
+  if (f.size === 0) return `“${f.name}” está vazio.`;
+  if (f.size > ANEXO_MAX_BYTES) return `“${f.name}” excede ${ANEXO_MAX_BYTES / 1024 / 1024} MB.`;
+  if (!ANEXO_EXT.test(f.name)) return `“${f.name}”: tipo de ficheiro não suportado.`;
+  return null;
+}
+
+export function fmtTamanho(bytes: number | null): string {
+  if (bytes == null) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** Nome seguro para a chave no bucket (sem acentos nem caracteres especiais). */
+export const nomeSeguro = (nome: string): string =>
+  nome.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').slice(-100) || 'ficheiro';
+
+export async function listAnexos(ocorrenciaId: string): Promise<Anexo[]> {
+  const { data, error } = await supabase
+    .from(ANEXOS_TABLE).select('*').eq('ocorrencia_id', ocorrenciaId)
+    .order('created_at', { ascending: true });
+  if (error) return [];
+  return (data ?? []) as Anexo[];
+}
+
+export async function uploadAnexo(ocorrenciaId: string, file: File): Promise<Anexo> {
+  const invalido = validarAnexo(file);
+  if (invalido) throw new Error(invalido);
+  const path = `${ocorrenciaId}/${crypto.randomUUID()}-${nomeSeguro(file.name)}`;
+  const { error: upErr } = await supabase.storage.from(BUCKET)
+    .upload(path, file, { contentType: file.type || undefined });
+  if (upErr) throw new Error(`Não foi possível carregar “${file.name}”: ${upErr.message}`);
+  const { data, error } = await supabase.from(ANEXOS_TABLE).insert({
+    ocorrencia_id: ocorrenciaId, path, nome: file.name, tipo: file.type || null, tamanho: file.size,
+  }).select().single();
+  if (error) {
+    await supabase.storage.from(BUCKET).remove([path]); // não deixar ficheiro órfão
+    throw new Error(`Não foi possível registar “${file.name}”: ${error.message}`);
+  }
+  return data as Anexo;
+}
+
+export async function deleteAnexo(a: Pick<Anexo, 'id' | 'path'>): Promise<void> {
+  const { error } = await supabase.from(ANEXOS_TABLE).delete().eq('id', a.id);
+  if (error) throw new Error(`Não foi possível remover o anexo: ${error.message}`);
+  await supabase.storage.from(BUCKET).remove([a.path]);
+}
+
+/** URL assinado (5 min) para abrir/descarregar o anexo. */
+export async function urlAnexo(a: Pick<Anexo, 'path' | 'nome'>): Promise<string> {
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(a.path, 300, { download: a.nome });
+  if (error || !data) throw new Error('Não foi possível abrir o anexo.');
+  return data.signedUrl;
 }
 
 /* ── Derivados (puros, testáveis) ────────────────────────────────────────────── */

@@ -22,6 +22,7 @@ vi.mock('@/lib/instalacoes', async (orig) => ({
   ...(await orig<typeof import('@/lib/instalacoes')>()),
   listOcorrencias: vi.fn(async () => DB),
   listHistorico: vi.fn(async () => []),
+  listAnexos: vi.fn(async () => []),
   createOcorrencia: (...a: unknown[]) => create(...a),
   updateOcorrencia: (...a: unknown[]) => update(...a),
   deleteOcorrencia: (...a: unknown[]) => remove(...a),
