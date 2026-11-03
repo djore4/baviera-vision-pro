@@ -115,3 +115,22 @@ describe('clampView (zoom e arrasto da planta)', () => {
     expect(clampView({ s: 1, tx: 0, ty: 0 }, 1000, 500, 1000, 300).ty).toBe(100);
   });
 });
+
+describe('anexos', () => {
+  it('validarAnexo recusa vazios, grandes e tipos desconhecidos', async () => {
+    const { validarAnexo, ANEXO_MAX_BYTES } = await import('@/lib/instalacoes');
+    expect(validarAnexo({ name: 'foto.JPG', size: 1000 })).toBeNull();
+    expect(validarAnexo({ name: 'orc.pdf', size: 1000 })).toBeNull();
+    expect(validarAnexo({ name: 'a.pdf', size: 0 })).toMatch(/vazio/);
+    expect(validarAnexo({ name: 'a.pdf', size: ANEXO_MAX_BYTES + 1 })).toMatch(/excede/);
+    expect(validarAnexo({ name: 'virus.exe', size: 10 })).toMatch(/não suportado/);
+  });
+
+  it('nomeSeguro tira acentos e caracteres especiais; fmtTamanho formata', async () => {
+    const { nomeSeguro, fmtTamanho } = await import('@/lib/instalacoes');
+    expect(nomeSeguro('Orçamento final (2).pdf')).toBe('Orcamento_final_2_.pdf');
+    expect(fmtTamanho(500)).toBe('500 B');
+    expect(fmtTamanho(2048)).toBe('2 KB');
+    expect(fmtTamanho(3 * 1024 * 1024)).toBe('3.0 MB');
+  });
+});
