@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { locaisDoPerfil } from '@/lib/locations';
 import { client } from '@/clients';
 
 /* ── Permissões (RBAC) — camada de acesso a dados ─────────────────────────────
@@ -164,6 +165,23 @@ export interface AppRole {
   is_admin: boolean;
   permissions: Record<string, AccessLevel>;
 }
+
+/* ── Restrição por local ─────────────────────────────────────────────────────
+ * Quem não tem o local LOCAL_ACESSO_COMPLETO em app_users.local (inclui quem não tem
+ * local definido) só vê o tab End-of-Term (e as suas permissões `end-of-term:*`), com o
+ * nível que a função já lhe dá — esta regra só retira acesso, nunca o dá. Administradores
+ * e exceções por email (app_access_exceptions) ficam de fora.
+ * É uma regra da INTERFACE: a RLS da base de dados continua a seguir só a matriz de funções.
+ * ──────────────────────────────────────────────────────────────────────────── */
+export const LOCAL_ACESSO_COMPLETO = 'Aveiro';
+export const TAB_FORA_DO_LOCAL = 'end-of-term';
+
+export const restritoPeloLocal = (user: { local?: unknown } | null | undefined): boolean =>
+  !locaisDoPerfil(user?.local).includes(LOCAL_ACESSO_COMPLETO);
+
+/** Este tab (ou permissão `tab:ação`) continua disponível a quem está fora do local? */
+export const tabLivreForaDoLocal = (tab: string): boolean =>
+  tab === TAB_FORA_DO_LOCAL || tab.startsWith(`${TAB_FORA_DO_LOCAL}:`);
 
 export interface AppUser {
   id: number | string;

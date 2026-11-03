@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/App';
 import {
   listRoles, listUsers, isPlatformAdmin, getMyAccessExceptions, getAppCapabilities, NO_CAPABILITIES, TABS, ADMIN_ONLY_TAB_KEYS,
+  restritoPeloLocal, tabLivreForaDoLocal,
   type AccessLevel, type AppCapabilities, type AppRole, type AppUser,
 } from '@/lib/permissions';
 import { client } from '@/clients';
@@ -140,6 +141,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       // Exceção pontual por email (tem precedência sobre a função, mas não sobre
       // o acesso total de admin). Só eleva o acesso, nunca o reduz.
       const exception = accessExceptions[tab];
+      // Fora de Aveiro (ou sem local): só o End-of-Term. Uma exceção por email mantém-se.
+      if (!exception && restritoPeloLocal(effMe) && !tabLivreForaDoLocal(tab)) return 'none';
       const roleAccess = role ? ((role.permissions?.[tab] as AccessLevel) ?? 'none') : 'none';
       if (exception) {
         const rank: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };

@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const rpc = vi.fn();
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
 
-import { getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS } from '@/lib/permissions';
+import {
+  getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS, restritoPeloLocal, tabLivreForaDoLocal,
+} from '@/lib/permissions';
 
 beforeEach(() => { rpc.mockReset(); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
 
@@ -119,5 +121,27 @@ describe('getAppCapabilities', () => {
     expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false });
     rpc.mockResolvedValue({ data: null, error: null });
     expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false });
+  });
+});
+
+
+describe('restrição por local', () => {
+  it('só Aveiro (canónico, em lista, texto ou alias) escapa à restrição', () => {
+    expect(restritoPeloLocal({ local: ['Aveiro'] })).toBe(false);
+    expect(restritoPeloLocal({ local: ['Porto', 'Aveiro'] })).toBe(false);
+    expect(restritoPeloLocal({ local: 'Caetano Aveiro 2' })).toBe(false);
+    expect(restritoPeloLocal({ local: ['Porto'] })).toBe(true);
+    expect(restritoPeloLocal({ local: ['Todas'] })).toBe(true);
+    expect(restritoPeloLocal({ local: [] })).toBe(true);
+    expect(restritoPeloLocal({ local: null })).toBe(true);
+    expect(restritoPeloLocal(null)).toBe(true);
+  });
+
+  it('o End-of-Term e as suas permissões escapam; o resto não', () => {
+    expect(tabLivreForaDoLocal('end-of-term')).toBe(true);
+    expect(tabLivreForaDoLocal('end-of-term:todos')).toBe(true);
+    expect(tabLivreForaDoLocal('end-of-term-x')).toBe(false);
+    expect(tabLivreForaDoLocal('retails')).toBe(false);
+    expect(tabLivreForaDoLocal('lavagem:reagendar')).toBe(false);
   });
 });
