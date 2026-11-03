@@ -9,6 +9,8 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { client } from '@/clients';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { PlantaViewer, type PlantaPin } from '@/components/instalacoes/PlantaViewer';
@@ -34,6 +36,7 @@ const assetUrl = (src: string) => `${import.meta.env.BASE_URL}${src.replace(/^\/
 
 export default function InstalacoesPage() {
   const { canEdit } = usePermissions();
+  const isMobile = useIsMobile();
   const editable = canEdit('instalacoes');
   const plantas = useMemo(() => client.plantas ?? [], []);
   const pisoLabel = useCallback((id: string) => plantas.find(p => p.id === id)?.label ?? id, [plantas]);
@@ -234,6 +237,73 @@ export default function InstalacoesPage() {
     );
   }
 
+  const panelContent = (
+    <>
+            {panel === 'new' && (
+              draft ? (
+                <>
+                  <h2 className="mb-3 text-sm font-semibold">Nova ocorrência</h2>
+                  <OcorrenciaForm
+                    key="new" mode="new" initial={emptyForm()} saving={saving}
+                    pisoLabel={pisoLabel(draft.piso)}
+                    interlocutores={interlocutoresUsados(list)} zonas={zonasUsadas(list, draft.piso)}
+                    onSubmit={submitNew} onCancel={cancelNew}
+                    onMove={isMobile ? () => setDraft(null) : undefined}
+                  />
+                </>
+              ) : (
+                <div className="py-6 text-center text-sm text-muted-foreground">
+                  <MapPinned className="mx-auto mb-2 h-6 w-6 text-primary" />
+                  <p className="font-medium text-foreground">Clica na planta, no local do problema</p>
+                  <p className="mt-1 text-xs">Podes ampliar e arrastar a planta antes de marcar. O formulário abre a seguir.</p>
+                  <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={cancelNew}>Cancelar</Button>
+                </div>
+              )
+            )}
+
+            {panel === 'view' && selected && (
+              <OcorrenciaDetail
+                o={selected} pisoLabel={pisoLabel(selected.piso)} canEdit={editable} busy={saving}
+                historyKey={selected.updated_at}
+                onEstado={changeEstado}
+                onEdit={() => setPanel('edit')}
+                onDelete={remove}
+                onClose={() => select(null)}
+              />
+            )}
+
+            {panel === 'edit' && selected && (
+              <>
+                <h2 className="mb-3 text-sm font-semibold">Editar ocorrência</h2>
+                <OcorrenciaForm
+                  key={`${selected.id}-${selected.updated_at}`} mode="edit" initial={formFromSelected(selected)} saving={saving}
+                  pisoLabel={pisoLabel(selected.piso)}
+                  interlocutores={interlocutoresUsados(list)} zonas={zonasUsadas(list, selected.piso)}
+                  onSubmit={submitEdit} onCancel={() => setPanel('view')}
+                  onMove={() => { setPanel('view'); setPlacing('move'); }}
+                />
+              </>
+            )}
+
+            {panel === null && (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                <MapPinned className="mx-auto mb-2 h-6 w-6" />
+                Seleciona uma ocorrência na planta ou na lista
+                {editable ? ', ou regista uma nova.' : '.'}
+              </div>
+            )}
+    </>
+  );
+
+  /* Telemóvel: o painel é uma folha por baixo (não fica enterrado depois da lista). */
+  const sheetOpen = isMobile && placing !== 'move' && (
+    (panel === 'new' && !!draft) || ((panel === 'view' || panel === 'edit') && !!selected));
+  const closeSheet = () => {
+    if (panel === 'new') cancelNew();
+    else if (panel === 'edit') setPanel('view');
+    else select(null);
+  };
+
   const planta = plantas.find(p => p.id === pisoId) ?? plantas[0];
   const kpiCard = (key: string, icon: React.ReactNode, label: string, value: string | number, tone: string, onClick?: () => void, active?: boolean) => (
     <button
@@ -253,7 +323,7 @@ export default function InstalacoesPage() {
   );
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <div className="space-y-4 p-4 pb-24 md:p-6 md:pb-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Building2 className="h-5 w-5 text-primary" />
@@ -263,7 +333,7 @@ export default function InstalacoesPage() {
           <Button type="button" variant="outline" size="icon" onClick={() => void load()} disabled={loading} aria-label="Atualizar">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
-          {editable && (
+          {editable && !isMobile && (
             <Button type="button" onClick={startNew} disabled={placing === 'new'}>
               <Plus className="mr-1.5 h-4 w-4" /> Registar ocorrência
             </Button>
@@ -290,13 +360,13 @@ export default function InstalacoesPage() {
 
       {/* Planta */}
       <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Piso">
+        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="tablist" aria-label="Piso">
           {plantas.map(p => (
             <button
               key={p.id} type="button" role="tab" aria-selected={p.id === pisoId}
               onClick={() => setPisoId(p.id)}
               className={cn(
-                'flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors',
+                'flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors sm:px-3.5 sm:py-1.5',
                 p.id === pisoId ? 'border-primary bg-primary text-primary-foreground' : 'bg-card hover:bg-muted',
               )}
             >
@@ -336,13 +406,13 @@ export default function InstalacoesPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Lista */}
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[160px] flex-1">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+            <div className="relative col-span-2 min-w-[160px] flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar…" className="pl-8" aria-label="Pesquisar ocorrências" />
             </div>
             <Select value={estado} onValueChange={v => { setQuick(null); setEstado(v as OcorrenciaFiltro['estado']); }}>
-              <SelectTrigger className="w-[130px]" aria-label="Estado"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[130px]" aria-label="Estado"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ativas">Por resolver</SelectItem>
                 <SelectItem value="all">Todas</SelectItem>
@@ -350,14 +420,14 @@ export default function InstalacoesPage() {
               </SelectContent>
             </Select>
             <Select value={prioridade} onValueChange={v => setPrioridade(v as Prioridade | 'all')}>
-              <SelectTrigger className="w-[130px]" aria-label="Prioridade"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[130px]" aria-label="Prioridade"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Prioridade</SelectItem>
                 {PRIORIDADES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={categoria} onValueChange={v => setCategoria(v as Categoria | 'all')}>
-              <SelectTrigger className="w-[150px]" aria-label="Categoria"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[150px]" aria-label="Categoria"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Categoria</SelectItem>
                 {CATEGORIAS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
@@ -424,64 +494,33 @@ export default function InstalacoesPage() {
           )}
         </div>
 
-        {/* Painel: detalhe / registo / edição */}
-        <div ref={panelRef} className="lg:sticky lg:top-4 lg:self-start">
-          <div className="rounded-lg border bg-card p-4">
-            {panel === 'new' && (
-              draft ? (
-                <>
-                  <h2 className="mb-3 text-sm font-semibold">Nova ocorrência</h2>
-                  <OcorrenciaForm
-                    key="new" mode="new" initial={emptyForm()} saving={saving}
-                    pisoLabel={pisoLabel(draft.piso)}
-                    interlocutores={interlocutoresUsados(list)} zonas={zonasUsadas(list, draft.piso)}
-                    onSubmit={submitNew} onCancel={cancelNew}
-                  />
-                </>
-              ) : (
-                <div className="py-6 text-center text-sm text-muted-foreground">
-                  <MapPinned className="mx-auto mb-2 h-6 w-6 text-primary" />
-                  <p className="font-medium text-foreground">Clica na planta, no local do problema</p>
-                  <p className="mt-1 text-xs">Podes ampliar e arrastar a planta antes de marcar. O formulário abre a seguir.</p>
-                  <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={cancelNew}>Cancelar</Button>
-                </div>
-              )
-            )}
-
-            {panel === 'view' && selected && (
-              <OcorrenciaDetail
-                o={selected} pisoLabel={pisoLabel(selected.piso)} canEdit={editable} busy={saving}
-                historyKey={selected.updated_at}
-                onEstado={changeEstado}
-                onEdit={() => setPanel('edit')}
-                onDelete={remove}
-                onClose={() => select(null)}
-              />
-            )}
-
-            {panel === 'edit' && selected && (
-              <>
-                <h2 className="mb-3 text-sm font-semibold">Editar ocorrência</h2>
-                <OcorrenciaForm
-                  key={`${selected.id}-${selected.updated_at}`} mode="edit" initial={formFromSelected(selected)} saving={saving}
-                  pisoLabel={pisoLabel(selected.piso)}
-                  interlocutores={interlocutoresUsados(list)} zonas={zonasUsadas(list, selected.piso)}
-                  onSubmit={submitEdit} onCancel={() => setPanel('view')}
-                  onMove={() => { setPanel('view'); setPlacing('move'); }}
-                />
-              </>
-            )}
-
-            {panel === null && (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                <MapPinned className="mx-auto mb-2 h-6 w-6" />
-                Seleciona uma ocorrência na planta ou na lista
-                {editable ? ', ou regista uma nova.' : '.'}
-              </div>
-            )}
+        {/* Painel: detalhe / registo / edição (em telemóvel abre numa folha por baixo) */}
+        {!isMobile && (
+          <div ref={panelRef} className="lg:sticky lg:top-4 lg:self-start">
+            <div className="rounded-lg border bg-card p-4">{panelContent}</div>
           </div>
-        </div>
+        )}
       </div>
+
+      {isMobile && (
+        <Sheet open={sheetOpen} onOpenChange={o => { if (!o) closeSheet(); }}>
+          <SheetContent side="bottom" onOpenAutoFocus={e => e.preventDefault()}
+            className="max-h-[88dvh] overflow-y-auto rounded-t-2xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&>button:last-child]:hidden">
+            <SheetTitle className="sr-only">Ocorrência</SheetTitle>
+            <SheetDescription className="sr-only">Detalhe, registo ou edição da ocorrência</SheetDescription>
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/30" aria-hidden />
+            {panelContent}
+          </SheetContent>
+        </Sheet>
+      )}
+
+      {/* Telemóvel: ação principal sempre à mão */}
+      {isMobile && editable && !placing && !sheetOpen && (
+        <Button type="button" onClick={startNew} aria-label="Registar ocorrência"
+          className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40 h-14 rounded-full px-5 shadow-lg">
+          <Plus className="mr-1.5 h-5 w-5" /> Registar
+        </Button>
+      )}
     </div>
   );
 }
