@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Users as UsersIcon, ShieldCheck } from 'lucide-react';
+import { Users as UsersIcon, ShieldCheck, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { type AppRole, type AppUser, listRoles, listUsers } from '@/lib/permissions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UsersPanel } from '@/components/users/UsersPanel';
 import { RolesPanel } from '@/components/users/RolesPanel';
+import { CartaoGoPanel } from '@/components/users/CartaoGoPanel';
 
 /* ── Tab Utilizadores (admin) ─────────────────────────────────────────────────
  * Duas vistas: Contas (procurar, filtrar por função, criar, repor password,
@@ -48,6 +49,9 @@ export default function UtilizadoresPage() {
           <TabsTrigger value="permissoes" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm">
             <ShieldCheck className="h-4 w-4" />Permissões por função
           </TabsTrigger>
+          <TabsTrigger value="cartao-go" className="flex-1 sm:flex-none gap-1.5 data-[state=active]:shadow-sm">
+            <CreditCard className="h-4 w-4" />Cartão Go
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="contas" className="mt-4">
@@ -59,6 +63,10 @@ export default function UtilizadoresPage() {
             roles={roles} users={users} loading={loading}
             onSaved={async () => { await load(); reloadPerms(); }}
           />
+        </TabsContent>
+
+        <TabsContent value="cartao-go" className="mt-4">
+          <CartaoGoPanel users={users} loading={loading} />
         </TabsContent>
       </Tabs>
     </div>

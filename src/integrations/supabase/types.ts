@@ -373,6 +373,31 @@ export type Database = {
         }
         Relationships: []
       }
+      cartao_go_registos: {
+        Row: {
+          created_at: string
+          data: string
+          id: string
+          registado_por: string
+          vendedor_email: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          data?: string
+          id?: string
+          registado_por?: string
+          vendedor_email: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          id?: string
+          registado_por?: string
+          vendedor_email?: string
+        }
+        Relationships: []
+      }
       control_records: {
         Row: {
           app: string | null
