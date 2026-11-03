@@ -40,7 +40,7 @@ interface Props {
 
 const DEFAULT_ASPECT = 1193 / 4056;     // altura/largura das plantas atuais
 const MIN_HEIGHT = 300;
-const MIN_HEIGHT_NARROW = 200;           // ecrãs estreitos (< 640 px)
+const MIN_HEIGHT_NARROW = 280;           // ecrãs estreitos (< 640 px)
 
 export function PlantaViewer({ src, alt, pins, selectedId, draft, placing, focus, onPlace, onSelect, onCancelPlacing }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -165,7 +165,7 @@ export function PlantaViewer({ src, alt, pins, selectedId, draft, placing, focus
   };
 
   const center = () => ({ x: w / 2, y: ch / 2 });
-  const btn = 'h-8 w-8 bg-background/95 shadow-sm';
+  const btn = 'h-10 w-10 bg-background/95 shadow-sm sm:h-8 sm:w-8';
 
   return (
     <div
@@ -207,7 +207,7 @@ export function PlantaViewer({ src, alt, pins, selectedId, draft, placing, focus
                   aria-pressed={sel}
                   onPointerDown={e => e.stopPropagation()}
                   onClick={e => { e.stopPropagation(); if (!placing) onSelect(p.id); }}
-                  className={cn('block origin-bottom focus:outline-none', p.dim && 'opacity-45')}
+                  className={cn('relative block origin-bottom focus:outline-none before:absolute before:-inset-3 before:content-[""]', p.dim && 'opacity-45')}
                   style={{ transform: `translate(-50%, -100%) scale(${(sel ? 1.25 : 1) / view.s})` }}
                 >
                   <svg width="24" height="32" viewBox="0 0 24 32" className={cn('drop-shadow', sel && 'drop-shadow-lg')}>

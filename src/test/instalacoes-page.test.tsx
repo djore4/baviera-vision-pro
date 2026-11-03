@@ -148,4 +148,19 @@ describe('InstalacoesPage', () => {
     expect(within(list()).queryByText('Oc 1')).toBeNull();     // já reportada
     expect(within(list()).getByText('Oc 2')).toBeTruthy();
   });
+
+  it('em telemóvel: detalhe numa folha por baixo e botão flutuante para registar', async () => {
+    const prev = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 400 });
+    try {
+      render(<InstalacoesPage />);
+      await waitFor(() => expect(within(list()).getByText('Oc 1')).toBeTruthy());
+      expect(screen.getByRole('button', { name: 'Registar ocorrência' }).className).toMatch(/fixed/);
+      fireEvent.click(screen.getByTestId('pin-1'));
+      const dlg = await screen.findByRole('dialog');
+      expect(within(dlg).getByText('Intervenção necessária')).toBeTruthy();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: prev });
+    }
+  });
 });

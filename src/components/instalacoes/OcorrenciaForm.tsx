@@ -81,7 +81,7 @@ export function OcorrenciaForm({ initial, pisoLabel, mode, saving, interlocutore
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="oc-zona">Zona (opcional)</Label>
           <Input id="oc-zona" list="oc-zonas" value={v.zona} onChange={e => set('zona', e.target.value)}
@@ -95,7 +95,7 @@ export function OcorrenciaForm({ initial, pisoLabel, mode, saving, interlocutore
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="oc-interl">Reportada a</Label>
           <Input id="oc-interl" list="oc-interls" value={v.interlocutor}
@@ -119,7 +119,7 @@ export function OcorrenciaForm({ initial, pisoLabel, mode, saving, interlocutore
         <Textarea id="oc-obs" rows={2} value={v.obs} onChange={e => set('obs', e.target.value)} />
       </div>
 
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 bg-card px-1 pb-1 pt-2 max-sm:[&>button]:h-11 max-sm:[&>button]:flex-1">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>Cancelar</Button>
         <Button type="submit" disabled={!valid || saving}>
           {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
