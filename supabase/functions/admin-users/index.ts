@@ -12,7 +12,9 @@
 //  - criar com um email que já tem login (p.ex. criado pela Sales Force) liga esse login
 //    a um perfil novo desta plataforma, sem tocar na password nem nos dados da outra app;
 //  - eliminar remove o perfil daqui e só apaga o login se a outra app não o usar;
-//  - repor a password de um login partilhado é recusado (mudaria também o acesso à outra app).
+//  - repor a password de um login partilhado só é feito com confirmação explícita
+//    (allow_shared: true), porque muda também o acesso à outra app; sem ela devolve
+//    409 { code: "shared_login" } e a interface pede a confirmação ao administrador.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -130,7 +132,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "update") {
-      const { id, patch, password } = body;
+      const { id, patch, password, allow_shared } = body;
       if (!id) return json({ error: "id em falta." }, 400);
 
       // Reposição de password envia só { id, password } (patch vazio). Um UPDATE vazio
@@ -145,8 +147,11 @@ Deno.serve(async (req) => {
 
       if (password) {
         if (String(password).length < 6) return json({ error: "A password deve ter pelo menos 6 caracteres." }, 400);
-        if (await usedBySalesForce(admin, row.email)) {
-          return json({ error: "Este login é partilhado com a Caetano Sales Force: a password muda-se aí (ou pela própria pessoa), para não alterar o acesso às duas aplicações." }, 400);
+        if (allow_shared !== true && await usedBySalesForce(admin, row.email)) {
+          return json({
+            code: "shared_login",
+            error: "Este login é partilhado com a Caetano Sales Force: repor a password altera também o acesso à outra aplicação.",
+          }, 409);
         }
         const authUser = await findAuthUserByEmail(admin, row.email);
         if (!authUser) return json({ error: "Este utilizador não tem login de acesso." }, 400);

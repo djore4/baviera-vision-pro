@@ -266,19 +266,28 @@ export async function listUsers(): Promise<AppUser[]> {
 
 /* ── Escrita (admin, via edge function) ───────────────────────────────────── */
 
+/** Erro da edge function admin-users; `code` distingue casos que a interface trata (ex.: 'shared_login'). */
+export class AdminError extends Error {
+  constructor(message: string, public code?: string) { super(message); this.name = 'AdminError'; }
+}
+
 async function invokeAdmin<T = unknown>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('admin-users', { body });
   if (error) {
     let msg = error.message;
-    // A edge function devolve { error } em respostas não-2xx.
+    let code: string | undefined;
+    // A edge function devolve { error, code? } em respostas não-2xx.
     try {
       const ctx = (error as { context?: Response }).context;
       const parsed = ctx && typeof ctx.json === 'function' ? await ctx.json() : null;
       if (parsed?.error) msg = parsed.error;
+      if (typeof parsed?.code === 'string') code = parsed.code;
     } catch { /* ignora */ }
-    throw new Error(msg);
+    throw new AdminError(msg, code);
   }
-  if (data && (data as { error?: string }).error) throw new Error((data as { error: string }).error);
+  if (data && (data as { error?: string }).error) {
+    throw new AdminError((data as { error: string }).error, (data as { code?: string }).code);
+  }
   return data as T;
 }
 
@@ -301,8 +310,10 @@ export async function updateUser(
   id: number | string,
   patch: Partial<Pick<AppUser, 'nome' | 'perfil' | 'local' | 'negocio' | 'marca'>>,
   password?: string,
+  /** Confirma repor a password de um login partilhado com a Sales Force (muda o acesso às duas apps). */
+  allowShared = false,
 ): Promise<AppUser> {
-  const res = await invokeAdmin<{ user: AppUser }>({ action: 'update', id, patch, password });
+  const res = await invokeAdmin<{ user: AppUser }>({ action: 'update', id, patch, password, ...(allowShared ? { allow_shared: true } : {}) });
   return res.user;
 }
 
