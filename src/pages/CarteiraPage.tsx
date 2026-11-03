@@ -13,7 +13,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ExtraFilters, ExtraFilterChips, hasExtraFilters, isParked, type ExtraFiltersState, type Garantia } from '@/components/ExtraFilters';
 
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
@@ -36,23 +35,15 @@ export default function CarteiraPage() {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedQor, setSelectedQor] = useState<boolean | null>(null);
   const [selectedBev, setSelectedBev] = useState<boolean | null>(null);
-  const [selectedRet, setSelectedRet] = useState<boolean | null>(null);
-  const [selectedM, setSelectedM] = useState<boolean | null>(null);
-  const [selectedGar, setSelectedGar] = useState<Garantia>(null);
-  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
-  const [selectedPark, setSelectedPark] = useState(false);
   const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('mes1');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // VP não conta para retails: só entra na lista quando é escolhido no filtro de tipo.
-  const includeVP = selectedTypes.has('VP');
   const baseRecords = useMemo(() =>
     (data?.control ?? []).filter(r =>
-      (r.status === 'Carteira' || r.status === 'Matricula') &&
-      (isRetailType(r.type) || (includeVP && r.type === 'VP'))
-    ), [data, includeVP]);
+      (r.status === 'Carteira' || r.status === 'Matricula') && isRetailType(r.type)
+    ), [data]);
 
   const filtered = useMemo(() => {
     let result = baseRecords;
@@ -61,20 +52,8 @@ export default function CarteiraPage() {
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
     if (selectedBev !== null) result = result.filter(r => (r.bev === 1) === selectedBev);
-    if (selectedM !== null) result = result.filter(r => (r.mPerf === 1) === selectedM);
-    if (selectedRet !== null) result = result.filter(r => (r.ret === 1) === selectedRet);
-    if (selectedGar) result = result.filter(r => r.gar === selectedGar);
-    if (selectedTypes.size > 0) result = result.filter(r => selectedTypes.has(r.type));
-    if (selectedPark) result = result.filter(isParked);
     return result;
-  }, [baseRecords, selectedResps, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedGar, selectedTypes, selectedPark]);
-
-  const extra: ExtraFiltersState = {
-    ret: selectedRet, setRet: setSelectedRet, gar: selectedGar, setGar: setSelectedGar,
-    types: selectedTypes, setTypes: setSelectedTypes, bev: selectedBev, setBev: setSelectedBev,
-    qor: selectedQor, setQor: setSelectedQor, m: selectedM, setM: setSelectedM, park: selectedPark, setPark: setSelectedPark,
-  };
-  const parkCount = useMemo(() => filtered.filter(isParked).length, [filtered]);
+  }, [baseRecords, selectedResps, selectedFin, selectedModel, selectedQor, selectedBev]);
 
   const { respChartData, resps } = useMemo(() => {
     const respSet = new Set(baseRecords.map(r => r.resp).filter(Boolean));
@@ -206,7 +185,7 @@ export default function CarteiraPage() {
     ['week198', '198'],
   ];
 
-  const hasFilters = selectedResps.size > 0 || !!selectedFin || !!selectedModel || hasExtraFilters(extra);
+  const hasFilters = selectedResps.size > 0 || !!selectedFin || !!selectedModel || selectedQor !== null || selectedBev !== null;
 
   const clearFilter = (type: string) => {
     if (type === 'resp') setSelectedResps(new Set());
@@ -214,7 +193,6 @@ export default function CarteiraPage() {
     if (type === 'model') setSelectedModel(null);
     if (type === 'qor') setSelectedQor(null);
     if (type === 'bev') setSelectedBev(null);
-    if (type === 'ret') setSelectedRet(null);
   };
 
   const HorizontalBarList = ({ data: items, colorMap, selected, onClick }: {
@@ -257,20 +235,19 @@ export default function CarteiraPage() {
   return (
     <div className="space-y-3 animate-fade-in">
 
-      {/* Barra de filtros — retoma + filtros ativos */}
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-        <ExtraFilters s={extra} parkCount={parkCount} layout="bar" />
-
-        {hasFilters && (
+      {/* Filtros ativos (escolhidos nos gráficos) */}
+      {hasFilters && (
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
           <div className="flex items-center gap-2 flex-wrap pb-1">
             <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>
             {selectedResps.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('resp')}>{Array.from(selectedResps).join(', ')} x</Badge>}
             {selectedFin && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('fin')}>{selectedFin} x</Badge>}
             {selectedModel && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('model')}>{selectedModel} x</Badge>}
-            <ExtraFilterChips s={extra} className="text-[10px] cursor-pointer" />
+            {selectedQor !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('qor')}>QoR x</Badge>}
+            {selectedBev !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer" onClick={() => clearFilter('bev')}>BEV x</Badge>}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Row 1 — Carteira/Tipologia | Método/Distribuição */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
