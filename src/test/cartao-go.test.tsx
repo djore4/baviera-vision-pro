@@ -40,11 +40,21 @@ describe('Cartão Caetano Go — aviso', () => {
     await waitFor(() => expect(dialog()).toBeTruthy());
     expect(dialog()!.textContent).toMatch(/2 cartões por mês/);
     expect(dialog()!.textContent).toMatch(/tens\s*1\s*registado/);
-    expect(dialog()!.textContent).toMatch(/faltam\s*1/);
+    expect(dialog()!.textContent).toMatch(/falta\s*1/);   // singular
+    expect(dialog()!.textContent).toMatch(/Não te esqueças de fazer o Cartão Caetano Go/);
+    expect(dialog()!.textContent).toMatch(/gestão\s*confirmar os 2 cartões do mês/);
     // sem "lembrar mais tarde" nem "já tenho": só fechar
     expect(screen.queryByText(/lembrar|já tenho/i)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
     await waitFor(() => expect(dialog()).toBeNull());
+  });
+
+  it('sem nenhum registado, "faltam 2" (plural)', async () => {
+    listarRegistosDoMes.mockResolvedValue(reg(0));
+    mount();
+    await waitFor(() => expect(dialog()).toBeTruthy());
+    expect(dialog()!.textContent).toMatch(/tens\s*0\s*registados/);
+    expect(dialog()!.textContent).toMatch(/faltam\s*2/);
   });
 
   it('volta a abrir a cada mudança de página', async () => {

@@ -59,14 +59,14 @@ export function CartaoGoReminder() {
             Cartão Caetano Go
           </DialogTitle>
           <DialogDescription>
-            O objetivo é <strong>{OBJETIVO_MENSAL} cartões por mês</strong>. Este mês tens{' '}
+            O objetivo são <strong>{OBJETIVO_MENSAL} cartões por mês</strong>. Este mês tens{' '}
             <strong>{feitos}</strong> registado{feitos === 1 ? '' : 's'}
-            {faltam > 0 ? <> — faltam <strong>{faltam}</strong>.</> : '.'}
+            {faltam > 0 ? <> — {faltam === 1 ? 'falta' : 'faltam'} <strong>{faltam}</strong>.</> : '.'}
           </DialogDescription>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Propõe o cartão a quem tratares hoje e faz-o ali, no momento. Este aviso só desaparece quando o
-          cartão estiver confirmado pela gestão.
+          Não te esqueças de fazer o Cartão Caetano Go. Este aviso só desaparece quando a gestão
+          confirmar os {OBJETIVO_MENSAL} cartões do mês.
         </p>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button>
