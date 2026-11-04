@@ -5,6 +5,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
 import {
   distribuir, filtrar, isAtrasada, isParada, kpis, leadKey, parseDia, parseLeadsText, phoneDigits, planImport,
   resumoPorVendedor, rowsToLeads, splitTable, telHref, whatsappHref, historicoLabel,
+  iniciaisCandidatas, respDoLead, obsNegocioQuente, presetNegocioQuente, pontoComNegocio,
   type Lead,
 } from '@/lib/campanha-i3';
 
@@ -206,5 +207,49 @@ describe('ligações de contacto e histórico', () => {
     expect(historicoLabel({ tipo: 'atribuida', de: 'Ana', para: null })).toBe('Delegação retirada (era Ana)');
     expect(historicoLabel({ tipo: 'estado', de: 'novo', para: 'agendado' })).toBe('Estado: Novo → Agendado');
     expect(historicoLabel({ tipo: 'ponto', de: null, para: 'Ligou' })).toBe('Ponto de situação: Ligou');
+  });
+});
+
+describe('negócio quente a partir de uma oportunidade', () => {
+  const lead = {
+    id: 'l1', nome: '  Maria Silva ', email: 'maria@x.pt', contacto: '912345678', data_contacto: '2026-10-28', polo: 'DCC - Aveiro',
+    owner_nome: 'Rui Duarte Costa', ponto_situacao: 'Ligou', observacoes: 'Prefere de manhã',
+  } as unknown as Lead;
+
+  it('iniciais prováveis de um nome (sem acentos)', () => {
+    expect(iniciaisCandidatas('Rui Duarte Costa')).toEqual(['RC', 'RDC']);
+    expect(iniciaisCandidatas('João Évora')).toEqual(['JE']);
+    expect(iniciaisCandidatas('Ana')).toEqual(['A']);
+    expect(iniciaisCandidatas(null)).toEqual([]);
+  });
+
+  it('RESP só se as iniciais já existem nos registos (não se inventa um vendedor)', () => {
+    expect(respDoLead(lead, ['AN', 'RC'])).toBe('RC');
+    expect(respDoLead(lead, ['rdc'])).toBe('RDC');
+    expect(respDoLead(lead, ['AN'])).toBe('');
+    expect(respDoLead({ owner_nome: null }, ['RC'])).toBe('');
+  });
+
+  it('observações com a origem e como contactar', () => {
+    const o = obsNegocioQuente(lead);
+    expect(o.split('\n')[0]).toBe('Origem: Campanha i3');
+    expect(o).toContain('Contacto: 912345678');
+    expect(o).toContain('E-mail: maria@x.pt');
+    expect(o).toContain('Ponto de situação: Ligou');
+    expect(o).toContain('Obs.: Prefere de manhã');
+    expect(obsNegocioQuente({ email: null, contacto: null, polo: null, data_contacto: null, ponto_situacao: null, observacoes: null })).toBe('Origem: Campanha i3');
+  });
+
+  it('o preset é um negócio VN Quente, de hoje, com o cliente aparado', () => {
+    expect(presetNegocioQuente(lead, '2026-11-05', ['RC'])).toMatchObject({
+      status: 'Quente', type: 'VN', neg: '2026-11-05', id_cliente: 'Maria Silva', resp: 'RC',
+    });
+  });
+
+  it('a nota no ponto de situação acrescenta-se uma só vez', () => {
+    const uma = pontoComNegocio('Ligou', '2026-11-05');
+    expect(uma).toBe('Ligou\nNegócio quente criado a 05/11/2026.');
+    expect(pontoComNegocio(uma, '2026-11-05')).toBe(uma);
+    expect(pontoComNegocio(null, '2026-11-05')).toBe('Negócio quente criado a 05/11/2026.');
   });
 });

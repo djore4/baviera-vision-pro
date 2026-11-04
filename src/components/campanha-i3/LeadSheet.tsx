@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { History, Loader2, Mail, MessageCircle, Phone, Trash2 } from 'lucide-react';
+import { Flame, History, Loader2, Mail, MessageCircle, Phone, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,21 +34,25 @@ interface Props {
   onClose: () => void;
   onSaved: (l: Lead) => void;
   onDelete: (l: Lead) => void;
+  /** Abre o "Novo negócio" já preenchido, como negócio quente (só para quem pode criar negócios). */
+  onNegocioQuente?: (l: Lead) => void;
 }
 
-export function LeadSheet({ lead, canEdit, isAdmin, onClose, onSaved, onDelete }: Props) {
+export function LeadSheet({ lead, canEdit, isAdmin, onClose, onSaved, onDelete, onNegocioQuente }: Props) {
   return (
     <Sheet open={!!lead} onOpenChange={o => { if (!o) onClose(); }}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         {lead && (
-          <LeadForm key={`${lead.id}-${lead.updated_at}`} lead={lead} canEdit={canEdit} isAdmin={isAdmin} onSaved={onSaved} onDelete={onDelete} />
+          <LeadForm key={`${lead.id}-${lead.updated_at}`} lead={lead} canEdit={canEdit} isAdmin={isAdmin} onSaved={onSaved} onDelete={onDelete}
+            // O editor de negócios abre por cima: fecha-se primeiro esta ficha.
+            onNegocioQuente={onNegocioQuente ? l => { onClose(); onNegocioQuente(l); } : undefined} />
         )}
       </SheetContent>
     </Sheet>
   );
 }
 
-function LeadForm({ lead, canEdit, isAdmin, onSaved, onDelete }: Omit<Props, 'lead' | 'onClose'> & { lead: Lead }) {
+function LeadForm({ lead, canEdit, isAdmin, onSaved, onDelete, onNegocioQuente }: Omit<Props, 'lead' | 'onClose'> & { lead: Lead }) {
   const [estado, setEstado] = useState<Estado>(lead.estado);
   const [ponto, setPonto] = useState(lead.ponto_situacao ?? '');
   const [obs, setObs] = useState(lead.observacoes ?? '');
@@ -132,6 +136,11 @@ function LeadForm({ lead, canEdit, isAdmin, onSaved, onDelete }: Omit<Props, 'le
           {wa && <Button asChild size="sm" variant="outline"><a href={wa} target="_blank" rel="noreferrer"><MessageCircle className="mr-1.5 h-4 w-4" />WhatsApp</a></Button>}
           {lead.email && <Button asChild size="sm" variant="outline"><a href={`mailto:${lead.email}`}><Mail className="mr-1.5 h-4 w-4" />{lead.email}</a></Button>}
         </div>
+        {onNegocioQuente && (
+          <Button type="button" size="sm" className="w-full bg-red-600 text-white hover:bg-red-700" onClick={() => onNegocioQuente(lead)}>
+            <Flame className="mr-1.5 h-4 w-4" /> Transformar em negócio quente
+          </Button>
+        )}
         <p className="text-xs text-muted-foreground">
           Contactou em {fmtDia(lead.data_contacto)}
           {lead.data_contacto ? ` (há ${diasDesde(lead.data_contacto)} d)` : ''}
