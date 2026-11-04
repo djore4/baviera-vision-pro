@@ -6,9 +6,10 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { RetomaFilter, FlagsFilter, GarantiaFilter, TipoFilter } from '@/components/RetomaFilter';
+import { ParkFilter } from '@/components/ExtraFilters';
 import { formatDate, getCurrentWeek, getDeliveryMonth, isRetailType } from '@/lib/excel-parser';
 import { seasonalFlags } from '@/lib/seasonal';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, ParkingCircle, Download } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LabelList,
@@ -328,18 +329,8 @@ export default function RetailsPage() {
         <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
           <PeriodFilter>
             <div className="space-y-2 border-t border-border pt-3">
-              <button
-                onClick={() => setSelectedPark(prev => !prev)}
-                className={`w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 transition-all ${selectedPark ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-background hover:bg-accent'}`}
-              >
-                <div className="flex items-center gap-2">
-                  <ParkingCircle className={`h-4 w-4 ${selectedPark ? 'text-primary' : 'text-muted-foreground'}`} />
-                  <span className="text-[11px] font-semibold uppercase">Em Parque</span>
-                </div>
-                <Badge variant={selectedPark ? 'default' : 'secondary'} className="text-[10px]">{parkCount}</Badge>
-              </button>
-
-              <RetomaFilter value={selectedRet} onChange={setSelectedRet} />
+              <RetomaFilter value={selectedRet} onChange={setSelectedRet}
+                labelAction={<ParkFilter active={selectedPark} count={parkCount} onToggle={() => setSelectedPark(prev => !prev)} />} />
               <TipoFilter value={selectedTypes} onChange={setSelectedTypes} />
               <GarantiaFilter value={selectedGar} onChange={setSelectedGar} />
               <FlagsFilter flags={[
