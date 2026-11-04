@@ -106,6 +106,16 @@ begin
       select id, 'x/grande.pdf', 'grande.pdf', 6000000 from public.marketing_eventos;
     perform t.check('anexo acima de 5 MB é recusado', false);
   exception when check_violation then perform t.check('anexo acima de 5 MB é recusado', true); end;
+  -- Convites vs documentos (migração 20261105100000): categoria por omissão e valores válidos.
+  insert into public.marketing_anexos (evento_id, path, nome, tamanho) select id, 'x/doc.pdf', 'doc.pdf', 10 from public.marketing_eventos;
+  insert into public.marketing_anexos (evento_id, path, nome, tamanho, categoria) select id, 'x/convite.png', 'convite.png', 10, 'convite' from public.marketing_eventos;
+  perform t.check('anexos: por omissão são documentos; os convites ficam marcados',
+    (select count(*) from public.marketing_anexos where path = 'x/doc.pdf' and categoria = 'documento') = 1
+    and (select count(*) from public.marketing_anexos where path = 'x/convite.png' and categoria = 'convite') = 1);
+  begin
+    insert into public.marketing_anexos (evento_id, path, nome, categoria) select id, 'x/z.pdf', 'z.pdf', 'outra' from public.marketing_eventos;
+    perform t.check('categoria de anexo inválida é recusada', false);
+  exception when check_violation then perform t.check('categoria de anexo inválida é recusada', true); end;
   update public.marketing_eventos set categoria_id = (select id from public.marketing_categorias where nome = 'Evento');
   begin
     delete from public.marketing_categorias where nome = 'Evento';

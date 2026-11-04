@@ -3,8 +3,8 @@ import { CalendarClock, ImageIcon, MapPin, Plus, Settings2, Sparkles, Users } fr
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
-  COR_SEM_CATEGORIA, agruparPorMes, estadoDe, formatarIntervalo, hojeIso, ordenar, posicaoHoje, proximoEvento,
-  resumoAgenda, resumoConvidados, textoRelativo, type Categoria, type Convidado, type EstadoConvidado, type MarketingEvento, type Orcamento,
+  COR_SEM_CATEGORIA, agendaComHoje, contagemDias, estadoDe, formatarIntervalo, hojeIso, ordenar, proximoEvento,
+  resumoAgenda, resumoConvidados, textoRelativo, type Categoria, type Convidado, type EstadoConvidado, type TomContagem, type MarketingEvento, type Orcamento,
 } from '@/lib/marketing';
 import { listCategorias, listEstadosConvidados, listEventos, listOrcamentos } from '@/lib/marketing-data';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -39,6 +39,30 @@ function useEntrada<T extends HTMLElement>() {
     return () => io.disconnect();
   }, [visivel]);
   return [ref, visivel] as const;
+}
+
+const TOM_CONTAGEM: Record<TomContagem, string> = {
+  urgente: 'bg-destructive/10 text-destructive',
+  breve: 'bg-warning/15 text-warning',
+  normal: 'bg-primary/10 text-primary',
+  agora: 'bg-success/15 text-success',
+  passado: 'bg-muted text-muted-foreground',
+};
+
+/* O número grande de cada cartão: quantos dias faltam (ou há quantos dias foi). */
+function ContagemBloco({ ev, hoje }: { ev: MarketingEvento; hoje: string }) {
+  const c = contagemDias(ev, hoje);
+  return (
+    <div
+      data-testid="contagem"
+      aria-label={textoRelativo(ev, hoje)}
+      className={cn('flex w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-lg px-1 py-2 text-center leading-none', TOM_CONTAGEM[c.tom])}
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-wide opacity-80">{c.topo}</span>
+      <span className={cn('my-1 font-bold tabular-nums', c.valor.length > 3 ? 'text-base' : 'text-3xl')}>{c.valor}</span>
+      {c.rotulo && <span className="text-[10px] font-medium opacity-80">{c.rotulo}</span>}
+    </div>
+  );
 }
 
 function CartaoEvento({ ev, categoria, lado, hoje, convidados, todosOsConvidados, aoAbrir, marcador }: {
@@ -108,33 +132,28 @@ function CartaoEvento({ ev, categoria, lado, hoje, convidados, todosOsConvidados
             <img src={capa} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none" />
           </div>
         )}
-        <div className="p-4">
-          <div className={cn('flex flex-wrap items-center gap-2', lado === 'esq' && 'md:justify-end')}>
-            {categoria && (
-              <span className="rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ background: `hsl(${hsl} / 0.12)`, color: cor }}>
-                {categoria.nome}
-              </span>
-            )}
-            <span className="text-xs font-medium tabular-nums text-muted-foreground">{formatarIntervalo(ev)}{ev.hora ? ` · ${ev.hora}` : ''}</span>
-            <span
-              className={cn(
-                'rounded-full px-2 py-0.5 text-[11px]',
-                estado === 'a-decorrer' ? 'bg-success/15 font-medium text-success' : 'bg-muted text-muted-foreground',
+        <div className={cn('flex items-start gap-3 p-4', lado === 'esq' && 'md:flex-row-reverse')}>
+          <ContagemBloco ev={ev} hoje={hoje} />
+          <div className="min-w-0 flex-1">
+            <div className={cn('flex flex-wrap items-center gap-2', lado === 'esq' && 'md:justify-end')}>
+              {categoria && (
+                <span className="rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ background: `hsl(${hsl} / 0.12)`, color: cor }}>
+                  {categoria.nome}
+                </span>
               )}
-            >
-              {textoRelativo(ev, hoje)}
-            </span>
-          </div>
-          <h3 className="mt-2 text-base font-semibold leading-snug">{ev.titulo}</h3>
-          {ev.descricao && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{ev.descricao}</p>}
-          <div className={cn('mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground', lado === 'esq' && 'md:justify-end')}>
-            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{ev.local}</span>
-            {resumo.total > 0 && (
-              <span className="inline-flex items-center gap-1 tabular-nums">
-                <Users className="h-3 w-3" />
-                {todosOsConvidados ? `${resumo.confirmados}/${resumo.total} confirmados` : `${resumo.total} ${resumo.total === 1 ? 'convidado meu' : 'convidados meus'}`}
-              </span>
-            )}
+              <span className="text-xs font-medium tabular-nums text-muted-foreground">{formatarIntervalo(ev)}{ev.hora ? ` · ${ev.hora}` : ''}</span>
+            </div>
+            <h3 className="mt-2 text-base font-semibold leading-snug">{ev.titulo}</h3>
+            {ev.descricao && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{ev.descricao}</p>}
+            <div className={cn('mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground', lado === 'esq' && 'md:justify-end')}>
+              <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{ev.local}</span>
+              {resumo.total > 0 && (
+                <span className="inline-flex items-center gap-1 tabular-nums">
+                  <Users className="h-3 w-3" />
+                  {todosOsConvidados ? `${resumo.confirmados}/${resumo.total} confirmados` : `${resumo.total} ${resumo.total === 1 ? 'convidado meu' : 'convidados meus'}`}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </article>
@@ -185,7 +204,7 @@ export default function MarketingPage() {
   const catPorId = useMemo(() => new Map(categorias.map(c => [c.id, c])), [categorias]);
   const todos = useMemo(() => ordenar(eventos), [eventos]);
   const visiveis = useMemo(() => (filtro === 'todos' ? todos : todos.filter(e => e.categoria_id === filtro)), [todos, filtro]);
-  const grupos = useMemo(() => agruparPorMes(visiveis), [visiveis]);
+  const grupos = useMemo(() => agendaComHoje(visiveis, hoje), [visiveis, hoje]);
   const proximo = useMemo(() => proximoEvento(eventos, hoje), [eventos, hoje]);
   const contagem = useMemo(() => {
     const c: Record<string, number> = { todos: todos.length };
@@ -209,33 +228,20 @@ export default function MarketingPage() {
   };
 
   /* ── Traço "preenchido" até hoje ──────────────────────────────────────────
-   * Mede a posição vertical de cada marcador e interpola a de "hoje" entre eles. */
-  const listaRef = useRef<HTMLOListElement | null>(null);
+   * "Hoje" é um item da própria linha: o traço enche até ao centro desse item. */
+  const caixaRef = useRef<HTMLDivElement | null>(null);
+  const hojeRef = useRef<HTMLElement | null>(null);
   const marcadores = useRef<Map<string, HTMLElement>>(new Map());
   const [alturaFill, setAlturaFill] = useState(0);
-  const [yHoje, setYHoje] = useState<number | null>(null);
   const [pronto, setPronto] = useState(false);
 
   const medir = useCallback(() => {
-    const lista = listaRef.current;
-    if (!lista || visiveis.length === 0) { setYHoje(null); setAlturaFill(0); return; }
-    const topo = lista.getBoundingClientRect().top;
-    const ys = visiveis.map(e => {
-      const el = marcadores.current.get(e.id);
-      if (!el) return null;
-      const r = el.getBoundingClientRect();
-      return r.top + r.height / 2 - topo;
-    });
-    if (ys.some(y => y === null)) return;
-    const pos = posicaoHoje(visiveis, hoje);
-    const i = Math.min(Math.floor(pos), ys.length - 1);
-    const y0 = ys[i] as number;
-    const y1 = (ys[Math.min(i + 1, ys.length - 1)] ?? y0) as number;
-    const y = y0 + (y1 - y0) * (pos - i);
-    // Antes de qualquer evento: o preenchimento fica à entrada da linha.
-    setYHoje(y);
-    setAlturaFill(Math.max(0, y));
-  }, [visiveis, hoje]);
+    const caixa = caixaRef.current;
+    const alvo = hojeRef.current;
+    if (!caixa || !alvo) { setAlturaFill(0); return; }
+    const r = alvo.getBoundingClientRect();
+    setAlturaFill(Math.max(0, r.top + r.height / 2 - caixa.getBoundingClientRect().top));
+  }, []);
 
   useLayoutEffect(() => { medir(); }, [medir]);
   useEffect(() => {
@@ -244,13 +250,13 @@ export default function MarketingPage() {
     return () => clearTimeout(t);
   }, []);
   useEffect(() => {
-    const lista = listaRef.current;
-    if (!lista) return;
+    const caixa = caixaRef.current;
+    if (!caixa) return;
     let ro: ResizeObserver | undefined;
-    if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(() => medir()); ro.observe(lista); }
+    if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(() => medir()); ro.observe(caixa); }
     window.addEventListener('resize', medir);
     return () => { ro?.disconnect(); window.removeEventListener('resize', medir); };
-  }, [medir]);
+  }, [medir, visiveis]);
 
   const irParaProximo = () => {
     const alvo = proximo ? marcadores.current.get(proximo.id) : null;
@@ -352,8 +358,8 @@ export default function MarketingPage() {
           {eventos.length === 0 && canEdit && <Button className="mt-3" size="sm" onClick={() => setForm({ evento: null })}><Plus className="mr-1.5 h-4 w-4" /> Novo evento</Button>}
         </div>
       ) : (
-        <ol ref={listaRef} className="relative space-y-6 pb-4" aria-label="Linha do tempo de marketing">
-          {/* Traço base + traço preenchido até hoje */}
+        <div ref={caixaRef} className="relative pb-4">
+          {/* Traço base + traço preenchido até hoje (fora da lista: o space-y da lista não os desloca) */}
           <div aria-hidden className="absolute bottom-0 left-4 top-0 w-0.5 -translate-x-1/2 rounded-full bg-border md:left-1/2" />
           <div
             aria-hidden
@@ -365,55 +371,55 @@ export default function MarketingPage() {
               background: 'linear-gradient(to bottom, hsl(var(--primary) / 0.25), hsl(var(--primary)))',
             }}
           />
-          {/* Marcador "Hoje" */}
-          {yHoje !== null && (
-            <div
-              aria-hidden
-              data-testid="marcador-hoje"
-              className="pointer-events-none absolute left-4 z-20 md:left-1/2"
-              style={{
-                top: pronto ? yHoje : 0,
-                transition: 'top 1.4s cubic-bezier(0.22, 1, 0.36, 1)',
-              }}
-            >
-              <span className="absolute -translate-x-1/2 -translate-y-1/2">
-                <span className="absolute inset-0 -m-1.5 animate-ping rounded-full bg-primary/40 motion-reduce:animate-none" />
-                <span className="relative block h-3 w-3 rounded-full border-2 border-card bg-primary shadow" />
-              </span>
-              <span className="absolute left-3 top-0 hidden -translate-y-1/2 whitespace-nowrap md:block rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground shadow-sm">
-                Hoje
-              </span>
-            </div>
-          )}
 
-          {grupos.map(g => (
-            <li key={g.key} className="list-none space-y-6" aria-label={g.label}>
-              <div className="sticky top-2 z-30 flex pl-12 md:justify-center md:pl-0">
-                <span className="rounded-full border bg-card/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground shadow-sm backdrop-blur">
-                  {g.label}
-                </span>
-              </div>
-              <ol className="space-y-6">
-                {g.eventos.map(ev => {
-                  indice += 1;
-                  return (
-                    <CartaoEvento
-                      key={ev.id}
-                      ev={ev}
-                      categoria={ev.categoria_id ? catPorId.get(ev.categoria_id) ?? null : null}
-                      convidados={estadosConv[ev.id] ?? []}
-                      todosOsConvidados={canEdit}
-                      aoAbrir={() => setAberto(ev.id)}
-                      lado={indice % 2 === 0 ? 'esq' : 'dir'}
-                      hoje={hoje}
-                      marcador={el => { if (el) marcadores.current.set(ev.id, el); else marcadores.current.delete(ev.id); }}
-                    />
-                  );
-                })}
-              </ol>
-            </li>
-          ))}
-        </ol>
+          <ol className="relative space-y-6" aria-label="Linha do tempo de marketing">
+            {grupos.map(g => (
+              <li key={g.key} className="list-none space-y-6" aria-label={g.label}>
+                <div className="sticky top-2 z-30 flex pl-12 md:justify-center md:pl-0">
+                  <span className="rounded-full border bg-card/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground shadow-sm backdrop-blur">
+                    {g.label}
+                  </span>
+                </div>
+                <ol className="space-y-6">
+                  {g.itens.map(item => {
+                    if (item.tipo === 'hoje') {
+                      return (
+                        <li key="hoje" className="flex pl-12 md:justify-center md:pl-0">
+                          <span
+                            ref={el => { hojeRef.current = el; }}
+                            data-testid="marcador-hoje"
+                            className="relative z-20 inline-flex items-center gap-2 rounded-full bg-primary px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary-foreground shadow-md"
+                          >
+                            <span className="relative flex h-2 w-2">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/70 motion-reduce:animate-none" />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                            </span>
+                            Hoje · {formatarIntervalo({ inicio: hoje })}
+                          </span>
+                        </li>
+                      );
+                    }
+                    const ev = item.evento;
+                    indice += 1;
+                    return (
+                      <CartaoEvento
+                        key={ev.id}
+                        ev={ev}
+                        categoria={ev.categoria_id ? catPorId.get(ev.categoria_id) ?? null : null}
+                        convidados={estadosConv[ev.id] ?? []}
+                        todosOsConvidados={canEdit}
+                        aoAbrir={() => setAberto(ev.id)}
+                        lado={indice % 2 === 0 ? 'esq' : 'dir'}
+                        hoje={hoje}
+                        marcador={el => { if (el) marcadores.current.set(ev.id, el); else marcadores.current.delete(ev.id); }}
+                      />
+                    );
+                  })}
+                </ol>
+              </li>
+            ))}
+          </ol>
+        </div>
       )}
     
       <EventoDetalhe

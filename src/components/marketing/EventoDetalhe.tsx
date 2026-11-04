@@ -15,7 +15,7 @@ import {
 import { deleteEvento } from '@/lib/marketing-data';
 import { cn } from '@/lib/utils';
 import { ConvidadosPanel } from './ConvidadosPanel';
-import { DocumentosPanel } from './DocumentosPanel';
+import { AnexosPanel } from './AnexosPanel';
 import { ViaturasPanel } from './ViaturasPanel';
 import { useUrlFicheiro } from './useUrlFicheiro';
 import { LocalMapa } from './LocalMapa';
@@ -115,11 +115,12 @@ export function EventoDetalhe({ evento, categoria, canEdit, orcamento, meuEmail,
                 </div>
 
                 <Tabs defaultValue="resumo" key={evento.id}>
-                  <TabsList className="grid h-auto w-full grid-cols-4 [&>button]:px-1 [&>button]:text-xs sm:[&>button]:text-sm">
+                  <TabsList className="flex h-auto w-full justify-start overflow-x-auto [&>button]:flex-1 [&>button]:shrink-0 [&>button]:px-3 [&>button]:text-xs sm:[&>button]:text-sm">
                     <TabsTrigger value="resumo">Resumo</TabsTrigger>
+                    <TabsTrigger value="convites">Convites</TabsTrigger>
+                    <TabsTrigger value="convidados">Convidados</TabsTrigger>
                     <TabsTrigger value="viaturas">Viaturas</TabsTrigger>
                     <TabsTrigger value="documentos">Documentos</TabsTrigger>
-                    <TabsTrigger value="convidados">Convidados</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="resumo" className="mt-4 space-y-5">
@@ -158,7 +159,8 @@ export function EventoDetalhe({ evento, categoria, canEdit, orcamento, meuEmail,
                   </TabsContent>
 
                   <TabsContent value="viaturas" className="mt-4"><ViaturasPanel eventoId={evento.id} readOnly={!canEdit} /></TabsContent>
-                  <TabsContent value="documentos" className="mt-4"><DocumentosPanel eventoId={evento.id} readOnly={!canEdit} /></TabsContent>
+                  <TabsContent value="convites" className="mt-4"><AnexosPanel eventoId={evento.id} categoria="convite" readOnly={!canEdit} /></TabsContent>
+                  <TabsContent value="documentos" className="mt-4"><AnexosPanel eventoId={evento.id} categoria="documento" readOnly={!canEdit} /></TabsContent>
                   <TabsContent value="convidados" className="mt-4">
                     <ConvidadosPanel evento={evento} onChange={lista => onConvidados(evento.id, lista)} podeGerirTodos={canEdit} meuEmail={meuEmail} meuNome={meuNome} />
                   </TabsContent>

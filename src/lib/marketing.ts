@@ -150,23 +150,73 @@ export function proximoEvento<T extends Datado & { titulo: string }>(eventos: T[
   return ordenar(eventos).find(e => estadoDe(e, hoje) !== 'passado') ?? null;
 }
 
+export type ItemAgenda<T> = { tipo: 'evento'; evento: T } | { tipo: 'hoje' };
+
+export interface GrupoAgenda<T> {
+  /** AAAA-MM */
+  key: string;
+  label: string;
+  itens: ItemAgenda<T>[];
+}
+
 /**
- * Onde "hoje" cai na sequência de eventos (ordenados), como posição contínua:
- * 0 = no 1.º evento, 1 = no 2.º, 0.5 = a meio caminho entre o 1.º e o 2.º…
- * Antes do 1.º: 0. Depois do último: n − 1. Interpola pelo tempo entre inícios.
+ * Os eventos por mês, com "Hoje" como um item da própria linha, na ordem cronológica:
+ * depois dos eventos que já começaram antes de hoje e antes dos que começam hoje ou
+ * mais tarde. O mês de hoje aparece sempre (mesmo sem eventos), para o "Hoje" ter
+ * onde estar — antes de todos os eventos, entre eles ou depois do último.
  */
-export function posicaoHoje<T extends Datado & { titulo: string }>(eventos: T[], hoje: string): number {
-  const evs = ordenar(eventos);
-  if (evs.length === 0) return 0;
-  if (hoje <= evs[0].inicio) return 0;
-  for (let i = 0; i < evs.length - 1; i++) {
-    const a = evs[i].inicio, b = evs[i + 1].inicio;
-    if (hoje >= a && hoje < b) {
-      const total = diasEntre(a, b);
-      return total <= 0 ? i : i + diasEntre(a, hoje) / total;
-    }
+export function agendaComHoje<T extends Datado & { titulo: string }>(eventos: T[], hoje: string): GrupoAgenda<T>[] {
+  const grupos = agruparPorMes(eventos).map(g => ({ key: g.key, label: g.label, eventos: g.eventos }));
+  const keyHoje = hoje.slice(0, 7);
+  if (!grupos.some(g => g.key === keyHoje)) {
+    const d = parseDia(hoje);
+    const novo = { key: keyHoje, label: `${MESES[d.getMonth()]} ${d.getFullYear()}`, eventos: [] as T[] };
+    const i = grupos.findIndex(g => g.key > keyHoje);
+    if (i === -1) grupos.push(novo); else grupos.splice(i, 0, novo);
   }
-  return evs.length - 1;
+  return grupos.map(g => {
+    const itens: ItemAgenda<T>[] = g.eventos.map(evento => ({ tipo: 'evento', evento }));
+    if (g.key !== keyHoje) return { key: g.key, label: g.label, itens };
+    const antes = g.eventos.filter(e => e.inicio < hoje).map((evento): ItemAgenda<T> => ({ tipo: 'evento', evento }));
+    const depois = g.eventos.filter(e => e.inicio >= hoje).map((evento): ItemAgenda<T> => ({ tipo: 'evento', evento }));
+    return { key: g.key, label: g.label, itens: [...antes, { tipo: 'hoje' }, ...depois] };
+  });
+}
+
+/* ── Contagem de dias (o número grande de cada cartão) ─────────────────────── */
+
+export type TomContagem = 'agora' | 'urgente' | 'breve' | 'normal' | 'passado';
+
+export interface Contagem {
+  /** Linha pequena por cima do número ("Faltam", "A decorrer", "Há"). */
+  topo: string;
+  /** O que se destaca ("10", "hoje", "último dia"). */
+  valor: string;
+  /** Linha pequena por baixo ("dias", "dia restante"). */
+  rotulo: string;
+  /** urgente: ≤ 7 dias · breve: ≤ 30 · normal: mais longe · agora: a decorrer · passado. */
+  tom: TomContagem;
+}
+
+export function contagemDias(ev: Datado, hoje: string): Contagem {
+  const estado = estadoDe(ev, hoje);
+  if (estado === 'passado') {
+    const n = diasEntre(ev.fim ?? ev.inicio, hoje);
+    return { topo: 'Há', valor: String(n), rotulo: n === 1 ? 'dia' : 'dias', tom: 'passado' };
+  }
+  if (estado === 'a-decorrer') {
+    if (ev.inicio === hoje) return { topo: 'Começa', valor: 'hoje', rotulo: '', tom: 'agora' };
+    const resta = diasEntre(hoje, ev.fim ?? ev.inicio);
+    if (resta === 0) return { topo: 'A decorrer', valor: 'último', rotulo: 'dia', tom: 'agora' };
+    return { topo: 'A decorrer', valor: String(resta), rotulo: resta === 1 ? 'dia restante' : 'dias restantes', tom: 'agora' };
+  }
+  const n = diasEntre(hoje, ev.inicio);
+  return {
+    topo: n === 1 ? 'Falta' : 'Faltam',
+    valor: String(n),
+    rotulo: n === 1 ? 'dia' : 'dias',
+    tom: n <= 7 ? 'urgente' : n <= 30 ? 'breve' : 'normal',
+  };
 }
 
 /* ── Orçamento: previsto (expectativa) vs real ─────────────────────────────── */

@@ -1401,6 +1401,7 @@ export type Database = {
       }
       marketing_anexos: {
         Row: {
+          categoria: string
           created_at: string
           criado_por: string | null
           evento_id: string
@@ -1412,6 +1413,7 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          categoria?: string
           created_at?: string
           criado_por?: string | null
           evento_id: string
@@ -1422,6 +1424,7 @@ export type Database = {
           tipo?: string | null
         }
         Update: {
+          categoria?: string
           created_at?: string
           criado_por?: string | null
           evento_id?: string
