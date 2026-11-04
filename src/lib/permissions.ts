@@ -182,6 +182,14 @@ export const TAB_FORA_DO_LOCAL = 'end-of-term';
 export const restritoPeloLocal = (user: { local?: unknown } | null | undefined): boolean =>
   !locaisDoPerfil(user?.local).includes(LOCAL_ACESSO_COMPLETO);
 
+/* Chave em app_roles.permissions: a função ignora a restrição por local (vê o que a matriz
+ * lhe dá em qualquer local). Para funções transversais (Diretor, Marketing…). A RLS do
+ * Marketing (marketing_local_ok) lê a mesma chave. */
+export const TODOS_LOCAIS_KEY = 'acesso:todos-locais';
+
+export const funcaoIgnoraLocal = (role: { permissions?: Record<string, unknown> } | null | undefined): boolean =>
+  role?.permissions?.[TODOS_LOCAIS_KEY] === 'edit';
+
 /** Este tab (ou permissão `tab:ação`) continua disponível a quem está fora do local? */
 export const tabLivreForaDoLocal = (tab: string): boolean =>
   tab === TAB_FORA_DO_LOCAL || tab.startsWith(`${TAB_FORA_DO_LOCAL}:`);
