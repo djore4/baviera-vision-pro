@@ -126,6 +126,9 @@ function validar(f: Pick<File, 'name' | 'size'>, ext: RegExp): string | null {
   if (!ext.test(f.name)) return `“${f.name}”: tipo de ficheiro não suportado.`;
   return null;
 }
+const CONVITE_EXT = /\.(png|jpe?g|webp|gif|pdf)$/i;
+export const CONVITE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,application/pdf,.pdf';
+export const validarConvite = (f: Pick<File, 'name' | 'size'>) => validar(f, CONVITE_EXT);
 export const validarImagem = (f: Pick<File, 'name' | 'size'>) => validar(f, IMG_EXT);
 export const validarDocumento = (f: Pick<File, 'name' | 'size'>) => validar(f, DOC_EXT);
 
@@ -171,9 +174,13 @@ export async function urlFicheiro(path: string): Promise<string> {
 
 /* ── Anexos ─────────────────────────────────────────────────────────────────── */
 
+/** Convites (para descarregar e enviar aos convidados) ou documentos (brochuras, programa…). */
+export type CategoriaAnexo = 'documento' | 'convite';
+
 export interface Anexo {
   id: string;
   evento_id: string;
+  categoria: CategoriaAnexo;
   path: string;
   nome: string;
   tipo: string | null;
@@ -181,19 +188,21 @@ export interface Anexo {
   created_at: string;
 }
 
-export async function listAnexos(eventoId: string): Promise<Anexo[]> {
-  const { data, error } = await supabase.from('marketing_anexos').select('*').eq('evento_id', eventoId).order('created_at');
+export async function listAnexos(eventoId: string, categoria?: CategoriaAnexo): Promise<Anexo[]> {
+  let q = supabase.from('marketing_anexos').select('*').eq('evento_id', eventoId);
+  if (categoria) q = q.eq('categoria', categoria);
+  const { data, error } = await q.order('created_at');
   if (error) return [];
   return (data ?? []) as Anexo[];
 }
 
-export async function uploadAnexo(eventoId: string, file: File): Promise<Anexo> {
+export async function uploadAnexo(eventoId: string, file: File, categoria: CategoriaAnexo = 'documento'): Promise<Anexo> {
   const invalido = validarDocumento(file);
   if (invalido) throw new Error(invalido);
   const path = `${eventoId}/${crypto.randomUUID()}-${nomeSeguro(file.name)}`;
   await carregar(path, file);
   const { data, error } = await supabase.from('marketing_anexos').insert({
-    evento_id: eventoId, path, nome: file.name, tipo: file.type || null, tamanho: file.size,
+    evento_id: eventoId, path, nome: file.name, tipo: file.type || null, tamanho: file.size, categoria,
   }).select().single();
   if (error) {
     await supabase.storage.from(BUCKET).remove([path]); // sem ficheiros órfãos

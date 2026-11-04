@@ -4,7 +4,7 @@ import { render, screen, fireEvent, within, waitFor } from '@testing-library/rea
 const api = vi.hoisted(() => ({
   listEventos: vi.fn(), listCategorias: vi.fn(), listEstadosConvidados: vi.fn(),
   createEvento: vi.fn(), updateEvento: vi.fn(), deleteEvento: vi.fn(),
-  listOrcamentos: vi.fn(), saveOrcamento: vi.fn(), saveCategoria: vi.fn(),
+  listOrcamentos: vi.fn(), saveOrcamento: vi.fn(), saveCategoria: vi.fn(), uploadAnexo: vi.fn(), urlDownload: vi.fn(),
   listViaturasEvento: vi.fn(), listParque: vi.fn(), listAnexos: vi.fn(), listConvidados: vi.fn(),
 }));
 vi.mock('@/lib/marketing-data', async orig => ({
@@ -190,6 +190,39 @@ describe('MarketingPage', () => {
     fireEvent.click(within(dlg).getByRole('button', { name: /criar evento/i }));
     await waitFor(() => expect(api.createEvento).toHaveBeenCalled());
     expect(api.createEvento.mock.calls[0][0]).toMatchObject({ titulo: 'Jantar', categoria_id: 'c9' });
+  });
+
+  it('convites: quem edita carrega e descarrega; só aceita imagem ou PDF', async () => {
+    const convite = { id: 'a1', evento_id: 'e1', categoria: 'convite', path: 'e1/x-convite.png', nome: 'convite.png', tipo: 'image/png', tamanho: 120000, created_at: '2099-01-01' };
+    api.listAnexos.mockResolvedValue([convite]);
+    api.uploadAnexo.mockImplementation(async (id: string, f: File, cat: string) => ({ ...convite, id: 'a2', nome: f.name, categoria: cat }));
+    render(<MarketingPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir Open House' }));
+    const det = await screen.findByTestId('evento-detalhe');
+    fireEvent.mouseDown(within(det).getByRole('tab', { name: 'Convites' }), { button: 0 });
+    const painel = await screen.findByTestId('convites');
+    await waitFor(() => expect(api.listAnexos).toHaveBeenCalledWith('e1', 'convite'));
+    expect(await within(painel).findByRole('button', { name: 'Descarregar convite.png' })).toBeInTheDocument();
+
+    fireEvent.change(within(painel).getByTestId('convites-input'), { target: { files: [new File(['x'], 'folheto.docx')] } });
+    expect(api.uploadAnexo).not.toHaveBeenCalled(); // Word não é um convite válido
+
+    fireEvent.change(within(painel).getByTestId('convites-input'), { target: { files: [new File(['x'], 'novo.pdf', { type: 'application/pdf' })] } });
+    await waitFor(() => expect(api.uploadAnexo).toHaveBeenCalledWith('e1', expect.objectContaining({ name: 'novo.pdf' }), 'convite'));
+    expect(await within(painel).findByRole('button', { name: 'Descarregar novo.pdf' })).toBeInTheDocument();
+  });
+
+  it('convites: quem só vê descarrega, mas não carrega nem remove', async () => {
+    perm.canEdit = false;
+    api.listAnexos.mockResolvedValue([{ id: 'a1', evento_id: 'e1', categoria: 'convite', path: 'e1/x.png', nome: 'convite.png', tipo: 'image/png', tamanho: 1000, created_at: '2099-01-01' }]);
+    render(<MarketingPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir Open House' }));
+    const det = await screen.findByTestId('evento-detalhe');
+    fireEvent.mouseDown(within(det).getByRole('tab', { name: 'Convites' }), { button: 0 });
+    const painel = await screen.findByTestId('convites');
+    expect(await within(painel).findByRole('button', { name: 'Descarregar convite.png' })).toBeInTheDocument();
+    expect(within(painel).queryByRole('button', { name: 'Carregar convite' })).toBeNull();
+    expect(within(painel).queryByRole('button', { name: /remover/i })).toBeNull();
   });
 
   it('sem eventos: convida a criar o primeiro', async () => {
