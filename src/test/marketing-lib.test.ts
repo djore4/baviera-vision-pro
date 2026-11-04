@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  agruparPorMes, agruparPorVendedor, estadoDe, formatarIntervalo, highlightsDeTexto, linkWhatsApp, posicaoHoje,
+  agruparPorMes, agruparPorVendedor, estadoDe, formatarIntervalo, highlightsDeTexto, linkWhatsApp, agendaComHoje, contagemDias,
   proximoEvento, resumoAgenda, urlAbrirMapa, urlMapaEmbed, urlRota, resumoConvidados, resumoOrcamento, telefoneWhatsApp, textoConvite, textoRelativo,
   type Convidado,
 } from '@/lib/marketing';
@@ -35,13 +35,38 @@ describe('linha do tempo', () => {
     expect(proximoEvento(evs, '2027-01-05')?.id).toBe('b');
     expect(proximoEvento(evs, '2027-03-01')).toBeNull();
   });
-  it('posição de hoje interpola entre eventos', () => {
-    const evs = [ev('a', '2027-01-01'), ev('b', '2027-01-11'), ev('c', '2027-01-21')];
-    expect(posicaoHoje(evs, '2026-12-01')).toBe(0);
-    expect(posicaoHoje(evs, '2027-01-06')).toBeCloseTo(0.5);
-    expect(posicaoHoje(evs, '2027-01-11')).toBeCloseTo(1);
-    expect(posicaoHoje(evs, '2027-06-01')).toBe(2);
-    expect(posicaoHoje([], '2027-01-01')).toBe(0);
+  it('"Hoje" fica antes de todos os eventos quando eles são todos futuros', () => {
+    const g = agendaComHoje([ev('a', '2027-01-20'), ev('b', '2027-02-10')], '2027-01-05');
+    expect(g.map(x => x.key)).toEqual(['2027-01', '2027-02']);
+    expect(g[0].itens.map(i => (i.tipo === 'hoje' ? 'HOJE' : i.evento.id))).toEqual(['HOJE', 'a']);
+  });
+  it('"Hoje" fica entre os eventos, na ordem do calendário', () => {
+    const g = agendaComHoje([ev('a', '2027-01-02'), ev('b', '2027-01-20'), ev('c', '2027-01-05', '2027-01-30')], '2027-01-10');
+    expect(g[0].itens.map(i => (i.tipo === 'hoje' ? 'HOJE' : i.evento.id))).toEqual(['a', 'c', 'HOJE', 'b']);
+  });
+  it('um evento que começa hoje fica logo a seguir ao "Hoje"', () => {
+    const g = agendaComHoje([ev('a', '2027-01-10')], '2027-01-10');
+    expect(g[0].itens.map(i => (i.tipo === 'hoje' ? 'HOJE' : i.evento.id))).toEqual(['HOJE', 'a']);
+  });
+  it('o mês de hoje existe sempre: sem eventos nele, ou depois do último evento', () => {
+    const futuro = agendaComHoje([ev('a', '2027-03-01')], '2027-01-10');
+    expect(futuro.map(x => x.key)).toEqual(['2027-01', '2027-03']);
+    expect(futuro[0].itens).toEqual([{ tipo: 'hoje' }]);
+    const passado = agendaComHoje([ev('a', '2026-12-01')], '2027-01-10');
+    expect(passado.map(x => x.key)).toEqual(['2026-12', '2027-01']);
+    expect(passado[1].itens).toEqual([{ tipo: 'hoje' }]);
+    expect(agendaComHoje([], '2027-01-10')).toHaveLength(1);
+  });
+  it('contagem de dias: faltam, urgência, a decorrer e passados', () => {
+    expect(contagemDias(ev('a', '2027-01-20'), '2027-01-10')).toEqual({ topo: 'Faltam', valor: '10', rotulo: 'dias', tom: 'breve' });
+    expect(contagemDias(ev('a', '2027-01-11'), '2027-01-10')).toEqual({ topo: 'Falta', valor: '1', rotulo: 'dia', tom: 'urgente' });
+    expect(contagemDias(ev('a', '2027-01-17'), '2027-01-10').tom).toBe('urgente');
+    expect(contagemDias(ev('a', '2027-02-09'), '2027-01-10').tom).toBe('breve');
+    expect(contagemDias(ev('a', '2027-02-10'), '2027-01-10').tom).toBe('normal');
+    expect(contagemDias(ev('a', '2027-01-10'), '2027-01-10')).toEqual({ topo: 'Começa', valor: 'hoje', rotulo: '', tom: 'agora' });
+    expect(contagemDias(ev('a', '2027-01-08', '2027-01-12'), '2027-01-10')).toEqual({ topo: 'A decorrer', valor: '2', rotulo: 'dias restantes', tom: 'agora' });
+    expect(contagemDias(ev('a', '2027-01-08', '2027-01-10'), '2027-01-10')).toMatchObject({ valor: 'último', rotulo: 'dia' });
+    expect(contagemDias(ev('a', '2027-01-01'), '2027-01-04')).toEqual({ topo: 'Há', valor: '3', rotulo: 'dias', tom: 'passado' });
   });
 });
 

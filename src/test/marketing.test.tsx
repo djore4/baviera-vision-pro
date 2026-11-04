@@ -136,6 +136,18 @@ describe('MarketingPage', () => {
     expect(within(det).getByText(/acima do orçamento/)).toBeInTheDocument();
   });
 
+  it('"Hoje" é um item da linha: antes dos eventos futuros, e cada cartão mostra os dias que faltam', async () => {
+    const d = (n: number) => { const x = new Date(); x.setDate(x.getDate() + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+    api.listEventos.mockResolvedValue([EV('f1', 'Daqui a dez', d(10), 'c2'), EV('f2', 'Daqui a quarenta', d(40), 'c1')]);
+    render(<MarketingPage />);
+    const cartoes = await screen.findAllByTestId('evento');
+    const hoje = screen.getByTestId('marcador-hoje');
+    // Hoje vem antes do primeiro evento (nunca colado a ele nem depois).
+    expect(hoje.compareDocumentPosition(cartoes[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(cartoes[0]).getByTestId('contagem')).toHaveTextContent('Faltam10dias');
+    expect(within(cartoes[1]).getByTestId('contagem')).toHaveTextContent('Faltam40dias');
+  });
+
   it('mostra a faixa de números da agenda', async () => {
     render(<MarketingPage />);
     const faixa = await screen.findByTestId('resumo-agenda');
