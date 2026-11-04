@@ -98,6 +98,14 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   com a permissão de aplicação `Mail.Read`, limitada à caixa de Aveiro. Sem eles, o botão
   mostra "Sincronização não configurada". Um import do Excel (substitui `control_records`)
   apaga `mat_pedida_em`; uma nova sincronização repõe-no (janela de 30 dias).
+  O botão mostra primeiro o que vai mudar e só grava depois de confirmar (a função aceita
+  `{ simular: true }` e não grava nada). Lê também o email diário **"Matriculas - Aveiro"**
+  (tabela do stand): emparelha pela encomenda (sem zeros à esquerda) ou pelo chassis e
+  preenche `mat`, completa o `chas` (VIN inteiro) e acerta a `dmat` (data real da matrícula);
+  nunca sobrescreve uma matrícula ou chassis diferentes (ficam "por tratar") e não muda o
+  estado do negócio. Para aceitar esse email só de quem o envia, definir o segredo opcional
+  `MS_PLATES_SENDERS` (emails separados por vírgula). O email tem de estar na pasta lida
+  (`MS_MAIL_FOLDER`, por omissão a Caixa de Entrada).
 - Ao acrescentar uma tabela nova: ativar RLS e dar-lhe políticas explícitas
   (sem políticas só o service role acede). Ao acrescentar um tab: dizer em que
   tabelas lê e escreve, e acrescentar o caso a `tests/rls.test.sql`.

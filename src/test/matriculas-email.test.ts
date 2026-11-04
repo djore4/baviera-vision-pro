@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  casar, ehMatriculaPedida, extrairMatricula, extrairReferencias, parteNova, processar,
+  aplicarAlteracoes, casar, chassisCompativeis, detalhar, ehEmailDiario, ehMatriculaPedida, extrairMatricula, extrairReferencias,
+  juntarAlteracoes, lerTabelaDiaria, normEnc, parteNova, processar, processarDiarios,
   type Mensagem, type RegistoVN,
 } from '../../supabase/functions/_shared/matriculas-email';
 
@@ -93,5 +94,91 @@ describe('leitura das respostas ao pedido de matrícula', () => {
     const out = processar([msg('m1', r, 'Matrícula pedida', '2026-11-02T09:00:00Z')], [reg('9')]);
     expect(out.alteracoes).toEqual([]);
     expect(out.ignoradas).toHaveLength(1);
+  });
+});
+
+/* ── Email diário "Matriculas - Aveiro" (formato do Outlook, dados inventados) ── */
+const cel = (v: string) => `<td style="padding:0"><p class="MsoNormal">${v}</p></td>`;
+const lin = (...v: string[]) => `<tr style="height:14.4pt">${v.map(cel).join('')}</tr>`;
+const DIARIO = `<div class="WordSection1"><table class="MsoNormalTable"><tbody>
+  ${lin('Ponto de Venda', '52894-Caetano Aveiro')}
+  ${lin('Data:03/11/2026')}
+  ${lin('Nº Encomenda', 'NºChassis', 'Line', 'Matrícula', 'Data Matrícula', '&nbsp;', '&nbsp;')}
+  ${lin('9710001', 'WBA71BX0X07W88199', '220i Active Tourer', 'AA26BB', '02/11/2026', 'Cliente Um, Lda &amp; Filhos', 'NC')}
+  ${lin('9710002', 'WBY11HM0805841446', 'iX1 eDrive20', 'CC20DD', '02/11/2026', 'Cliente Dois', 'FS')}
+  ${lin('0014762', 'WBA81HV0009555384', 'X5 40d xDrive', 'EE60FF', '30/10/2026', 'DEMO')}
+</tbody></table><p>Obrigado,</p><table><tbody><tr><td>Secretaria Comercial</td></tr></tbody></table></div>`;
+
+const regD = (id: string, over: Partial<RegistoVN> = {}): RegistoVN => ({
+  id, cliente: `Cliente ${id}`, enc: '', chas: '', mat: null, status: 'Carteira', mat_pedida_em: null, dmat: null, ...over,
+});
+const diario = (html = DIARIO, recebidaEm = '2026-11-03T08:40:00Z') => ({ id: 'd', recebidaEm, html });
+
+describe('email diário de matrículas', () => {
+  it('reconhece o assunto', () => {
+    expect(ehEmailDiario('Matriculas - Aveiro')).toBe(true);
+    expect(ehEmailDiario('  Matrículas – Aveiro'.replace('–', '-'))).toBe(true);
+    expect(ehEmailDiario('RE: Pedido de matrícula | X')).toBe(false);
+  });
+
+  it('lerTabelaDiaria lê só as linhas de dados (cabeçalho e assinatura ignorados) e decodifica entidades', () => {
+    const l = lerTabelaDiaria(DIARIO);
+    expect(l.map(x => x.enc)).toEqual(['9710001', '9710002', '0014762']);
+    expect(l[0]).toEqual({ enc: '9710001', chas: 'WBA71BX0X07W88199', mat: 'AA-26-BB', dmat: '2026-11-02', nota: 'Cliente Um, Lda & Filhos' });
+    expect(l[2]).toMatchObject({ mat: 'EE-60-FF', dmat: '2026-10-30', nota: 'DEMO' });
+    expect(lerTabelaDiaria('<p>Bom dia</p>')).toEqual([]);
+    expect(lerTabelaDiaria(DIARIO.replace('02/11/2026', '31/02/2026')).map(x => x.enc)).toEqual(['9710002', '0014762']);
+  });
+
+  it('encomendas e chassis comparam-se sem zeros à esquerda / pelo final', () => {
+    expect(normEnc('0230244')).toBe('230244');
+    expect(chassisCompativeis('WBA31HR010DA63287', 'DA63287')).toBe(true);
+    expect(chassisCompativeis('WBA31HR010DA63287', 'DA63288')).toBe(false);
+  });
+
+  it('preenche matrícula, chassis completo e DMAT, sem mexer no estado', () => {
+    const r = processarDiarios([diario()], [regD('1', { enc: '9710001', chas: '7W88199' })]);
+    expect(r.alteracoes).toEqual([{ id: '1', mat: 'AA-26-BB', chas: 'WBA71BX0X07W88199', dmat: '2026-11-02' }]);
+    expect(r).toMatchObject({ matriculas: 1, chassis: 1, datas: 1 });
+  });
+
+  it('a encomenda com zeros à esquerda emparelha com a registada sem eles; sem encomenda, vai pelo chassis', () => {
+    expect(processarDiarios([diario()], [regD('d', { enc: '14762' })]).alteracoes[0]).toMatchObject({ id: 'd', mat: 'EE-60-FF' });
+    expect(processarDiarios([diario()], [regD('c', { enc: 'OUTRA', chas: 'WBY11HM0805841446' })]).alteracoes[0]).toMatchObject({ id: 'c', mat: 'CC-20-DD' });
+  });
+
+  it('é idempotente: depois de aplicado não há nada a fazer', () => {
+    const r1 = processarDiarios([diario()], [regD('1', { enc: '9710001' })]);
+    const feito = aplicarAlteracoes([regD('1', { enc: '9710001' })], r1.alteracoes);
+    expect(processarDiarios([diario()], feito).alteracoes).toEqual([]);
+  });
+
+  it('nunca sobrescreve matrícula ou chassis diferentes, nem toca em negócios ambíguos ou desconhecidos', () => {
+    const mat = processarDiarios([diario()], [regD('1', { enc: '9710001', mat: 'ZZ-99-ZZ' })]);
+    expect(mat.alteracoes).toEqual([]);
+    expect(mat.ignoradas[0].motivo).toMatch(/já tem matrícula/);
+    const chas = processarDiarios([diario()], [regD('1', { enc: '9710001', chas: 'WBA00000000000000' })]);
+    expect(chas.alteracoes).toEqual([]);
+    expect(chas.ignoradas[0].motivo).toMatch(/chassis diferente/);
+    const dup = processarDiarios([diario()], [regD('a', { enc: '9710001' }), regD('b', { enc: '09710001' })]);
+    expect(dup.alteracoes).toEqual([]);
+    expect(dup.ignoradas.some(i => /vários/.test(i.motivo))).toBe(true);
+    expect(processarDiarios([diario()], []).ignoradas).toHaveLength(3);
+  });
+
+  it('encadeia com as respostas ao pedido e descreve o que muda', () => {
+    const r = regD('1', { enc: '9710001', cliente: 'Cliente Um', mat_pedida_em: null });
+    const pedido = [{ id: '1', mat_pedida_em: '2026-11-02T17:00:00Z' }];
+    const diarios = processarDiarios([diario()], aplicarAlteracoes([r], pedido));
+    const todas = juntarAlteracoes(pedido, diarios.alteracoes);
+    expect(todas).toEqual([{ id: '1', mat_pedida_em: '2026-11-02T17:00:00Z', mat: 'AA-26-BB', chas: 'WBA71BX0X07W88199', dmat: '2026-11-02' }]);
+    const d = detalhar(todas, [r]);
+    expect(d[0]).toMatchObject({ enc: '9710001', cliente: 'Cliente Um' });
+    expect(d[0].campos).toEqual([
+      { campo: 'Pedido de matrícula', de: '—', para: '02/11/2026' },
+      { campo: 'Matrícula', de: '—', para: 'AA-26-BB' },
+      { campo: 'Chassis', de: '—', para: 'WBA71BX0X07W88199' },
+      { campo: 'DMAT', de: '—', para: '02/11/2026' },
+    ]);
   });
 });
