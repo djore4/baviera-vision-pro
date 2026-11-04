@@ -146,6 +146,20 @@ describe('MarketingPage', () => {
     expect(hoje.compareDocumentPosition(cartoes[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(cartoes[0]).getByTestId('contagem')).toHaveTextContent('Faltam10dias');
     expect(within(cartoes[1]).getByTestId('contagem')).toHaveTextContent('Faltam40dias');
+    // Cada cartão está ligado ao ponto da linha por um traço.
+    expect(within(cartoes[0]).getByTestId('ligacao')).toBeInTheDocument();
+    expect(within(cartoes[1]).getByTestId('ligacao')).toBeInTheDocument();
+  });
+
+  it('cabeçalho enxuto: só os filtros (e, a quem edita, categorias e novo evento)', async () => {
+    render(<MarketingPage />);
+    await screen.findAllByTestId('evento');
+    expect(screen.queryByRole('heading', { name: 'Marketing' })).toBeNull();
+    expect(screen.queryByText(/linha do tempo dos eventos/i)).toBeNull();
+    expect(screen.queryByText('Próximo')).toBeNull();
+    const barra = screen.getByRole('group', { name: /filtrar por categoria/i });
+    expect(within(barra).getByRole('button', { name: /novo evento/i })).toBeInTheDocument();
+    expect(within(barra).getByRole('button', { name: 'Categorias' })).toBeInTheDocument();
   });
 
   it('mostra a faixa de números da agenda', async () => {

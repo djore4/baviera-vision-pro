@@ -145,11 +145,6 @@ export function textoRelativo(ev: Datado, hoje: string): string {
   return n === 1 ? 'Ontem' : `Há ${n} dias`;
 }
 
-/** O próximo evento por acontecer ou a decorrer. */
-export function proximoEvento<T extends Datado & { titulo: string }>(eventos: T[], hoje: string): T | null {
-  return ordenar(eventos).find(e => estadoDe(e, hoje) !== 'passado') ?? null;
-}
-
 export type ItemAgenda<T> = { tipo: 'evento'; evento: T } | { tipo: 'hoje' };
 
 export interface GrupoAgenda<T> {
