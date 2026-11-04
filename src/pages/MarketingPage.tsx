@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   COR_SEM_CATEGORIA, agendaComHoje, contagemDias, estadoDe, formatarIntervalo, hojeIso, ordenar,
-  resumoAgenda, resumoConvidados, textoRelativo, type Categoria, type Convidado, type EstadoConvidado, type TomContagem, type MarketingEvento, type Orcamento,
+  resumoConvidados, textoRelativo, type Categoria, type Convidado, type EstadoConvidado, type TomContagem, type MarketingEvento, type Orcamento,
 } from '@/lib/marketing';
 import { listCategorias, listEstadosConvidados, listEventos, listOrcamentos } from '@/lib/marketing-data';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -221,7 +221,6 @@ export default function MarketingPage() {
     for (const e of todos) if (e.categoria_id) c[e.categoria_id] = (c[e.categoria_id] ?? 0) + 1;
     return c;
   }, [todos]);
-  const agenda = useMemo(() => resumoAgenda(eventos, hoje), [eventos, hoje]);
   const eventoAberto = useMemo(() => eventos.find(e => e.id === aberto) ?? null, [eventos, aberto]);
 
   const gravado = (ev: MarketingEvento, orc: Orcamento) => {
@@ -271,12 +270,12 @@ export default function MarketingPage() {
   let indice = -1; // para alternar esquerda/direita só nos cartões (não nos cabeçalhos de mês)
 
   return (
-    <div className="mx-auto max-w-5xl animate-fade-in space-y-6">
-      {/* Filtros por categoria (e, para quem edita, as duas ações) */}
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por categoria">
+    <div className="mx-auto max-w-5xl animate-fade-in space-y-6 pb-20">
+      {/* Filtros por categoria: cada um na cor da sua categoria. Numa só linha deslizante no telemóvel. */}
+      <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible" role="group" aria-label="Filtrar por categoria">
         {([{ id: 'todos', nome: 'Todos', cor: null as string | null }, ...categorias.map(c => ({ id: c.id, nome: c.nome, cor: c.cor }))]).map(c => {
           const ativo = filtro === c.id;
-          const cor = c.cor ? `hsl(${c.cor})` : 'hsl(var(--primary))';
+          const hsl = c.cor ?? null;
           return (
             <button
               key={c.id}
@@ -284,41 +283,28 @@ export default function MarketingPage() {
               aria-pressed={ativo}
               onClick={() => setFiltro(c.id)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200',
-                ativo ? 'text-white shadow-sm' : 'bg-card text-muted-foreground hover:text-foreground',
+                'inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all duration-200',
+                ativo ? 'shadow-sm' : 'hover:brightness-110',
+                !hsl && (ativo ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground hover:bg-muted'),
               )}
-              style={ativo ? { background: cor, borderColor: cor } : undefined}
+              style={hsl
+                ? (ativo
+                  ? { background: `hsl(${hsl})`, borderColor: `hsl(${hsl})`, color: '#fff' }
+                  : { background: `hsl(${hsl} / 0.12)`, borderColor: `hsl(${hsl} / 0.35)`, color: `hsl(${hsl})` })
+                : undefined}
             >
+              {hsl && <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: ativo ? '#fff' : `hsl(${hsl})` }} />}
               {c.nome}
-              <span className={cn('tabular-nums', ativo ? 'opacity-80' : 'opacity-60')}>{contagem[c.id] ?? 0}</span>
+              <span className="tabular-nums opacity-70">{contagem[c.id] ?? 0}</span>
             </button>
           );
         })}
         {canEdit && (
-          <div className="ml-auto flex items-center gap-1.5">
-            <Button size="icon" variant="ghost" className="h-8 w-8" title="Gerir categorias" aria-label="Categorias" onClick={() => setGerirCategorias(true)}>
-              <Settings2 className="h-4 w-4" />
-            </Button>
-            <Button size="sm" onClick={() => setForm({ evento: null })}><Plus className="mr-1.5 h-4 w-4" /> Novo evento</Button>
-          </div>
+          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground" title="Gerir categorias" aria-label="Categorias" onClick={() => setGerirCategorias(true)}>
+            <Settings2 className="h-4 w-4" />
+          </Button>
         )}
       </div>
-
-      {/* Números da agenda */}
-      {!carregando && !erro && eventos.length > 0 && (
-        <div data-testid="resumo-agenda" className="grid grid-cols-3 gap-3">
-          {([
-            ['Por acontecer', agenda.porAcontecer, 'text-primary'],
-            ['Nos próximos 30 dias', agenda.proximos30, 'text-warning'],
-            ['Já realizados', agenda.realizados, 'text-muted-foreground'],
-          ] as const).map(([rotulo, n, cor]) => (
-            <div key={rotulo} className="rounded-lg border bg-card px-4 py-3 shadow-sm">
-              <div className={cn('text-2xl font-semibold tabular-nums', cor)}>{n}</div>
-              <div className="text-xs text-muted-foreground">{rotulo}</div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Linha do tempo */}
       {carregando ? (
@@ -398,6 +384,19 @@ export default function MarketingPage() {
         </div>
       )}
     
+      {canEdit && (
+        <Button
+          type="button"
+          aria-label="Novo evento"
+          title="Novo evento"
+          onClick={() => setForm({ evento: null })}
+          className="fixed bottom-5 right-5 z-40 h-12 rounded-full px-4 shadow-lg shadow-primary/30 transition-transform hover:scale-105 sm:bottom-8 sm:right-8 motion-reduce:transition-none"
+        >
+          <Plus className="h-5 w-5 sm:mr-2" />
+          <span className="hidden sm:inline">Novo evento</span>
+        </Button>
+      )}
+
       <EventoDetalhe
         evento={eventoAberto}
         categoria={eventoAberto?.categoria_id ? catPorId.get(eventoAberto.categoria_id) ?? null : null}
