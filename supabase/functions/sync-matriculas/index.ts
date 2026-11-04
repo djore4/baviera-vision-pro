@@ -1,16 +1,23 @@
 // Edge function sync-matriculas — "puxa" do Outlook (Microsoft 365) as respostas ao
 // pedido de matrícula (caixa de Aveiro) e atualiza os registos VN (control_records):
 //   · resposta "matrícula pedida" → mat_pedida_em (o pedido só conta a partir daqui);
-//   · matrícula atribuída         → mat (só se estiver vazia e o pedido estiver confirmado).
+//   · matrícula atribuída         → mat (só se estiver vazia e o pedido estiver confirmado);
+//   · email diário "Matriculas - Aveiro" (tabela) → mat, chas (completa o VIN) e dmat.
 // As regras estão em ../_shared/matriculas-email.ts (testadas). Idempotente.
+// Com { simular: true } não grava nada: devolve o que mudaria (pré-visualização).
 //
 // Só administradores. Segredos (supabase secrets set …), app Azure com a permissão de
 // aplicação Mail.Read limitada à caixa pretendida:
 //   MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_MAILBOX (ex.: matriculas.aveiro@…)
 //   MS_MAIL_FOLDER (opcional, por omissão "inbox")
+//   MS_PLATES_SENDERS (opcional, emails separados por vírgula): se definido, o email diário
+//     de matrículas só é aceite destes remetentes (recomendado).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { type Mensagem, processar, type RegistoVN } from "../_shared/matriculas-email.ts";
+import {
+  aplicarAlteracoes, detalhar, type Diario, ehEmailDiario, juntarAlteracoes, type Mensagem, processar,
+  processarDiarios, type RegistoVN,
+} from "../_shared/matriculas-email.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -40,7 +47,7 @@ async function lerMensagens(token: string, dias: number): Promise<Mensagem[]> {
   const desde = new Date(Date.now() - dias * 86400000).toISOString();
   let url: string | null = `https://graph.microsoft.com/v1.0/users/${caixa}/mailFolders/${pasta}/messages`
     + `?$filter=${encodeURIComponent(`receivedDateTime ge ${desde}`)}&$orderby=receivedDateTime desc`
-    + `&$select=id,subject,receivedDateTime,body&$top=50`;
+    + `&$select=id,subject,receivedDateTime,from,body&$top=50`;
   const out: Mensagem[] = [];
   while (url && out.length < MAX_MENSAGENS) {
     const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.body-content-type="text"' } });
@@ -50,11 +57,24 @@ async function lerMensagens(token: string, dias: number): Promise<Mensagem[]> {
       // Só conversas do pedido de matrícula (sem acentos, para apanhar "matricula"/"matrícula").
       const assunto = String(m.subject ?? "");
       if (!/matr[ií]cula/i.test(assunto.normalize("NFC"))) continue;
-      out.push({ id: m.id, assunto, corpo: String(m.body?.content ?? ""), recebidaEm: m.receivedDateTime });
+      out.push({
+        id: m.id, assunto, corpo: String(m.body?.content ?? ""), recebidaEm: m.receivedDateTime,
+        de: String(m.from?.emailAddress?.address ?? "").toLowerCase(),
+      });
     }
     url = j["@odata.nextLink"] ?? null;
   }
   return out;
+}
+
+/** O email diário precisa do HTML (tabela): lê-se à parte, só para esses emails (cerca de 1 por dia). */
+async function lerHtml(token: string, id: string): Promise<string> {
+  const caixa = encodeURIComponent(Deno.env.get("MS_MAILBOX")!);
+  const r = await fetch(`https://graph.microsoft.com/v1.0/users/${caixa}/messages/${encodeURIComponent(id)}?$select=body`, {
+    headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.body-content-type="html"' },
+  });
+  if (!r.ok) throw new Error(`Não foi possível ler o email das matrículas (${r.status}).`);
+  return String((await r.json()).body?.content ?? "").slice(0, 300_000);
 }
 
 Deno.serve(async (req) => {
@@ -86,10 +106,17 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const dias = Math.min(90, Math.max(1, Number(body?.dias) || 30));
+    const simular = body?.simular === true;
 
     let mensagens: Mensagem[];
+    let diarios: Diario[];
     try {
-      mensagens = await lerMensagens(await tokenGraph(), dias);
+      const graph = await tokenGraph();
+      mensagens = await lerMensagens(graph, dias);
+      const remetentes = (Deno.env.get("MS_PLATES_SENDERS") ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+      const doDia = mensagens.filter((m) => ehEmailDiario(m.assunto) && (remetentes.length === 0 || remetentes.includes(m.de ?? "")));
+      diarios = [];
+      for (const m of doDia) diarios.push({ id: m.id, recebidaEm: m.recebidaEm, html: await lerHtml(graph, m.id) });
     } catch (e) {
       if (e instanceof Error && e.message === "NAO_CONFIGURADO") {
         return json({ error: "Sincronização não configurada: faltam os segredos MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET e MS_MAILBOX." }, 503);
@@ -98,23 +125,35 @@ Deno.serve(async (req) => {
     }
 
     const { data: registos, error: rErr } = await admin.from("control_records")
-      .select("id, id_cliente, cliente, enc, chas, mat, status, mat_pedida_em")
+      .select("id, id_cliente, cliente, enc, chas, mat, status, mat_pedida_em, dmat")
       .in("status", ["Carteira", "Matricula"]);
     if (rErr) return json({ error: "Não foi possível ler os registos VN." }, 500);
 
     const vn: RegistoVN[] = (registos ?? []).map((r: Record<string, string | null>) => ({
       id: r.id as string, cliente: r.id_cliente ?? r.cliente, enc: r.enc, chas: r.chas,
-      mat: r.mat, status: r.status, mat_pedida_em: r.mat_pedida_em,
+      mat: r.mat, status: r.status, mat_pedida_em: r.mat_pedida_em, dmat: r.dmat,
     }));
-    const res = processar(mensagens, vn);
-    for (const a of res.alteracoes) {
-      const { id, ...campos } = a;
-      const { error } = await admin.from("control_records").update(campos).eq("id", id);
-      if (error) return json({ error: `Falha ao gravar: ${error.message}` }, 500);
+
+    // 1.º as respostas ao pedido; 2.º o email diário, já sobre o resultado do 1.º.
+    // Os emails diários não passam pela leitura das respostas.
+    const res = processar(mensagens.filter((m) => !ehEmailDiario(m.assunto)), vn);
+    const rd = processarDiarios(diarios, aplicarAlteracoes(vn, res.alteracoes));
+    const alteracoes = juntarAlteracoes(res.alteracoes, rd.alteracoes);
+    const ignoradas = [...res.ignoradas, ...rd.ignoradas];
+
+    if (!simular) {
+      for (const a of alteracoes) {
+        const { id, ...campos } = a;
+        const { error } = await admin.from("control_records").update(campos).eq("id", id);
+        if (error) return json({ error: `Falha ao gravar: ${error.message}` }, 500);
+      }
     }
     return json({
-      mensagens: mensagens.length, pedidas: res.pedidas, matriculas: res.matriculas,
-      ignoradas: res.ignoradas.slice(0, 20), totalIgnoradas: res.ignoradas.length,
+      simulado: simular,
+      mensagens: mensagens.length, pedidas: res.pedidas, matriculas: res.matriculas + rd.matriculas,
+      chassis: rd.chassis, datas: rd.datas,
+      detalhes: detalhar(alteracoes, vn).slice(0, 200),
+      ignoradas: ignoradas.slice(0, 20), totalIgnoradas: ignoradas.length,
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "Erro inesperado." }, 500);

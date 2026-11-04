@@ -21,13 +21,43 @@ describe('Sincronizar matrículas', () => {
     expect(container.textContent).toBe('');
   });
 
-  it('chama a função, mostra o resumo e recarrega os dados', async () => {
-    invoke.mockResolvedValue({ data: { mensagens: 12, pedidas: 2, matriculas: 1, totalIgnoradas: 0, ignoradas: [] }, error: null });
+  const detalhe = { id: '1', enc: '9710001', cliente: 'Cliente Um', campos: [{ campo: 'Matrícula', de: '—', para: 'AA-26-BB' }, { campo: 'DMAT', de: '—', para: '02/11/2026' }] };
+
+  it('mostra primeiro o que muda e só grava depois de confirmar', async () => {
+    invoke
+      .mockResolvedValueOnce({ data: { simulado: true, mensagens: 12, pedidas: 0, matriculas: 1, datas: 1, totalIgnoradas: 1, ignoradas: [{ assunto: 'Matriculas - Aveiro · 9710002 (CC-20-DD)', motivo: 'negócio não encontrado' }], detalhes: [detalhe] }, error: null })
+      .mockResolvedValueOnce({ data: { mensagens: 12, pedidas: 0, matriculas: 1, datas: 1, totalIgnoradas: 1, ignoradas: [], detalhes: [detalhe] }, error: null });
     render(<SincronizarMatriculasButton />);
     fireEvent.click(screen.getByRole('button', { name: /Sincronizar/ }));
+    await screen.findByText('Sincronizar com o email');
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenLastCalledWith('sync-matriculas', { body: { dias: 30, simular: true } });
+    expect(screen.getByText('9710001')).toBeInTheDocument();
+    expect(screen.getByText(/negócio não encontrado/)).toBeInTheDocument();
+    expect(refresh).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Gravar 1 alteração/ }));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
-    expect(invoke).toHaveBeenCalledWith('sync-matriculas', { body: { dias: 30 } });
+    expect(invoke).toHaveBeenLastCalledWith('sync-matriculas', { body: { dias: 30 } });
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it('cancelar não grava', async () => {
+    invoke.mockResolvedValue({ data: { simulado: true, mensagens: 3, pedidas: 0, matriculas: 1, totalIgnoradas: 0, ignoradas: [], detalhes: [detalhe] }, error: null });
+    render(<SincronizarMatriculasButton />);
+    fireEvent.click(screen.getByRole('button', { name: /Sincronizar/ }));
+    await screen.findByText('Sincronizar com o email');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('sem nada a mudar nem por tratar, avisa e não abre o diálogo', async () => {
+    invoke.mockResolvedValue({ data: { simulado: true, mensagens: 5, pedidas: 0, matriculas: 0, totalIgnoradas: 0, ignoradas: [], detalhes: [] }, error: null });
+    render(<SincronizarMatriculasButton />);
+    fireEvent.click(screen.getByRole('button', { name: /Sincronizar/ }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Tudo em dia', expect.anything()));
+    expect(screen.queryByText('Sincronizar com o email')).toBeNull();
   });
 
   it('mostra o erro (ex.: não configurado) sem recarregar', async () => {
@@ -41,5 +71,6 @@ describe('Sincronizar matrículas', () => {
   it('resumoSync faz o plural certo', () => {
     expect(resumoSync({ pedidas: 1, matriculas: 1, totalIgnoradas: 0, mensagens: 3 })).toBe('1 pedido confirmado · 1 matrícula preenchida (3 emails lidos).');
     expect(resumoSync({ pedidas: 2, matriculas: 0, totalIgnoradas: 4, mensagens: 9 })).toMatch(/2 pedidos confirmados · 0 matrículas preenchidas · 4 por tratar/);
+    expect(resumoSync({ pedidas: 0, matriculas: 1, chassis: 2, datas: 1, totalIgnoradas: 0, mensagens: 4 })).toBe('0 pedidos confirmados · 1 matrícula preenchida · 2 chassis completos · 1 DMAT atualizada (4 emails lidos).');
   });
 });
