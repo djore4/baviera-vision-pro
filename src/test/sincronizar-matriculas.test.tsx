@@ -39,7 +39,18 @@ describe('Sincronizar matrículas', () => {
     fireEvent.click(screen.getByRole('button', { name: /Gravar 1 alteração/ }));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(invoke).toHaveBeenLastCalledWith('sync-matriculas', { body: { dias: 30 } });
-    expect(toast.success).toHaveBeenCalled();
+    // Popup final a dizer o que foi importado.
+    await screen.findByText('Dados importados');
+    expect(screen.getByText(/1 matrícula preenchida/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    await waitFor(() => expect(screen.queryByText('Dados importados')).toBeNull());
+  });
+
+  it('função não publicada (404): mensagem clara', async () => {
+    invoke.mockResolvedValue({ data: null, error: Object.assign(new Error('Requested function was not found'), { context: { status: 404, json: async () => ({}) } }) });
+    render(<SincronizarMatriculasButton />);
+    fireEvent.click(screen.getByRole('button', { name: /Sincronizar/ }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Não foi possível sincronizar', { description: expect.stringMatching(/ainda não está publicada/) }));
   });
 
   it('cancelar não grava', async () => {

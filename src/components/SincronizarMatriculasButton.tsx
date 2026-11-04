@@ -32,11 +32,35 @@ export function resumoSync(r: Pick<Resposta, 'pedidas' | 'matriculas' | 'totalIg
 
 const DIAS = 30;
 
+function TabelaDetalhes({ detalhes }: { detalhes: Detalhe[] }) {
+  return (
+    <table className="w-full">
+      <thead>
+        <tr className="text-left text-[10px] uppercase text-muted-foreground"><th className="py-1 pr-2">Encomenda</th><th className="pr-2">Cliente</th><th>Alteração</th></tr>
+      </thead>
+      <tbody>
+        {detalhes.map(d => (
+          <tr key={d.id} className="border-t border-border align-top">
+            <td className="py-1 pr-2 whitespace-nowrap">{d.enc || '—'}</td>
+            <td className="pr-2">{d.cliente || '—'}</td>
+            <td>
+              {d.campos.map(c => (
+                <div key={c.campo}><span className="text-muted-foreground">{c.campo}: </span>{c.de} → <strong>{c.para}</strong></div>
+              ))}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 async function chamar(simular: boolean): Promise<Resposta> {
   const { data, error } = await supabase.functions.invoke<Resposta & { error?: string }>('sync-matriculas', { body: { dias: DIAS, ...(simular ? { simular: true } : {}) } });
   if (error) {
     // Respostas não-2xx trazem a mensagem no corpo.
     const ctx = (error as { context?: Response }).context;
+    if (ctx?.status === 404) throw new Error('A sincronização ainda não está publicada no servidor (falta publicar a função sync-matriculas).');
     const msg = ctx ? (await ctx.json().catch(() => null))?.error : null;
     throw new Error(msg ?? error.message);
   }
@@ -54,6 +78,7 @@ export default function SincronizarMatriculasButton({ className }: { className?:
   const { refresh } = useData();
   const [busy, setBusy] = useState(false);
   const [previa, setPrevia] = useState<Resposta | null>(null);
+  const [feito, setFeito] = useState<Resposta | null>(null);
   if (!isAdmin) return null;
 
   const erro = (err: unknown) => toast.error('Não foi possível sincronizar', { description: err instanceof Error ? err.message : undefined });
@@ -79,9 +104,7 @@ export default function SincronizarMatriculasButton({ className }: { className?:
     try {
       const r = await chamar(false);
       setPrevia(null);
-      toast.success('Sincronizado', {
-        description: resumoSync(r) + (r.ignoradas.length ? `\n${r.ignoradas.slice(0, 3).map(i => `• ${i.assunto}: ${i.motivo}`).join('\n')}` : ''),
-      });
+      setFeito(r); // popup "Dados importados"
       await refresh();
     } catch (err) {
       erro(err);
@@ -114,24 +137,7 @@ export default function SincronizarMatriculasButton({ className }: { className?:
               {detalhes.length === 0 ? (
                 <p className="text-muted-foreground">Nenhuma alteração a gravar.</p>
               ) : (
-                <table className="w-full">
-                  <thead>
-                    <tr className="text-left text-[10px] uppercase text-muted-foreground"><th className="py-1 pr-2">Encomenda</th><th className="pr-2">Cliente</th><th>Alteração</th></tr>
-                  </thead>
-                  <tbody>
-                    {detalhes.map(d => (
-                      <tr key={d.id} className="border-t border-border align-top">
-                        <td className="py-1 pr-2 whitespace-nowrap">{d.enc || '—'}</td>
-                        <td className="pr-2">{d.cliente || '—'}</td>
-                        <td>
-                          {d.campos.map(c => (
-                            <div key={c.campo}><span className="text-muted-foreground">{c.campo}: </span>{c.de} → <strong>{c.para}</strong></div>
-                          ))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <TabelaDetalhes detalhes={detalhes} />
               )}
             </section>
 
@@ -157,6 +163,31 @@ export default function SincronizarMatriculasButton({ className }: { className?:
               Gravar {detalhes.length} alteraç{detalhes.length === 1 ? 'ão' : 'ões'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!feito} onOpenChange={o => { if (!o) setFeito(null); }}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Dados importados</DialogTitle>
+            <DialogDescription>{feito && resumoSync(feito)}</DialogDescription>
+          </DialogHeader>
+          {feito && (
+            <div className="space-y-4 text-xs">
+              {(feito.detalhes ?? []).length > 0 && <TabelaDetalhes detalhes={feito.detalhes ?? []} />}
+              {feito.ignoradas.length > 0 && (
+                <section>
+                  <h4 className="mb-1 font-semibold">Por tratar ({feito.totalIgnoradas})</h4>
+                  <ul className="space-y-1">
+                    {feito.ignoradas.map((i, n) => (
+                      <li key={n} className="rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1"><strong>{i.assunto}</strong> — {i.motivo}</li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </div>
+          )}
+          <DialogFooter><Button onClick={() => setFeito(null)}>OK</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </>
