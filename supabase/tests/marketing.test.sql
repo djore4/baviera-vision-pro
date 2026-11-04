@@ -110,7 +110,7 @@ begin
   begin
     delete from public.marketing_categorias where nome = 'Evento';
     perform t.check('categoria em uso não se apaga', false);
-  exception when foreign_key_violation then perform t.check('categoria em uso não se apaga', true); end;
+  exception when foreign_key_violation or restrict_violation then perform t.check('categoria em uso não se apaga', true); end;
   delete from public.marketing_eventos;
   perform t.check('apagar o evento leva orçamento, viaturas, documentos e convidados',
     (select count(*) from public.marketing_orcamentos) = 0 and (select count(*) from public.marketing_viaturas) = 0

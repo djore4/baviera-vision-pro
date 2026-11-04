@@ -39,7 +39,8 @@ export async function saveCategoria(c: Pick<Categoria, 'nome' | 'cor'> & { id?: 
 export async function deleteCategoria(id: string): Promise<void> {
   const { error } = await supabase.from('marketing_categorias').delete().eq('id', id);
   if (error) {
-    if ((error as { code?: string }).code === '23503') throw new Error('Há eventos nesta categoria: muda-os para outra antes de a apagar.');
+    // 23503 (foreign_key_violation) ou 23001 (restrict_violation), conforme a versão do Postgres.
+    if (['23503', '23001'].includes((error as { code?: string }).code ?? '')) throw new Error('Há eventos nesta categoria: muda-os para outra antes de a apagar.');
     throw fail('Não foi possível apagar a categoria', error);
   }
 }
