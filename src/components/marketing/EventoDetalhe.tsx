@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   COR_SEM_CATEGORIA, fmtEuro, formatarIntervaloComAno, linkWhatsApp, resumoOrcamento, textoConvite, textoRelativo,
-  type Categoria, type Convidado, type MarketingEvento,
+  type Categoria, type Convidado, type MarketingEvento, type Orcamento as OrcamentoDados,
 } from '@/lib/marketing';
 import { deleteEvento } from '@/lib/marketing-data';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,11 @@ import { useUrlFicheiro } from './useUrlFicheiro';
 interface Props {
   evento: MarketingEvento | null;
   categoria: Categoria | null;
+  /** Quem edita o tab: gere o evento, vê o orçamento e todos os convidados. */
+  canEdit: boolean;
+  orcamento: OrcamentoDados | null;
+  meuEmail: string | null;
+  meuNome: string | null;
   hoje: string;
   onClose: () => void;
   onEdit: (ev: MarketingEvento) => void;
@@ -56,7 +61,7 @@ function Orcamento({ previsto, real }: { previsto: number | null; real: number |
   );
 }
 
-export function EventoDetalhe({ evento, categoria, hoje, onClose, onEdit, onDeleted, onConvidados }: Props) {
+export function EventoDetalhe({ evento, categoria, canEdit, orcamento, meuEmail, meuNome, hoje, onClose, onEdit, onDeleted, onConvidados }: Props) {
   const [apagar, setApagar] = useState(false);
   const [apagando, setApagando] = useState(false);
   const capa = useUrlFicheiro(evento?.imagem_path);
@@ -101,11 +106,11 @@ export function EventoDetalhe({ evento, categoria, hoje, onClose, onEdit, onDele
                 </SheetHeader>
 
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => onEdit(evento)}><Pencil className="mr-1.5 h-3.5 w-3.5" /> Editar</Button>
+                  {canEdit && <Button size="sm" variant="outline" onClick={() => onEdit(evento)}><Pencil className="mr-1.5 h-3.5 w-3.5" /> Editar</Button>}
                   <Button asChild size="sm" variant="outline" title="Abre o WhatsApp com o convite escrito, para escolheres o contacto">
                     <a href={linkWhatsApp(textoConvite(evento))} target="_blank" rel="noopener noreferrer"><MessageCircle className="mr-1.5 h-3.5 w-3.5" /> Partilhar convite</a>
                   </Button>
-                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setApagar(true)}><Trash2 className="mr-1.5 h-3.5 w-3.5" /> Apagar</Button>
+                  {canEdit && <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setApagar(true)}><Trash2 className="mr-1.5 h-3.5 w-3.5" /> Apagar</Button>}
                 </div>
 
                 <Tabs defaultValue="resumo" key={evento.id}>
@@ -121,7 +126,7 @@ export function EventoDetalhe({ evento, categoria, hoje, onClose, onEdit, onDele
                       <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">O que vai acontecer</h4>
                       {evento.descricao
                         ? <p className="whitespace-pre-line text-sm">{evento.descricao}</p>
-                        : <p className="text-sm text-muted-foreground">Sem descrição. Usa “Editar” para a acrescentar.</p>}
+                        : <p className="text-sm text-muted-foreground">{canEdit ? 'Sem descrição. Usa “Editar” para a acrescentar.' : 'Sem descrição.'}</p>}
                     </section>
                     {evento.dress_code && (
                       <section>
@@ -139,16 +144,18 @@ export function EventoDetalhe({ evento, categoria, hoje, onClose, onEdit, onDele
                         </ul>
                       </section>
                     )}
-                    <section>
-                      <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Orçamento</h4>
-                      <Orcamento previsto={evento.orcamento_previsto} real={evento.orcamento_real} />
-                    </section>
+                    {canEdit && (
+                      <section>
+                        <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Orçamento</h4>
+                        <Orcamento previsto={orcamento?.previsto ?? null} real={orcamento?.real ?? null} />
+                      </section>
+                    )}
                   </TabsContent>
 
-                  <TabsContent value="viaturas" className="mt-4"><ViaturasPanel eventoId={evento.id} /></TabsContent>
-                  <TabsContent value="documentos" className="mt-4"><DocumentosPanel eventoId={evento.id} /></TabsContent>
+                  <TabsContent value="viaturas" className="mt-4"><ViaturasPanel eventoId={evento.id} readOnly={!canEdit} /></TabsContent>
+                  <TabsContent value="documentos" className="mt-4"><DocumentosPanel eventoId={evento.id} readOnly={!canEdit} /></TabsContent>
                   <TabsContent value="convidados" className="mt-4">
-                    <ConvidadosPanel evento={evento} onChange={lista => onConvidados(evento.id, lista)} />
+                    <ConvidadosPanel evento={evento} onChange={lista => onConvidados(evento.id, lista)} podeGerirTodos={canEdit} meuEmail={meuEmail} meuNome={meuNome} />
                   </TabsContent>
                 </Tabs>
               </div>

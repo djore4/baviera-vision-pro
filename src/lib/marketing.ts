@@ -37,12 +37,16 @@ export interface MarketingEvento {
   descricao: string | null;
   dress_code: string | null;
   highlights: string[];
-  orcamento_previsto: number | null;
-  orcamento_real: number | null;
   imagem_path: string | null;
 }
 
 export type EventoInput = Omit<MarketingEvento, 'id'>;
+
+/** Orçamento do evento (tabela à parte: só quem edita o vê). */
+export interface Orcamento {
+  previsto: number | null;
+  real: number | null;
+}
 
 export const LOCAL_PADRAO = 'Aveiro';
 

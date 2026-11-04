@@ -7,8 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LOCAL_PADRAO, highlightsDeTexto, type Categoria, type EventoInput, type MarketingEvento } from '@/lib/marketing';
-import { IMAGEM_ACCEPT, MAX_MB, createEvento, removerFicheiro, updateEvento, uploadCapa, validarImagem } from '@/lib/marketing-data';
+import { LOCAL_PADRAO, highlightsDeTexto, type Categoria, type EventoInput, type MarketingEvento, type Orcamento } from '@/lib/marketing';
+import { IMAGEM_ACCEPT, MAX_MB, createEvento, removerFicheiro, saveOrcamento, updateEvento, uploadCapa, validarImagem } from '@/lib/marketing-data';
 import { useUrlFicheiro } from './useUrlFicheiro';
 
 interface Props {
@@ -17,7 +17,9 @@ interface Props {
   /** null = novo evento. */
   evento: MarketingEvento | null;
   categorias: Categoria[];
-  onSaved: (ev: MarketingEvento) => void;
+  /** Orçamento atual do evento (null se não houver). */
+  orcamento: Orcamento | null;
+  onSaved: (ev: MarketingEvento, orcamento: Orcamento) => void;
   onGerirCategorias: () => void;
 }
 
@@ -31,7 +33,7 @@ const num = (s: string): number | null => {
 };
 const txt = (n: number | null) => (n == null ? '' : String(n).replace('.', ','));
 
-export function EventoDialog({ open, onOpenChange, evento, categorias, onSaved, onGerirCategorias }: Props) {
+export function EventoDialog({ open, onOpenChange, evento, categorias, orcamento, onSaved, onGerirCategorias }: Props) {
   const [titulo, setTitulo] = useState('');
   const [categoriaId, setCategoriaId] = useState<string>(SEM_CATEGORIA);
   const [inicio, setInicio] = useState('');
@@ -62,10 +64,11 @@ export function EventoDialog({ open, onOpenChange, evento, categorias, onSaved, 
     setDescricao(evento?.descricao ?? '');
     setDress(evento?.dress_code ?? '');
     setHighlights((evento?.highlights ?? []).join('\n'));
-    setPrevisto(txt(evento?.orcamento_previsto ?? null));
-    setReal(txt(evento?.orcamento_real ?? null));
+    setPrevisto(txt(orcamento?.previsto ?? null));
+    setReal(txt(orcamento?.real ?? null));
     setCapaPath(evento?.imagem_path ?? null);
     setCapaNova(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, evento]);
 
   useEffect(() => {
@@ -99,12 +102,21 @@ export function EventoDialog({ open, onOpenChange, evento, categorias, onSaved, 
       const dados: EventoInput = {
         titulo, categoria_id: categoriaId === SEM_CATEGORIA ? null : categoriaId,
         inicio, fim: fim || null, hora, local, descricao, dress_code: dress,
-        highlights: highlightsDeTexto(highlights), orcamento_previsto: p, orcamento_real: r, imagem_path: imagem,
+        highlights: highlightsDeTexto(highlights), imagem_path: imagem,
       };
       const gravado = evento ? await updateEvento(evento.id, dados) : await createEvento(dados);
+      // A partir daqui o evento existe e a capa nova está em uso: não se apaga em caso de erro.
+      novaCapa = null;
       // A capa antiga só se apaga depois de o evento estar gravado.
       if (evento?.imagem_path && evento.imagem_path !== imagem) await removerFicheiro(evento.imagem_path);
-      onSaved(gravado);
+      const orc: Orcamento = { previsto: p, real: r };
+      try {
+        await saveOrcamento(gravado.id, orc);
+        onSaved(gravado, orc);
+      } catch (err) {
+        onSaved(gravado, orcamento ?? { previsto: null, real: null });
+        toast.error(`${err instanceof Error ? err.message : 'Não foi possível guardar o orçamento.'} O evento foi guardado.`);
+      }
       onOpenChange(false);
     } catch (err) {
       if (novaCapa) await removerFicheiro(novaCapa); // não deixar a imagem órfã

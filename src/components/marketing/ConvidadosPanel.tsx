@@ -16,7 +16,16 @@ const pct = (v: number | null) => (v == null ? '—' : `${Math.round(v * 100)}%`
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
 /* Convidados do evento por vendedor, com controlo de presença e convite por WhatsApp. */
-export function ConvidadosPanel({ evento, onChange }: { evento: MarketingEvento; onChange?: (lista: Convidado[]) => void }) {
+interface Props {
+  evento: MarketingEvento;
+  onChange?: (lista: Convidado[]) => void;
+  /** Quem edita o tab gere os convidados de todos; os outros só os seus. */
+  podeGerirTodos: boolean;
+  meuEmail: string | null;
+  meuNome: string | null;
+}
+
+export function ConvidadosPanel({ evento, onChange, podeGerirTodos, meuEmail, meuNome }: Props) {
   const [lista, setLista] = useState<Convidado[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [vendedor, setVendedor] = useState('');
@@ -31,7 +40,7 @@ export function ConvidadosPanel({ evento, onChange }: { evento: MarketingEvento;
     listConvidados(evento.id).then(l => { if (vivo) { setLista(l); setPronto(true); } });
     return () => { vivo = false; };
   }, [evento.id]);
-  useEffect(() => { listUsers().then(setUsers).catch(() => setUsers([])); }, []);
+  useEffect(() => { if (podeGerirTodos) listUsers().then(setUsers).catch(() => setUsers([])); }, [podeGerirTodos]);
   // Só avisa a página depois de carregar (senão os totais piscavam a zero).
   useEffect(() => { if (pronto) onChange?.(lista); }, [pronto, lista, onChange]);
 
@@ -44,7 +53,9 @@ export function ConvidadosPanel({ evento, onChange }: { evento: MarketingEvento;
 
   const adicionar = async (e: React.FormEvent) => {
     e.preventDefault();
-    const u = vendedores.find(x => x.email === vendedor);
+    const u = podeGerirTodos
+      ? vendedores.find(x => x.email === vendedor)
+      : (meuEmail ? { email: meuEmail, nome: meuNome } : undefined);
     if (!u?.email) { toast.error('Escolhe o vendedor a quem o convidado pertence.'); return; }
     if (!nome.trim()) { toast.error('Indica o nome do convidado.'); return; }
     setBusy(true);
@@ -89,20 +100,24 @@ export function ConvidadosPanel({ evento, onChange }: { evento: MarketingEvento;
       </div>
 
       {/* Novo convidado */}
-      <form onSubmit={adicionar} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_1.4fr_1fr_auto]">
-        <Select value={vendedor} onValueChange={setVendedor}>
-          <SelectTrigger aria-label="Vendedor"><SelectValue placeholder="Vendedor…" /></SelectTrigger>
-          <SelectContent>
-            {vendedores.map(u => <SelectItem key={u.email!} value={u.email!}>{u.nome || u.email}</SelectItem>)}
-          </SelectContent>
-        </Select>
+      <form onSubmit={adicionar} className={cn('grid gap-2 rounded-md border p-3', podeGerirTodos ? 'sm:grid-cols-[1fr_1.4fr_1fr_auto]' : 'sm:grid-cols-[1.4fr_1fr_auto]')}>
+        {podeGerirTodos && (
+          <Select value={vendedor} onValueChange={setVendedor}>
+            <SelectTrigger aria-label="Vendedor"><SelectValue placeholder="Vendedor…" /></SelectTrigger>
+            <SelectContent>
+              {vendedores.map(u => <SelectItem key={u.email!} value={u.email!}>{u.nome || u.email}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Input value={nome} onChange={e => setNome(e.target.value)} placeholder="Convidado" aria-label="Nome do convidado" />
         <Input value={contacto} onChange={e => setContacto(e.target.value)} placeholder="Telemóvel" inputMode="tel" aria-label="Telemóvel" />
         <Button type="submit" disabled={busy}><Plus className="mr-1 h-4 w-4" /> Adicionar</Button>
       </form>
 
       {grupos.length === 0 && (
-        <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">Ainda sem convidados.</p>
+        <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+          {podeGerirTodos ? 'Ainda sem convidados.' : 'Ainda não tens convidados neste evento.'}
+        </p>
       )}
 
       {grupos.map(g => (
