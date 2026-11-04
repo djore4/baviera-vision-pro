@@ -173,6 +173,39 @@ para essas versões (ou `supabase migration repair`).
 aplicada**: a página Empréstimos escreve `responsavel_interno` e falhava ao
 guardar. A migração `20261003160000` acrescenta a coluna.
 
+## Sincronizar com o email (VN)
+
+Botão **Sincronizar** em WIP, Produção e Carteira (só administradores, só Vendas VN). Lê da
+caixa de email, em modo só de leitura, e propõe alterações a `control_records`; o administrador
+vê o que muda e confirma antes de se gravar. Nada sobrescreve um valor diferente: os
+desencontros (matrícula/chassis/Bizagi diferentes, encomenda sem registo, ambígua) ficam
+listados "por tratar".
+
+- **Email diário "Matriculas - Aveiro"** (remetente em `emailSync.plateSenders`): encomenda →
+  preenche `mat`, `chas` (completa um chassis parcial) e `dmat` (data real da matrícula) e passa
+  `Carteira` a `Matricula`.
+- **"Pedido de matrícula"**: só conta depois de alguém de `emailSync.confirmers` responder
+  "matrícula pedida" na mesma conversa. Passa `Carteira` a `Matricula` e, se `dmat` estiver
+  vazia, regista nela o dia dessa resposta.
+- Emparelhamento: encomenda (sem zeros à esquerda) → chassis (compatível pelos últimos
+  caracteres) → Bizagi; só se for inequívoco.
+
+Código: `src/lib/email-sync.ts` (leitura e plano, puro e testado), `src/lib/email-sync-client.ts`,
+`src/components/SincronizarEmailButton.tsx` e a edge function `functions/email-sync`
+(configuração do cliente em `emailSync` no `config.ts`). Não há migração.
+
+**Para funcionar é preciso, fora do código** (sem isto o botão responde "falta configurar"):
+
+1. No Microsoft Entra ID, registar uma aplicação com a permissão de **aplicação** `Mail.Read`
+   e consentimento de administrador, **restringida à caixa certa** (Application Access Policy /
+   RBAC for Applications do Exchange Online). Nunca sobre todas as caixas do grupo.
+2. Definir os segredos da função: `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`,
+   `MS_MAILBOX` (email da caixa a ler).
+3. Publicar a função: `supabase functions deploy email-sync`.
+
+O conteúdo dos emails não é guardado nem registado em log; a função só devolve as mensagens que
+batem no assunto e no remetente configurados. Confirmar com a IT/DPO do grupo antes de ativar.
+
 ## Criar um cliente novo
 
 Um projeto Supabase por cliente (região UE).

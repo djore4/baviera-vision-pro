@@ -4,6 +4,7 @@ import { useData } from '@/contexts/DataContext';
 import { useRecordEditor } from '@/components/RecordEditor';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
+import SincronizarEmailButton from '@/components/SincronizarEmailButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { RetomaFilter, FlagsFilter, GarantiaFilter, TipoFilter } from '@/components/RetomaFilter';
 import { formatDate, getCurrentWeek, getDeliveryMonth, isRetailType } from '@/lib/excel-parser';
@@ -519,6 +520,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
             <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
           </div>
+          <SincronizarEmailButton />
           <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
             <Download className="h-3 w-3" />CSV
           </Button>

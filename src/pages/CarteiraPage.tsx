@@ -3,6 +3,7 @@ import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { useRecordEditor } from '@/components/RecordEditor';
 import { RowDeleteButton } from '@/components/RowDeleteButton';
+import SincronizarEmailButton from '@/components/SincronizarEmailButton';
 import { toLocalIsoDay } from '@/lib/utils';
 import { formatDate, isRetailType } from '@/lib/excel-parser';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download, Plus } from 'lucide-react';
@@ -402,6 +403,7 @@ export default function CarteiraPage() {
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
               <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
             </div>
+            <SincronizarEmailButton />
             <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
               <Download className="h-3 w-3" />CSV
             </Button>
