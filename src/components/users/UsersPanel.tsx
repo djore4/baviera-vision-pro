@@ -6,7 +6,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { createUser, updateUser, deleteUser, AdminError, restritoPeloLocal, funcaoIgnoraLocal, type AppRole, type AppUser } from '@/lib/permissions';
+import { createUser, updateUser, deleteUser, AdminError, restritoPeloLocal, type AppRole, type AppUser } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import { generatePassword } from '@/lib/password';
 import { locaisDoGrupo, locaisDoPerfil } from '@/lib/locations';
@@ -47,6 +47,7 @@ export function UsersPanel({
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>(ALL);
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'nome', dir: 'asc' });
+  const [soSemLocal, setSoSemLocal] = useState(false);
   const [busyId, setBusyId] = useState<string | number | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -56,8 +57,9 @@ export function UsersPanel({
   // Fora de Aveiro (ou sem local) só se vê o End-of-Term, salvo funções "todos os locais".
   const soEot = (u: AppUser) => {
     const r = roles.find(x => x.name === u.perfil);
-    return !!r && !r.is_admin && restritoPeloLocal(u) && !funcaoIgnoraLocal(r);
+    return !!r && !r.is_admin && restritoPeloLocal(u);
   };
+  const semLocal = (u: AppUser) => locaisDoPerfil(u.local).length === 0;
   const roleOf = (u: AppUser) => (u.perfil && u.perfil.trim()) || SEM_FUNCAO;
 
   const counts = useMemo(() => {
@@ -76,6 +78,7 @@ export function UsersPanel({
     const term = q.trim().toLowerCase();
     const list = users.filter(u => {
       if (roleFilter !== ALL && roleOf(u) !== roleFilter) return false;
+      if (soSemLocal && !semLocal(u)) return false;
       if (term && !`${u.nome ?? ''} ${u.email ?? ''}`.toLowerCase().includes(term)) return false;
       return true;
     });
@@ -88,7 +91,7 @@ export function UsersPanel({
       if (primary !== 0) return primary * mul;
       return nameOf(a).localeCompare(nameOf(b), 'pt', { sensitivity: 'base' });
     });
-  }, [users, q, roleFilter, sort]);
+  }, [users, q, roleFilter, soSemLocal, sort]);
 
   const toggleSort = (key: SortKey) =>
     setSort(prev => prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' });
@@ -130,6 +133,7 @@ export function UsersPanel({
   };
 
   const semFuncao = counts.get(SEM_FUNCAO) ?? 0;
+  const nSemLocal = comLocais ? users.filter(semLocal).length : 0;
 
   return (
     <div className="space-y-3">
@@ -158,6 +162,16 @@ export function UsersPanel({
         >
           <AlertTriangle className="h-4 w-4 shrink-0" />
           {semFuncao} {semFuncao === 1 ? 'conta sem função' : 'contas sem função'} — sem função não há acesso a nenhum tab. Ver.
+        </button>
+      )}
+
+      {nSemLocal > 0 && (
+        <button
+          type="button" onClick={() => setSoSemLocal(v => !v)} aria-pressed={soSemLocal}
+          className="w-full flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-xs text-amber-800 dark:text-amber-300 hover:bg-amber-500/15"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {nSemLocal} {nSemLocal === 1 ? 'conta sem local definido' : 'contas sem local definido'} — todas as contas devem ter local. {soSemLocal ? 'Mostrar todas.' : 'Ver.'}
         </button>
       )}
 
@@ -207,7 +221,8 @@ export function UsersPanel({
                       </td>
                       {comLocais && (
                         <td className="px-3 py-2">
-                          <LocaisPicker value={locaisDoPerfil(u.local)} onChange={l => handleLocaisChange(u, l)} disabled={busyId === u.id} className="w-[170px]" />
+                          <LocaisPicker value={locaisDoPerfil(u.local)} onChange={l => handleLocaisChange(u, l)} disabled={busyId === u.id}
+                            className={cn('w-[170px]', semLocal(u) && 'border-amber-500/60')} emptyLabel="Definir local" />
                         </td>
                       )}
                       <td className="px-3 py-2">
@@ -319,6 +334,7 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
     e.preventDefault();
     if (!email.trim() || !password.trim()) { toast.error('Email e password são obrigatórios.'); return; }
     if (!perfil) { toast.error('Escolhe a função.'); return; }
+    if (locaisDoGrupo().length > 0 && locais.length === 0) { toast.error('Escolhe pelo menos um local.'); return; }
     if (password.length < 6) { toast.error('A password deve ter pelo menos 6 caracteres.'); return; }
     setSaving(true);
     try {
@@ -383,8 +399,8 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
             </div>
             {locaisDoGrupo().length > 0 && (
               <div className="space-y-1.5">
-                <Label>Locais em que opera</Label>
-                <LocaisPicker value={locais} onChange={setLocais} className="h-10" />
+                <Label>Locais em que opera *</Label>
+                <LocaisPicker value={locais} onChange={setLocais} className="h-10" emptyLabel="Escolher local…" />
               </div>
             )}
             <div className="space-y-1.5">

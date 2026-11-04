@@ -82,13 +82,19 @@ describe('Ver como', () => {
       await waitFor(() => expect(ctx.viewingAs?.email).toBe(email));
     };
 
-    it.each(['porto@x.pt', 'semlocal@x.pt'])('%s: só vê o End-of-Term, com o nível da função', async email => {
+    it.each(['porto@x.pt'])('%s: só vê o End-of-Term, com o nível da função', async email => {
       await simular(email);
       expect(ctx.canView('retails')).toBe(false);
       expect(ctx.canView('funil')).toBe(false);
       expect(ctx.canView('produto')).toBe(false);
       expect(ctx.canEdit('end-of-term')).toBe(true);
       expect(ctx.canEdit('end-of-term:todos')).toBe(true);
+    });
+
+    it('sem local definido não há restrição: segue-se a função', async () => {
+      await simular('semlocal@x.pt');
+      expect(ctx.canView('retails')).toBe(true);
+      expect(ctx.canEdit('funil')).toBe(true);
     });
 
     it('nunca dá acesso: sem End-of-Term na função, não vê nada', async () => {

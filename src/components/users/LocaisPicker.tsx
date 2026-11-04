@@ -6,9 +6,9 @@ import { cn } from '@/lib/utils';
 import { locaisDoGrupo } from '@/lib/locations';
 
 /* Escolha dos locais (stands) em que um utilizador opera. Sem nenhum escolhido a
- * pessoa abre as tabs sem filtro de local ("todos"). */
-export function LocaisPicker({ value, onChange, disabled, className }: {
-  value: string[]; onChange: (v: string[]) => void; disabled?: boolean; className?: string;
+ * pessoa abre as tabs sem filtro de local ("todos"); todas as contas devem ter local. */
+export function LocaisPicker({ value, onChange, disabled, className, emptyLabel = 'Todos os locais' }: {
+  value: string[]; onChange: (v: string[]) => void; disabled?: boolean; className?: string; emptyLabel?: string;
 }) {
   const todos = locaisDoGrupo();
   if (todos.length === 0) return null;
@@ -22,7 +22,7 @@ export function LocaisPicker({ value, onChange, disabled, className }: {
           className={cn('h-8 w-full min-w-[150px] justify-start gap-1.5 px-2 font-normal', className)}>
           <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           {value.length === 0
-            ? <span className="text-muted-foreground">Todos os locais</span>
+            ? <span className="text-muted-foreground">{emptyLabel}</span>
             : <span className="truncate">{value.join(', ')}</span>}
         </Button>
       </PopoverTrigger>
