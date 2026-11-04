@@ -15,6 +15,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { listUsers, type AppUser } from '@/lib/permissions';
+import { locaisDoPerfil } from '@/lib/locations';
 import {
   saveEotOwner, deleteEotOwner, addEotVendedorMap, removeEotVendedorMap, normVendedor, contractLocal,
   type EotContract, type EotOwner, type EotVendedorMapRow,
@@ -328,6 +329,8 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, onClose, onSaved }
     setEmail(v);
     const u = candidates.find(x => x.email === v);
     if (u && !iniciais) setIniciais(initialsFrom(u.nome, v));
+    // O local do responsável parte do local da conta (Utilizadores); pode ajustar-se aqui.
+    if (u && locais.length === 0) setLocais(locaisDoPerfil(u.local));
   };
 
   const save = async () => {
@@ -389,7 +392,7 @@ function OwnerDialog({ state, owners, knownLocais, leadEmail, onClose, onSaved }
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExtra(); } }} />
               <Button type="button" variant="outline" onClick={addExtra}>Juntar</Button>
             </div>
-            <p className="text-[11px] text-muted-foreground">Use o mesmo nome do local nos contratos (ex.: Aveiro, Viseu).</p>
+            <p className="text-[11px] text-muted-foreground">Parte do local da conta (Utilizadores); use o mesmo nome do local nos contratos.</p>
           </div>
 
           {!leadEmail && (
