@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useData } from '@/contexts/DataContext';
 import { X, Check, Trash2 } from 'lucide-react';
@@ -162,7 +162,7 @@ export function ResponsavelField({ value, options, onChange }: { value: string; 
 interface RecordEditorValue {
   openEditor: (id: string) => void;
   /** `preset` pré-preenche campos do novo registo (ex.: estado e data de negócio). */
-  openNew: (preset?: Partial<RecordForm>) => void;
+  openNew: (preset?: Partial<RecordForm>, onCreated?: () => void) => void;
   /** Elimina um registo (usado pelos botões de eliminar das tabelas). Devolve se correu bem. */
   deleteRecord: (id: string) => Promise<boolean>;
 }
@@ -187,7 +187,11 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
   const [demosError, setDemosError] = useState<string | null>(null);
   const [demoChassis, setDemoChassis] = useState('');
 
-  const openNew = useCallback((preset?: Partial<RecordForm>) => {
+  // Chamado uma vez, só quando o negócio novo chega a ser gravado (nunca se o editor for fechado sem gravar).
+  const onCreatedRef = useRef<(() => void) | undefined>(undefined);
+
+  const openNew = useCallback((preset?: Partial<RecordForm>, onCreated?: () => void) => {
+    onCreatedRef.current = onCreated;
     setForm({ ...EMPTY, ...preset }); setEditId(null); setConfirmDelete(false); setDemoChassis(''); setOpen(true);
   }, []);
 
@@ -210,6 +214,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
   };
 
   const openEditor = useCallback(async (id: string) => {
+    onCreatedRef.current = undefined;
     setEditId(id); setForm(EMPTY); setConfirmDelete(false); setDemoChassis(''); setOpen(true); setLoadingRow(true);
     const { data } = await supabase.from('control_records').select('*').eq('id', id).single();
     if (data) {
@@ -255,7 +260,10 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
     setSaving(false);
     if (error) { toast.error(`Não foi possível gravar o registo: ${error.message}`); return; }
     setOpen(false);
+    const criado = !editId ? onCreatedRef.current : undefined;
+    onCreatedRef.current = undefined;
     await notifyChanged();
+    criado?.();
   }
 
   async function deleteRecord(id: string): Promise<boolean> {

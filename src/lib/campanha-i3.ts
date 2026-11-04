@@ -566,3 +566,59 @@ export function exportLeads(list: Lead[], fileName = `campanha-i3-${hojeIso()}.x
   XLSX.utils.book_append_sheet(wb, ws, 'Campanha i3');
   XLSX.writeFile(wb, fileName);
 }
+
+/* ── Transformar a oportunidade num negócio quente ─────────────────────────────
+ * O botão abre o editor de "Novo negócio" (o mesmo do Funil) já preenchido com o que se sabe
+ * da oportunidade. O estado fica `Quente` e o tipo `VN`; o vendedor completa o resto. */
+
+/** Iniciais prováveis de um nome ("Rui Duarte Costa" → ["RC", "RDC"]): primeira+última, e todas. */
+export function iniciaisCandidatas(nome: string | null | undefined): string[] {
+  const partes = (nome ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return [];
+  const letras = partes.map(p => p[0].toUpperCase());
+  const out = [letras.length > 1 ? letras[0] + letras[letras.length - 1] : letras[0], letras.join('')];
+  return [...new Set(out)];
+}
+
+/** RESP do negócio: as iniciais do responsável da oportunidade, só se já existirem nos registos
+ *  (não se inventa um vendedor); vazio se não houver correspondência. */
+export function respDoLead(lead: Pick<Lead, 'owner_nome'>, iniciaisExistentes: string[]): string {
+  const existentes = new Set(iniciaisExistentes.map(i => i.trim().toUpperCase()));
+  return iniciaisCandidatas(lead.owner_nome).find(i => existentes.has(i)) ?? '';
+}
+
+/** Texto para o campo de observações do negócio: de onde vem e como contactar. */
+export function obsNegocioQuente(lead: Pick<Lead, 'email' | 'contacto' | 'polo' | 'data_contacto' | 'ponto_situacao' | 'observacoes'>): string {
+  const linhas = ['Origem: Campanha i3'];
+  if (lead.contacto) linhas.push(`Contacto: ${lead.contacto}`);
+  if (lead.email) linhas.push(`E-mail: ${lead.email}`);
+  if (lead.polo) linhas.push(`Polo: ${lead.polo}`);
+  if (lead.data_contacto) linhas.push(`Contactou em ${fmtDia(lead.data_contacto)}`);
+  if (lead.ponto_situacao) linhas.push(`Ponto de situação: ${lead.ponto_situacao}`);
+  if (lead.observacoes) linhas.push(`Obs.: ${lead.observacoes}`);
+  return linhas.join('\n');
+}
+
+export interface PresetNegocio {
+  status: 'Quente';
+  type: 'VN';
+  neg: string;
+  id_cliente: string;
+  resp: string;
+  obs: string;
+}
+
+export function presetNegocioQuente(lead: Lead, hoje: string, iniciaisExistentes: string[]): PresetNegocio {
+  return {
+    status: 'Quente', type: 'VN', neg: hoje, id_cliente: lead.nome.trim(),
+    resp: respDoLead(lead, iniciaisExistentes), obs: obsNegocioQuente(lead),
+  };
+}
+
+/** Acrescenta ao ponto de situação o registo de que o negócio foi criado (uma vez por dia). */
+export function pontoComNegocio(ponto: string | null | undefined, hoje: string): string {
+  const nota = `Negócio quente criado a ${fmtDia(hoje)}.`;
+  const atual = (ponto ?? '').trim();
+  if (atual.includes(nota)) return atual;
+  return atual ? `${atual}\n${nota}` : nota;
+}
