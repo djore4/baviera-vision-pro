@@ -63,15 +63,19 @@ export function PeriodFilter({ children }: { children?: ReactNode }) {
 
   const selectedYears = [...filter.years].sort((a, b) => b - a);
 
-  const quickBtn = (label: string, active: boolean, onClick: () => void) => (
+  // Rótulo curto na coluna estreita do desktop (lg), completo no telemóvel.
+  const quickBtn = (label: string, short: string, active: boolean, onClick: () => void) => (
     <button
       onClick={onClick}
+      aria-label={label}
+      title={label}
       className={active
-        ? 'rounded-md border border-primary bg-primary px-2 py-1.5 text-[11px] font-semibold text-primary-foreground'
-        : 'rounded-md border border-border bg-secondary px-2 py-1.5 text-[11px] font-medium text-secondary-foreground hover:bg-accent'
+        ? 'rounded-md border border-primary bg-primary px-1 py-1.5 text-[11px] font-semibold text-primary-foreground'
+        : 'rounded-md border border-border bg-secondary px-1 py-1.5 text-[11px] font-medium text-secondary-foreground hover:bg-accent'
       }
     >
-      {label}
+      <span className="lg:hidden" aria-hidden>{label}</span>
+      <span className="hidden lg:inline" aria-hidden>{short}</span>
     </button>
   );
 
@@ -87,12 +91,10 @@ export function PeriodFilter({ children }: { children?: ReactNode }) {
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <div className="grid grid-cols-2 gap-1.5">
-          {quickBtn('Mês atual', isCurrentMonth, selectCurrentMonth)}
-          {quickBtn('Ano atual', isCurrentYear, selectCurrentYear)}
-        </div>
-        {quickBtn('Trimestre atual', isCurrentQuarter, selectCurrentQuarter)}
+      <div className="grid grid-cols-3 gap-1.5">
+        {quickBtn('Mês atual', 'Mês', isCurrentMonth, selectCurrentMonth)}
+        {quickBtn('Trimestre atual', 'Trim.', isCurrentQuarter, selectCurrentQuarter)}
+        {quickBtn('Ano atual', 'Ano', isCurrentYear, selectCurrentYear)}
       </div>
 
       <div className="space-y-1.5">
