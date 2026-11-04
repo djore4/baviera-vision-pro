@@ -27,6 +27,8 @@ export interface ControlRecord {
   app: Date | null;
   dfat: Date | null;
   obs: string;
+  /** Receção do email "matrícula pedida" (preenchido pela sincronização); null = pedido por confirmar. */
+  matPedidaEm?: Date | null;
 }
 
 export interface ObjetivoTotal {

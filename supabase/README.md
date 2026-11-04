@@ -89,6 +89,15 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   **eliminar** só apaga o login se o email não estiver em `utilizadores`; **repor a password**
   de um login partilhado é recusado (mudaria também o acesso à outra app). Precisa de deploy:
   `supabase functions deploy admin-users`.
+- A edge function `sync-matriculas` (botão **Sincronizar** em WIP, Produção e Carteira,
+  só para administradores) lê do Outlook as respostas ao pedido de matrícula: "matrícula
+  pedida" grava `control_records.mat_pedida_em` (migração `20261104120000`) e a matrícula
+  atribuída preenche `mat` (só se vazia e com o pedido confirmado). Precisa de deploy
+  (`supabase functions deploy sync-matriculas`) e dos segredos `MS_TENANT_ID`,
+  `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_MAILBOX` (e opcional `MS_MAIL_FOLDER`): app Azure
+  com a permissão de aplicação `Mail.Read`, limitada à caixa de Aveiro. Sem eles, o botão
+  mostra "Sincronização não configurada". Um import do Excel (substitui `control_records`)
+  apaga `mat_pedida_em`; uma nova sincronização repõe-no (janela de 30 dias).
 - Ao acrescentar uma tabela nova: ativar RLS e dar-lhe políticas explícitas
   (sem políticas só o service role acede). Ao acrescentar um tab: dizer em que
   tabelas lê e escreve, e acrescentar o caso a `tests/rls.test.sql`.
