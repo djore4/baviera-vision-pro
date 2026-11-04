@@ -76,6 +76,9 @@ const ALL_TABS: TabDef[] = [
   { key: 'objetivos', label: 'Objetivos', path: '/objetivos', area: 'apv' },
   // Catálogo BMW (dados técnicos e opcionais), migrado da plataforma Caetano.
   { key: 'produto', label: 'Produto', path: '/produto', area: 'apv' },
+  // Linha do tempo dos eventos de marketing. "Para já" só o admin (até existir um perfil próprio):
+  // fora da matriz de funções; para o abrir a uma função, tirar o adminOnly.
+  { key: 'marketing', label: 'Marketing', path: '/marketing', area: 'apv', adminOnly: true },
   // ── Administração ───────────────────────────────────────────────────────────
   { key: 'dados', label: 'Dados', path: '/dados', area: 'admin' },
   { key: 'arquivo', label: 'Arquivo', path: '/arquivo', area: 'admin' },
