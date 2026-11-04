@@ -38,11 +38,6 @@ const config: ClientConfig = {
     to: ['sonia.carvalho@caetano.pt', 'lurdes.aguiar@caetano.pt'],
     cc: ['jose.mesquita@caetano.pt', 'joaocarlos.duarte@caetano.pt'],
   },
-  emailSync: {
-    plateSenders: ['alexandre.ferreira@caetano.pt'],
-    confirmers: ['sonia.carvalho@caetano.pt', 'lurdes.aguiar@caetano.pt', 'jose.mesquita@caetano.pt'],
-    sinceDays: 14,
-  },
   disabledTabs: [],
   // Já está em app_access_exceptions (migração 20261003100000); isto só vale
   // enquanto a base de dados não a tiver. Remover depois de aplicada.

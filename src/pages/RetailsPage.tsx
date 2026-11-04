@@ -4,7 +4,6 @@ import { useData } from '@/contexts/DataContext';
 import { useRecordEditor } from '@/components/RecordEditor';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
-import SincronizarEmailButton from '@/components/SincronizarEmailButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { RetomaFilter, FlagsFilter, GarantiaFilter, TipoFilter } from '@/components/RetomaFilter';
 import { formatDate, getCurrentWeek, getDeliveryMonth, isRetailType } from '@/lib/excel-parser';
@@ -17,6 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import SincronizarMatriculasButton from '@/components/SincronizarMatriculasButton';
 
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
@@ -520,7 +520,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
             <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
           </div>
-          <SincronizarEmailButton />
+          <SincronizarMatriculasButton />
           <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
             <Download className="h-3 w-3" />CSV
           </Button>
@@ -558,7 +558,12 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 <td className="px-3 py-1 whitespace-nowrap">{r.chas}</td>
                 <td className="px-3 py-1 whitespace-nowrap">
                   {r.status === 'Carteira'
-                    ? <PedirMatriculaButton record={{ cliente: r.cliente, enc: r.enc, chas: r.chas, biz: r.biz, fin: r.fin, ret: r.ret }} />
+                    ? (r.matPedidaEm
+                      ? <span className="inline-flex items-center rounded border border-green-500/40 bg-green-500/10 px-2 py-1 text-[10px] font-medium text-green-600"
+                          title={`Resposta "matrícula pedida" recebida a ${formatDate(r.matPedidaEm)}`}>
+                          Matrícula pedida · {formatDate(r.matPedidaEm)}
+                        </span>
+                      : <PedirMatriculaButton record={{ cliente: r.cliente, enc: r.enc, chas: r.chas, biz: r.biz, fin: r.fin, ret: r.ret }} />)
                     : r.mat}
                 </td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.neg)}</td>

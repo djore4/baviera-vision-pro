@@ -41,15 +41,6 @@ export interface ClientConfig {
   locais?: { nome: string; aliases?: string[] }[];
   /** Destinatários do pedido de matrícula (texto copiado para email). */
   matricula: { to: string[]; cc: string[] };
-  /** Sincronização VN com o email (botão "Sincronizar"). Sem isto, o botão não aparece. */
-  emailSync?: {
-    /** Quem envia o email diário "Matriculas - Aveiro". */
-    plateSenders: string[];
-    /** Quem pode confirmar um pedido ao responder "matrícula pedida". */
-    confirmers: string[];
-    /** Quantos dias para trás se lê (por defeito 14). */
-    sinceDays?: number;
-  };
   /** TEMPORÁRIO. Exceções de acesso por email que passaram para a tabela
    *  app_access_exceptions; só se usam enquanto a função my_access_exceptions não
    *  existir na base de dados. Remover depois de aplicadas as migrações. */

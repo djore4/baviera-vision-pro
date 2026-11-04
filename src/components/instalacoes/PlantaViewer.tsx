@@ -40,7 +40,7 @@ interface Props {
 
 const DEFAULT_ASPECT = 1193 / 4056;     // altura/largura das plantas atuais
 const MIN_HEIGHT = 300;
-const MIN_HEIGHT_NARROW = 280;           // ecrãs estreitos (< 640 px)
+const MIN_HEIGHT_NARROW = 240;           // ecrãs estreitos (< 640 px)
 
 export function PlantaViewer({ src, alt, pins, selectedId, draft, placing, focus, onPlace, onSelect, onCancelPlacing }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);

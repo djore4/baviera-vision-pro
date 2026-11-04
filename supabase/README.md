@@ -89,6 +89,23 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   **eliminar** só apaga o login se o email não estiver em `utilizadores`; **repor a password**
   de um login partilhado é recusado (mudaria também o acesso à outra app). Precisa de deploy:
   `supabase functions deploy admin-users`.
+- A edge function `sync-matriculas` (botão **Sincronizar** em WIP, Produção e Carteira,
+  só para administradores) lê do Outlook as respostas ao pedido de matrícula: "matrícula
+  pedida" grava `control_records.mat_pedida_em` (migração `20261104120000`) e a matrícula
+  atribuída preenche `mat` (só se vazia e com o pedido confirmado). Precisa de deploy
+  (`supabase functions deploy sync-matriculas`) e dos segredos `MS_TENANT_ID`,
+  `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_MAILBOX` (e opcional `MS_MAIL_FOLDER`): app Azure
+  com a permissão de aplicação `Mail.Read`, limitada à caixa de Aveiro. Sem eles, o botão
+  mostra "Sincronização não configurada". Um import do Excel (substitui `control_records`)
+  apaga `mat_pedida_em`; uma nova sincronização repõe-no (janela de 30 dias).
+  O botão mostra primeiro o que vai mudar e só grava depois de confirmar (a função aceita
+  `{ simular: true }` e não grava nada). Lê também o email diário **"Matriculas - Aveiro"**
+  (tabela do stand): emparelha pela encomenda (sem zeros à esquerda) ou pelo chassis e
+  preenche `mat`, completa o `chas` (VIN inteiro) e acerta a `dmat` (data real da matrícula);
+  nunca sobrescreve uma matrícula ou chassis diferentes (ficam "por tratar") e não muda o
+  estado do negócio. Para aceitar esse email só de quem o envia, definir o segredo opcional
+  `MS_PLATES_SENDERS` (emails separados por vírgula). O email tem de estar na pasta lida
+  (`MS_MAIL_FOLDER`, por omissão a Caixa de Entrada).
 - Ao acrescentar uma tabela nova: ativar RLS e dar-lhe políticas explícitas
   (sem políticas só o service role acede). Ao acrescentar um tab: dizer em que
   tabelas lê e escreve, e acrescentar o caso a `tests/rls.test.sql`.
@@ -172,39 +189,6 @@ para essas versões (ou `supabase migration repair`).
 `20260711140000_demo_emprestimos_responsavel_interno` (legada) **nunca foi
 aplicada**: a página Empréstimos escreve `responsavel_interno` e falhava ao
 guardar. A migração `20261003160000` acrescenta a coluna.
-
-## Sincronizar com o email (VN)
-
-Botão **Sincronizar** em WIP, Produção e Carteira (só administradores, só Vendas VN). Lê da
-caixa de email, em modo só de leitura, e propõe alterações a `control_records`; o administrador
-vê o que muda e confirma antes de se gravar. Nada sobrescreve um valor diferente: os
-desencontros (matrícula/chassis/Bizagi diferentes, encomenda sem registo, ambígua) ficam
-listados "por tratar".
-
-- **Email diário "Matriculas - Aveiro"** (remetente em `emailSync.plateSenders`): encomenda →
-  preenche `mat`, `chas` (completa um chassis parcial) e `dmat` (data real da matrícula) e passa
-  `Carteira` a `Matricula`.
-- **"Pedido de matrícula"**: só conta depois de alguém de `emailSync.confirmers` responder
-  "matrícula pedida" na mesma conversa. Passa `Carteira` a `Matricula` e, se `dmat` estiver
-  vazia, regista nela o dia dessa resposta.
-- Emparelhamento: encomenda (sem zeros à esquerda) → chassis (compatível pelos últimos
-  caracteres) → Bizagi; só se for inequívoco.
-
-Código: `src/lib/email-sync.ts` (leitura e plano, puro e testado), `src/lib/email-sync-client.ts`,
-`src/components/SincronizarEmailButton.tsx` e a edge function `functions/email-sync`
-(configuração do cliente em `emailSync` no `config.ts`). Não há migração.
-
-**Para funcionar é preciso, fora do código** (sem isto o botão responde "falta configurar"):
-
-1. No Microsoft Entra ID, registar uma aplicação com a permissão de **aplicação** `Mail.Read`
-   e consentimento de administrador, **restringida à caixa certa** (Application Access Policy /
-   RBAC for Applications do Exchange Online). Nunca sobre todas as caixas do grupo.
-2. Definir os segredos da função: `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`,
-   `MS_MAILBOX` (email da caixa a ler).
-3. Publicar a função: `supabase functions deploy email-sync`.
-
-O conteúdo dos emails não é guardado nem registado em log; a função só devolve as mensagens que
-batem no assunto e no remetente configurados. Confirmar com a IT/DPO do grupo antes de ativar.
 
 ## Criar um cliente novo
 

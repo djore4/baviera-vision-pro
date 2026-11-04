@@ -9,6 +9,6 @@ verify_jwt = false
 # Validação do JWT feita dentro da função (getUser), como em admin-users.
 verify_jwt = false
 
-[functions.email-sync]
+[functions.sync-matriculas]
 # Validação do JWT feita dentro da função (getUser), como em admin-users.
 verify_jwt = false
