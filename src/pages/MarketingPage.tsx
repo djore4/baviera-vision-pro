@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, ImageIcon, MapPin, Plus, Settings2, Sparkles, Users } from 'lucide-react';
+import { ImageIcon, MapPin, Plus, Settings2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
-  COR_SEM_CATEGORIA, agendaComHoje, contagemDias, estadoDe, formatarIntervalo, hojeIso, ordenar, proximoEvento,
+  COR_SEM_CATEGORIA, agendaComHoje, contagemDias, estadoDe, formatarIntervalo, hojeIso, ordenar,
   resumoAgenda, resumoConvidados, textoRelativo, type Categoria, type Convidado, type EstadoConvidado, type TomContagem, type MarketingEvento, type Orcamento,
 } from '@/lib/marketing';
 import { listCategorias, listEstadosConvidados, listEventos, listOrcamentos } from '@/lib/marketing-data';
@@ -95,6 +95,17 @@ function CartaoEvento({ ev, categoria, lado, hoje, convidados, todosOsConvidados
         visivel ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 motion-reduce:translate-y-0 motion-reduce:opacity-100',
       )}
     >
+      {/* Ligação do ponto da linha ao cartão */}
+      <span
+        aria-hidden
+        data-testid="ligacao"
+        className={cn(
+          'absolute left-4 top-6 z-0 h-0.5 w-8 -translate-y-1/2 origin-left rounded-full transition-transform duration-700 motion-reduce:transition-none',
+          lado === 'esq' ? 'md:left-auto md:right-0 md:w-10 md:origin-right' : 'md:left-0 md:w-10',
+          visivel ? 'scale-x-100' : 'scale-x-0 motion-reduce:scale-x-100',
+        )}
+        style={{ background: estado === 'passado' ? 'hsl(var(--muted-foreground) / 0.4)' : `hsl(${hsl} / 0.55)` }}
+      />
       {/* Marcador sobre o traço */}
       <span
         ref={marcador}
@@ -205,7 +216,6 @@ export default function MarketingPage() {
   const todos = useMemo(() => ordenar(eventos), [eventos]);
   const visiveis = useMemo(() => (filtro === 'todos' ? todos : todos.filter(e => e.categoria_id === filtro)), [todos, filtro]);
   const grupos = useMemo(() => agendaComHoje(visiveis, hoje), [visiveis, hoje]);
-  const proximo = useMemo(() => proximoEvento(eventos, hoje), [eventos, hoje]);
   const contagem = useMemo(() => {
     const c: Record<string, number> = { todos: todos.length };
     for (const e of todos) if (e.categoria_id) c[e.categoria_id] = (c[e.categoria_id] ?? 0) + 1;
@@ -258,75 +268,41 @@ export default function MarketingPage() {
     return () => { ro?.disconnect(); window.removeEventListener('resize', medir); };
   }, [medir, visiveis]);
 
-  const irParaProximo = () => {
-    const alvo = proximo ? marcadores.current.get(proximo.id) : null;
-    alvo?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-  };
-
   let indice = -1; // para alternar esquerda/direita só nos cartões (não nos cabeçalhos de mês)
 
   return (
     <div className="mx-auto max-w-5xl animate-fade-in space-y-6">
-      {/* Cabeçalho */}
-      <header className="relative overflow-hidden rounded-lg border bg-card p-5 shadow-sm">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full opacity-[0.08] blur-2xl"
-          style={{ background: 'hsl(var(--primary))' }}
-        />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-semibold">
-              <Sparkles className="h-5 w-5 text-primary" /> Marketing
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">Linha do tempo dos eventos e campanhas.</p>
-            {canEdit && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => setForm({ evento: null })}><Plus className="mr-1.5 h-4 w-4" /> Novo evento</Button>
-                <Button size="sm" variant="outline" onClick={() => setGerirCategorias(true)}><Settings2 className="mr-1.5 h-4 w-4" /> Categorias</Button>
-              </div>
-            )}
-          </div>
-          {proximo && (
+      {/* Filtros por categoria (e, para quem edita, as duas ações) */}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por categoria">
+        {([{ id: 'todos', nome: 'Todos', cor: null as string | null }, ...categorias.map(c => ({ id: c.id, nome: c.nome, cor: c.cor }))]).map(c => {
+          const ativo = filtro === c.id;
+          const cor = c.cor ? `hsl(${c.cor})` : 'hsl(var(--primary))';
+          return (
             <button
+              key={c.id}
               type="button"
-              onClick={irParaProximo}
-              className="group flex items-center gap-3 rounded-lg border bg-background px-4 py-2.5 text-left transition-colors hover:border-primary/50"
+              aria-pressed={ativo}
+              onClick={() => setFiltro(c.id)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200',
+                ativo ? 'text-white shadow-sm' : 'bg-card text-muted-foreground hover:text-foreground',
+              )}
+              style={ativo ? { background: cor, borderColor: cor } : undefined}
             >
-              <CalendarClock className="h-5 w-5 shrink-0 text-primary transition-transform group-hover:scale-110" />
-              <span className="min-w-0">
-                <span className="block text-[11px] uppercase tracking-wide text-muted-foreground">Próximo</span>
-                <span className="block truncate text-sm font-medium">{proximo.titulo}</span>
-                <span className="block text-xs text-muted-foreground">{formatarIntervalo(proximo)} · {textoRelativo(proximo, hoje)}</span>
-              </span>
+              {c.nome}
+              <span className={cn('tabular-nums', ativo ? 'opacity-80' : 'opacity-60')}>{contagem[c.id] ?? 0}</span>
             </button>
-          )}
-        </div>
-
-        {/* Filtros por categoria */}
-        <div className="relative mt-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar por categoria">
-          {([{ id: 'todos', nome: 'Todos', cor: null as string | null }, ...categorias.map(c => ({ id: c.id, nome: c.nome, cor: c.cor }))]).map(c => {
-            const ativo = filtro === c.id;
-            const cor = c.cor ? `hsl(${c.cor})` : 'hsl(var(--primary))';
-            return (
-              <button
-                key={c.id}
-                type="button"
-                aria-pressed={ativo}
-                onClick={() => setFiltro(c.id)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200',
-                  ativo ? 'text-white shadow-sm' : 'bg-background text-muted-foreground hover:text-foreground',
-                )}
-                style={ativo ? { background: cor, borderColor: cor } : undefined}
-              >
-                {c.nome}
-                <span className={cn('tabular-nums', ativo ? 'opacity-80' : 'opacity-60')}>{contagem[c.id] ?? 0}</span>
-              </button>
-            );
-          })}
-        </div>
-      </header>
+          );
+        })}
+        {canEdit && (
+          <div className="ml-auto flex items-center gap-1.5">
+            <Button size="icon" variant="ghost" className="h-8 w-8" title="Gerir categorias" aria-label="Categorias" onClick={() => setGerirCategorias(true)}>
+              <Settings2 className="h-4 w-4" />
+            </Button>
+            <Button size="sm" onClick={() => setForm({ evento: null })}><Plus className="mr-1.5 h-4 w-4" /> Novo evento</Button>
+          </div>
+        )}
+      </div>
 
       {/* Números da agenda */}
       {!carregando && !erro && eventos.length > 0 && (

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   agruparPorMes, agruparPorVendedor, estadoDe, formatarIntervalo, highlightsDeTexto, linkWhatsApp, agendaComHoje, contagemDias,
-  proximoEvento, resumoAgenda, urlAbrirMapa, urlMapaEmbed, urlRota, resumoConvidados, resumoOrcamento, telefoneWhatsApp, textoConvite, textoRelativo,
+  resumoAgenda, urlAbrirMapa, urlMapaEmbed, urlRota, resumoConvidados, resumoOrcamento, telefoneWhatsApp, textoConvite, textoRelativo,
   type Convidado,
 } from '@/lib/marketing';
 import { validarDocumento, validarImagem, descreverViatura } from '@/lib/marketing-data';
@@ -29,11 +29,6 @@ describe('linha do tempo', () => {
     expect(textoRelativo(ev('a', '2027-01-23'), '2027-01-03')).toBe('Em 20 dias');
     expect(textoRelativo(ev('a', '2027-01-01', '2027-01-09'), '2027-01-03')).toBe('A decorrer');
     expect(textoRelativo(ev('a', '2027-01-01'), '2027-01-04')).toBe('Há 3 dias');
-  });
-  it('próximo evento ignora passados e inclui o a decorrer', () => {
-    const evs = [ev('a', '2027-01-01'), ev('b', '2027-01-02', '2027-01-20'), ev('c', '2027-02-01')];
-    expect(proximoEvento(evs, '2027-01-05')?.id).toBe('b');
-    expect(proximoEvento(evs, '2027-03-01')).toBeNull();
   });
   it('"Hoje" fica antes de todos os eventos quando eles são todos futuros', () => {
     const g = agendaComHoje([ev('a', '2027-01-20'), ev('b', '2027-02-10')], '2027-01-05');

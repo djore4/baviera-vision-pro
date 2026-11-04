@@ -2444,6 +2444,8 @@ export type Database = {
       is_platform_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
       is_platform_user: { Args: Record<PropertyKey, never>; Returns: boolean }
       is_salesforce_user: { Args: Record<PropertyKey, never>; Returns: boolean }
+      marketing_acesso: { Args: { p_level?: string }; Returns: boolean }
+      marketing_local_ok: { Args: Record<PropertyKey, never>; Returns: boolean }
       my_access_exceptions: { Args: Record<PropertyKey, never>; Returns: Json }
       replace_rows: {
         Args: { p_allow_empty?: boolean; p_rows: Json; p_table: string }

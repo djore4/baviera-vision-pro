@@ -14,10 +14,16 @@ insert into public.app_roles (name, is_admin, permissions) values
   ('Mkt Editar', false, '{"marketing": "edit"}'),
   ('Sem Mkt',    false, '{"funil": "view"}')
   on conflict (name) do update set permissions = excluded.permissions;
-insert into public.app_users (nome, email, perfil) values
-  ('Só ver', 'mkt_view@x.pt', 'Mkt Ver'), ('Editor', 'mkt_edit@x.pt', 'Mkt Editar'),
-  ('Sem acesso', 'mkt_none@x.pt', 'Sem Mkt')
-  on conflict (email) do update set perfil = excluded.perfil;
+insert into public.app_users (nome, email, perfil, local) values
+  ('Só ver', 'mkt_view@x.pt', 'Mkt Ver', '["Aveiro"]'), ('Editor', 'mkt_edit@x.pt', 'Mkt Editar', '["Aveiro"]'),
+  ('Sem acesso', 'mkt_none@x.pt', 'Sem Mkt', '["Aveiro"]'),
+  -- Mesmas funções, mas fora de Aveiro / sem local / só "Todas": não são de Aveiro.
+  ('Ver Porto', 'mkt_porto@x.pt', 'Mkt Ver', '["Porto"]'), ('Editar Porto', 'mkt_edit_porto@x.pt', 'Mkt Editar', '["Porto", "Gaia"]'),
+  ('Ver sem local', 'mkt_semlocal@x.pt', 'Mkt Ver', null), ('Ver Todas', 'mkt_todas@x.pt', 'Mkt Ver', '["Todas"]'),
+  ('Ver Porto com exceção', 'mkt_excecao@x.pt', 'Mkt Ver', '["Porto"]')
+  on conflict (email) do update set perfil = excluded.perfil, local = excluded.local;
+insert into public.app_access_exceptions (email, tab, level) values ('mkt_excecao@x.pt', 'marketing', 'view')
+  on conflict (email, tab) do nothing;
 
 -- ── Edit: cria tudo ─────────────────────────────────────────────────────────────
 begin;
@@ -75,6 +81,36 @@ select t.check('view: não mexe nos convidados dos outros',
   t.dml($q$ delete from public.marketing_convidados where vendedor_email = 'mkt_edit@x.pt' $q$) = 0);
 select t.check('view: apaga os seus convidados',
   t.dml($q$ delete from public.marketing_convidados where nome = 'Meu convidado' $q$) = 1);
+select t.back();
+commit;
+
+-- ── Só Aveiro (migração 20261105110000) ─────────────────────────────────────────
+-- A função dá acesso, mas quem não opera em Aveiro fica de fora, tanto a ver como a editar.
+begin;
+select t.as_user('mkt_porto@x.pt');
+select t.check('view fora de Aveiro: não vê nada',
+  t.n('marketing_eventos') = 0 and t.n('marketing_categorias') = 0 and t.n('marketing_viaturas') = 0
+  and t.n('marketing_anexos') = 0 and t.n('marketing_convidados') = 0);
+select t.check('view fora de Aveiro: não abre ficheiros', not t.can_insert_obj('marketing', 'x/porto.pdf'));
+select t.back();
+select t.as_user('mkt_edit_porto@x.pt');
+select t.check('edit fora de Aveiro: não vê nem escreve',
+  t.n('marketing_eventos') = 0 and t.n('marketing_orcamentos') = 0 and not t.can_insert('marketing_eventos')
+  and not t.can_insert('marketing_categorias') and not t.can_insert('marketing_convidados')
+  and not t.can_insert_obj('marketing', 'x/porto2.pdf'));
+select t.back();
+select t.as_user('mkt_semlocal@x.pt');
+select t.check('sem local definido: não vê nada', t.n('marketing_eventos') = 0 and t.n('marketing_convidados') = 0);
+select t.back();
+select t.as_user('mkt_todas@x.pt');
+select t.check('"Todas" não conta como Aveiro (igual à interface)', t.n('marketing_eventos') = 0);
+select t.back();
+select t.as_user('mkt_excecao@x.pt');
+select t.check('exceção explícita por email para o tab: vê, mesmo fora de Aveiro',
+  t.n('marketing_eventos') = 1 and t.n('marketing_convidados') = 0);
+select t.back();
+select t.as_user('mkt_view@x.pt');
+select t.check('view em Aveiro continua a ver', t.n('marketing_eventos') = 1);
 select t.back();
 commit;
 
