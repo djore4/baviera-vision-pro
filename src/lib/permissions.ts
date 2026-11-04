@@ -170,25 +170,21 @@ export interface AppRole {
 }
 
 /* ── Restrição por local ─────────────────────────────────────────────────────
- * Quem não tem o local LOCAL_ACESSO_COMPLETO em app_users.local (inclui quem não tem
- * local definido) só vê o tab End-of-Term (e as suas permissões `end-of-term:*`), com o
- * nível que a função já lhe dá — esta regra só retira acesso, nunca o dá. Administradores
- * e exceções por email (app_access_exceptions) ficam de fora.
- * É uma regra da INTERFACE: a RLS da base de dados continua a seguir só a matriz de funções.
+ * Quem opera só em locais que não incluem LOCAL_ACESSO_COMPLETO (app_users.local) só vê o
+ * tab End-of-Term (e as suas permissões `end-of-term:*`), com o nível que a função já lhe
+ * dá — esta regra só retira acesso, nunca o dá. Sem local definido (ou sem nenhum local
+ * reconhecido) não há restrição: segue-se a função. Todas as contas devem ter local (o tab
+ * Utilizadores assinala as que faltam). Administradores e exceções por email ficam de fora.
+ * É uma regra da INTERFACE: a RLS da base de dados continua a seguir só a matriz de funções
+ * (exceto o Marketing, ver marketing_local_ok).
  * ──────────────────────────────────────────────────────────────────────────── */
 export const LOCAL_ACESSO_COMPLETO = 'Aveiro';
 export const TAB_FORA_DO_LOCAL = 'end-of-term';
 
-export const restritoPeloLocal = (user: { local?: unknown } | null | undefined): boolean =>
-  !locaisDoPerfil(user?.local).includes(LOCAL_ACESSO_COMPLETO);
-
-/* Chave em app_roles.permissions: a função ignora a restrição por local (vê o que a matriz
- * lhe dá em qualquer local). Para funções transversais (Diretor, Marketing…). A RLS do
- * Marketing (marketing_local_ok) lê a mesma chave. */
-export const TODOS_LOCAIS_KEY = 'acesso:todos-locais';
-
-export const funcaoIgnoraLocal = (role: { permissions?: Record<string, unknown> } | null | undefined): boolean =>
-  role?.permissions?.[TODOS_LOCAIS_KEY] === 'edit';
+export const restritoPeloLocal = (user: { local?: unknown } | null | undefined): boolean => {
+  const locais = locaisDoPerfil(user?.local);
+  return locais.length > 0 && !locais.includes(LOCAL_ACESSO_COMPLETO);
+};
 
 /** Este tab (ou permissão `tab:ação`) continua disponível a quem está fora do local? */
 export const tabLivreForaDoLocal = (tab: string): boolean =>

@@ -4,7 +4,7 @@ const rpc = vi.fn();
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
 
 import {
-  getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS, restritoPeloLocal, tabLivreForaDoLocal, funcaoIgnoraLocal, TODOS_LOCAIS_KEY,
+  getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS, restritoPeloLocal, tabLivreForaDoLocal,
 } from '@/lib/permissions';
 
 beforeEach(() => { rpc.mockReset(); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
@@ -131,10 +131,12 @@ describe('restrição por local', () => {
     expect(restritoPeloLocal({ local: ['Porto', 'Aveiro'] })).toBe(false);
     expect(restritoPeloLocal({ local: 'Caetano Aveiro 2' })).toBe(false);
     expect(restritoPeloLocal({ local: ['Porto'] })).toBe(true);
-    expect(restritoPeloLocal({ local: ['Todas'] })).toBe(true);
-    expect(restritoPeloLocal({ local: [] })).toBe(true);
-    expect(restritoPeloLocal({ local: null })).toBe(true);
-    expect(restritoPeloLocal(null)).toBe(true);
+    expect(restritoPeloLocal({ local: ['Gaia', 'Feira'] })).toBe(true);
+    // sem local (ou sem nenhum reconhecido) não há restrição: segue-se a função
+    expect(restritoPeloLocal({ local: ['Todas'] })).toBe(false);
+    expect(restritoPeloLocal({ local: [] })).toBe(false);
+    expect(restritoPeloLocal({ local: null })).toBe(false);
+    expect(restritoPeloLocal(null)).toBe(false);
   });
 
   it('o End-of-Term e as suas permissões escapam; o resto não', () => {
@@ -143,14 +145,5 @@ describe('restrição por local', () => {
     expect(tabLivreForaDoLocal('end-of-term-x')).toBe(false);
     expect(tabLivreForaDoLocal('retails')).toBe(false);
     expect(tabLivreForaDoLocal('lavagem:reagendar')).toBe(false);
-  });
-});
-
-describe('funcaoIgnoraLocal', () => {
-  it('só com a chave a edit', () => {
-    expect(funcaoIgnoraLocal({ permissions: { [TODOS_LOCAIS_KEY]: 'edit' } })).toBe(true);
-    expect(funcaoIgnoraLocal({ permissions: { [TODOS_LOCAIS_KEY]: 'none' } })).toBe(false);
-    expect(funcaoIgnoraLocal({ permissions: {} })).toBe(false);
-    expect(funcaoIgnoraLocal(null)).toBe(false);
   });
 });
