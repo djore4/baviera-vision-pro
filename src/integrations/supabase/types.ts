@@ -419,6 +419,7 @@ export type Database = {
           id_cliente: string | null
           m: number | null
           mat: string | null
+          mat_pedida_em: string | null
           mes1: string | null
           model: string | null
           mpa: number | null
@@ -455,6 +456,7 @@ export type Database = {
           id_cliente?: string | null
           m?: number | null
           mat?: string | null
+          mat_pedida_em?: string | null
           mes1?: string | null
           model?: string | null
           mpa?: number | null
@@ -490,6 +492,7 @@ export type Database = {
           id_cliente?: string | null
           m?: number | null
           mat?: string | null
+          mat_pedida_em?: string | null
           mes1?: string | null
           model?: string | null
           mpa?: number | null
@@ -1251,6 +1254,48 @@ export type Database = {
         }
         Relationships: []
       }
+      instalacoes_anexos: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          id: string
+          nome: string
+          ocorrencia_id: string
+          path: string
+          tamanho: number | null
+          tipo: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          nome: string
+          ocorrencia_id: string
+          path: string
+          tamanho?: number | null
+          tipo?: string | null
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          nome?: string
+          ocorrencia_id?: string
+          path?: string
+          tamanho?: number | null
+          tipo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instalacoes_anexos_ocorrencia_id_fkey"
+            columns: ["ocorrencia_id"]
+            isOneToOne: false
+            referencedRelation: "instalacoes_ocorrencias"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       instalacoes_historico: {
         Row: {
           autor: string | null
@@ -1353,6 +1398,253 @@ export type Database = {
           zona?: string | null
         }
         Relationships: []
+      }
+      marketing_anexos: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          evento_id: string
+          id: string
+          nome: string
+          path: string
+          tamanho: number | null
+          tipo: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          criado_por?: string | null
+          evento_id: string
+          id?: string
+          nome: string
+          path: string
+          tamanho?: number | null
+          tipo?: string | null
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string | null
+          evento_id?: string
+          id?: string
+          nome?: string
+          path?: string
+          tamanho?: number | null
+          tipo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_anexos_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_eventos"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      marketing_categorias: {
+        Row: {
+          cor: string
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+        }
+        ComputedFields: never
+        Insert: {
+          cor?: string
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+        }
+        Update: {
+          cor?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
+        }
+        Relationships: []
+      }
+      marketing_convidados: {
+        Row: {
+          contacto: string | null
+          created_at: string
+          criado_por: string | null
+          estado: string
+          evento_id: string
+          id: string
+          nome: string
+          obs: string | null
+          updated_at: string
+          vendedor_email: string
+          vendedor_nome: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          contacto?: string | null
+          created_at?: string
+          criado_por?: string | null
+          estado?: string
+          evento_id: string
+          id?: string
+          nome: string
+          obs?: string | null
+          updated_at?: string
+          vendedor_email: string
+          vendedor_nome?: string | null
+        }
+        Update: {
+          contacto?: string | null
+          created_at?: string
+          criado_por?: string | null
+          estado?: string
+          evento_id?: string
+          id?: string
+          nome?: string
+          obs?: string | null
+          updated_at?: string
+          vendedor_email?: string
+          vendedor_nome?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_convidados_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_eventos"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      marketing_eventos: {
+        Row: {
+          categoria_id: string | null
+          created_at: string
+          criado_por: string | null
+          descricao: string | null
+          dress_code: string | null
+          fim: string | null
+          highlights: string[]
+          hora: string | null
+          id: string
+          imagem_path: string | null
+          inicio: string
+          local: string
+          titulo: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          categoria_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          dress_code?: string | null
+          fim?: string | null
+          highlights?: string[]
+          hora?: string | null
+          id?: string
+          imagem_path?: string | null
+          inicio: string
+          local?: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          categoria_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          dress_code?: string | null
+          fim?: string | null
+          highlights?: string[]
+          hora?: string | null
+          id?: string
+          imagem_path?: string | null
+          inicio?: string
+          local?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_eventos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_categorias"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      marketing_orcamentos: {
+        Row: {
+          evento_id: string
+          previsto: number | null
+          real: number | null
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          evento_id: string
+          previsto?: number | null
+          real?: number | null
+          updated_at?: string
+        }
+        Update: {
+          evento_id?: string
+          previsto?: number | null
+          real?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_orcamentos_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: true
+            referencedRelation: "marketing_eventos"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      marketing_viaturas: {
+        Row: {
+          chassis: string | null
+          created_at: string
+          descricao: string
+          evento_id: string
+          id: string
+          local: string | null
+          obs: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          chassis?: string | null
+          created_at?: string
+          descricao: string
+          evento_id: string
+          id?: string
+          local?: string | null
+          obs?: string | null
+        }
+        Update: {
+          chassis?: string | null
+          created_at?: string
+          descricao?: string
+          evento_id?: string
+          id?: string
+          local?: string | null
+          obs?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_viaturas_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_eventos"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       notification_reads: {
         Row: {

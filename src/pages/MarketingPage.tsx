@@ -4,9 +4,10 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   COR_SEM_CATEGORIA, agruparPorMes, estadoDe, formatarIntervalo, hojeIso, ordenar, posicaoHoje, proximoEvento,
-  resumoConvidados, textoRelativo, type Categoria, type Convidado, type EstadoConvidado, type MarketingEvento,
+  resumoConvidados, textoRelativo, type Categoria, type Convidado, type EstadoConvidado, type MarketingEvento, type Orcamento,
 } from '@/lib/marketing';
-import { listCategorias, listEstadosConvidados, listEventos } from '@/lib/marketing-data';
+import { listCategorias, listEstadosConvidados, listEventos, listOrcamentos } from '@/lib/marketing-data';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { CategoriasDialog } from '@/components/marketing/CategoriasDialog';
 import { EventoDetalhe } from '@/components/marketing/EventoDetalhe';
 import { EventoDialog } from '@/components/marketing/EventoDialog';
@@ -40,12 +41,14 @@ function useEntrada<T extends HTMLElement>() {
   return [ref, visivel] as const;
 }
 
-function CartaoEvento({ ev, categoria, lado, hoje, convidados, aoAbrir, marcador }: {
+function CartaoEvento({ ev, categoria, lado, hoje, convidados, todosOsConvidados, aoAbrir, marcador }: {
   ev: MarketingEvento;
   categoria: Categoria | null;
   lado: 'esq' | 'dir';
   hoje: string;
   convidados: EstadoConvidado[];
+  /** Falso para quem só vê os seus convidados (o texto diz "meus"). */
+  todosOsConvidados: boolean;
   aoAbrir: () => void;
   marcador: (el: HTMLElement | null) => void;
 }) {
@@ -127,7 +130,10 @@ function CartaoEvento({ ev, categoria, lado, hoje, convidados, aoAbrir, marcador
           <div className={cn('mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground', lado === 'esq' && 'md:justify-end')}>
             <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{ev.local}</span>
             {resumo.total > 0 && (
-              <span className="inline-flex items-center gap-1 tabular-nums"><Users className="h-3 w-3" />{resumo.confirmados}/{resumo.total} confirmados</span>
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <Users className="h-3 w-3" />
+                {todosOsConvidados ? `${resumo.confirmados}/${resumo.total} confirmados` : `${resumo.total} ${resumo.total === 1 ? 'convidado meu' : 'convidados meus'}`}
+              </span>
             )}
           </div>
         </div>
@@ -137,11 +143,14 @@ function CartaoEvento({ ev, categoria, lado, hoje, convidados, aoAbrir, marcador
 }
 
 export default function MarketingPage() {
+  const { canEdit: podeEditar, effectiveEmail, me } = usePermissions();
+  const canEdit = podeEditar('marketing');
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const hoje = useMemo(() => hojeIso(), []);
 
   const [eventos, setEventos] = useState<MarketingEvento[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [orcamentos, setOrcamentos] = useState<Record<string, Orcamento>>({});
   const [estadosConv, setEstadosConv] = useState<Record<string, EstadoConvidado[]>>({});
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -165,6 +174,14 @@ export default function MarketingPage() {
     return () => { vivo = false; };
   }, []);
 
+  // O orçamento só existe para quem edita (a base de dados não o devolve aos outros).
+  useEffect(() => {
+    if (!canEdit) { setOrcamentos({}); return; }
+    let vivo = true;
+    listOrcamentos().then(o => { if (vivo) setOrcamentos(o); });
+    return () => { vivo = false; };
+  }, [canEdit]);
+
   const catPorId = useMemo(() => new Map(categorias.map(c => [c.id, c])), [categorias]);
   const todos = useMemo(() => ordenar(eventos), [eventos]);
   const visiveis = useMemo(() => (filtro === 'todos' ? todos : todos.filter(e => e.categoria_id === filtro)), [todos, filtro]);
@@ -177,7 +194,8 @@ export default function MarketingPage() {
   }, [todos]);
   const eventoAberto = useMemo(() => eventos.find(e => e.id === aberto) ?? null, [eventos, aberto]);
 
-  const gravado = (ev: MarketingEvento) => {
+  const gravado = (ev: MarketingEvento, orc: Orcamento) => {
+    setOrcamentos(m => ({ ...m, [ev.id]: orc }));
     setEventos(l => (l.some(x => x.id === ev.id) ? l.map(x => (x.id === ev.id ? ev : x)) : [...l, ev]));
     toast.success('Evento guardado.');
   };
@@ -255,10 +273,12 @@ export default function MarketingPage() {
               <Sparkles className="h-5 w-5 text-primary" /> Marketing
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">Linha do tempo dos eventos e campanhas.</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => setForm({ evento: null })}><Plus className="mr-1.5 h-4 w-4" /> Novo evento</Button>
-              <Button size="sm" variant="outline" onClick={() => setGerirCategorias(true)}><Settings2 className="mr-1.5 h-4 w-4" /> Categorias</Button>
-            </div>
+            {canEdit && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => setForm({ evento: null })}><Plus className="mr-1.5 h-4 w-4" /> Novo evento</Button>
+                <Button size="sm" variant="outline" onClick={() => setGerirCategorias(true)}><Settings2 className="mr-1.5 h-4 w-4" /> Categorias</Button>
+              </div>
+            )}
           </div>
           {proximo && (
             <button
@@ -310,9 +330,9 @@ export default function MarketingPage() {
         <div className="rounded-lg border border-dashed p-10 text-center">
           <ImageIcon className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            {eventos.length === 0 ? 'Ainda não há eventos. Cria o primeiro para começar a linha do tempo.' : 'Sem eventos nesta categoria.'}
+            {eventos.length === 0 ? (canEdit ? 'Ainda não há eventos. Cria o primeiro para começar a linha do tempo.' : 'Ainda não há eventos.') : 'Sem eventos nesta categoria.'}
           </p>
-          {eventos.length === 0 && <Button className="mt-3" size="sm" onClick={() => setForm({ evento: null })}><Plus className="mr-1.5 h-4 w-4" /> Novo evento</Button>}
+          {eventos.length === 0 && canEdit && <Button className="mt-3" size="sm" onClick={() => setForm({ evento: null })}><Plus className="mr-1.5 h-4 w-4" /> Novo evento</Button>}
         </div>
       ) : (
         <ol ref={listaRef} className="relative space-y-6 pb-4" aria-label="Linha do tempo de marketing">
@@ -365,6 +385,7 @@ export default function MarketingPage() {
                       ev={ev}
                       categoria={ev.categoria_id ? catPorId.get(ev.categoria_id) ?? null : null}
                       convidados={estadosConv[ev.id] ?? []}
+                      todosOsConvidados={canEdit}
                       aoAbrir={() => setAberto(ev.id)}
                       lado={indice % 2 === 0 ? 'esq' : 'dir'}
                       hoje={hoje}
@@ -381,6 +402,10 @@ export default function MarketingPage() {
       <EventoDetalhe
         evento={eventoAberto}
         categoria={eventoAberto?.categoria_id ? catPorId.get(eventoAberto.categoria_id) ?? null : null}
+        canEdit={canEdit}
+        orcamento={eventoAberto ? orcamentos[eventoAberto.id] ?? null : null}
+        meuEmail={effectiveEmail}
+        meuNome={me?.nome ?? null}
         hoje={hoje}
         onClose={() => setAberto(null)}
         onEdit={ev => setForm({ evento: ev })}
@@ -392,6 +417,7 @@ export default function MarketingPage() {
         onOpenChange={o => { if (!o) setForm(null); }}
         evento={form?.evento ?? null}
         categorias={categorias}
+        orcamento={form?.evento ? orcamentos[form.evento.id] ?? null : null}
         onSaved={gravado}
         onGerirCategorias={() => setGerirCategorias(true)}
       />

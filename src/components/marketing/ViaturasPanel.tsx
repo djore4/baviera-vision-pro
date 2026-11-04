@@ -10,7 +10,7 @@ import {
 
 /* Viaturas do evento: escolhidas do parque (qualquer local, incluindo demos) ou
  * escritas à mão — uma viatura nova que ainda não está no parque não bloqueia. */
-export function ViaturasPanel({ eventoId }: { eventoId: string }) {
+export function ViaturasPanel({ eventoId, readOnly = false }: { eventoId: string; readOnly?: boolean }) {
   const [lista, setLista] = useState<ViaturaEvento[]>([]);
   const [parque, setParque] = useState<ViaturaParque[] | null>(null);
   const [q, setQ] = useState('');
@@ -20,9 +20,9 @@ export function ViaturasPanel({ eventoId }: { eventoId: string }) {
     let vivo = true;
     setLista([]); setParque(null); setQ('');
     listViaturasEvento(eventoId).then(l => { if (vivo) setLista(l); });
-    listParque().then(p => { if (vivo) setParque(p); });
+    if (!readOnly) listParque().then(p => { if (vivo) setParque(p); });
     return () => { vivo = false; };
-  }, [eventoId]);
+  }, [eventoId, readOnly]);
 
   const jaNoEvento = useMemo(() => new Set(lista.map(v => v.chassis).filter(Boolean)), [lista]);
 
@@ -65,15 +65,17 @@ export function ViaturasPanel({ eventoId }: { eventoId: string }) {
                   {v.chassis ? 'Do parque' : 'Adicionada à mão'}{v.local ? ` · ${v.local}` : ''}
                 </span>
               </span>
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => remover(v)} aria-label={`Remover ${v.descricao}`}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              {!readOnly && (
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => remover(v)} aria-label={`Remover ${v.descricao}`}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </li>
           ))}
         </ul>
       )}
 
-      <form className="space-y-2" onSubmit={e => { e.preventDefault(); if (q.trim()) adicionar({ descricao: q }); }}>
+      {!readOnly && <form className="space-y-2" onSubmit={e => { e.preventDefault(); if (q.trim()) adicionar({ descricao: q }); }}>
         <div className="flex gap-2">
           <Input value={q} onChange={e => setQ(e.target.value)} aria-label="Procurar ou escrever viatura"
             placeholder="Procurar no parque (modelo, matrícula, chassis) ou escrever uma viatura nova…" />
@@ -98,7 +100,7 @@ export function ViaturasPanel({ eventoId }: { eventoId: string }) {
             </li>
           </ul>
         )}
-      </form>
+      </form>}
     </section>
   );
 }

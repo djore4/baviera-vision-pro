@@ -4,12 +4,21 @@ import { render, screen, fireEvent, within, waitFor } from '@testing-library/rea
 const api = vi.hoisted(() => ({
   listEventos: vi.fn(), listCategorias: vi.fn(), listEstadosConvidados: vi.fn(),
   createEvento: vi.fn(), updateEvento: vi.fn(), deleteEvento: vi.fn(),
+  listOrcamentos: vi.fn(), saveOrcamento: vi.fn(),
   listViaturasEvento: vi.fn(), listParque: vi.fn(), listAnexos: vi.fn(), listConvidados: vi.fn(),
 }));
 vi.mock('@/lib/marketing-data', async orig => ({
   ...(await orig<typeof import('@/lib/marketing-data')>()),
   ...api,
   urlFicheiro: vi.fn().mockResolvedValue('https://exemplo.test/capa.png'),
+}));
+const perm = vi.hoisted(() => ({ canEdit: true }));
+vi.mock('@/contexts/PermissionsContext', () => ({
+  usePermissions: () => ({
+    canEdit: (t: string) => t === 'marketing' && perm.canEdit,
+    effectiveEmail: 'rui@c.pt',
+    me: { nome: 'Rui Costa', email: 'rui@c.pt' },
+  }),
 }));
 vi.mock('@/lib/permissions', async orig => ({
   ...(await orig<typeof import('@/lib/permissions')>()),
@@ -26,15 +35,18 @@ const CATS: Categoria[] = [
 ];
 const EV = (id: string, titulo: string, inicio: string, categoria_id: string | null, extra: Partial<MarketingEvento> = {}): MarketingEvento => ({
   id, titulo, categoria_id, inicio, fim: null, hora: null, local: 'Aveiro', descricao: null, dress_code: null,
-  highlights: [], orcamento_previsto: null, orcamento_real: null, imagem_path: null, ...extra,
+  highlights: [], imagem_path: null, ...extra,
 });
 const EVENTOS = [
-  EV('e1', 'Open House', '2099-03-10', 'c2', { descricao: 'Showroom aberto', dress_code: 'Smart casual', highlights: ['Test drives', 'Convidados da marca'], orcamento_previsto: 5000, orcamento_real: 6000 }),
+  EV('e1', 'Open House', '2099-03-10', 'c2', { descricao: 'Showroom aberto', dress_code: 'Smart casual', highlights: ['Test drives', 'Convidados da marca'] }),
   EV('e2', 'Lançamento iX', '2099-05-01', 'c1'),
 ];
 
 beforeEach(() => {
   vi.clearAllMocks();
+  perm.canEdit = true;
+  api.listOrcamentos.mockResolvedValue({ e1: { previsto: 5000, real: 6000 } });
+  api.saveOrcamento.mockResolvedValue(undefined);
   api.listEventos.mockResolvedValue(EVENTOS);
   api.listCategorias.mockResolvedValue(CATS);
   api.listEstadosConvidados.mockResolvedValue([
@@ -47,10 +59,12 @@ beforeEach(() => {
 });
 
 describe('tab Marketing: acesso', () => {
-  it('está na secção Transversal, visível só ao admin e fora da matriz de funções', () => {
-    expect(TABS.find(t => t.key === 'marketing')).toMatchObject({ area: 'apv', path: '/marketing', adminOnly: true });
-    expect(ADMIN_ONLY_TAB_KEYS).toContain('marketing');
-    expect(PERMISSION_TABS.some(t => t.key === 'marketing')).toBe(false);
+  it('está na secção Transversal e é atribuível na matriz de funções', () => {
+    const t = TABS.find(x => x.key === 'marketing');
+    expect(t).toMatchObject({ area: 'apv', path: '/marketing' });
+    expect(t?.adminOnly).toBeFalsy();
+    expect(ADMIN_ONLY_TAB_KEYS).not.toContain('marketing');
+    expect(PERMISSION_TABS.some(x => x.key === 'marketing')).toBe(true);
     expect(ARCHIVED_TAB_KEYS).not.toContain('marketing');
   });
 });
@@ -82,8 +96,40 @@ describe('MarketingPage', () => {
     expect(within(det).getByText('Showroom aberto')).toBeInTheDocument();
     expect(within(det).getByText('Smart casual')).toBeInTheDocument();
     expect(within(det).getByTestId('highlights').children).toHaveLength(2);
-    expect(within(det).getByText(/acima do orçamento/)).toBeInTheDocument();
+    await waitFor(() => expect(within(det).getByText(/acima do orçamento/)).toBeInTheDocument());
     expect(within(det).getByRole('link', { name: /partilhar convite/i }).getAttribute('href')).toMatch(/^https:\/\/wa\.me\/\?text=/);
+  });
+
+  it('quem só vê: sem botões de gestão, sem orçamento, e só os seus convidados', async () => {
+    perm.canEdit = false;
+    render(<MarketingPage />);
+    const cartao = await screen.findByRole('button', { name: 'Abrir Open House' });
+    expect(screen.queryByRole('button', { name: /novo evento/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /categorias/i })).toBeNull();
+    expect(within(cartao).getByText('2 convidados meus')).toBeInTheDocument();
+    expect(api.listOrcamentos).not.toHaveBeenCalled();
+
+    fireEvent.click(cartao);
+    const det = await screen.findByTestId('evento-detalhe');
+    expect(within(det).queryByRole('button', { name: /editar/i })).toBeNull();
+    expect(within(det).queryByRole('button', { name: /apagar/i })).toBeNull();
+    expect(within(det).queryByTestId('orcamento')).toBeNull();
+    expect(within(det).getByText('Showroom aberto')).toBeInTheDocument();
+
+    fireEvent.mouseDown(within(det).getByRole('tab', { name: 'Convidados' }), { button: 0 });
+    expect(await screen.findByTestId('convidados')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Vendedor' })).toBeNull(); // o convidado é sempre dele
+    fireEvent.mouseDown(within(det).getByRole('tab', { name: 'Viaturas' }), { button: 0 });
+    expect(await within(det).findByText(/ainda sem viaturas/i)).toBeInTheDocument();
+    expect(within(det).queryByLabelText(/procurar ou escrever viatura/i)).toBeNull();
+  });
+
+  it('quem edita vê o orçamento do evento', async () => {
+    render(<MarketingPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir Open House' }));
+    const det = await screen.findByTestId('evento-detalhe');
+    await waitFor(() => expect(within(det).getByTestId('orcamento')).toHaveTextContent('6000'));
+    expect(within(det).getByText(/acima do orçamento/)).toBeInTheDocument();
   });
 
   it('sem eventos: convida a criar o primeiro', async () => {
@@ -117,8 +163,10 @@ describe('MarketingPage', () => {
 
     await waitFor(() => expect(api.createEvento).toHaveBeenCalledTimes(1));
     expect(api.createEvento.mock.calls[0][0]).toMatchObject({
-      titulo: 'Noite M', inicio: '2099-07-01', local: 'Aveiro', highlights: ['Um', 'Dois'], orcamento_previsto: 1500.5, orcamento_real: null,
+      titulo: 'Noite M', inicio: '2099-07-01', local: 'Aveiro', highlights: ['Um', 'Dois'],
     });
+    expect(api.createEvento.mock.calls[0][0]).not.toHaveProperty('orcamento_previsto');
+    expect(api.saveOrcamento).toHaveBeenCalledWith('novo', { previsto: 1500.5, real: null });
     expect(await screen.findAllByTestId('evento')).toHaveLength(3);
   });
 });

@@ -7,7 +7,7 @@ import {
 } from '@/lib/marketing-data';
 
 /* Brochuras, convites, programas… para descarregar. Até 5 MB por ficheiro. */
-export function DocumentosPanel({ eventoId }: { eventoId: string }) {
+export function DocumentosPanel({ eventoId, readOnly = false }: { eventoId: string; readOnly?: boolean }) {
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [uploading, setUploading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export function DocumentosPanel({ eventoId }: { eventoId: string }) {
   return (
     <section data-testid="documentos" className="space-y-3">
       {anexos.length === 0 ? (
-        <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">Sem documentos. Anexa brochuras, convites ou o programa.</p>
+        <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">{readOnly ? 'Sem documentos.' : 'Sem documentos. Anexa brochuras, convites ou o programa.'}</p>
       ) : (
         <ul className="space-y-1.5">
           {anexos.map(a => (
@@ -64,21 +64,27 @@ export function DocumentosPanel({ eventoId }: { eventoId: string }) {
               <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => abrir(a)} disabled={busyId === a.id} aria-label={`Descarregar ${a.nome}`}>
                 {busyId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
               </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => remover(a)} disabled={busyId === a.id} aria-label={`Remover ${a.nome}`}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              {!readOnly && (
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => remover(a)} disabled={busyId === a.id} aria-label={`Remover ${a.nome}`}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </li>
           ))}
         </ul>
       )}
-      <input ref={input} type="file" multiple accept={DOC_ACCEPT} className="hidden" data-testid="documentos-input" onChange={e => onFiles(e.target.files)} />
-      <div className="flex items-center gap-3">
-        <Button type="button" variant="outline" size="sm" onClick={() => input.current?.click()} disabled={uploading}>
-          {uploading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Paperclip className="mr-1.5 h-3.5 w-3.5" />}
-          Anexar ficheiro
-        </Button>
-        <span className="text-xs text-muted-foreground">PDF, imagens ou Office, até {MAX_MB} MB cada.</span>
-      </div>
+      {!readOnly && (
+        <>
+          <input ref={input} type="file" multiple accept={DOC_ACCEPT} className="hidden" data-testid="documentos-input" onChange={e => onFiles(e.target.files)} />
+          <div className="flex items-center gap-3">
+            <Button type="button" variant="outline" size="sm" onClick={() => input.current?.click()} disabled={uploading}>
+              {uploading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Paperclip className="mr-1.5 h-3.5 w-3.5" />}
+              Anexar ficheiro
+            </Button>
+            <span className="text-xs text-muted-foreground">PDF, imagens ou Office, até {MAX_MB} MB cada.</span>
+          </div>
+        </>
+      )}
     </section>
   );
 }

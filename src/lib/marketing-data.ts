@@ -1,7 +1,7 @@
 import { supabase as typedClient } from '@/integrations/supabase/client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { locaisDoPerfil } from '@/lib/locations';
-import type { Categoria, Convidado, EstadoConvidado, EventoInput, MarketingEvento } from '@/lib/marketing';
+import type { Categoria, Convidado, EstadoConvidado, EventoInput, MarketingEvento, Orcamento } from '@/lib/marketing';
 
 /* ── Marketing — acesso a dados ────────────────────────────────────────────────
  * Tabelas (migração 20261104130000_marketing) ainda fora dos tipos gerados: cliente
@@ -39,7 +39,8 @@ export async function saveCategoria(c: Pick<Categoria, 'nome' | 'cor'> & { id?: 
 export async function deleteCategoria(id: string): Promise<void> {
   const { error } = await supabase.from('marketing_categorias').delete().eq('id', id);
   if (error) {
-    if ((error as { code?: string }).code === '23503') throw new Error('Há eventos nesta categoria: muda-os para outra antes de a apagar.');
+    // 23503 (foreign_key_violation) ou 23001 (restrict_violation), conforme a versão do Postgres.
+    if (['23503', '23001'].includes((error as { code?: string }).code ?? '')) throw new Error('Há eventos nesta categoria: muda-os para outra antes de a apagar.');
     throw fail('Não foi possível apagar a categoria', error);
   }
 }
@@ -65,8 +66,6 @@ function linha(e: EventoInput) {
     descricao: limpar(e.descricao),
     dress_code: limpar(e.dress_code),
     highlights: e.highlights,
-    orcamento_previsto: e.orcamento_previsto,
-    orcamento_real: e.orcamento_real,
     imagem_path: e.imagem_path,
   };
 }
@@ -81,6 +80,27 @@ export async function updateEvento(id: string, e: EventoInput): Promise<Marketin
   const { data, error } = await supabase.from('marketing_eventos').update(linha(e)).eq('id', id).select().single();
   if (error) throw fail('Não foi possível guardar o evento', error);
   return data as MarketingEvento;
+}
+
+/* ── Orçamento (só quem edita: a RLS não o devolve aos outros) ─────────────── */
+
+export async function listOrcamentos(): Promise<Record<string, Orcamento>> {
+  const { data, error } = await supabase.from('marketing_orcamentos').select('evento_id, previsto, real');
+  if (error) return {};
+  const out: Record<string, Orcamento> = {};
+  for (const r of (data ?? []) as (Orcamento & { evento_id: string })[]) out[r.evento_id] = { previsto: r.previsto, real: r.real };
+  return out;
+}
+
+/** Grava o orçamento; sem valores nenhuns apaga a linha. */
+export async function saveOrcamento(eventoId: string, o: Orcamento): Promise<void> {
+  if (o.previsto == null && o.real == null) {
+    const { error } = await supabase.from('marketing_orcamentos').delete().eq('evento_id', eventoId);
+    if (error) throw fail('Não foi possível guardar o orçamento', error);
+    return;
+  }
+  const { error } = await supabase.from('marketing_orcamentos').upsert({ evento_id: eventoId, previsto: o.previsto, real: o.real });
+  if (error) throw fail('Não foi possível guardar o orçamento', error);
 }
 
 export async function deleteEvento(ev: Pick<MarketingEvento, 'id' | 'imagem_path'>): Promise<void> {
