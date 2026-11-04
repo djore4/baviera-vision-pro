@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   COR_SEM_CATEGORIA, agruparPorMes, estadoDe, formatarIntervalo, hojeIso, ordenar, posicaoHoje, proximoEvento,
-  resumoConvidados, textoRelativo, type Categoria, type Convidado, type EstadoConvidado, type MarketingEvento, type Orcamento,
+  resumoAgenda, resumoConvidados, textoRelativo, type Categoria, type Convidado, type EstadoConvidado, type MarketingEvento, type Orcamento,
 } from '@/lib/marketing';
 import { listCategorias, listEstadosConvidados, listEventos, listOrcamentos } from '@/lib/marketing-data';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -192,6 +192,7 @@ export default function MarketingPage() {
     for (const e of todos) if (e.categoria_id) c[e.categoria_id] = (c[e.categoria_id] ?? 0) + 1;
     return c;
   }, [todos]);
+  const agenda = useMemo(() => resumoAgenda(eventos, hoje), [eventos, hoje]);
   const eventoAberto = useMemo(() => eventos.find(e => e.id === aberto) ?? null, [eventos, aberto]);
 
   const gravado = (ev: MarketingEvento, orc: Orcamento) => {
@@ -321,6 +322,22 @@ export default function MarketingPage() {
         </div>
       </header>
 
+      {/* Números da agenda */}
+      {!carregando && !erro && eventos.length > 0 && (
+        <div data-testid="resumo-agenda" className="grid grid-cols-3 gap-3">
+          {([
+            ['Por acontecer', agenda.porAcontecer, 'text-primary'],
+            ['Nos próximos 30 dias', agenda.proximos30, 'text-warning'],
+            ['Já realizados', agenda.realizados, 'text-muted-foreground'],
+          ] as const).map(([rotulo, n, cor]) => (
+            <div key={rotulo} className="rounded-lg border bg-card px-4 py-3 shadow-sm">
+              <div className={cn('text-2xl font-semibold tabular-nums', cor)}>{n}</div>
+              <div className="text-xs text-muted-foreground">{rotulo}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Linha do tempo */}
       {carregando ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">A carregar…</p>
@@ -419,6 +436,7 @@ export default function MarketingPage() {
         categorias={categorias}
         orcamento={form?.evento ? orcamentos[form.evento.id] ?? null : null}
         onSaved={gravado}
+        onCategoriaCriada={c => setCategorias(l => [...l, c])}
         onGerirCategorias={() => setGerirCategorias(true)}
       />
       <CategoriasDialog open={gerirCategorias} onOpenChange={setGerirCategorias} categorias={categorias} onChange={categoriasAlteradas} />

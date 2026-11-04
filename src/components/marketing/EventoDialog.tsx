@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ImagePlus, Loader2, Settings2, X } from 'lucide-react';
+import { ImagePlus, Loader2, Plus, Settings2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LOCAL_PADRAO, highlightsDeTexto, type Categoria, type EventoInput, type MarketingEvento, type Orcamento } from '@/lib/marketing';
-import { IMAGEM_ACCEPT, MAX_MB, createEvento, removerFicheiro, saveOrcamento, updateEvento, uploadCapa, validarImagem } from '@/lib/marketing-data';
+import { CORES_CATEGORIA, LOCAL_PADRAO, highlightsDeTexto, type Categoria, type EventoInput, type MarketingEvento, type Orcamento } from '@/lib/marketing';
+import { IMAGEM_ACCEPT, MAX_MB, createEvento, removerFicheiro, saveCategoria, saveOrcamento, updateEvento, uploadCapa, validarImagem } from '@/lib/marketing-data';
 import { useUrlFicheiro } from './useUrlFicheiro';
+import { cn } from '@/lib/utils';
 
 interface Props {
   open: boolean;
@@ -20,10 +21,13 @@ interface Props {
   /** Orçamento atual do evento (null se não houver). */
   orcamento: Orcamento | null;
   onSaved: (ev: MarketingEvento, orcamento: Orcamento) => void;
+  /** Categoria criada a partir deste formulário (a página junta-a à lista). */
+  onCategoriaCriada: (c: Categoria) => void;
   onGerirCategorias: () => void;
 }
 
 const SEM_CATEGORIA = '__nenhuma__';
+const NOVA_CATEGORIA = '__nova__';
 
 const num = (s: string): number | null => {
   const t = s.trim().replace(/\s/g, '').replace(',', '.');
@@ -33,7 +37,7 @@ const num = (s: string): number | null => {
 };
 const txt = (n: number | null) => (n == null ? '' : String(n).replace('.', ','));
 
-export function EventoDialog({ open, onOpenChange, evento, categorias, orcamento, onSaved, onGerirCategorias }: Props) {
+export function EventoDialog({ open, onOpenChange, evento, categorias, orcamento, onSaved, onCategoriaCriada, onGerirCategorias }: Props) {
   const [titulo, setTitulo] = useState('');
   const [categoriaId, setCategoriaId] = useState<string>(SEM_CATEGORIA);
   const [inicio, setInicio] = useState('');
@@ -49,6 +53,10 @@ export function EventoDialog({ open, onOpenChange, evento, categorias, orcamento
   const [capaNova, setCapaNova] = useState<File | null>(null);
   const [capaPreview, setCapaPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [criandoCat, setCriandoCat] = useState(false);
+  const [catNome, setCatNome] = useState('');
+  const [catCor, setCatCor] = useState(CORES_CATEGORIA[0].hsl);
+  const [catBusy, setCatBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const capaUrl = useUrlFicheiro(capaNova ? null : capaPath);
 
@@ -68,6 +76,7 @@ export function EventoDialog({ open, onOpenChange, evento, categorias, orcamento
     setReal(txt(orcamento?.real ?? null));
     setCapaPath(evento?.imagem_path ?? null);
     setCapaNova(null);
+    setCriandoCat(false); setCatNome('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, evento]);
 
@@ -84,6 +93,32 @@ export function EventoDialog({ open, onOpenChange, evento, categorias, orcamento
     const invalido = validarImagem(f);
     if (invalido) { toast.error(invalido); return; }
     setCapaNova(f);
+  };
+
+  const criarCategoria = async () => {
+    const nome = catNome.trim();
+    if (!nome) { toast.error('Dá um nome à categoria.'); return; }
+    setCatBusy(true);
+    try {
+      const ordem = categorias.reduce((m, c) => Math.max(m, c.ordem), 0) + 1;
+      const c = await saveCategoria({ nome, cor: catCor, ordem });
+      onCategoriaCriada(c);
+      setCategoriaId(c.id);
+      setCriandoCat(false); setCatNome('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível criar a categoria.');
+    } finally { setCatBusy(false); }
+  };
+
+  const mudarCategoria = (v: string) => {
+    // O Select do Radix emite '' quando a lista muda por baixo do valor (ex.: categoria acabada de criar): não conta como escolha.
+    if (!v) return;
+    if (v === NOVA_CATEGORIA) {
+      setCatCor(CORES_CATEGORIA[categorias.length % CORES_CATEGORIA.length].hsl);
+      setCriandoCat(true);
+      return;
+    }
+    setCategoriaId(v);
   };
 
   const guardar = async (e: React.FormEvent) => {
@@ -176,19 +211,53 @@ export function EventoDialog({ open, onOpenChange, evento, categorias, orcamento
                   <Settings2 className="h-3 w-3" /> Gerir
                 </button>
               </div>
-              <Select value={categoriaId} onValueChange={setCategoriaId}>
+              <Select value={categoriaId} onValueChange={mudarCategoria}>
                 <SelectTrigger className="mt-1.5" aria-label="Categoria"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={SEM_CATEGORIA}>Sem categoria</SelectItem>
-                  {categorias.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                  {categorias.map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <span className="inline-flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: `hsl(${c.cor})` }} />{c.nome}
+                      </span>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={NOVA_CATEGORIA} className="font-medium text-primary">
+                    <span className="inline-flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> Nova categoria…</span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
               <div className="flex h-5 items-center"><Label htmlFor="mk-local">Local</Label></div>
-              <Input id="mk-local" value={local} onChange={e => setLocal(e.target.value)} className="mt-1.5" />
+              <Input id="mk-local" value={local} onChange={e => setLocal(e.target.value)} className="mt-1.5" placeholder="Nome do local ou morada" />
             </div>
+
+            {criandoCat && (
+              <div data-testid="nova-categoria" className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-3 sm:col-span-2">
+                <Label htmlFor="mk-catnome">Nova categoria</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    id="mk-catnome" value={catNome} onChange={e => setCatNome(e.target.value)} autoFocus
+                    placeholder="Ex.: Test Drive, Parceria, Formação…" className="h-9 min-w-[12rem] flex-1"
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); criarCategoria(); } }}
+                  />
+                  <div className="flex gap-1" role="group" aria-label="Cor da nova categoria">
+                    {CORES_CATEGORIA.map(c => (
+                      <button key={c.hsl} type="button" title={c.nome} aria-label={c.nome} aria-pressed={catCor === c.hsl}
+                        onClick={() => setCatCor(c.hsl)}
+                        className={cn('h-5 w-5 rounded-full border-2 transition-transform hover:scale-110', catCor === c.hsl ? 'border-foreground' : 'border-transparent')}
+                        style={{ background: `hsl(${c.hsl})` }} />
+                    ))}
+                  </div>
+                  <Button type="button" size="sm" onClick={criarCategoria} disabled={catBusy || !catNome.trim()}>
+                    {catBusy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />} Criar e usar
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setCriandoCat(false)} disabled={catBusy}>Cancelar</Button>
+                </div>
+              </div>
+            )}
 
             <div>
               <Label htmlFor="mk-inicio">Data *</Label>

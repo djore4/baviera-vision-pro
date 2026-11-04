@@ -18,6 +18,7 @@ import { ConvidadosPanel } from './ConvidadosPanel';
 import { DocumentosPanel } from './DocumentosPanel';
 import { ViaturasPanel } from './ViaturasPanel';
 import { useUrlFicheiro } from './useUrlFicheiro';
+import { LocalMapa } from './LocalMapa';
 
 interface Props {
   evento: MarketingEvento | null;
@@ -127,6 +128,10 @@ export function EventoDetalhe({ evento, categoria, canEdit, orcamento, meuEmail,
                       {evento.descricao
                         ? <p className="whitespace-pre-line text-sm">{evento.descricao}</p>
                         : <p className="text-sm text-muted-foreground">{canEdit ? 'Sem descrição. Usa “Editar” para a acrescentar.' : 'Sem descrição.'}</p>}
+                    </section>
+                    <section>
+                      <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Localização</h4>
+                      <LocalMapa local={evento.local} />
                     </section>
                     {evento.dress_code && (
                       <section>

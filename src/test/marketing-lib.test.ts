@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   agruparPorMes, agruparPorVendedor, estadoDe, formatarIntervalo, highlightsDeTexto, linkWhatsApp, posicaoHoje,
-  proximoEvento, resumoConvidados, resumoOrcamento, telefoneWhatsApp, textoConvite, textoRelativo,
+  proximoEvento, resumoAgenda, urlAbrirMapa, urlMapaEmbed, urlRota, resumoConvidados, resumoOrcamento, telefoneWhatsApp, textoConvite, textoRelativo,
   type Convidado,
 } from '@/lib/marketing';
 import { validarDocumento, validarImagem, descreverViatura } from '@/lib/marketing-data';
@@ -112,5 +112,23 @@ describe('ficheiros (máx. 5 MB)', () => {
   it('descrição de viatura', () => {
     expect(descreverViatura({ marca: 'BMW', modelo: 'iX1', versao: 'xDrive30', matricula: '00-AA-00' })).toBe('BMW iX1 xDrive30 · 00-AA-00');
     expect(descreverViatura({ marca: null, modelo: 'X5', versao: null, matricula: null })).toBe('X5');
+  });
+});
+
+describe('mapa e resumo da agenda', () => {
+  it('embed sem chave mostra só o local; com chave mostra a rota', () => {
+    expect(urlMapaEmbed('Rua A, Aveiro', 'Caetano BMW Aveiro')).toBe('https://www.google.com/maps?q=Rua%20A%2C%20Aveiro&hl=pt-PT&z=14&output=embed');
+    const u = urlMapaEmbed('Rua A, Aveiro', 'Caetano BMW Aveiro', 'K3Y');
+    expect(u).toContain('/embed/v1/directions?key=K3Y');
+    expect(u).toContain('origin=Caetano%20BMW%20Aveiro');
+    expect(u).toContain('destination=Rua%20A%2C%20Aveiro');
+  });
+  it('ligações para abrir o mapa e a rota', () => {
+    expect(urlAbrirMapa('Porto')).toBe('https://www.google.com/maps/search/?api=1&query=Porto');
+    expect(urlRota('Aveiro', 'Porto')).toBe('https://www.google.com/maps/dir/?api=1&origin=Aveiro&destination=Porto&travelmode=driving');
+  });
+  it('conta por acontecer, próximos 30 dias e realizados', () => {
+    const r = resumoAgenda([ev('a', '2027-01-01'), ev('b', '2027-01-20'), ev('c', '2027-03-01'), ev('d', '2027-01-05', '2027-01-30')], '2027-01-10');
+    expect(r).toEqual({ porAcontecer: 3, proximos30: 2, realizados: 1 });
   });
 });
