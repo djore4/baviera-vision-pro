@@ -151,22 +151,18 @@ describe('MarketingPage', () => {
     expect(within(cartoes[1]).getByTestId('ligacao')).toBeInTheDocument();
   });
 
-  it('cabeçalho enxuto: só os filtros (e, a quem edita, categorias e novo evento)', async () => {
+  it('cabeçalho enxuto: só os filtros; categorias na barra e Novo evento flutuante (a quem edita)', async () => {
     render(<MarketingPage />);
     await screen.findAllByTestId('evento');
     expect(screen.queryByRole('heading', { name: 'Marketing' })).toBeNull();
     expect(screen.queryByText(/linha do tempo dos eventos/i)).toBeNull();
     expect(screen.queryByText('Próximo')).toBeNull();
+    expect(screen.queryByTestId('resumo-agenda')).toBeNull(); // sem cartões de números
     const barra = screen.getByRole('group', { name: /filtrar por categoria/i });
-    expect(within(barra).getByRole('button', { name: /novo evento/i })).toBeInTheDocument();
     expect(within(barra).getByRole('button', { name: 'Categorias' })).toBeInTheDocument();
-  });
-
-  it('mostra a faixa de números da agenda', async () => {
-    render(<MarketingPage />);
-    const faixa = await screen.findByTestId('resumo-agenda');
-    expect(within(faixa).getByText('Por acontecer').previousSibling).toHaveTextContent('2');
-    expect(within(faixa).getByText('Já realizados').previousSibling).toHaveTextContent('0');
+    // "Novo evento" é um botão flutuante, fora da barra de filtros (sempre à mão ao deslizar a linha).
+    expect(within(barra).queryByRole('button', { name: /novo evento/i })).toBeNull();
+    expect(screen.getAllByRole('button', { name: /novo evento/i })[0]).toHaveClass('fixed');
   });
 
   it('o detalhe mostra o mapa do local e a ligação "Como chegar" a partir do stand', async () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   agruparPorMes, agruparPorVendedor, estadoDe, formatarIntervalo, highlightsDeTexto, linkWhatsApp, agendaComHoje, contagemDias,
-  resumoAgenda, urlAbrirMapa, urlMapaEmbed, urlRota, resumoConvidados, resumoOrcamento, telefoneWhatsApp, textoConvite, textoRelativo,
+  urlAbrirMapa, urlMapaEmbed, urlRota, resumoConvidados, resumoOrcamento, telefoneWhatsApp, textoConvite, textoRelativo,
   type Convidado,
 } from '@/lib/marketing';
 import { validarDocumento, validarImagem, descreverViatura } from '@/lib/marketing-data';
@@ -146,9 +146,5 @@ describe('mapa e resumo da agenda', () => {
   it('ligações para abrir o mapa e a rota', () => {
     expect(urlAbrirMapa('Porto')).toBe('https://www.google.com/maps/search/?api=1&query=Porto');
     expect(urlRota('Aveiro', 'Porto')).toBe('https://www.google.com/maps/dir/?api=1&origin=Aveiro&destination=Porto&travelmode=driving');
-  });
-  it('conta por acontecer, próximos 30 dias e realizados', () => {
-    const r = resumoAgenda([ev('a', '2027-01-01'), ev('b', '2027-01-20'), ev('c', '2027-03-01'), ev('d', '2027-01-05', '2027-01-30')], '2027-01-10');
-    expect(r).toEqual({ porAcontecer: 3, proximos30: 2, realizados: 1 });
   });
 });
