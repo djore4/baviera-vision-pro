@@ -854,6 +854,44 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
     }
   }
 
+  // Escolher a capa entre as imagens do álbum (candidatas devolvidas pela edge function).
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [candidates, setCandidates] = useState<string[] | null>(null);
+  const [brokenCands, setBrokenCands] = useState<Set<string>>(new Set());
+
+  async function abrirPicker() {
+    const link = row.link_fotos?.trim();
+    if (!link) return;
+    setPickerOpen(true);
+    setCandidates(null);
+    setBrokenCands(new Set());
+    try {
+      const { data, error } = await supabase.functions.invoke('foto-preview', { body: { url: link } });
+      if (error) throw error;
+      const d = data as { image?: string | null; images?: string[] };
+      setCandidates(d.images?.length ? d.images : d.image ? [d.image] : []);
+    } catch {
+      setCandidates([]);
+    }
+  }
+
+  async function escolherCandidata(url: string) {
+    setUploading(true);
+    try {
+      const { error } = await supabase.from('demo_capas')
+        .upsert({ chassis: row.chassis, url, updated_by: email, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      onCapaChange(row.chassis, url);
+      setImgError(false);
+      setPickerOpen(false);
+      toast.success('Foto de capa atualizada.');
+    } catch (err) {
+      toast.error('Falha ao guardar a foto: ' + (err as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function removerCapa() {
     setUploading(true);
     try {
@@ -978,6 +1016,16 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
               {capa ? 'Alterar foto' : 'Definir foto'}
             </button>
+            {row.link_fotos?.trim() && (
+              <button
+                onClick={abrirPicker}
+                disabled={uploading}
+                className="flex items-center gap-1 bg-black/45 hover:bg-black/65 text-white text-[11px] font-semibold rounded-full px-2.5 py-1 transition-colors disabled:opacity-60"
+                title="Escolher uma foto do álbum"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Do álbum
+              </button>
+            )}
             {capa && !uploading && (
               <button
                 onClick={removerCapa}
@@ -1119,6 +1167,43 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
           <X className="h-4 w-4" />
         </button>
       </div>
+      {pickerOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={e => { e.stopPropagation(); setPickerOpen(false); }}>
+          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold">Escolher foto de capa</h3>
+              <button onClick={() => setPickerOpen(false)} className="p-1 rounded hover:bg-muted"><X className="h-4 w-4" /></button>
+            </div>
+            {candidates === null ? (
+              <div className="py-10 text-center text-xs text-muted-foreground animate-pulse">A obter fotos do álbum...</div>
+            ) : candidates.filter(u => !brokenCands.has(u)).length === 0 ? (
+              <div className="py-10 text-center text-xs text-muted-foreground">
+                Não foi possível obter fotos deste link (álbuns protegidos, p.ex. SharePoint, não são suportados). Usa "Definir foto" para carregar um ficheiro.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {candidates.filter(u => !brokenCands.has(u)).map(u => (
+                  <button
+                    key={u}
+                    disabled={uploading}
+                    onClick={() => escolherCandidata(u)}
+                    className="aspect-[4/3] overflow-hidden rounded-lg border border-border hover:ring-2 hover:ring-brand-primary transition disabled:opacity-60"
+                  >
+                    <img
+                      src={u}
+                      alt=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover"
+                      onError={() => setBrokenCands(prev => new Set(prev).add(u))}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {/* Cópia fora do ecrã usada para gerar o PNG de partilha. */}
       <div aria-hidden className="fixed top-0 left-[-10000px] pointer-events-none">
         <div ref={cardRef}>{body(true)}</div>

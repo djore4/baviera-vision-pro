@@ -48,6 +48,55 @@ function extractImage(html: string): string | null {
   return null;
 }
 
+const MAX_CANDIDATES = 24;
+
+// Recolhe todas as imagens candidatas da página: og:image/twitter:image primeiro,
+// depois fotos do Google Photos (lh3.googleusercontent.com embebidas no HTML/JS) e
+// por fim <img> "grandes" (descarta ícones, logos, pixels de tracking e SVG).
+function extractCandidates(html: string, base: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: string | null | undefined) => {
+    if (!raw) return;
+    let abs: string;
+    try { abs = new URL(raw.replace(/&amp;/g, "&").replace(/\\u003d/g, "=").replace(/\\u0026/g, "&"), base).toString(); } catch { return; }
+    if (!abs.startsWith("https://")) return;
+    // chave de dedupe: sem o sufixo de tamanho do Google (=w123-h456...)
+    const key = abs.replace(/=[wshc]\d[^/?#]*$/i, "");
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(abs);
+  };
+
+  // 1) metas
+  for (const re of [
+    /<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)["'][^>]+content=["']([^"']+)["']/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image)["']/gi,
+  ]) {
+    for (const m of html.matchAll(re)) push(m[1]);
+  }
+
+  // 2) Google Photos: URLs lh3 no HTML/JSON embebido; pedir versão média.
+  for (const m of html.matchAll(/https:\/\/lh3\.googleusercontent\.com\/(?:pw|pd|ogw|d)?\/?[A-Za-z0-9_\-]{40,}/g)) {
+    push(`${m[0]}=w1200`);
+    if (out.length >= MAX_CANDIDATES) return out;
+  }
+
+  // 3) <img> grandes
+  for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = m[0];
+    const src = tag.match(/\bsrc=["']([^"']+)["']/i)?.[1] ?? tag.match(/\bdata-src=["']([^"']+)["']/i)?.[1];
+    if (!src || src.startsWith("data:") || /\.svg(\?|$)/i.test(src)) continue;
+    if (/logo|icon|sprite|avatar|pixel|tracking|favicon/i.test(src)) continue;
+    const w = Number(tag.match(/\bwidth=["']?(\d+)/i)?.[1] ?? 0);
+    const h = Number(tag.match(/\bheight=["']?(\d+)/i)?.[1] ?? 0);
+    if ((w && w < 200) || (h && h < 120)) continue;
+    push(src);
+    if (out.length >= MAX_CANDIDATES) break;
+  }
+  return out.slice(0, MAX_CANDIDATES);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -76,11 +125,11 @@ Deno.serve(async (req) => {
     });
 
     const ctype = res.headers.get("content-type") ?? "";
-    if (ctype.startsWith("image/")) return json({ image: res.url });
-    if (!ctype.includes("html") && !ctype.includes("xml")) return json({ image: null });
+    if (ctype.startsWith("image/")) return json({ image: res.url, images: [res.url] });
+    if (!ctype.includes("html") && !ctype.includes("xml")) return json({ image: null, images: [] });
 
-    const html = (await res.text()).slice(0, 600_000);
-    return json({ image: extractImage(html) });
+    const html = (await res.text()).slice(0, 1_500_000);
+    return json({ image: extractImage(html), images: extractCandidates(html, res.url) });
   } catch (e) {
     // Falha graciosa — o frontend usa o placeholder de marca.
     return json({ image: null, error: String(e) }, 200);
