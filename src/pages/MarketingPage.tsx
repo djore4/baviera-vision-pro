@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, MapPin, Sparkles } from 'lucide-react';
+import { CalendarClock, ImageIcon, MapPin, Plus, Settings2, Sparkles, Users } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import {
-  CATEGORIAS, CATEGORIA_BY_KEY, MARKETING_EVENTOS,
-  agruparPorMes, estadoDe, formatarIntervalo, hojeIso, ordenar, posicaoHoje, proximoEvento, textoRelativo,
-  type CategoriaKey, type MarketingEvento,
+  COR_SEM_CATEGORIA, agruparPorMes, estadoDe, formatarIntervalo, hojeIso, ordenar, posicaoHoje, proximoEvento,
+  resumoConvidados, textoRelativo, type Categoria, type Convidado, type EstadoConvidado, type MarketingEvento,
 } from '@/lib/marketing';
+import { listCategorias, listEstadosConvidados, listEventos } from '@/lib/marketing-data';
+import { CategoriasDialog } from '@/components/marketing/CategoriasDialog';
+import { EventoDetalhe } from '@/components/marketing/EventoDetalhe';
+import { EventoDialog } from '@/components/marketing/EventoDialog';
+import { useUrlFicheiro } from '@/components/marketing/useUrlFicheiro';
 import { cn } from '@/lib/utils';
 
 /* ── Tab Marketing (Transversal) ──────────────────────────────────────────────
@@ -15,7 +21,7 @@ import { cn } from '@/lib/utils';
  * Respeita `prefers-reduced-motion`.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-type Filtro = 'todos' | CategoriaKey;
+type Filtro = 'todos' | string; // 'todos' ou o id da categoria
 
 /* Mostra o elemento quando entra no ecrã (uma vez). Sem IntersectionObserver
  * (testes, browsers antigos) fica logo visível. */
@@ -34,16 +40,21 @@ function useEntrada<T extends HTMLElement>() {
   return [ref, visivel] as const;
 }
 
-function CartaoEvento({ ev, lado, hoje, marcador }: {
+function CartaoEvento({ ev, categoria, lado, hoje, convidados, aoAbrir, marcador }: {
   ev: MarketingEvento;
+  categoria: Categoria | null;
   lado: 'esq' | 'dir';
   hoje: string;
+  convidados: EstadoConvidado[];
+  aoAbrir: () => void;
   marcador: (el: HTMLElement | null) => void;
 }) {
   const [ref, visivel] = useEntrada<HTMLLIElement>();
-  const cat = CATEGORIA_BY_KEY[ev.categoria];
+  const hsl = categoria?.cor ?? COR_SEM_CATEGORIA;
   const estado = estadoDe(ev, hoje);
-  const cor = `hsl(${cat.hsl})`;
+  const cor = `hsl(${hsl})`;
+  const capa = useUrlFicheiro(ev.imagem_path);
+  const resumo = resumoConvidados(convidados.map(estado => ({ estado })));
 
   return (
     <li
@@ -75,40 +86,51 @@ function CartaoEvento({ ev, lado, hoje, marcador }: {
       </span>
 
       <article
+        role="button"
+        tabIndex={0}
+        aria-label={`Abrir ${ev.titulo}`}
+        onClick={aoAbrir}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); aoAbrir(); } }}
         className={cn(
-          'group rounded-lg border bg-card p-4 shadow-sm transition-all duration-300',
-          'hover:-translate-y-0.5 hover:shadow-md motion-reduce:hover:translate-y-0',
+          'group cursor-pointer overflow-hidden rounded-lg border bg-card shadow-sm transition-all duration-300',
+          'hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:hover:translate-y-0',
           estado === 'passado' && 'opacity-70 hover:opacity-100',
           estado === 'a-decorrer' && 'ring-1',
           lado === 'esq' && 'md:text-right',
         )}
         style={{ borderTop: `3px solid ${cor}`, ...(estado === 'a-decorrer' ? { ['--tw-ring-color' as string]: cor } : {}) }}
       >
-        <div className={cn('flex flex-wrap items-center gap-2', lado === 'esq' && 'md:justify-end')}>
-          <span
-            className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-            style={{ background: `hsl(${cat.hsl} / 0.12)`, color: cor }}
-          >
-            {cat.label}
-          </span>
-          <span className="text-xs font-medium tabular-nums text-muted-foreground">{formatarIntervalo(ev)}</span>
-          <span
-            className={cn(
-              'rounded-full px-2 py-0.5 text-[11px]',
-              estado === 'a-decorrer' ? 'bg-success/15 font-medium text-success' : 'bg-muted text-muted-foreground',
-            )}
-          >
-            {textoRelativo(ev, hoje)}
-          </span>
-        </div>
-        <h3 className="mt-2 text-base font-semibold leading-snug">{ev.titulo}</h3>
-        {ev.descricao && <p className="mt-1 text-sm text-muted-foreground">{ev.descricao}</p>}
-        {(ev.local || ev.exemplo) && (
-          <div className={cn('mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground', lado === 'esq' && 'md:justify-end')}>
-            {ev.local && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{ev.local}</span>}
-            {ev.exemplo && <span className="rounded border border-dashed px-1.5 py-0.5">Exemplo</span>}
+        {capa && (
+          <div className="h-32 w-full overflow-hidden bg-muted">
+            <img src={capa} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none" />
           </div>
         )}
+        <div className="p-4">
+          <div className={cn('flex flex-wrap items-center gap-2', lado === 'esq' && 'md:justify-end')}>
+            {categoria && (
+              <span className="rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ background: `hsl(${hsl} / 0.12)`, color: cor }}>
+                {categoria.nome}
+              </span>
+            )}
+            <span className="text-xs font-medium tabular-nums text-muted-foreground">{formatarIntervalo(ev)}{ev.hora ? ` · ${ev.hora}` : ''}</span>
+            <span
+              className={cn(
+                'rounded-full px-2 py-0.5 text-[11px]',
+                estado === 'a-decorrer' ? 'bg-success/15 font-medium text-success' : 'bg-muted text-muted-foreground',
+              )}
+            >
+              {textoRelativo(ev, hoje)}
+            </span>
+          </div>
+          <h3 className="mt-2 text-base font-semibold leading-snug">{ev.titulo}</h3>
+          {ev.descricao && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{ev.descricao}</p>}
+          <div className={cn('mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground', lado === 'esq' && 'md:justify-end')}>
+            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{ev.local}</span>
+            {resumo.total > 0 && (
+              <span className="inline-flex items-center gap-1 tabular-nums"><Users className="h-3 w-3" />{resumo.confirmados}/{resumo.total} confirmados</span>
+            )}
+          </div>
+        </div>
       </article>
     </li>
   );
@@ -118,15 +140,54 @@ export default function MarketingPage() {
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const hoje = useMemo(() => hojeIso(), []);
 
-  const todos = useMemo(() => ordenar(MARKETING_EVENTOS), []);
-  const visiveis = useMemo(() => (filtro === 'todos' ? todos : todos.filter(e => e.categoria === filtro)), [todos, filtro]);
+  const [eventos, setEventos] = useState<MarketingEvento[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [estadosConv, setEstadosConv] = useState<Record<string, EstadoConvidado[]>>({});
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const [aberto, setAberto] = useState<string | null>(null);          // detalhe
+  const [form, setForm] = useState<{ evento: MarketingEvento | null } | null>(null); // criar/editar
+  const [gerirCategorias, setGerirCategorias] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    Promise.all([listEventos(), listCategorias(), listEstadosConvidados()])
+      .then(([evs, cats, convs]) => {
+        if (!vivo) return;
+        setEventos(evs); setCategorias(cats);
+        const m: Record<string, EstadoConvidado[]> = {};
+        for (const c of convs) (m[c.evento_id] ??= []).push(c.estado);
+        setEstadosConv(m);
+      })
+      .catch(e => { if (vivo) setErro(e instanceof Error ? e.message : 'Não foi possível carregar o Marketing.'); })
+      .finally(() => { if (vivo) setCarregando(false); });
+    return () => { vivo = false; };
+  }, []);
+
+  const catPorId = useMemo(() => new Map(categorias.map(c => [c.id, c])), [categorias]);
+  const todos = useMemo(() => ordenar(eventos), [eventos]);
+  const visiveis = useMemo(() => (filtro === 'todos' ? todos : todos.filter(e => e.categoria_id === filtro)), [todos, filtro]);
   const grupos = useMemo(() => agruparPorMes(visiveis), [visiveis]);
-  const proximo = useMemo(() => proximoEvento(MARKETING_EVENTOS, hoje), [hoje]);
+  const proximo = useMemo(() => proximoEvento(eventos, hoje), [eventos, hoje]);
   const contagem = useMemo(() => {
     const c: Record<string, number> = { todos: todos.length };
-    for (const e of todos) c[e.categoria] = (c[e.categoria] ?? 0) + 1;
+    for (const e of todos) if (e.categoria_id) c[e.categoria_id] = (c[e.categoria_id] ?? 0) + 1;
     return c;
   }, [todos]);
+  const eventoAberto = useMemo(() => eventos.find(e => e.id === aberto) ?? null, [eventos, aberto]);
+
+  const gravado = (ev: MarketingEvento) => {
+    setEventos(l => (l.some(x => x.id === ev.id) ? l.map(x => (x.id === ev.id ? ev : x)) : [...l, ev]));
+    toast.success('Evento guardado.');
+  };
+  const convidadosAtualizados = useCallback((id: string, lista: Convidado[]) => {
+    setEstadosConv(m => ({ ...m, [id]: lista.map(c => c.estado) }));
+  }, []);
+  const categoriasAlteradas = (lista: Categoria[]) => {
+    setCategorias(lista);
+    if (filtro !== 'todos' && !lista.some(c => c.id === filtro)) setFiltro('todos');
+  };
 
   /* ── Traço "preenchido" até hoje ──────────────────────────────────────────
    * Mede a posição vertical de cada marcador e interpola a de "hoje" entre eles. */
@@ -194,6 +255,10 @@ export default function MarketingPage() {
               <Sparkles className="h-5 w-5 text-primary" /> Marketing
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">Linha do tempo dos eventos e campanhas.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => setForm({ evento: null })}><Plus className="mr-1.5 h-4 w-4" /> Novo evento</Button>
+              <Button size="sm" variant="outline" onClick={() => setGerirCategorias(true)}><Settings2 className="mr-1.5 h-4 w-4" /> Categorias</Button>
+            </div>
           </div>
           {proximo && (
             <button
@@ -213,23 +278,23 @@ export default function MarketingPage() {
 
         {/* Filtros por categoria */}
         <div className="relative mt-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar por categoria">
-          {([{ key: 'todos' as const, label: 'Todos', hsl: 'var(--primary)' }, ...CATEGORIAS]).map(c => {
-            const ativo = filtro === c.key;
-            const cor = c.key === 'todos' ? 'hsl(var(--primary))' : `hsl(${c.hsl})`;
+          {([{ id: 'todos', nome: 'Todos', cor: null as string | null }, ...categorias.map(c => ({ id: c.id, nome: c.nome, cor: c.cor }))]).map(c => {
+            const ativo = filtro === c.id;
+            const cor = c.cor ? `hsl(${c.cor})` : 'hsl(var(--primary))';
             return (
               <button
-                key={c.key}
+                key={c.id}
                 type="button"
                 aria-pressed={ativo}
-                onClick={() => setFiltro(c.key)}
+                onClick={() => setFiltro(c.id)}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200',
                   ativo ? 'text-white shadow-sm' : 'bg-background text-muted-foreground hover:text-foreground',
                 )}
                 style={ativo ? { background: cor, borderColor: cor } : undefined}
               >
-                {c.label}
-                <span className={cn('tabular-nums', ativo ? 'opacity-80' : 'opacity-60')}>{contagem[c.key] ?? 0}</span>
+                {c.nome}
+                <span className={cn('tabular-nums', ativo ? 'opacity-80' : 'opacity-60')}>{contagem[c.id] ?? 0}</span>
               </button>
             );
           })}
@@ -237,8 +302,18 @@ export default function MarketingPage() {
       </header>
 
       {/* Linha do tempo */}
-      {visiveis.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Sem eventos nesta categoria.</p>
+      {carregando ? (
+        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">A carregar…</p>
+      ) : erro ? (
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center text-sm text-destructive">{erro}</p>
+      ) : visiveis.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-10 text-center">
+          <ImageIcon className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            {eventos.length === 0 ? 'Ainda não há eventos. Cria o primeiro para começar a linha do tempo.' : 'Sem eventos nesta categoria.'}
+          </p>
+          {eventos.length === 0 && <Button className="mt-3" size="sm" onClick={() => setForm({ evento: null })}><Plus className="mr-1.5 h-4 w-4" /> Novo evento</Button>}
+        </div>
       ) : (
         <ol ref={listaRef} className="relative space-y-6 pb-4" aria-label="Linha do tempo de marketing">
           {/* Traço base + traço preenchido até hoje */}
@@ -288,6 +363,9 @@ export default function MarketingPage() {
                     <CartaoEvento
                       key={ev.id}
                       ev={ev}
+                      categoria={ev.categoria_id ? catPorId.get(ev.categoria_id) ?? null : null}
+                      convidados={estadosConv[ev.id] ?? []}
+                      aoAbrir={() => setAberto(ev.id)}
                       lado={indice % 2 === 0 ? 'esq' : 'dir'}
                       hoje={hoje}
                       marcador={el => { if (el) marcadores.current.set(ev.id, el); else marcadores.current.delete(ev.id); }}
@@ -299,6 +377,25 @@ export default function MarketingPage() {
           ))}
         </ol>
       )}
+    
+      <EventoDetalhe
+        evento={eventoAberto}
+        categoria={eventoAberto?.categoria_id ? catPorId.get(eventoAberto.categoria_id) ?? null : null}
+        hoje={hoje}
+        onClose={() => setAberto(null)}
+        onEdit={ev => setForm({ evento: ev })}
+        onDeleted={id => { setEventos(l => l.filter(e => e.id !== id)); toast.success('Evento apagado.'); }}
+        onConvidados={convidadosAtualizados}
+      />
+      <EventoDialog
+        open={!!form}
+        onOpenChange={o => { if (!o) setForm(null); }}
+        evento={form?.evento ?? null}
+        categorias={categorias}
+        onSaved={gravado}
+        onGerirCategorias={() => setGerirCategorias(true)}
+      />
+      <CategoriasDialog open={gerirCategorias} onOpenChange={setGerirCategorias} categorias={categorias} onChange={categoriasAlteradas} />
     </div>
   );
 }

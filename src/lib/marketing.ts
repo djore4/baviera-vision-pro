@@ -1,56 +1,53 @@
-/* ── Marketing (Transversal) — linha do tempo de eventos ─────────────────────
- * Lógica pura (sem React) do tab Marketing: tipos, categorias, estado de cada
- * evento face a "hoje", agrupamento por mês e posição do marcador "Hoje".
- * Os eventos abaixo são DE EXEMPLO (`exemplo: true`) até existir uma fonte de dados
- * (tabela na base de dados); trocar MARKETING_EVENTOS pela fonte real não exige
- * mexer na interface.
+/* ── Marketing (Transversal) — lógica pura da linha do tempo e dos eventos ────
+ * Sem React nem base de dados: tipos, estado de cada evento face a "hoje",
+ * agrupamento por mês, posição do marcador "Hoje", orçamento, convidados e o
+ * texto/link de convite para WhatsApp. Os dados vêm de marketing-data.ts.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export type CategoriaKey = 'lancamento' | 'evento' | 'campanha' | 'comunicacao';
-
-export interface CategoriaDef {
-  key: CategoriaKey;
-  label: string;
-  /** Cor da categoria (HSL sem hsl()), para marcadores, selos e filtros. */
-  hsl: string;
+export interface Categoria {
+  id: string;
+  nome: string;
+  /** HSL sem hsl(), p.ex. '214 77% 47%'. */
+  cor: string;
+  ordem: number;
 }
 
-export const CATEGORIAS: CategoriaDef[] = [
-  { key: 'lancamento', label: 'Lançamento', hsl: '214 77% 47%' },
-  { key: 'evento', label: 'Evento', hsl: '262 60% 55%' },
-  { key: 'campanha', label: 'Campanha', hsl: '28 90% 50%' },
-  { key: 'comunicacao', label: 'Comunicação', hsl: '160 60% 38%' },
+/** Cores à escolha ao criar/editar uma categoria (HSL, alinhadas com o tema). */
+export const CORES_CATEGORIA: { nome: string; hsl: string }[] = [
+  { nome: 'Azul', hsl: '214 77% 47%' },
+  { nome: 'Roxo', hsl: '262 60% 55%' },
+  { nome: 'Laranja', hsl: '28 90% 50%' },
+  { nome: 'Verde', hsl: '160 60% 38%' },
+  { nome: 'Vermelho', hsl: '0 72% 51%' },
+  { nome: 'Rosa', hsl: '330 70% 50%' },
+  { nome: 'Âmbar', hsl: '45 93% 42%' },
+  { nome: 'Cinza', hsl: '215 14% 46%' },
 ];
-
-export const CATEGORIA_BY_KEY: Record<CategoriaKey, CategoriaDef> =
-  CATEGORIAS.reduce((acc, c) => { acc[c.key] = c; return acc; }, {} as Record<CategoriaKey, CategoriaDef>);
 
 export interface MarketingEvento {
   id: string;
   titulo: string;
-  descricao?: string;
-  categoria: CategoriaKey;
-  /** Dia (ISO, AAAA-MM-DD). */
+  categoria_id: string | null;
+  /** Dia (AAAA-MM-DD). */
   inicio: string;
-  /** Último dia, se o evento durar mais do que um. */
-  fim?: string;
-  local?: string;
-  /** Dado de exemplo (ainda sem fonte real). */
-  exemplo?: boolean;
+  /** Último dia, se durar mais do que um. */
+  fim: string | null;
+  hora: string | null;
+  local: string;
+  descricao: string | null;
+  dress_code: string | null;
+  highlights: string[];
+  orcamento_previsto: number | null;
+  orcamento_real: number | null;
+  imagem_path: string | null;
 }
 
-export const MARKETING_EVENTOS: MarketingEvento[] = [
-  { id: 'e1', titulo: 'Black Friday Premium', descricao: 'Condições especiais em stock selecionado e oferta de manutenção.', categoria: 'campanha', inicio: '2026-11-23', fim: '2026-11-30', exemplo: true },
-  { id: 'e2', titulo: 'Open House de Natal', descricao: 'Showroom aberto ao público com test drives e experiência M.', categoria: 'evento', inicio: '2026-12-05', fim: '2026-12-06', local: 'Aveiro', exemplo: true },
-  { id: 'e3', titulo: 'Campanha de Natal', descricao: 'Comunicação nas redes e email aos clientes da carteira.', categoria: 'comunicacao', inicio: '2026-12-14', fim: '2026-12-24', exemplo: true },
-  { id: 'e4', titulo: 'Arranque de ano: Plano Comercial', descricao: 'Apresentação de objetivos e campanhas do primeiro trimestre.', categoria: 'campanha', inicio: '2027-01-12', exemplo: true },
-  { id: 'e5', titulo: 'Lançamento de novo modelo', descricao: 'Reveal interno e abertura de pré-reservas.', categoria: 'lancamento', inicio: '2027-02-18', local: 'Maia', exemplo: true },
-  { id: 'e6', titulo: 'Test Drive Weekend', descricao: 'Fim de semana de test drives com a gama elétrica.', categoria: 'evento', inicio: '2027-03-13', fim: '2027-03-14', exemplo: true },
-  { id: 'e7', titulo: 'Campanha de Primavera', descricao: 'Revisão e pneus, com comunicação segmentada por local.', categoria: 'comunicacao', inicio: '2027-04-06', fim: '2027-04-30', exemplo: true },
-  { id: 'e8', titulo: 'Feira / Salão automóvel', descricao: 'Presença da marca com stand e equipa comercial.', categoria: 'evento', inicio: '2027-05-20', fim: '2027-05-23', local: 'Porto', exemplo: true },
-  { id: 'e9', titulo: 'Lançamento série especial', descricao: 'Edição limitada para a rede, com campanha dedicada.', categoria: 'lancamento', inicio: '2027-06-15', exemplo: true },
-  { id: 'e10', titulo: 'Campanha de Verão', descricao: 'Check-up de verão e condições de retoma.', categoria: 'campanha', inicio: '2027-07-01', fim: '2027-08-15', exemplo: true },
-];
+export type EventoInput = Omit<MarketingEvento, 'id'>;
+
+export const LOCAL_PADRAO = 'Aveiro';
+
+/** Cor neutra para eventos sem categoria. */
+export const COR_SEM_CATEGORIA = '215 14% 46%';
 
 /* ── Datas ────────────────────────────────────────────────────────────────────
  * Dias ISO tratados em hora local (meio-dia, para o horário de verão não deslocar
@@ -72,34 +69,35 @@ export function diasEntre(a: string, b: string): number {
   return Math.round((parseDia(b).getTime() - parseDia(a).getTime()) / MS_DIA);
 }
 
-export type Estado = 'passado' | 'a-decorrer' | 'futuro';
+type Datado = { inicio: string; fim?: string | null };
 
-export function estadoDe(ev: MarketingEvento, hoje: string): Estado {
+export type EstadoEvento = 'passado' | 'a-decorrer' | 'futuro';
+
+export function estadoDe(ev: Datado, hoje: string): EstadoEvento {
   const fim = ev.fim ?? ev.inicio;
   if (fim < hoje) return 'passado';
   if (ev.inicio <= hoje) return 'a-decorrer';
   return 'futuro';
 }
 
-export function ordenar(eventos: MarketingEvento[]): MarketingEvento[] {
-  return [...eventos].sort((a, b) => a.inicio.localeCompare(b.inicio) || (a.fim ?? a.inicio).localeCompare(b.fim ?? b.inicio) || a.titulo.localeCompare(b.titulo));
+export function ordenar<T extends Datado & { titulo: string }>(eventos: T[]): T[] {
+  return [...eventos].sort((a, b) =>
+    a.inicio.localeCompare(b.inicio) || (a.fim ?? a.inicio).localeCompare(b.fim ?? b.inicio) || a.titulo.localeCompare(b.titulo));
 }
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const MESES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
-export const nomeMes = (mes0: number) => MESES[mes0];
-
-export interface GrupoMes {
+export interface GrupoMes<T> {
   /** AAAA-MM */
   key: string;
   label: string;
-  eventos: MarketingEvento[];
+  eventos: T[];
 }
 
-/** Agrupa (já ordenados) por mês de início. */
-export function agruparPorMes(eventos: MarketingEvento[]): GrupoMes[] {
-  const grupos: GrupoMes[] = [];
+/** Agrupa por mês de início (ordenados). */
+export function agruparPorMes<T extends Datado & { titulo: string }>(eventos: T[]): GrupoMes<T>[] {
+  const grupos: GrupoMes<T>[] = [];
   for (const ev of ordenar(eventos)) {
     const key = ev.inicio.slice(0, 7);
     let g = grupos[grupos.length - 1];
@@ -114,7 +112,7 @@ export function agruparPorMes(eventos: MarketingEvento[]): GrupoMes[] {
 }
 
 /** "5 dez", "5–6 dez" ou "28 nov – 2 dez". */
-export function formatarIntervalo(ev: Pick<MarketingEvento, 'inicio' | 'fim'>): string {
+export function formatarIntervalo(ev: Datado): string {
   const a = parseDia(ev.inicio);
   if (!ev.fim || ev.fim === ev.inicio) return `${a.getDate()} ${MESES_CURTO[a.getMonth()]}`;
   const b = parseDia(ev.fim);
@@ -124,8 +122,15 @@ export function formatarIntervalo(ev: Pick<MarketingEvento, 'inicio' | 'fim'>): 
   return `${a.getDate()} ${MESES_CURTO[a.getMonth()]} – ${b.getDate()} ${MESES_CURTO[b.getMonth()]}`;
 }
 
-/** Texto relativo a hoje: "Hoje", "Amanhã", "Em 19 dias", "A decorrer", "Há 3 dias". */
-export function textoRelativo(ev: MarketingEvento, hoje: string): string {
+/** "5 dez 2026" / "5–6 dez 2026" (com ano, para o detalhe e o convite). */
+export function formatarIntervaloComAno(ev: Datado): string {
+  const fim = ev.fim ?? ev.inicio;
+  const anoFim = parseDia(fim).getFullYear();
+  return `${formatarIntervalo(ev)} ${anoFim}`;
+}
+
+/** Texto relativo a hoje: "Começa hoje", "Amanhã", "Em 19 dias", "A decorrer", "Ontem", "Há 3 dias". */
+export function textoRelativo(ev: Datado, hoje: string): string {
   const estado = estadoDe(ev, hoje);
   if (estado === 'a-decorrer') return ev.inicio === hoje ? 'Começa hoje' : 'A decorrer';
   if (estado === 'futuro') {
@@ -136,18 +141,17 @@ export function textoRelativo(ev: MarketingEvento, hoje: string): string {
   return n === 1 ? 'Ontem' : `Há ${n} dias`;
 }
 
-/** O próximo evento por acontecer ou a decorrer (o mais próximo de hoje). */
-export function proximoEvento(eventos: MarketingEvento[], hoje: string): MarketingEvento | null {
+/** O próximo evento por acontecer ou a decorrer. */
+export function proximoEvento<T extends Datado & { titulo: string }>(eventos: T[], hoje: string): T | null {
   return ordenar(eventos).find(e => estadoDe(e, hoje) !== 'passado') ?? null;
 }
 
 /**
- * Onde o marcador "Hoje" cai na sequência de eventos (ordenados), como posição
- * contínua: 0 = no 1.º evento, 1 = no 2.º, 0.5 = a meio caminho entre o 1.º e o 2.º…
- * Antes do 1.º evento: 0. Depois do último: n − 1. Interpola pelo tempo decorrido
- * entre inícios, para o traçado "preenchido" avançar de forma proporcional.
+ * Onde "hoje" cai na sequência de eventos (ordenados), como posição contínua:
+ * 0 = no 1.º evento, 1 = no 2.º, 0.5 = a meio caminho entre o 1.º e o 2.º…
+ * Antes do 1.º: 0. Depois do último: n − 1. Interpola pelo tempo entre inícios.
  */
-export function posicaoHoje(eventos: MarketingEvento[], hoje: string): number {
+export function posicaoHoje<T extends Datado & { titulo: string }>(eventos: T[], hoje: string): number {
   const evs = ordenar(eventos);
   if (evs.length === 0) return 0;
   if (hoje <= evs[0].inicio) return 0;
@@ -159,4 +163,133 @@ export function posicaoHoje(eventos: MarketingEvento[], hoje: string): number {
     }
   }
   return evs.length - 1;
+}
+
+/* ── Orçamento: previsto (expectativa) vs real ─────────────────────────────── */
+
+export const fmtEuro = (v: number | null | undefined): string =>
+  v == null ? '—' : v.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+
+export interface OrcamentoResumo {
+  previsto: number | null;
+  real: number | null;
+  /** real − previsto (positivo = acima do previsto); null se faltar algum. */
+  desvio: number | null;
+  /** real / previsto, 0..n; null se não der para calcular. */
+  usado: number | null;
+  estado: 'sem-dados' | 'dentro' | 'proximo' | 'acima';
+}
+
+export function resumoOrcamento(previsto: number | null, real: number | null): OrcamentoResumo {
+  if (previsto == null || real == null || previsto <= 0) {
+    return { previsto, real, desvio: previsto != null && real != null ? real - previsto : null, usado: null, estado: 'sem-dados' };
+  }
+  const usado = real / previsto;
+  return { previsto, real, desvio: real - previsto, usado, estado: usado > 1 ? 'acima' : usado >= 0.9 ? 'proximo' : 'dentro' };
+}
+
+/* ── Highlights: uma linha de texto = um ponto ─────────────────────────────── */
+
+export const highlightsDeTexto = (t: string): string[] =>
+  t.split('\n').map(l => l.replace(/^\s*[-•*]\s*/, '').trim()).filter(Boolean);
+
+/* ── Convidados e presenças ────────────────────────────────────────────────── */
+
+export type EstadoConvidado = 'convidado' | 'confirmado' | 'compareceu' | 'faltou' | 'recusou';
+
+export const ESTADOS_CONVIDADO: { value: EstadoConvidado; label: string; cls: string }[] = [
+  { value: 'convidado', label: 'Convidado', cls: 'bg-muted text-muted-foreground' },
+  { value: 'confirmado', label: 'Confirmado', cls: 'bg-primary/10 text-primary' },
+  { value: 'compareceu', label: 'Compareceu', cls: 'bg-success/15 text-success' },
+  { value: 'faltou', label: 'Faltou', cls: 'bg-warning/15 text-warning' },
+  { value: 'recusou', label: 'Recusou', cls: 'bg-destructive/10 text-destructive' },
+];
+
+export interface Convidado {
+  id: string;
+  evento_id: string;
+  vendedor_email: string;
+  vendedor_nome: string | null;
+  nome: string;
+  contacto: string | null;
+  estado: EstadoConvidado;
+  obs: string | null;
+}
+
+export interface ResumoConvidados {
+  total: number;
+  confirmados: number;
+  compareceram: number;
+  /** compareceram / (convidados que não recusaram); null sem convidados. */
+  assiduidade: number | null;
+}
+
+export function resumoConvidados(lista: Pick<Convidado, 'estado'>[]): ResumoConvidados {
+  const total = lista.length;
+  const compareceram = lista.filter(c => c.estado === 'compareceu').length;
+  const confirmados = lista.filter(c => c.estado === 'confirmado' || c.estado === 'compareceu').length;
+  const base = lista.filter(c => c.estado !== 'recusou').length;
+  return { total, confirmados, compareceram, assiduidade: base > 0 ? compareceram / base : null };
+}
+
+export interface GrupoVendedor {
+  email: string;
+  nome: string;
+  convidados: Convidado[];
+  resumo: ResumoConvidados;
+}
+
+/** Convidados agrupados por vendedor (por nome), cada grupo com o seu resumo. */
+export function agruparPorVendedor(lista: Convidado[]): GrupoVendedor[] {
+  const mapa = new Map<string, GrupoVendedor>();
+  for (const c of lista) {
+    const g = mapa.get(c.vendedor_email) ?? { email: c.vendedor_email, nome: c.vendedor_nome || c.vendedor_email, convidados: [], resumo: resumoConvidados([]) };
+    g.convidados.push(c);
+    mapa.set(c.vendedor_email, g);
+  }
+  const grupos = [...mapa.values()];
+  for (const g of grupos) {
+    g.convidados.sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+    g.resumo = resumoConvidados(g.convidados);
+  }
+  return grupos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+}
+
+/* ── WhatsApp ─────────────────────────────────────────────────────────────────
+ * Sem API: abre-se o WhatsApp (wa.me) com o texto do convite já escrito e é o
+ * vendedor quem carrega em "enviar". */
+
+/** Número só com dígitos e indicativo (assume Portugal sem indicativo). null se não for válido. */
+export function telefoneWhatsApp(contacto: string | null | undefined): string | null {
+  if (!contacto) return null;
+  let d = contacto.replace(/[^\d+]/g, '');
+  if (d.startsWith('+')) d = d.slice(1);
+  else if (d.startsWith('00')) d = d.slice(2);
+  else if (/^[29]\d{8}$/.test(d)) d = `351${d}`;
+  return /^\d{9,15}$/.test(d) ? d : null;
+}
+
+export function textoConvite(
+  ev: Pick<MarketingEvento, 'titulo' | 'inicio' | 'fim' | 'hora' | 'local' | 'descricao' | 'dress_code'>,
+  convidado?: string,
+  vendedor?: string,
+): string {
+  const linhas: string[] = [];
+  linhas.push(convidado ? `Olá ${convidado.split(' ')[0]}!` : 'Olá!');
+  linhas.push('');
+  linhas.push(`Temos o gosto de o(a) convidar para *${ev.titulo}*.`);
+  if (ev.descricao) linhas.push('', ev.descricao.trim());
+  linhas.push('');
+  linhas.push(`📅 ${formatarIntervaloComAno(ev)}${ev.hora ? ` · ${ev.hora}` : ''}`);
+  linhas.push(`📍 ${ev.local}`);
+  if (ev.dress_code) linhas.push(`👔 ${ev.dress_code}`);
+  linhas.push('', 'Poderá confirmar a sua presença respondendo a esta mensagem.');
+  if (vendedor) linhas.push('', `${vendedor.split(' ')[0]} · Caetano BMW`);
+  return linhas.join('\n');
+}
+
+/** Link wa.me; sem número abre o seletor de contactos do WhatsApp. */
+export function linkWhatsApp(texto: string, contacto?: string | null): string {
+  const tel = telefoneWhatsApp(contacto);
+  return `https://wa.me/${tel ?? ''}?text=${encodeURIComponent(texto)}`;
 }
