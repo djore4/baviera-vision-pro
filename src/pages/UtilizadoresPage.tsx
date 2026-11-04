@@ -55,7 +55,7 @@ export default function UtilizadoresPage() {
         </TabsList>
 
         <TabsContent value="contas" className="mt-4">
-          <UsersPanel users={users} loading={loading} roleNames={roleNames} onChanged={load} />
+          <UsersPanel users={users} loading={loading} roleNames={roleNames} roles={roles} onChanged={load} />
         </TabsContent>
 
         <TabsContent value="permissoes" className="mt-4">

@@ -4,7 +4,7 @@ const rpc = vi.fn();
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
 
 import {
-  getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS, restritoPeloLocal, tabLivreForaDoLocal,
+  getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS, restritoPeloLocal, tabLivreForaDoLocal, funcaoIgnoraLocal, TODOS_LOCAIS_KEY,
 } from '@/lib/permissions';
 
 beforeEach(() => { rpc.mockReset(); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
@@ -143,5 +143,14 @@ describe('restrição por local', () => {
     expect(tabLivreForaDoLocal('end-of-term-x')).toBe(false);
     expect(tabLivreForaDoLocal('retails')).toBe(false);
     expect(tabLivreForaDoLocal('lavagem:reagendar')).toBe(false);
+  });
+});
+
+describe('funcaoIgnoraLocal', () => {
+  it('só com a chave a edit', () => {
+    expect(funcaoIgnoraLocal({ permissions: { [TODOS_LOCAIS_KEY]: 'edit' } })).toBe(true);
+    expect(funcaoIgnoraLocal({ permissions: { [TODOS_LOCAIS_KEY]: 'none' } })).toBe(false);
+    expect(funcaoIgnoraLocal({ permissions: {} })).toBe(false);
+    expect(funcaoIgnoraLocal(null)).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, Save, Trash2, ShieldCheck, Undo2, Copy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
-import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
+import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, TODOS_LOCAIS_KEY, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,7 +32,7 @@ const level = (p: Perms | undefined, key: string): AccessLevel => p?.[key] ?? 'n
 
 /* Chaves com valor 'none' equivalem a chave ausente: normaliza para comparar. */
 /* Chaves editáveis na matriz: os tabs e as suas permissões finas ('lavagem:iniciar'…). */
-const MATRIX_KEYS = [...PERMISSION_TABS.map(t => t.key), ...SUB_PERMISSIONS.map(sp => sp.key)];
+const MATRIX_KEYS = [...PERMISSION_TABS.map(t => t.key), ...SUB_PERMISSIONS.map(sp => sp.key), TODOS_LOCAIS_KEY];
 const normalize = (p: Perms | undefined): Perms => {
   const out: Perms = {};
   MATRIX_KEYS.forEach(k => { const v = level(p, k); if (v !== 'none') out[k] = v; });
@@ -75,10 +75,21 @@ export function RolesPanel({
   const [deleting, setDeleting] = useState(false);
 
   // Repõe os rascunhos quando os dados guardados mudam.
+  // Um recarregamento (ex.: mudar a função de alguém em Contas) não pode apagar alterações
+  // por guardar: só se repõe o rascunho das funções cujo rascunho coincide com o guardado antes.
+  const prevRoles = useRef<AppRole[]>([]);
   useEffect(() => {
-    const d: Record<string, Perms> = {};
-    roles.forEach(r => { d[r.name] = { ...(r.permissions ?? {}) }; });
-    setDrafts(d);
+    const antes = prevRoles.current;
+    prevRoles.current = roles;
+    setDrafts(prev => {
+      const d: Record<string, Perms> = {};
+      roles.forEach(r => {
+        const old = antes.find(x => x.name === r.name);
+        const sujo = !!prev[r.name] && !!old && !samePerms(prev[r.name], old.permissions);
+        d[r.name] = sujo ? prev[r.name] : { ...(r.permissions ?? {}) };
+      });
+      return d;
+    });
   }, [roles]);
 
   useEffect(() => {
@@ -222,6 +233,25 @@ export function RolesPanel({
                   </Button>
                 </div>
               </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <span className="text-sm font-medium">Todos os locais</span>
+                <p className="text-xs text-muted-foreground max-w-xl">
+                  Por defeito, quem não opera em Aveiro só vê o End-of-Term, seja qual for a matriz abaixo.
+                  Ativa para esta função ver tudo o que a matriz dá, em qualquer local.
+                </p>
+              </div>
+              <ToggleGroup
+                type="single" size="sm" variant="outline"
+                value={level(draft, TODOS_LOCAIS_KEY) === 'none' ? 'none' : 'edit'}
+                onValueChange={v => v && setLevel([TODOS_LOCAIS_KEY], v as AccessLevel)}
+                className="gap-0"
+              >
+                <ToggleGroupItem value="none" className={cn('h-7 px-2.5 text-xs rounded-none first:rounded-l-md last:rounded-r-md', LEVELS[0].on)}>Só Aveiro</ToggleGroupItem>
+                <ToggleGroupItem value="edit" className={cn('h-7 px-2.5 text-xs rounded-none first:rounded-l-md last:rounded-r-md -ml-px', LEVELS[2].on)}>Todos</ToggleGroupItem>
+              </ToggleGroup>
             </div>
 
             {AREAS.map(area => {
