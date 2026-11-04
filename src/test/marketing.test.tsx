@@ -4,7 +4,7 @@ import { render, screen, fireEvent, within, waitFor } from '@testing-library/rea
 const api = vi.hoisted(() => ({
   listEventos: vi.fn(), listCategorias: vi.fn(), listEstadosConvidados: vi.fn(),
   createEvento: vi.fn(), updateEvento: vi.fn(), deleteEvento: vi.fn(),
-  listOrcamentos: vi.fn(), saveOrcamento: vi.fn(),
+  listOrcamentos: vi.fn(), saveOrcamento: vi.fn(), saveCategoria: vi.fn(),
   listViaturasEvento: vi.fn(), listParque: vi.fn(), listAnexos: vi.fn(), listConvidados: vi.fn(),
 }));
 vi.mock('@/lib/marketing-data', async orig => ({
@@ -41,6 +41,10 @@ const EVENTOS = [
   EV('e1', 'Open House', '2099-03-10', 'c2', { descricao: 'Showroom aberto', dress_code: 'Smart casual', highlights: ['Test drives', 'Convidados da marca'] }),
   EV('e2', 'Lançamento iX', '2099-05-01', 'c1'),
 ];
+
+// Radix Select no jsdom.
+Element.prototype.scrollIntoView = vi.fn();
+Element.prototype.hasPointerCapture = vi.fn(() => false);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -130,6 +134,50 @@ describe('MarketingPage', () => {
     const det = await screen.findByTestId('evento-detalhe');
     await waitFor(() => expect(within(det).getByTestId('orcamento')).toHaveTextContent('6000'));
     expect(within(det).getByText(/acima do orçamento/)).toBeInTheDocument();
+  });
+
+  it('mostra a faixa de números da agenda', async () => {
+    render(<MarketingPage />);
+    const faixa = await screen.findByTestId('resumo-agenda');
+    expect(within(faixa).getByText('Por acontecer').previousSibling).toHaveTextContent('2');
+    expect(within(faixa).getByText('Já realizados').previousSibling).toHaveTextContent('0');
+  });
+
+  it('o detalhe mostra o mapa do local e a ligação "Como chegar" a partir do stand', async () => {
+    api.listEventos.mockResolvedValue([EV('e1', 'Open House', '2099-03-10', 'c2', { local: 'Quinta da Ria, Ílhavo' })]);
+    render(<MarketingPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir Open House' }));
+    const mapa = await screen.findByTestId('local-mapa');
+    expect(within(mapa).getByTitle('Mapa: Quinta da Ria, Ílhavo').getAttribute('src')).toContain('q=Quinta%20da%20Ria%2C%20%C3%8Dlhavo');
+    const rota = within(mapa).getByRole('link', { name: /como chegar/i }).getAttribute('href') ?? '';
+    expect(rota).toContain('google.com/maps/dir/');
+    expect(rota).toContain('destination=Quinta%20da%20Ria%2C%20%C3%8Dlhavo');
+    expect(rota).toContain('origin=');
+  });
+
+  it('no formulário dá para criar uma categoria nova e ficar com ela escolhida', async () => {
+    api.saveCategoria.mockResolvedValue({ id: 'c9', nome: 'Parceria', cor: '262 60% 55%', ordem: 5 });
+    api.createEvento.mockImplementation(async e => ({ id: 'novo', ...e }));
+    render(<MarketingPage />);
+    await screen.findAllByTestId('evento');
+    fireEvent.click(screen.getAllByRole('button', { name: /novo evento/i })[0]);
+    const dlg = await screen.findByRole('dialog');
+
+    fireEvent.keyDown(within(dlg).getByRole('combobox', { name: 'Categoria' }), { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('option', { name: /nova categoria/i }));
+    const painel = await within(dlg).findByTestId('nova-categoria');
+    fireEvent.change(within(painel).getByLabelText('Nova categoria'), { target: { value: 'Parceria' } });
+    fireEvent.click(within(painel).getByRole('button', { name: /criar e usar/i }));
+
+    await waitFor(() => expect(api.saveCategoria).toHaveBeenCalledWith(expect.objectContaining({ nome: 'Parceria' })));
+    await waitFor(() => expect(within(dlg).queryByTestId('nova-categoria')).toBeNull());
+    // (o texto do Select não se renderiza no jsdom: a escolha prova-se pelo categoria_id gravado, abaixo)
+
+    fireEvent.change(within(dlg).getByLabelText(/título/i), { target: { value: 'Jantar' } });
+    fireEvent.change(within(dlg).getByLabelText(/^data \*/i), { target: { value: '2099-08-01' } });
+    fireEvent.click(within(dlg).getByRole('button', { name: /criar evento/i }));
+    await waitFor(() => expect(api.createEvento).toHaveBeenCalled());
+    expect(api.createEvento.mock.calls[0][0]).toMatchObject({ titulo: 'Jantar', categoria_id: 'c9' });
   });
 
   it('sem eventos: convida a criar o primeiro', async () => {

@@ -297,3 +297,43 @@ export function linkWhatsApp(texto: string, contacto?: string | null): string {
   const tel = telefoneWhatsApp(contacto);
   return `https://wa.me/${tel ?? ''}?text=${encodeURIComponent(texto)}`;
 }
+
+/* ── Mapa (Google Maps) ───────────────────────────────────────────────────────
+ * Sem chave, o mapa do local abre por embed simples e a rota vai por ligação ao
+ * Google Maps (onde se vê a distância). Com VITE_GOOGLE_MAPS_KEY (Maps Embed API,
+ * gratuita) o próprio mapa mostra a rota, a distância e o tempo de viagem. */
+
+const enc = encodeURIComponent;
+
+/** Mapa embebido: com chave, rota origem→local (distância e tempo no próprio mapa); sem chave, só o local. */
+export function urlMapaEmbed(local: string, origem: string, chave?: string | null): string {
+  if (chave) {
+    return `https://www.google.com/maps/embed/v1/directions?key=${enc(chave)}&origin=${enc(origem)}&destination=${enc(local)}&language=pt-PT&region=PT`;
+  }
+  return `https://www.google.com/maps?q=${enc(local)}&hl=pt-PT&z=14&output=embed`;
+}
+
+export const urlAbrirMapa = (local: string): string =>
+  `https://www.google.com/maps/search/?api=1&query=${enc(local)}`;
+
+export const urlRota = (origem: string, local: string): string =>
+  `https://www.google.com/maps/dir/?api=1&origin=${enc(origem)}&destination=${enc(local)}&travelmode=driving`;
+
+/* ── Resumo da agenda (faixa de números no topo) ───────────────────────────── */
+
+export interface ResumoAgenda {
+  porAcontecer: number;
+  proximos30: number;
+  realizados: number;
+}
+
+export function resumoAgenda(eventos: Datado[], hoje: string): ResumoAgenda {
+  let porAcontecer = 0, proximos30 = 0, realizados = 0;
+  for (const e of eventos) {
+    const estado = estadoDe(e, hoje);
+    if (estado === 'passado') { realizados++; continue; }
+    porAcontecer++;
+    if (estado === 'a-decorrer' || diasEntre(hoje, e.inicio) <= 30) proximos30++;
+  }
+  return { porAcontecer, proximos30, realizados };
+}
