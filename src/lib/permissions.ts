@@ -63,6 +63,9 @@ const ALL_TABS: TabDef[] = [
   // Parque de demonstradores (dados partilhados com a plataforma Caetano —
   // tabela `viaturas`). Acesso pela matriz de funções (ex.: perfil genius).
   { key: 'demos', label: 'Demos', path: '/demos', area: 'vn' },
+  // Multas de equipa: de volta a Vendas VN, "para já" só visível para o admin
+  // (para abrir a mais funções, retirar adminOnly e atribuir na matriz).
+  { key: 'multas', label: 'Multas', path: '/multas', area: 'vn', adminOnly: true },
   // ── Vendas VU (em desenvolvimento) ──────────────────────────────────────────
   { key: 'wip', label: 'WIP', path: '/wip', area: 'vu' },
   { key: 'funil-vu', label: 'Funil', path: '/funil-vu', area: 'vu' },
@@ -91,7 +94,6 @@ const ALL_TABS: TabDef[] = [
   { key: 'pendentes', label: 'Pendentes', path: '/pendentes', area: 'admin' },
   { key: 'escala-repsol', label: 'Escala Repsol', path: '/escala-repsol', area: 'admin' },
   { key: 'emprestimos', label: 'Empréstimos', path: '/emprestimos', area: 'admin' },
-  { key: 'multas', label: 'Multas', path: '/multas', area: 'admin' },
   { key: 'database', label: 'Database', path: '/database', area: 'admin' },
   // Diário arquivado "para já": só o admin acede, mesmo que a função ainda tenha a
   // chave 'prospecao'. Para o reativar, voltar a pô-lo na área 'vn' sem adminOnly.
@@ -113,7 +115,7 @@ export function navAreaFor(tab: TabDef, canView: (key: string) => boolean): Area
 }
 
 /* Tabs "arrumados" dentro do Arquivo (não aparecem diretamente na barra lateral). */
-export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'multas', 'database', 'prospecao'];
+export const ARCHIVED_TAB_KEYS = ['pendentes', 'escala-repsol', 'emprestimos', 'database', 'prospecao'];
 
 /* Tabs atribuíveis na matriz de permissões. Ficam de fora os desativados (já não
  * estão em TABS), os arrumados no Arquivo e os de acesso restrito a admin: esses

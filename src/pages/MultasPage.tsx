@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useData } from '@/contexts/DataContext';
-import { Plus, RotateCcw, Trophy, TrendingUp, AlertCircle } from 'lucide-react';
+import { Plus, RotateCcw, Trophy, TrendingUp, AlertCircle, Settings2, Pencil, Trash2, Check, X } from 'lucide-react';
+import { usePermissions } from '@/contexts/PermissionsContext';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { formatDate } from '@/lib/excel-parser';
+import { formatDate, isRetailType } from '@/lib/excel-parser';
 
 interface Infraction {
   id: string;
@@ -33,6 +35,13 @@ interface Cycle {
 
 export default function MultasPage() {
   const { data } = useData();
+  const { isAdmin } = usePermissions();
+  // Responsáveis = quem tem negócios em Carteira (mesmo critério do tab Carteira).
+  const resps = useMemo(() => Array.from(new Set(
+    (data?.control ?? [])
+      .filter(r => (r.status === 'Carteira' || r.status === 'Matricula') && isRetailType(r.type))
+      .map(r => r.resp).filter(Boolean)
+  )).sort(), [data]);
   const [infractions, setInfractions] = useState<Infraction[]>([]);
   const [penalties, setPenalties] = useState<Penalty[]>([]);
   const [currentCycle, setCurrentCycle] = useState<number>(1);
@@ -45,8 +54,15 @@ export default function MultasPage() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [lastPenalty, setLastPenalty] = useState<{ resp: string; infraction: string; value: number } | null>(null);
   const [filterResp, setFilterResp] = useState<string | null>(null);
+  // Gestão do catálogo de infrações (admin)
+  const [showManage, setShowManage] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editValue, setEditValue] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newValue, setNewValue] = useState('');
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
-const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
 
   useEffect(() => { loadData(); }, []);
 
@@ -67,7 +83,7 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
     if (!selectedResp || !selectedInfraction) return;
     setSubmitting(true);
     const inf = infractions.find(i => i.id === selectedInfraction);
-    if (!inf) return;
+    if (!inf) { setSubmitting(false); return; }
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from('penalties').insert({
       resp: selectedResp,
@@ -83,6 +99,38 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
     setRegisteredBy('');
     setSubmitting(false);
     setLastPenalty({ resp: selectedResp, infraction: inf.name, value: inf.value });
+    await loadData();
+  }
+
+  const parseValue = (v: string) => Number(v.replace(',', '.').trim());
+  const validValue = (v: string) => v.trim() !== '' && Number.isFinite(parseValue(v)) && parseValue(v) >= 0;
+
+  async function addInfraction() {
+    const name = newName.trim();
+    if (!name || !validValue(newValue)) return;
+    const { error } = await supabase.from('infractions').insert({ name, value: parseValue(newValue), active: true });
+    if (error) { toast.error('Não foi possível adicionar a multa'); return; }
+    setNewName(''); setNewValue('');
+    toast.success('Multa adicionada');
+    await loadData();
+  }
+
+  async function saveInfraction(id: string) {
+    const name = editName.trim();
+    if (!name || !validValue(editValue)) return;
+    const { error } = await supabase.from('infractions').update({ name, value: parseValue(editValue) }).eq('id', id);
+    if (error) { toast.error('Não foi possível guardar a alteração'); return; }
+    setEditingId(null);
+    toast.success('Multa atualizada');
+    await loadData();
+  }
+
+  // "Remover" desativa a multa (o histórico de penalizações mantém a referência).
+  async function removeInfraction(id: string) {
+    const { error } = await supabase.from('infractions').update({ active: false }).eq('id', id);
+    if (error) { toast.error('Não foi possível remover a multa'); return; }
+    setRemovingId(null);
+    toast.success('Multa removida');
     await loadData();
   }
 
@@ -128,6 +176,11 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
           <p className="text-xs text-muted-foreground">Ciclo atual: #{currentCycle}</p>
         </div>
         <div className="flex gap-2">
+          {isAdmin && (
+            <Button size="sm" variant="outline" onClick={() => setShowManage(v => !v)} className="gap-1 text-[11px]">
+              <Settings2 className="h-3 w-3" /> Gerir Multas
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={() => setConfirmReset(true)} className="gap-1 text-[11px]">
             <RotateCcw className="h-3 w-3" /> Reset Ciclo
           </Button>
@@ -136,6 +189,60 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
           </Button>
         </div>
       </div>
+
+      {/* Gestão de multas (admin) */}
+      {isAdmin && showManage && (
+        <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+          <h2 className="text-sm font-semibold">Gerir Multas</h2>
+          <p className="text-[11px] text-muted-foreground">
+            Alterar um preço só vale para multas registadas daqui em diante; o histórico mantém o valor com que foi registado.
+          </p>
+          <div className="space-y-1">
+            {infractions.length === 0 && <p className="text-xs text-muted-foreground py-2">Sem multas definidas.</p>}
+            {infractions.map(i => (
+              <div key={i.id} className="flex items-center gap-2 border-b border-border py-1.5 text-sm">
+                {editingId === i.id ? (
+                  <>
+                    <input value={editName} onChange={e => setEditName(e.target.value)}
+                      className="flex-1 min-w-0 px-2 py-1 text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
+                    <span className="text-xs text-muted-foreground">€</span>
+                    <input value={editValue} onChange={e => setEditValue(e.target.value)} inputMode="decimal"
+                      className="w-20 px-2 py-1 text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
+                    <Button size="sm" className="h-7 px-2" onClick={() => saveInfraction(i.id)}
+                      disabled={!editName.trim() || !validValue(editValue)} aria-label="Guardar"><Check className="h-3 w-3" /></Button>
+                    <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setEditingId(null)} aria-label="Cancelar"><X className="h-3 w-3" /></Button>
+                  </>
+                ) : removingId === i.id ? (
+                  <>
+                    <span className="flex-1 min-w-0 truncate text-[12px]">Remover «{i.name}»?</span>
+                    <Button size="sm" variant="destructive" className="h-7 px-2 text-[11px]" onClick={() => removeInfraction(i.id)}>Remover</Button>
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setRemovingId(null)}>Cancelar</Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 min-w-0 truncate">{i.name}</span>
+                    <span className="font-semibold text-destructive w-20 text-right">€{Number(i.value).toFixed(2)}</span>
+                    <Button size="sm" variant="outline" className="h-7 px-2" aria-label={`Editar ${i.name}`}
+                      onClick={() => { setEditingId(i.id); setEditName(i.name); setEditValue(String(i.value)); setRemovingId(null); }}><Pencil className="h-3 w-3" /></Button>
+                    <Button size="sm" variant="outline" className="h-7 px-2" aria-label={`Remover ${i.name}`}
+                      onClick={() => { setRemovingId(i.id); setEditingId(null); }}><Trash2 className="h-3 w-3" /></Button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nova multa (descrição)"
+              className="flex-1 min-w-0 px-2 py-1.5 text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
+            <span className="text-xs text-muted-foreground">€</span>
+            <input value={newValue} onChange={e => setNewValue(e.target.value)} placeholder="0,00" inputMode="decimal"
+              className="w-20 px-2 py-1.5 text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
+            <Button size="sm" onClick={addInfraction} disabled={!newName.trim() || !validValue(newValue)} className="gap-1 text-[11px]">
+              <Plus className="h-3 w-3" /> Adicionar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Formulário */}
       {showForm && (
