@@ -71,12 +71,12 @@ describe('permissões finas (SUB_PERMISSIONS)', () => {
     for (const k of keys) expect(PERMISSION_TABS.some(t => t.key === k)).toBe(false);
   });
 
-  it('as Multas estão em Vendas VN, só admin, fora do Arquivo e da matriz', () => {
+  it('as Multas estão em Vendas VN, atribuíveis na matriz e fora do Arquivo', () => {
     const multas = TABS.find(t => t.key === 'multas');
     expect(multas?.area).toBe('vn');
-    expect(multas?.adminOnly).toBe(true);
+    expect(multas?.adminOnly).toBeFalsy();
     expect(ARCHIVED_TAB_KEYS).not.toContain('multas');
-    expect(PERMISSION_TABS.some(t => t.key === 'multas')).toBe(false);
+    expect(PERMISSION_TABS.some(t => t.key === 'multas')).toBe(true);
   });
 
   it('o Diário está arquivado: fora da matriz, só admin, no Arquivo', () => {
