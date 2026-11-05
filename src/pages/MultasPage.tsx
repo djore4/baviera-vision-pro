@@ -176,28 +176,40 @@ export default function MultasPage() {
 
   if (loading) return <div className="flex items-center justify-center h-96 text-muted-foreground">A carregar...</div>;
 
+  const historyRows = filterResp ? penalties.filter(p => p.resp === filterResp) : penalties;
+
+  const deleteControl = (p: Penalty, big: boolean) => deletingPenaltyId === p.id ? (
+    <span className="inline-flex gap-1">
+      <Button size="sm" variant="destructive" className={big ? 'h-9 px-3 text-xs' : 'h-6 px-2 text-[10px]'} onClick={() => deletePenalty(p.id)}>Remover</Button>
+      <Button size="sm" variant="outline" className={big ? 'h-9 px-3 text-xs' : 'h-6 px-2 text-[10px]'} onClick={() => setDeletingPenaltyId(null)}>Não</Button>
+    </span>
+  ) : (
+    <button onClick={() => setDeletingPenaltyId(p.id)} aria-label={`Remover multa de ${p.resp}`}
+      className={`text-muted-foreground hover:text-destructive ${big ? 'p-2 -m-2' : ''}`}><Trash2 className={big ? 'h-4 w-4' : 'h-3 w-3'} /></button>
+  );
+
   return (
     <div className="space-y-4 animate-fade-in max-w-5xl mx-auto">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-bold">Multas de Equipa</h1>
           <p className="text-xs text-muted-foreground">Ciclo atual: #{currentCycle}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex">
           {isAdmin && (
-            <Button size="sm" variant="outline" onClick={() => setShowManage(v => !v)} className="gap-1 text-[11px]">
+            <Button size="sm" variant="outline" onClick={() => setShowManage(v => !v)} className="h-10 gap-1 text-xs sm:h-8 sm:text-[11px]">
               <Settings2 className="h-3 w-3" /> Gerir Multas
             </Button>
           )}
           {isAdmin && (
-            <Button size="sm" variant="outline" onClick={() => setConfirmReset(true)} className="gap-1 text-[11px]">
+            <Button size="sm" variant="outline" onClick={() => setConfirmReset(true)} className="h-10 gap-1 text-xs sm:h-8 sm:text-[11px]">
               <RotateCcw className="h-3 w-3" /> Reset Ciclo
             </Button>
           )}
           {canLaunch && (
-            <Button size="sm" onClick={() => setShowForm(!showForm)} className="gap-1 text-[11px]">
+            <Button size="sm" onClick={() => setShowForm(!showForm)} className="order-first col-span-2 h-11 gap-1 text-sm sm:order-none sm:col-span-1 sm:h-8 sm:text-[11px]">
               <Plus className="h-3 w-3" /> Registar Multa
             </Button>
           )}
@@ -214,44 +226,44 @@ export default function MultasPage() {
           <div className="space-y-1">
             {infractions.length === 0 && <p className="text-xs text-muted-foreground py-2">Sem multas definidas.</p>}
             {infractions.map(i => (
-              <div key={i.id} className="flex items-center gap-2 border-b border-border py-1.5 text-sm">
+              <div key={i.id} className="flex flex-wrap items-center gap-2 border-b border-border py-2 text-sm">
                 {editingId === i.id ? (
                   <>
                     <input value={editName} onChange={e => setEditName(e.target.value)}
-                      className="flex-1 min-w-0 px-2 py-1 text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
+                      className="basis-full sm:basis-0 sm:flex-1 min-w-0 px-2 py-2 sm:py-1 text-base sm:text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
                     <span className="text-xs text-muted-foreground">€</span>
                     <input value={editValue} onChange={e => setEditValue(e.target.value)} inputMode="decimal"
-                      className="w-20 px-2 py-1 text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
-                    <Button size="sm" className="h-7 px-2" onClick={() => saveInfraction(i.id)}
+                      className="w-24 px-2 py-2 sm:py-1 text-base sm:text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
+                    <Button size="sm" className="h-9 px-3 sm:h-7 sm:px-2" onClick={() => saveInfraction(i.id)}
                       disabled={!editName.trim() || !validValue(editValue)} aria-label="Guardar"><Check className="h-3 w-3" /></Button>
-                    <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setEditingId(null)} aria-label="Cancelar"><X className="h-3 w-3" /></Button>
+                    <Button size="sm" variant="outline" className="h-9 px-3 sm:h-7 sm:px-2" onClick={() => setEditingId(null)} aria-label="Cancelar"><X className="h-3 w-3" /></Button>
                   </>
                 ) : removingId === i.id ? (
                   <>
-                    <span className="flex-1 min-w-0 truncate text-[12px]">Remover «{i.name}»?</span>
-                    <Button size="sm" variant="destructive" className="h-7 px-2 text-[11px]" onClick={() => removeInfraction(i.id)}>Remover</Button>
-                    <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setRemovingId(null)}>Cancelar</Button>
+                    <span className="basis-full sm:basis-0 sm:flex-1 min-w-0 text-[12px]">Remover «{i.name}»?</span>
+                    <Button size="sm" variant="destructive" className="h-9 px-3 text-xs sm:h-7 sm:px-2 sm:text-[11px]" onClick={() => removeInfraction(i.id)}>Remover</Button>
+                    <Button size="sm" variant="outline" className="h-9 px-3 text-xs sm:h-7 sm:px-2 sm:text-[11px]" onClick={() => setRemovingId(null)}>Cancelar</Button>
                   </>
                 ) : (
                   <>
-                    <span className="flex-1 min-w-0 truncate">{i.name}</span>
-                    <span className="font-semibold text-destructive w-20 text-right">€{Number(i.value).toFixed(2)}</span>
-                    <Button size="sm" variant="outline" className="h-7 px-2" aria-label={`Editar ${i.name}`}
+                    <span className="min-w-0 flex-1 basis-full sm:basis-0">{i.name}</span>
+                    <span className="mr-auto font-semibold text-destructive sm:mr-0 sm:w-20 sm:text-right">€{Number(i.value).toFixed(2)}</span>
+                    <Button size="sm" variant="outline" className="h-9 px-3 sm:h-7 sm:px-2" aria-label={`Editar ${i.name}`}
                       onClick={() => { setEditingId(i.id); setEditName(i.name); setEditValue(String(i.value)); setRemovingId(null); }}><Pencil className="h-3 w-3" /></Button>
-                    <Button size="sm" variant="outline" className="h-7 px-2" aria-label={`Remover ${i.name}`}
+                    <Button size="sm" variant="outline" className="h-9 px-3 sm:h-7 sm:px-2" aria-label={`Remover ${i.name}`}
                       onClick={() => { setRemovingId(i.id); setEditingId(null); }}><Trash2 className="h-3 w-3" /></Button>
                   </>
                 )}
               </div>
             ))}
           </div>
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nova multa (descrição)"
-              className="flex-1 min-w-0 px-2 py-1.5 text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
+              className="basis-full sm:basis-0 sm:flex-1 min-w-0 px-2 py-2 text-base sm:py-1.5 sm:text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
             <span className="text-xs text-muted-foreground">€</span>
             <input value={newValue} onChange={e => setNewValue(e.target.value)} placeholder="0,00" inputMode="decimal"
-              className="w-20 px-2 py-1.5 text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
-            <Button size="sm" onClick={addInfraction} disabled={!newName.trim() || !validValue(newValue)} className="gap-1 text-[11px]">
+              className="w-24 px-2 py-2 text-base sm:py-1.5 sm:text-sm bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary" />
+            <Button size="sm" onClick={addInfraction} disabled={!newName.trim() || !validValue(newValue)} className="ml-auto h-10 gap-1 text-xs sm:ml-0 sm:h-8 sm:text-[11px]">
               <Plus className="h-3 w-3" /> Adicionar
             </Button>
           </div>
@@ -262,11 +274,11 @@ export default function MultasPage() {
       {canLaunch && showForm && (
         <div className="bg-card border border-border rounded-lg p-4 space-y-3">
           <h2 className="text-sm font-semibold">Nova Multa</h2>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground uppercase font-medium">Responsável</label>
               <select value={selectedResp} onChange={e => setSelectedResp(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
                 <option value="">Selecionar...</option>
                 {resps.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
@@ -274,7 +286,7 @@ export default function MultasPage() {
             <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground uppercase font-medium">Infração</label>
               <select value={selectedInfraction} onChange={e => setSelectedInfraction(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
                 <option value="">Selecionar...</option>
                 {infractions.map(i => <option key={i.id} value={i.id}>{i.name} — €{i.value.toFixed(2)}</option>)}
               </select>
@@ -282,15 +294,15 @@ export default function MultasPage() {
             <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground uppercase font-medium">Registado por</label>
               <select value={registeredBy} onChange={e => setRegisteredBy(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
                 <option value="">Selecionar...</option>
                 {resps.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
           </div>
-          <div className="flex gap-2 justify-end">
-            <Button size="sm" variant="outline" onClick={() => setShowForm(false)} className="text-[11px]">Cancelar</Button>
-            <Button size="sm" onClick={submitPenalty} disabled={!selectedResp || !selectedInfraction || !registeredBy || submitting} className="text-[11px]">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+            <Button size="sm" variant="outline" onClick={() => setShowForm(false)} className="h-10 text-xs sm:h-8 sm:text-[11px]">Cancelar</Button>
+            <Button size="sm" onClick={submitPenalty} disabled={!selectedResp || !selectedInfraction || !registeredBy || submitting} className="h-10 text-xs sm:h-8 sm:text-[11px]">
               {submitting ? 'A registar...' : 'Confirmar Multa'}
             </Button>
           </div>
@@ -299,7 +311,7 @@ export default function MultasPage() {
 
       {/* Confirm Reset */}
       {isAdmin && confirmReset && (
-        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 flex items-center justify-between">
+        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-destructive" />
             <p className="text-sm">Confirmas o reset do ciclo atual? O histórico é mantido.</p>
@@ -312,8 +324,8 @@ export default function MultasPage() {
       )}
 
       {lastPenalty && (
-        <div className="bg-card border border-border rounded-lg p-4 flex items-center justify-between gap-3">
-          <div className="text-sm">
+        <div className="bg-card border border-border rounded-lg p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm min-w-0">
             <p className="font-semibold">✅ Multa registada</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               {lastPenalty.resp} — {lastPenalty.infraction} — <span className="font-semibold text-destructive">€{lastPenalty.value.toFixed(2)}</span>
@@ -396,14 +408,37 @@ export default function MultasPage() {
         <div className="px-3 py-2 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-[11px] font-semibold text-muted-foreground uppercase">
-              Histórico ({filterResp ? penalties.filter(p => p.resp === filterResp).length : penalties.length})
+              Histórico ({historyRows.length})
             </h2>
             {filterResp && (
               <button onClick={() => setFilterResp(null)} className="text-[10px] text-primary underline">{filterResp} x</button>
             )}
           </div>
         </div>
-        <div className="overflow-auto max-h-[50vh]">
+        {/* Mobile: um cartão por multa */}
+        <ul className="sm:hidden divide-y divide-border max-h-[60vh] overflow-auto">
+          {historyRows.length === 0 && <li className="px-3 py-6 text-center text-xs text-muted-foreground">Sem registos</li>}
+          {historyRows.map(p => (
+            <li key={p.id} className="px-3 py-2.5 space-y-1">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-sm font-semibold">{p.resp}</span>
+                  <span className="text-xs text-muted-foreground"> · {p.infraction_name}</span>
+                </div>
+                <span className="text-sm font-bold text-destructive whitespace-nowrap">€{Number(p.value).toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>{formatDate(new Date(p.created_at))}</span>
+                  <Badge variant="outline" className="text-[9px]">#{p.cycle_id}</Badge>
+                  {p.registered_by && <span>por {p.registered_by}</span>}
+                </span>
+                {isAdmin && deleteControl(p, true)}
+              </div>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden sm:block overflow-auto max-h-[50vh]">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
               <tr className="text-[10px]">
@@ -417,7 +452,7 @@ export default function MultasPage() {
               </tr>
             </thead>
             <tbody>
-              {(filterResp ? penalties.filter(p => p.resp === filterResp) : penalties).map(p => (
+              {historyRows.map(p => (
                 <tr key={p.id} className="text-[11px] border-b border-border hover:bg-muted/50">
                   <td className="px-3 py-1 whitespace-nowrap">{formatDate(new Date(p.created_at))}</td>
                   <td className="px-3 py-1 font-medium">{p.resp}</td>
@@ -426,17 +461,7 @@ export default function MultasPage() {
                   <td className="px-3 py-1"><Badge variant="outline" className="text-[9px]">#{p.cycle_id}</Badge></td>
                   <td className="px-3 py-1 text-muted-foreground">{p.registered_by}</td>
                   {isAdmin && (
-                    <td className="px-3 py-1 text-right whitespace-nowrap">
-                      {deletingPenaltyId === p.id ? (
-                        <span className="inline-flex gap-1">
-                          <Button size="sm" variant="destructive" className="h-6 px-2 text-[10px]" onClick={() => deletePenalty(p.id)}>Remover</Button>
-                          <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => setDeletingPenaltyId(null)}>Não</Button>
-                        </span>
-                      ) : (
-                        <button onClick={() => setDeletingPenaltyId(p.id)} aria-label={`Remover multa de ${p.resp}`}
-                          className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
-                      )}
-                    </td>
+                    <td className="px-3 py-1 text-right whitespace-nowrap">{deleteControl(p, false)}</td>
                   )}
                 </tr>
               ))}
