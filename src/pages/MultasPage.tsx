@@ -6,7 +6,7 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { formatDate } from '@/lib/excel-parser';
+import { formatDate, isRetailType } from '@/lib/excel-parser';
 
 interface Infraction {
   id: string;
@@ -36,6 +36,12 @@ interface Cycle {
 export default function MultasPage() {
   const { data } = useData();
   const { isAdmin } = usePermissions();
+  // Responsáveis = quem tem negócios em Carteira (mesmo critério do tab Carteira).
+  const resps = useMemo(() => Array.from(new Set(
+    (data?.control ?? [])
+      .filter(r => (r.status === 'Carteira' || r.status === 'Matricula') && isRetailType(r.type))
+      .map(r => r.resp).filter(Boolean)
+  )).sort(), [data]);
   const [infractions, setInfractions] = useState<Infraction[]>([]);
   const [penalties, setPenalties] = useState<Penalty[]>([]);
   const [currentCycle, setCurrentCycle] = useState<number>(1);
@@ -57,7 +63,6 @@ export default function MultasPage() {
   const [newValue, setNewValue] = useState('');
   const [removingId, setRemovingId] = useState<string | null>(null);
 
-const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
 
   useEffect(() => { loadData(); }, []);
 
@@ -78,7 +83,7 @@ const resps = ['DG', 'FD', 'FM', 'FS', 'GP', 'JD', 'JP', 'MC', 'SA', "TO"];
     if (!selectedResp || !selectedInfraction) return;
     setSubmitting(true);
     const inf = infractions.find(i => i.id === selectedInfraction);
-    if (!inf) return;
+    if (!inf) { setSubmitting(false); return; }
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from('penalties').insert({
       resp: selectedResp,
