@@ -184,16 +184,22 @@ export default function WipPage() {
     return !!key && selectedMonthKeys.has(key);
   };
 
-  const filtered = useMemo(() => {
+  // Tudo menos o filtro de responsável: alimenta o gráfico por responsável, que
+  // mantém todas as barras visíveis e esbate as não selecionadas.
+  const filteredSemResp = useMemo(() => {
     let result = records ?? [];
     result = result.filter(inPeriod);
-    if (selectedResps.size > 0) result = result.filter(r => selectedResps.has(r.resp || '—'));
     if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
     if (selectedRet !== null) result = result.filter(r => (r.ret > 0) === selectedRet);
     if (selectedFin) result = result.filter(r => selectedFin === 'N/A' ? !r.fin : (r.fin || '').trim().toUpperCase() === selectedFin);
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [records, selectedMonthKeys, selectedResps, selectedStatus, selectedRet, selectedFin]);
+  }, [records, selectedMonthKeys, selectedStatus, selectedRet, selectedFin]);
+
+  const filtered = useMemo(
+    () => selectedResps.size > 0 ? filteredSemResp.filter(r => selectedResps.has(r.resp || '—')) : filteredSemResp,
+    [filteredSemResp, selectedResps],
+  );
 
   // Ordenação da tabela: 1.º clique ascendente, 2.º descendente, 3.º repõe a ordem original.
   const sorted = useMemo(() => {
@@ -221,14 +227,14 @@ export default function WipPage() {
 
   const statusByResp = useMemo(() => {
     const map: Record<string, { resp: string; Fatura: number; Carteira: number; total: number }> = {};
-    filtered.forEach(r => {
+    filteredSemResp.forEach(r => {
       const resp = r.resp || '—';
       if (!map[resp]) map[resp] = { resp, Fatura: 0, Carteira: 0, total: 0 };
       if (r.status === 'FATURA') { map[resp].Fatura++; map[resp].total++; }
       else if (r.status === 'CARTEIRA') { map[resp].Carteira++; map[resp].total++; }
     });
     return Object.values(map).sort((a, b) => b.total - a.total);
-  }, [filtered]);
+  }, [filteredSemResp]);
 
   const kpis = useMemo(() => {
     let faturas = 0, carteira = 0, retails = 0;
@@ -301,6 +307,7 @@ export default function WipPage() {
     const st = e?.value === 'Fatura' ? 'FATURA' : e?.value === 'Carteira' ? 'CARTEIRA' : null;
     if (st) setSelectedStatus(prev => prev === st ? null : st);
   };
+  const respDimmed = (resp: string) => selectedResps.size > 0 && !selectedResps.has(resp);
   const toggleResp = (resp: string) => {
     setSelectedResps(prev => { const n = new Set(prev); if (n.has(resp)) n.delete(resp); else n.add(resp); return n; });
   };
@@ -443,7 +450,7 @@ export default function WipPage() {
               <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Faturas / Carteira por responsável</h2>
-                  <span className="text-sm font-bold text-primary tabular-nums">{statusByResp.reduce((s, r) => s + r.total, 0)}</span>
+                  <span className="text-sm font-bold text-primary tabular-nums">{statusByResp.reduce((s, r) => s + (respDimmed(r.resp) ? 0 : r.total), 0)}</span>
                 </div>
                 {statusByResp.length === 0 ? (
                   <p className="py-8 text-center text-xs text-muted-foreground">Sem registos no período.</p>
@@ -456,7 +463,10 @@ export default function WipPage() {
                           if (resp) handleRespClick(resp, !!(event?.ctrlKey || event?.metaKey));
                         }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="resp" tick={{ fontSize: 11, cursor: 'pointer' }} />
+                        <XAxis dataKey="resp" tick={({ x, y, payload }: { x: number; y: number; payload: { value: string } }) => (
+                          <text x={x} y={y + 12} textAnchor="middle" fontSize={11} cursor="pointer" fill="hsl(var(--foreground))"
+                            opacity={respDimmed(payload.value) ? 0.35 : 1} fontWeight={selectedResps.has(payload.value) ? 'bold' : 'normal'}>{payload.value}</text>
+                        )} />
                         <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                         <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                         <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
@@ -464,8 +474,11 @@ export default function WipPage() {
                             const st = value.toUpperCase();
                             return <span style={{ opacity: selectedStatus && selectedStatus !== st ? 0.3 : 1, fontWeight: selectedStatus === st ? 'bold' : 'normal' }}>{value}</span>;
                           }} />
-                        <Bar dataKey="Fatura" stackId="a" fill={FATURA_COLOR} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'FATURA' ? 0.2 : 1} />
+                        <Bar dataKey="Fatura" stackId="a" fill={FATURA_COLOR} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'FATURA' ? 0.2 : 1}>
+                          {statusByResp.map(d => <Cell key={d.resp} fill={FATURA_COLOR} opacity={respDimmed(d.resp) ? 0.2 : 1} />)}
+                        </Bar>
                         <Bar dataKey="Carteira" stackId="a" fill={CARTEIRA_COLOR} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'CARTEIRA' ? 0.2 : 1}>
+                          {statusByResp.map(d => <Cell key={d.resp} fill={CARTEIRA_COLOR} opacity={respDimmed(d.resp) ? 0.2 : 1} />)}
                           <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                         </Bar>
                       </BarChart>
