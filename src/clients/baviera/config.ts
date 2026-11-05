@@ -38,6 +38,11 @@ const config: ClientConfig = {
     to: ['sonia.carvalho@caetano.pt', 'lurdes.aguiar@caetano.pt'],
     cc: ['jose.mesquita@caetano.pt', 'joaocarlos.duarte@caetano.pt'],
   },
+  // Entrar com Microsoft: preencher `microsoft` com o Client ID e o Tenant ID da app registada
+  // no Entra (ou definir VITE_MS_CLIENT_ID e VITE_MS_TENANT_ID no build).
+  emailSync: {
+    plateSenders: ['alexandre.ferreira@caetano.pt'],
+  },
   disabledTabs: [],
   // Já está em app_access_exceptions (migração 20261003100000); isto só vale
   // enquanto a base de dados não a tiver. Remover depois de aplicada.

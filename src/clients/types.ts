@@ -41,6 +41,14 @@ export interface ClientConfig {
   locais?: { nome: string; aliases?: string[] }[];
   /** Destinatários do pedido de matrícula (texto copiado para email). */
   matricula: { to: string[]; cc: string[] };
+  /** Sincronização VN com o email (botão "Sincronizar"). */
+  emailSync?: {
+    /** Quem envia o email diário "Matriculas - Aveiro" (vazio = qualquer remetente). */
+    plateSenders: string[];
+    /** Entrar com Microsoft (lê a caixa de quem está a usar, só leitura). Os dois valores são
+     *  públicos (não são segredos). Podem vir de VITE_MS_CLIENT_ID / VITE_MS_TENANT_ID. */
+    microsoft?: { clientId: string; tenantId: string };
+  };
   /** TEMPORÁRIO. Exceções de acesso por email que passaram para a tabela
    *  app_access_exceptions; só se usam enquanto a função my_access_exceptions não
    *  existir na base de dados. Remover depois de aplicadas as migrações. */

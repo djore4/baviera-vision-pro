@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { supabase } from '@/integrations/supabase/client';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { client } from '@/clients';
+import { getMsConfig, obterTokenMs } from '@/lib/ms-auth';
+import { gravarAlteracoes, lerCaixa, paraRegistosVN, planear } from '@/lib/email-sync-browser';
+import type { Alteracao } from '../../supabase/functions/_shared/matriculas-email';
 
 interface Detalhe { id: string; enc: string; cliente: string; campos: { campo: string; de: string; para: string }[] }
 interface Resposta {
@@ -75,7 +79,9 @@ async function chamar(simular: boolean): Promise<Resposta> {
  */
 export default function SincronizarMatriculasButton({ className }: { className?: string }) {
   const { isAdmin } = usePermissions();
-  const { refresh } = useData();
+  const { data, refresh } = useData();
+  // Como gravar o que a pré-visualização mostrou (depende da fonte: browser ou servidor).
+  const gravarRef = useRef<(() => Promise<Resposta>) | null>(null);
   const [busy, setBusy] = useState(false);
   const [previa, setPrevia] = useState<Resposta | null>(null);
   const [feito, setFeito] = useState<Resposta | null>(null);
@@ -83,10 +89,34 @@ export default function SincronizarMatriculasButton({ className }: { className?:
 
   const erro = (err: unknown) => toast.error('Não foi possível sincronizar', { description: err instanceof Error ? err.message : undefined });
 
+  /** Com Microsoft configurada lê-se a caixa de quem está a usar (no browser); senão, pela função do servidor. */
+  const preparar = async (): Promise<Resposta> => {
+    if (getMsConfig()) {
+      const token = await obterTokenMs();
+      const { mensagens, diarios } = await lerCaixa(token, DIAS, client.emailSync?.plateSenders ?? []);
+      const { previa: p, alteracoes } = planear(mensagens, diarios, paraRegistosVN(data?.control ?? []));
+      gravarRef.current = async () => {
+        const g = await gravarAlteracoes(alteracoes as Alteracao[]);
+        if (g.falhadas.length > 0) throw new Error(`${g.aplicadas} gravadas, ${g.falhadas.length} falharam: ${g.falhadas[0]}`);
+        return p;
+      };
+      return p;
+    }
+    gravarRef.current = () => chamar(false);
+    try {
+      return await chamar(true);
+    } catch (e) {
+      const m = e instanceof Error ? e.message : '';
+      // Sem segredos no servidor e sem ligação Microsoft: diz como usar o email de quem está a usar.
+      if (/não configurada/i.test(m)) throw new Error(`${m} Em alternativa, configura o Client ID e o Tenant ID da Microsoft para ler o teu próprio email (ver supabase/README.md).`);
+      throw e;
+    }
+  };
+
   const sincronizar = async () => {
     setBusy(true);
     try {
-      const r = await chamar(true);
+      const r = await preparar();
       if ((r.detalhes ?? []).length === 0 && r.totalIgnoradas === 0) {
         toast.success('Tudo em dia', { description: `Nada para atualizar (${r.mensagens} emails lidos).` });
       } else {
@@ -102,7 +132,7 @@ export default function SincronizarMatriculasButton({ className }: { className?:
   const gravar = async () => {
     setBusy(true);
     try {
-      const r = await chamar(false);
+      const r = await (gravarRef.current ?? (() => chamar(false)))();
       setPrevia(null);
       setFeito(r); // popup "Dados importados"
       await refresh();

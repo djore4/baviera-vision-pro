@@ -7,12 +7,26 @@ let ADMIN = true;
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { functions: { invoke: (...a: unknown[]) => invoke(...a) } } }));
 vi.mock('@/contexts/DataContext', () => ({ useData: () => ({ refresh }) }));
 vi.mock('@/contexts/PermissionsContext', () => ({ usePermissions: () => ({ isAdmin: ADMIN }) }));
+let MS: unknown = null;
+const obterTokenMs = vi.fn(async () => 'tok');
+vi.mock('@/lib/ms-auth', () => ({ getMsConfig: () => MS, obterTokenMs: () => obterTokenMs() }));
+const lerCaixa = vi.fn();
+const gravarAlteracoes = vi.fn();
+vi.mock('@/lib/email-sync-browser', () => ({
+  lerCaixa: (...a: unknown[]) => lerCaixa(...a),
+  paraRegistosVN: () => [],
+  planear: () => ({
+    alteracoes: [{ id: '1', mat: 'AA-26-BB' }],
+    previa: { mensagens: 4, pedidas: 0, matriculas: 1, chassis: 0, datas: 0, totalIgnoradas: 0, ignoradas: [], detalhes: [{ id: '1', enc: '9710001', cliente: 'Cliente Um', campos: [{ campo: 'Matrícula', de: '—', para: 'AA-26-BB' }] }] },
+  }),
+  gravarAlteracoes: (...a: unknown[]) => gravarAlteracoes(...a),
+}));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import SincronizarMatriculasButton, { resumoSync } from '@/components/SincronizarMatriculasButton';
 import { toast } from 'sonner';
 
-beforeEach(() => { invoke.mockReset(); refresh.mockClear(); ADMIN = true; });
+beforeEach(() => { invoke.mockReset(); refresh.mockClear(); ADMIN = true; MS = null; obterTokenMs.mockClear(); lerCaixa.mockReset(); gravarAlteracoes.mockReset(); });
 
 describe('Sincronizar matrículas', () => {
   it('só o administrador vê o botão', () => {
@@ -85,3 +99,40 @@ describe('Sincronizar matrículas', () => {
     expect(resumoSync({ pedidas: 0, matriculas: 1, chassis: 2, datas: 1, totalIgnoradas: 0, mensagens: 4 })).toBe('0 pedidos confirmados · 1 matrícula preenchida · 2 chassis completos · 1 DMAT atualizada (4 emails lidos).');
   });
 });
+
+describe('Sincronizar com a Microsoft (email de quem está a usar)', () => {
+  beforeEach(() => { MS = { clientId: 'c', tenantId: 't' }; lerCaixa.mockResolvedValue({ mensagens: [], diarios: [] }); });
+
+  it('lê o email no browser (sem passar pela função), mostra o que muda e grava só depois de confirmar', async () => {
+    gravarAlteracoes.mockResolvedValue({ aplicadas: 1, falhadas: [] });
+    render(<SincronizarMatriculasButton />);
+    fireEvent.click(screen.getByRole('button', { name: /Sincronizar/ }));
+    await screen.findByText('Sincronizar com o email');
+    expect(obterTokenMs).toHaveBeenCalled();
+    expect(lerCaixa).toHaveBeenCalledWith('tok', 30, expect.any(Array));
+    expect(invoke).not.toHaveBeenCalled();
+    expect(gravarAlteracoes).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Gravar 1 alteração/ }));
+    await screen.findByText('Dados importados');
+    expect(gravarAlteracoes).toHaveBeenCalledWith([{ id: '1', mat: 'AA-26-BB' }]);
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it('se o início de sessão falhar mostra a razão e não lê nem grava nada', async () => {
+    obterTokenMs.mockRejectedValueOnce(new Error('O browser bloqueou a janela da Microsoft'));
+    render(<SincronizarMatriculasButton />);
+    fireEvent.click(screen.getByRole('button', { name: /Sincronizar/ }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Não foi possível sincronizar', { description: expect.stringMatching(/bloqueou/) }));
+    expect(lerCaixa).not.toHaveBeenCalled();
+  });
+
+  it('sem ligação Microsoft e sem segredos no servidor, explica a alternativa', async () => {
+    MS = null;
+    invoke.mockResolvedValue({ data: { error: 'Sincronização não configurada: faltam os segredos' }, error: null });
+    render(<SincronizarMatriculasButton />);
+    fireEvent.click(screen.getByRole('button', { name: /Sincronizar/ }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Não foi possível sincronizar', { description: expect.stringMatching(/Client ID e o Tenant ID/) }));
+  });
+});
+
