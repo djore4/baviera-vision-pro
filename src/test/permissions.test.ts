@@ -4,7 +4,7 @@ const rpc = vi.fn();
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
 
 import {
-  getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS, restritoPeloLocal, tabLivreForaDoLocal,
+  getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS, ARCHIVED_TAB_KEYS, restritoPeloLocal, tabLivreForaDoLocal,
 } from '@/lib/permissions';
 
 beforeEach(() => { rpc.mockReset(); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
@@ -69,6 +69,14 @@ describe('permissões finas (SUB_PERMISSIONS)', () => {
     const keys = SUB_PERMISSIONS.map(sp => sp.key);
     expect(new Set(keys).size).toBe(keys.length);
     for (const k of keys) expect(PERMISSION_TABS.some(t => t.key === k)).toBe(false);
+  });
+
+  it('as Multas estão em Vendas VN, só admin, fora do Arquivo e da matriz', () => {
+    const multas = TABS.find(t => t.key === 'multas');
+    expect(multas?.area).toBe('vn');
+    expect(multas?.adminOnly).toBe(true);
+    expect(ARCHIVED_TAB_KEYS).not.toContain('multas');
+    expect(PERMISSION_TABS.some(t => t.key === 'multas')).toBe(false);
   });
 
   it('o Diário está arquivado: fora da matriz, só admin, no Arquivo', () => {
