@@ -190,6 +190,33 @@ para essas versões (ou `supabase migration repair`).
 aplicada**: a página Empréstimos escreve `responsavel_interno` e falhava ao
 guardar. A migração `20261003160000` acrescenta a coluna.
 
+## Sincronizar com o email: entrar com a conta Microsoft (sem IT)
+
+O botão **Sincronizar** (WIP, Produção, Carteira; só administradores) pode ler o email **de quem
+está a usar a plataforma**, no próprio browser, com o consentimento dessa pessoa (Microsoft Graph,
+permissão delegada `Mail.Read`, só leitura). Não precisa de segredo, de política do Exchange nem de
+consentimento de administrador, se o tenant deixar cada utilizador registar/consentir a app.
+Os emails não passam por nenhum servidor nosso: lêem-se no browser e só os campos atualizados
+(matrícula, chassis, DMAT, pedido confirmado) vão para a base de dados.
+
+Registar a app uma vez (portal Microsoft Entra, https://entra.microsoft.com):
+
+1. *Identity → Applications → App registrations → New registration*. Nome livre; "Accounts in this
+   organizational directory only". Em *Redirect URI* escolher **Single-page application (SPA)** e
+   indicar `https://<endereço-do-site>/ms-redirect.html` (o mesmo endereço que se usa no browser;
+   para testar em local, `http://localhost:8080/ms-redirect.html`). Se o endereço estiver errado,
+   a plataforma mostra qual é o que tem de estar registado.
+2. Em *Overview*, copiar o **Application (client) ID** e o **Directory (tenant) ID**.
+3. *API permissions → Add a permission → Microsoft Graph → Delegated → `Mail.Read`*.
+4. Indicar os dois valores (públicos, não são segredos) em `emailSync.microsoft` no
+   `src/clients/<cliente>/config.ts`, ou nas variáveis de build `VITE_MS_CLIENT_ID` e
+   `VITE_MS_TENANT_ID`.
+
+Na primeira vez a Microsoft abre uma janela para iniciar sessão e aceitar a leitura do email; se o
+browser bloquear pop-ups é preciso permiti-los. Se o tenant exigir aprovação da IT (mensagem
+"A tua organização exige aprovação da IT"), esta via não funciona sem ela e fica a alternativa do
+servidor (função `sync-matriculas`, acima). Sem `emailSync.microsoft` o botão usa a função.
+
 ## Criar um cliente novo
 
 Um projeto Supabase por cliente (região UE).
