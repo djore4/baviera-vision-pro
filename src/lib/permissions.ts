@@ -63,9 +63,9 @@ const ALL_TABS: TabDef[] = [
   // Parque de demonstradores (dados partilhados com a plataforma Caetano —
   // tabela `viaturas`). Acesso pela matriz de funções (ex.: perfil genius).
   { key: 'demos', label: 'Demos', path: '/demos', area: 'vn' },
-  // Multas de equipa: de volta a Vendas VN, "para já" só visível para o admin
-  // (para abrir a mais funções, retirar adminOnly e atribuir na matriz).
-  { key: 'multas', label: 'Multas', path: '/multas', area: 'vn', adminOnly: true },
+  // Multas de equipa. 'view': consulta; 'edit': lança multas. Gerir o catálogo, reiniciar o
+  // ciclo e apagar multas lançadas é só do administrador (UI e RLS: migração multas_gestao_admin).
+  { key: 'multas', label: 'Multas', path: '/multas', area: 'vn' },
   // ── Vendas VU (em desenvolvimento) ──────────────────────────────────────────
   { key: 'wip', label: 'WIP', path: '/wip', area: 'vu' },
   { key: 'funil-vu', label: 'Funil', path: '/funil-vu', area: 'vu' },

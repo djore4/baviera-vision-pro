@@ -35,7 +35,8 @@ interface Cycle {
 
 export default function MultasPage() {
   const { data } = useData();
-  const { isAdmin } = usePermissions();
+  const { isAdmin, canEdit } = usePermissions();
+  const canLaunch = canEdit('multas');
   // Responsáveis = quem tem negócios em Carteira (mesmo critério do tab Carteira).
   const resps = useMemo(() => Array.from(new Set(
     (data?.control ?? [])
@@ -62,6 +63,7 @@ export default function MultasPage() {
   const [newName, setNewName] = useState('');
   const [newValue, setNewValue] = useState('');
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [deletingPenaltyId, setDeletingPenaltyId] = useState<string | null>(null);
 
 
   useEffect(() => { loadData(); }, []);
@@ -134,6 +136,14 @@ export default function MultasPage() {
     await loadData();
   }
 
+  async function deletePenalty(id: string) {
+    const { data: removed, error } = await supabase.from('penalties').delete().eq('id', id).select('id');
+    if (error || !removed?.length) { toast.error('Não foi possível remover a multa lançada'); return; }
+    setDeletingPenaltyId(null);
+    toast.success('Multa lançada removida');
+    await loadData();
+  }
+
   async function doReset() {
     const newCycleId = currentCycle + 1;
     await supabase.from('penalty_cycles').update({ ended_at: new Date().toISOString() }).eq('id', currentCycle);
@@ -181,12 +191,16 @@ export default function MultasPage() {
               <Settings2 className="h-3 w-3" /> Gerir Multas
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={() => setConfirmReset(true)} className="gap-1 text-[11px]">
-            <RotateCcw className="h-3 w-3" /> Reset Ciclo
-          </Button>
-          <Button size="sm" onClick={() => setShowForm(!showForm)} className="gap-1 text-[11px]">
-            <Plus className="h-3 w-3" /> Registar Multa
-          </Button>
+          {isAdmin && (
+            <Button size="sm" variant="outline" onClick={() => setConfirmReset(true)} className="gap-1 text-[11px]">
+              <RotateCcw className="h-3 w-3" /> Reset Ciclo
+            </Button>
+          )}
+          {canLaunch && (
+            <Button size="sm" onClick={() => setShowForm(!showForm)} className="gap-1 text-[11px]">
+              <Plus className="h-3 w-3" /> Registar Multa
+            </Button>
+          )}
         </div>
       </div>
 
@@ -245,7 +259,7 @@ export default function MultasPage() {
       )}
 
       {/* Formulário */}
-      {showForm && (
+      {canLaunch && showForm && (
         <div className="bg-card border border-border rounded-lg p-4 space-y-3">
           <h2 className="text-sm font-semibold">Nova Multa</h2>
           <div className="grid grid-cols-3 gap-3">
@@ -284,7 +298,7 @@ export default function MultasPage() {
       )}
 
       {/* Confirm Reset */}
-      {confirmReset && (
+      {isAdmin && confirmReset && (
         <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-destructive" />
@@ -399,6 +413,7 @@ export default function MultasPage() {
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Valor</th>
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Ciclo</th>
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Registado por</th>
+                {isAdmin && <th className="px-3 py-2 w-24" />}
               </tr>
             </thead>
             <tbody>
@@ -410,6 +425,19 @@ export default function MultasPage() {
                   <td className="px-3 py-1 font-semibold text-destructive">€{Number(p.value).toFixed(2)}</td>
                   <td className="px-3 py-1"><Badge variant="outline" className="text-[9px]">#{p.cycle_id}</Badge></td>
                   <td className="px-3 py-1 text-muted-foreground">{p.registered_by}</td>
+                  {isAdmin && (
+                    <td className="px-3 py-1 text-right whitespace-nowrap">
+                      {deletingPenaltyId === p.id ? (
+                        <span className="inline-flex gap-1">
+                          <Button size="sm" variant="destructive" className="h-6 px-2 text-[10px]" onClick={() => deletePenalty(p.id)}>Remover</Button>
+                          <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => setDeletingPenaltyId(null)}>Não</Button>
+                        </span>
+                      ) : (
+                        <button onClick={() => setDeletingPenaltyId(p.id)} aria-label={`Remover multa de ${p.resp}`}
+                          className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

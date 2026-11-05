@@ -696,6 +696,38 @@ select t.check('demos_viaturas/anon: sem execute', t.dml($q$ select * from publi
 select t.back();
 commit;
 
+-- ── Multas: lançar (edit) vs gerir (admin) ──────────────────────────────────
+insert into public.app_roles (name, is_admin, permissions) values
+  ('Multas edit', false, '{"multas": "edit"}'), ('Multas view', false, '{"multas": "view"}');
+insert into public.app_users (nome, email, perfil) values
+  ('Multas E', 'multase@x.pt', 'Multas edit'), ('Multas V', 'multasv@x.pt', 'Multas view');
+begin;
+select t.as_user('multase@x.pt');
+select t.check('multas/edit: lê', t.n('penalties') > 0 and t.n('infractions') > 0);
+select t.check('multas/edit: lança multas', t.can_insert('penalties'));
+select t.check('multas/edit: NÃO gere infrações', not t.can_insert('infractions')
+  and t.dml($q$ update public.infractions set value = 99 $q$) = 0);
+select t.check('multas/edit: NÃO reinicia ciclo', not t.can_insert('penalty_cycles')
+  and t.dml($q$ update public.penalty_cycles set notes = 'x' $q$) = 0);
+select t.check('multas/edit: NÃO apaga nem altera multas',
+  t.dml($q$ delete from public.penalties $q$) = 0 and t.dml($q$ update public.penalties set value = 0 $q$) = 0);
+select t.back();
+commit;
+begin;
+select t.as_user('multasv@x.pt');
+select t.check('multas/view: lê mas não escreve', t.n('penalties') > 0 and not t.can_insert('penalties'));
+select t.back();
+commit;
+begin;
+select t.as_user('admin_role@x.pt');
+select t.check('multas/admin: gere infrações, ciclo e multas',
+  t.can_insert('infractions') and t.can_insert('penalty_cycles') and t.can_insert('penalties')
+  and t.dml($q$ update public.infractions set value = value $q$) > 0
+  and t.dml($q$ delete from public.penalties where false $q$) = 0
+  and t.dml($q$ delete from public.penalties $q$) > 0);
+select t.back();
+commit;
+
 -- ── Resultado ───────────────────────────────────────────────────────────────
 do $$
 declare total int := (select count(*) from t.results);
