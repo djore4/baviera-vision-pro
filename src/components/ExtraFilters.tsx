@@ -27,13 +27,12 @@ export function ParkFilter({ active, count, onToggle }: { active: boolean; count
       type="button"
       onClick={onToggle}
       aria-pressed={active}
-      className={`w-full flex items-center justify-between gap-2 rounded-lg border p-2.5 transition-all ${active ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-background hover:bg-accent'}`}
+      aria-label="Em Parque"
+      title="Em Parque"
+      className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 transition-all ${active ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-background hover:bg-accent'}`}
     >
-      <div className="flex items-center gap-2">
-        <ParkingCircle className={`h-4 w-4 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
-        <span className="text-[11px] font-semibold uppercase">Em Parque</span>
-      </div>
-      <Badge variant={active ? 'default' : 'secondary'} className="text-[10px]">{count}</Badge>
+      <ParkingCircle className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
+      <Badge variant={active ? 'default' : 'secondary'} className="px-1.5 py-0 text-[10px]">{count}</Badge>
     </button>
   );
 }
@@ -44,10 +43,8 @@ export function ExtraFilters({ s, parkCount, layout = 'column' }: { s: ExtraFilt
   const item = bar ? 'w-40' : '';
   return (
     <div className={bar ? 'flex flex-wrap items-end gap-x-4 gap-y-2' : 'space-y-2'}>
-      <div className={bar ? 'w-40' : ''}>
-        <ParkFilter active={s.park} count={parkCount} onToggle={() => s.setPark(!s.park)} />
-      </div>
-      <RetomaFilter value={s.ret} onChange={s.setRet} className={item} />
+      <RetomaFilter value={s.ret} onChange={s.setRet} className={item}
+        labelAction={<ParkFilter active={s.park} count={parkCount} onToggle={() => s.setPark(!s.park)} />} />
       <TipoFilter value={s.types} onChange={s.setTypes} className={item} />
       <GarantiaFilter value={s.gar} onChange={s.setGar} className={item} />
       <FlagsFilter className={item} flags={[

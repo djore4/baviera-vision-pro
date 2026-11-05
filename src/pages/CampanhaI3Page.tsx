@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, CalendarCheck, Clock, Download, Inbox, Loader2, Megaphone, PhoneCall, RefreshCw, Search,
+  AlertTriangle, CalendarCheck, Clock, Download, Flame, Inbox, Loader2, Megaphone, PhoneCall, RefreshCw, Search,
   Shuffle, Trophy, Upload, UserCheck, UserX,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -16,12 +16,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { useData } from '@/contexts/DataContext';
+import { useRecordEditor } from '@/components/RecordEditor';
+import { vendedorInitials } from '@/lib/team';
 import { ImportDialog } from '@/components/campanha-i3/ImportDialog';
 import { DistribuirDialog } from '@/components/campanha-i3/DistribuirDialog';
 import { LeadSheet } from '@/components/campanha-i3/LeadSheet';
 import {
   ESTADOS, TAB_KEY, assignLeads, deleteLeads, diasDesde, estadoDef, exportLeads, filtrar, fmtDia, hojeIso, isAtrasada, isParada,
-  kpis, listLeads, listVendedores, polosUsados, resumoPorVendedor, telHref,
+  kpis, listLeads, listVendedores, polosUsados, presetNegocioQuente, pontoComNegocio, resumoPorVendedor, telHref, updateAcompanhamento,
   type Lead, type LeadFiltro, type Vendedor,
 } from '@/lib/campanha-i3';
 
@@ -48,6 +51,10 @@ const PRESETS: Record<Preset, Pick<LeadFiltro, 'estado' | 'quick'> & { owner?: s
 export default function CampanhaI3Page() {
   const { isAdmin, canEdit, effectiveEmail } = usePermissions();
   const editable = canEdit(TAB_KEY);
+  // Criar um negócio escreve em control_records: só quem edita Dados ou Database (como o "Novo negócio" do Funil).
+  const podeCriarNegocio = canEdit('dados') || canEdit('database');
+  const { openNew } = useRecordEditor();
+  const { data: dadosApp } = useData();
 
   const [all, setAll] = useState<Lead[]>([]);
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
@@ -105,6 +112,17 @@ export default function CampanhaI3Page() {
   const upsertLocal = (updated: Lead[]) => {
     const m = new Map(updated.map(l => [l.id, l]));
     setAll(list => list.map(l => m.get(l.id) ?? l));
+  };
+
+  /* Transformar a oportunidade num negócio quente: abre o editor de "Novo negócio" já preenchido e,
+   * quando o negócio é gravado, deixa o registo no ponto de situação da oportunidade. */
+  const negocioQuente = (l: Lead) => {
+    const iniciais = vendedorInitials(dadosApp?.control ?? []);
+    openNew(presetNegocioQuente(l, hoje, iniciais), () => {
+      updateAcompanhamento(l.id, { ponto_situacao: pontoComNegocio(l.ponto_situacao, hoje) })
+        .then(nova => { upsertLocal([nova]); toast.success('Negócio quente criado e registado na oportunidade.'); })
+        .catch(() => toast.error('O negócio foi criado, mas não consegui registá-lo no ponto de situação desta oportunidade.'));
+    });
   };
 
   const isPreset = (p: Preset) => {
@@ -335,6 +353,7 @@ export default function CampanhaI3Page() {
                 <th className="px-3 py-2">Estado</th>
                 <th className="hidden px-3 py-2 xl:table-cell">Ponto de situação</th>
                 <th className="px-3 py-2">Próx. contacto</th>
+                {podeCriarNegocio && <th className="px-3 py-2"><span className="sr-only">Negócio</span></th>}
               </tr>
             </thead>
             <tbody>
@@ -380,6 +399,14 @@ export default function CampanhaI3Page() {
                       {l.proximo_contacto ? fmtDia(l.proximo_contacto) : '—'}
                       {atrasada && ` (há ${diasDesde(l.proximo_contacto as string)} d)`}
                     </td>
+                    {podeCriarNegocio && (
+                      <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                        <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-500/10"
+                          aria-label={`Negócio quente: ${l.nome}`} title="Transformar em negócio quente" onClick={() => negocioQuente(l)}>
+                          <Flame className="h-3.5 w-3.5" /><span className="hidden lg:inline">Negócio quente</span>
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -391,6 +418,7 @@ export default function CampanhaI3Page() {
 
       <LeadSheet
         lead={open} canEdit={editable} isAdmin={isAdmin}
+        onNegocioQuente={podeCriarNegocio ? negocioQuente : undefined}
         onClose={() => setOpenId(null)}
         onSaved={l => upsertLocal([l])}
         onDelete={l => void apagar([l.id])}

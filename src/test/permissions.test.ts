@@ -131,10 +131,12 @@ describe('restrição por local', () => {
     expect(restritoPeloLocal({ local: ['Porto', 'Aveiro'] })).toBe(false);
     expect(restritoPeloLocal({ local: 'Caetano Aveiro 2' })).toBe(false);
     expect(restritoPeloLocal({ local: ['Porto'] })).toBe(true);
-    expect(restritoPeloLocal({ local: ['Todas'] })).toBe(true);
-    expect(restritoPeloLocal({ local: [] })).toBe(true);
-    expect(restritoPeloLocal({ local: null })).toBe(true);
-    expect(restritoPeloLocal(null)).toBe(true);
+    expect(restritoPeloLocal({ local: ['Gaia', 'Feira'] })).toBe(true);
+    // sem local (ou sem nenhum reconhecido) não há restrição: segue-se a função
+    expect(restritoPeloLocal({ local: ['Todas'] })).toBe(false);
+    expect(restritoPeloLocal({ local: [] })).toBe(false);
+    expect(restritoPeloLocal({ local: null })).toBe(false);
+    expect(restritoPeloLocal(null)).toBe(false);
   });
 
   it('o End-of-Term e as suas permissões escapam; o resto não', () => {

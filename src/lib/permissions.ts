@@ -76,6 +76,9 @@ const ALL_TABS: TabDef[] = [
   { key: 'objetivos', label: 'Objetivos', path: '/objetivos', area: 'apv' },
   // Catálogo BMW (dados técnicos e opcionais), migrado da plataforma Caetano.
   { key: 'produto', label: 'Produto', path: '/produto', area: 'apv' },
+  // Linha do tempo dos eventos de marketing. 'view': consulta e gere só os seus convidados;
+  // 'edit': gere eventos, todos os convidados e o orçamento (RLS: migração marketing_acessos).
+  { key: 'marketing', label: 'Marketing', path: '/marketing', area: 'apv' },
   // ── Administração ───────────────────────────────────────────────────────────
   { key: 'dados', label: 'Dados', path: '/dados', area: 'admin' },
   { key: 'arquivo', label: 'Arquivo', path: '/arquivo', area: 'admin' },
@@ -167,17 +170,21 @@ export interface AppRole {
 }
 
 /* ── Restrição por local ─────────────────────────────────────────────────────
- * Quem não tem o local LOCAL_ACESSO_COMPLETO em app_users.local (inclui quem não tem
- * local definido) só vê o tab End-of-Term (e as suas permissões `end-of-term:*`), com o
- * nível que a função já lhe dá — esta regra só retira acesso, nunca o dá. Administradores
- * e exceções por email (app_access_exceptions) ficam de fora.
- * É uma regra da INTERFACE: a RLS da base de dados continua a seguir só a matriz de funções.
+ * Quem opera só em locais que não incluem LOCAL_ACESSO_COMPLETO (app_users.local) só vê o
+ * tab End-of-Term (e as suas permissões `end-of-term:*`), com o nível que a função já lhe
+ * dá — esta regra só retira acesso, nunca o dá. Sem local definido (ou sem nenhum local
+ * reconhecido) não há restrição: segue-se a função. Todas as contas devem ter local (o tab
+ * Utilizadores assinala as que faltam). Administradores e exceções por email ficam de fora.
+ * É uma regra da INTERFACE: a RLS da base de dados continua a seguir só a matriz de funções
+ * (exceto o Marketing, ver marketing_local_ok).
  * ──────────────────────────────────────────────────────────────────────────── */
 export const LOCAL_ACESSO_COMPLETO = 'Aveiro';
 export const TAB_FORA_DO_LOCAL = 'end-of-term';
 
-export const restritoPeloLocal = (user: { local?: unknown } | null | undefined): boolean =>
-  !locaisDoPerfil(user?.local).includes(LOCAL_ACESSO_COMPLETO);
+export const restritoPeloLocal = (user: { local?: unknown } | null | undefined): boolean => {
+  const locais = locaisDoPerfil(user?.local);
+  return locais.length > 0 && !locais.includes(LOCAL_ACESSO_COMPLETO);
+};
 
 /** Este tab (ou permissão `tab:ação`) continua disponível a quem está fora do local? */
 export const tabLivreForaDoLocal = (tab: string): boolean =>
@@ -271,14 +278,28 @@ export class AdminError extends Error {
   constructor(message: string, public code?: string) { super(message); this.name = 'AdminError'; }
 }
 
-async function invokeAdmin<T = unknown>(body: Record<string, unknown>): Promise<T> {
+/* Sessão terminada: o token que o browser ainda tem já não corresponde a uma sessão ativa
+ * (entrou-se noutro separador ou dispositivo, ou a sessão foi revogada). A interface
+ * continua a ler dados enquanto o token não expira, mas as operações de administração
+ * validam a sessão a sério e respondem 401. */
+export const SESSAO_TERMINADA = 'A tua sessão terminou (entraste noutro separador ou dispositivo, ou expirou). Sai e volta a entrar; depois repete a operação.';
+
+async function invokeAdmin<T = unknown>(body: Record<string, unknown>, jaRenovou = false): Promise<T> {
   const { data, error } = await supabase.functions.invoke('admin-users', { body });
   if (error) {
+    const ctx = (error as { context?: Response }).context;
+    if (ctx?.status === 401) {
+      // Token expirado: renova-se uma vez e repete-se. Se não der, a sessão acabou mesmo.
+      if (!jaRenovou) {
+        const { data: renovada, error: rErr } = await supabase.auth.refreshSession();
+        if (!rErr && renovada?.session) return invokeAdmin<T>(body, true);
+      }
+      throw new AdminError(SESSAO_TERMINADA, 'session_expired');
+    }
     let msg = error.message;
     let code: string | undefined;
     // A edge function devolve { error, code? } em respostas não-2xx.
     try {
-      const ctx = (error as { context?: Response }).context;
       const parsed = ctx && typeof ctx.json === 'function' ? await ctx.json() : null;
       if (parsed?.error) msg = parsed.error;
       if (typeof parsed?.code === 'string') code = parsed.code;

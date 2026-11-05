@@ -1,20 +1,27 @@
+import type { ReactNode } from 'react';
+
 /**
  * Filtros segmentados da coluna da esquerda (WIP, etc.). O segmento ativo fica
  * destacado, por isso o estado (incluindo "Todos") é sempre explícito, ao contrário
  * de botões soltos.
  */
-export function SegmentedFilter<T>({ label, options, value, onChange, className = '' }: {
+export function SegmentedFilter<T>({ label, options, value, onChange, className = '', labelAction }: {
   label: string;
   options: { label: string; value: T }[];
   value: T;
   onChange: (v: T) => void;
   className?: string;
+  /** Controlo compacto à direita do rótulo (aproveita a linha do título). */
+  labelAction?: ReactNode;
 }) {
   return (
     <div className={className}>
-      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
+      <div className="mb-1 flex min-h-[20px] items-center justify-between gap-2">
+        <span className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
+        {labelAction}
+      </div>
       <div className="grid w-full gap-0.5 rounded-lg bg-muted p-0.5" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
         {options.map((o) => {
           const active = value === o.value;
@@ -40,29 +47,31 @@ export function SegmentedFilter<T>({ label, options, value, onChange, className 
 }
 
 /** Tri-estado: null = Todos (sem filtro), true = sim/com, false = não/sem. */
-export function TriStateFilter({ label, value, onChange, yes = 'Sim', no = 'Não', className }: {
+export function TriStateFilter({ label, value, onChange, yes = 'Sim', no = 'Não', className, labelAction }: {
   label: string;
   value: boolean | null;
   onChange: (v: boolean | null) => void;
   yes?: string;
   no?: string;
   className?: string;
+  labelAction?: ReactNode;
 }) {
   return (
     <SegmentedFilter<boolean | null>
-      label={label} className={className} value={value} onChange={onChange}
+      label={label} className={className} value={value} onChange={onChange} labelAction={labelAction}
       options={[{ label: 'Todos', value: null }, { label: yes, value: true }, { label: no, value: false }]}
     />
   );
 }
 
 /** Filtro de retoma: apenas processos COM (true) ou SEM (false) retoma. */
-export function RetomaFilter({ value, onChange, className = '' }: {
+export function RetomaFilter({ value, onChange, className = '', labelAction }: {
   value: boolean | null;
   onChange: (v: boolean | null) => void;
   className?: string;
+  labelAction?: ReactNode;
 }) {
-  return <TriStateFilter label="Retoma" value={value} onChange={onChange} yes="Com" no="Sem" className={className} />;
+  return <TriStateFilter label="Retoma" value={value} onChange={onChange} yes="Com" no="Sem" className={className} labelAction={labelAction} />;
 }
 
 /** Garantia de entrega (GAR / nGAR). */
@@ -96,7 +105,7 @@ export function TipoFilter({ value, onChange, className = '' }: {
   return (
     <div className={className}>
       <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Tipo</span>
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-4 gap-1.5">
         {TIPOS_VIATURA.map(t => {
           const active = value.has(t);
           return (
@@ -106,7 +115,7 @@ export function TipoFilter({ value, onChange, className = '' }: {
               onClick={() => toggle(t)}
               aria-pressed={active}
               title={t === 'VP' ? 'VP conta para faturas, não para retails' : undefined}
-              className={active ? 'rounded-md border border-primary bg-primary px-2 py-1.5 text-[11px] font-semibold text-primary-foreground' : 'rounded-md border border-border bg-background px-2 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent'}
+              className={active ? 'rounded-md border border-primary bg-primary px-1 py-1.5 text-[11px] font-semibold text-primary-foreground' : 'rounded-md border border-border bg-background px-1 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent'}
             >
               {t}
             </button>

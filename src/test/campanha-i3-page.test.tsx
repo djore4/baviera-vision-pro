@@ -31,10 +31,14 @@ vi.mock('@/lib/campanha-i3', async (orig) => ({
 
 let ADMIN = true;
 let EDIT = true;
+let CRIAR = true;                       // pode criar negócios (editar Dados ou Database)
 let EMAIL: string | null = 'admin@x.pt';
 vi.mock('@/contexts/PermissionsContext', () => ({
-  usePermissions: () => ({ isAdmin: ADMIN, canEdit: () => EDIT, effectiveEmail: EMAIL }),
+  usePermissions: () => ({ isAdmin: ADMIN, canEdit: (k: string) => (k === 'campanha-i3' ? EDIT : CRIAR), effectiveEmail: EMAIL }),
 }));
+const openNew = vi.fn();
+vi.mock('@/components/RecordEditor', () => ({ useRecordEditor: () => ({ openNew }) }));
+vi.mock('@/contexts/DataContext', () => ({ useData: () => ({ data: { control: [{ resp: 'AN' }, { resp: 'RC' }] } }) }));
 vi.mock('sonner', () => ({ toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() } }));
 
 import CampanhaI3Page from '@/pages/CampanhaI3Page';
@@ -47,8 +51,8 @@ Element.prototype.hasPointerCapture = vi.fn(() => false);
 Element.prototype.releasePointerCapture = vi.fn();
 
 beforeEach(() => {
-  assign.mockReset(); imp.mockReset(); upd.mockReset();
-  ADMIN = true; EDIT = true; EMAIL = 'admin@x.pt';
+  assign.mockReset(); imp.mockReset(); upd.mockReset(); openNew.mockReset();
+  ADMIN = true; EDIT = true; CRIAR = true; EMAIL = 'admin@x.pt';
   DB = [
     mk('1'),
     mk('2'),
@@ -170,5 +174,62 @@ describe('Campanha i3 — vendedor', () => {
     fireEvent.click(await screen.findByText('Lead 3'));
     expect(await screen.findByLabelText('Ponto de situação')).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Guardar' })).toBeNull();
+  });
+});
+
+describe('Campanha i3 — transformar em negócio quente', () => {
+  const lead9 = () => mk('9', { nome: 'Maria Silva', owner_email: 'rui@x.pt', owner_nome: 'Rui Costa', estado: 'em_contacto', ponto_situacao: 'Ligou, quer test drive' });
+
+  it('cada oportunidade tem o botão e abre o "Novo negócio" já preenchido como Quente', async () => {
+    DB = [lead9(), mk('8')];
+    render(<CampanhaI3Page />);
+    await screen.findByText('Maria Silva');
+    expect(screen.getAllByRole('button', { name: /^Negócio quente:/ })).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Negócio quente: Maria Silva' }));
+    expect(openNew).toHaveBeenCalledTimes(1);
+    const [preset] = openNew.mock.calls[0];
+    expect(preset).toMatchObject({ status: 'Quente', type: 'VN', neg: hojeIsoStr(), id_cliente: 'Maria Silva', resp: 'RC' });
+    expect(preset.obs).toContain('Origem: Campanha i3');
+    expect(preset.obs).toContain('912345678');
+    expect(preset.obs).toContain('Ponto de situação: Ligou, quer test drive');
+    // Não abriu a ficha da oportunidade (o clique no botão não conta como clique na linha).
+    expect(screen.queryByText('Acompanhamento')).toBeNull();
+  });
+
+  it('só depois de o negócio ser gravado fica o registo no ponto de situação', async () => {
+    DB = [lead9()];
+    upd.mockImplementation(async (_id: string, p: { ponto_situacao: string }) => ({ ...lead9(), ponto_situacao: p.ponto_situacao }));
+    render(<CampanhaI3Page />);
+    await screen.findByText('Maria Silva');
+    fireEvent.click(screen.getByRole('button', { name: 'Negócio quente: Maria Silva' }));
+    expect(upd).not.toHaveBeenCalled();                    // ainda só abriu o editor
+
+    const onCreated = openNew.mock.calls[0][1] as () => void;
+    onCreated();                                            // o editor gravou o negócio
+    await waitFor(() => expect(upd).toHaveBeenCalledTimes(1));
+    const [id, patch] = upd.mock.calls[0];
+    expect(id).toBe('9');
+    expect(patch.ponto_situacao).toContain('Ligou, quer test drive');
+    expect(patch.ponto_situacao).toMatch(/Negócio quente criado a \d{2}\/\d{2}\/\d{4}\./);
+  });
+
+  it('na ficha da oportunidade também há o botão (e a ficha fecha-se antes de abrir o editor)', async () => {
+    DB = [lead9()];
+    render(<CampanhaI3Page />);
+    fireEvent.click(await screen.findByText('Maria Silva'));
+    fireEvent.click(await screen.findByRole('button', { name: /Transformar em negócio quente/ }));
+    expect(openNew).toHaveBeenCalledTimes(1);
+    expect(openNew.mock.calls[0][0]).toMatchObject({ status: 'Quente', id_cliente: 'Maria Silva' });
+  });
+
+  it('sem permissão para criar negócios o botão não aparece (nem na tabela nem na ficha)', async () => {
+    CRIAR = false;
+    DB = [lead9()];
+    render(<CampanhaI3Page />);
+    fireEvent.click(await screen.findByText('Maria Silva'));
+    await screen.findByText('Acompanhamento');
+    expect(screen.queryByRole('button', { name: /Negócio quente/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Transformar em negócio quente/ })).toBeNull();
   });
 });

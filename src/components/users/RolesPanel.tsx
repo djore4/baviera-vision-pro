@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, Save, Trash2, ShieldCheck, Undo2, Copy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
@@ -75,10 +75,21 @@ export function RolesPanel({
   const [deleting, setDeleting] = useState(false);
 
   // Repõe os rascunhos quando os dados guardados mudam.
+  // Um recarregamento (ex.: mudar a função de alguém em Contas) não pode apagar alterações
+  // por guardar: só se repõe o rascunho das funções cujo rascunho coincide com o guardado antes.
+  const prevRoles = useRef<AppRole[]>([]);
   useEffect(() => {
-    const d: Record<string, Perms> = {};
-    roles.forEach(r => { d[r.name] = { ...(r.permissions ?? {}) }; });
-    setDrafts(d);
+    const antes = prevRoles.current;
+    prevRoles.current = roles;
+    setDrafts(prev => {
+      const d: Record<string, Perms> = {};
+      roles.forEach(r => {
+        const old = antes.find(x => x.name === r.name);
+        const sujo = !!prev[r.name] && !!old && !samePerms(prev[r.name], old.permissions);
+        d[r.name] = sujo ? prev[r.name] : { ...(r.permissions ?? {}) };
+      });
+      return d;
+    });
   }, [roles]);
 
   useEffect(() => {
