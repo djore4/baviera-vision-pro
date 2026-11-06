@@ -56,9 +56,10 @@ export default function RetailsPage() {
     filteredControl.filter(r => ['Carteira', 'Matricula', 'Retail'].includes(r.status) && (isRetailType(r.type) || (includeVP && r.type === 'VP'))),
     [filteredControl, includeVP]);
 
-  const filtered = useMemo(() => {
+  // Tudo menos o filtro de responsável: alimenta o gráfico por responsável, que
+  // mantém todas as barras e esbate as não selecionadas.
+  const filteredSemResp = useMemo(() => {
     let result = baseRecords;
-    if (selectedResps.size > 0) result = result.filter(r => selectedResps.has(r.resp));
     if (selectedFin) result = result.filter(r => selectedFin === 'N/A' ? !r.fin : r.fin === selectedFin);
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
@@ -70,11 +71,18 @@ export default function RetailsPage() {
     if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail');
     if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
     return result;
-  }, [baseRecords, selectedResps, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedGar, selectedTypes, selectedPark, selectedStatus]);
+  }, [baseRecords, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedGar, selectedTypes, selectedPark, selectedStatus]);
+
+  const filtered = useMemo(
+    () => selectedResps.size > 0 ? filteredSemResp.filter(r => selectedResps.has(r.resp)) : filteredSemResp,
+    [filteredSemResp, selectedResps],
+  );
+
+  const respDimmed = (resp: string) => selectedResps.size > 0 && !selectedResps.has(resp);
 
   const statusByResp = useMemo(() => {
     const map: Record<string, { resp: string; Carteira: number; Matricula: number; Retail: number; total: number }> = {};
-    filtered.forEach(r => {
+    filteredSemResp.forEach(r => {
       if (!map[r.resp]) map[r.resp] = { resp: r.resp, Carteira: 0, Matricula: 0, Retail: 0, total: 0 };
       if (r.status === 'Carteira') map[r.resp].Carteira++;
       else if (r.status === 'Matricula') map[r.resp].Matricula++;
@@ -82,9 +90,12 @@ export default function RetailsPage() {
       map[r.resp].total++;
     });
     return Object.values(map).sort((a, b) => b.total - a.total);
-  }, [filtered]);
+  }, [filteredSemResp]);
 
-  const totalStatusSum = useMemo(() => statusByResp.reduce((s, r) => s + r.total, 0), [statusByResp]);
+  const totalStatusSum = useMemo(
+    () => statusByResp.reduce((s, r) => s + (selectedResps.size > 0 && !selectedResps.has(r.resp) ? 0 : r.total), 0),
+    [statusByResp, selectedResps],
+  );
 
   const selectedMonthKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -380,16 +391,24 @@ export default function RetailsPage() {
                     if (resp) handleRespClick(resp, event?.ctrlKey || event?.metaKey);
                   }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
+                  <XAxis dataKey="resp" tick={({ x, y, payload }: { x: number; y: number; payload: { value: string } }) => (
+                    <text x={x} y={y + 12} textAnchor="middle" fontSize={10} cursor="pointer" fill="hsl(var(--foreground))"
+                      opacity={respDimmed(payload.value) ? 0.35 : 1} fontWeight={selectedResps.has(payload.value) ? 'bold' : 'normal'}>{payload.value}</text>
+                  )} />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                   <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
                     formatter={(value: string) => (
                       <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal' }}>{STATUS_LABELS[value] ?? value}</span>
                     )} />
-                  <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1} />
-                  <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Matricula' ? 0.2 : 1} />
+                  <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1}>
+                    {statusByResp.map(d => <Cell key={d.resp} fill={STATUS_COLORS.Retail} opacity={respDimmed(d.resp) ? 0.2 : 1} />)}
+                  </Bar>
+                  <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Matricula' ? 0.2 : 1}>
+                    {statusByResp.map(d => <Cell key={d.resp} fill={STATUS_COLORS.Matricula} opacity={respDimmed(d.resp) ? 0.2 : 1} />)}
+                  </Bar>
                   <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Carteira' ? 0.2 : 1}>
+                    {statusByResp.map(d => <Cell key={d.resp} fill={STATUS_COLORS.Carteira} opacity={respDimmed(d.resp) ? 0.2 : 1} />)}
                     <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                   </Bar>
                 </BarChart>
