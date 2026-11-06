@@ -60,6 +60,9 @@ const ALL_TABS: TabDef[] = [
   { key: 'campanha-i3', label: 'Campanha i3', path: '/campanha-i3', area: 'vn' },
   { key: 'escala', label: 'Escala', path: '/escala', area: 'vn' },
   { key: 'vendedores', label: 'Performance', path: '/vendedores', area: 'vn' },
+  // Visão do vendedor face aos colegas, em todos os KPIs. Só administradores "para já":
+  // fora da matriz de funções até se decidir quem o pode ver (ver TabDef.adminOnly).
+  { key: 'comparativo', label: 'Comparativo', path: '/comparativo', area: 'vn', adminOnly: true },
   // Parque de demonstradores (dados partilhados com a plataforma Caetano —
   // tabela `viaturas`). Acesso pela matriz de funções (ex.: perfil genius).
   { key: 'demos', label: 'Demos', path: '/demos', area: 'vn' },

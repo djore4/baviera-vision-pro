@@ -25,6 +25,7 @@ import DemosPage from "./pages/DemosPage";
 import EmprestimosPage from "./pages/EmprestimosPage";
 import ObjetivosPage from "./pages/ObjetivosPage";
 import VendedoresPage from "./pages/VendedoresPage";
+import ComparativoPage from "./pages/ComparativoPage";
 import LavagemPage from "./pages/LavagemPage";
 import InstalacoesPage from "./pages/InstalacoesPage";
 import ProdutoPage from "./pages/ProdutoPage";
@@ -116,6 +117,7 @@ const App = () => (
               <Route path="/demos" element={tab('demos', <DemosPage />)} />
               <Route path="/objetivos" element={tab('objetivos', <ObjetivosPage />)} />
               <Route path="/vendedores" element={tab('vendedores', <VendedoresPage />)} />
+              <Route path="/comparativo" element={tab('comparativo', <ComparativoPage />)} />
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
               <Route path="/instalacoes" element={tab('instalacoes', <InstalacoesPage />)} />
               <Route path="/produto" element={tab('produto', <ProdutoPage />)} />
