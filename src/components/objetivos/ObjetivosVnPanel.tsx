@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useData } from '@/contexts/DataContext';
+import { isRetiredMember } from '@/lib/team';
 import ObjetivosVnAnual from '@/components/objetivos/ObjetivosVnAnual';
 import { Save, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 
@@ -25,21 +26,35 @@ export default function ObjetivosVnPanel({ editable }: { editable: boolean }) {
   const [ano, setAno] = useState(now.getFullYear());
   const [mes, setMes] = useState(now.getMonth() + 1);
   const [vendedores, setVendedores] = useState<string[]>([]);
+  // Vendedores que já não estão na equipa mas têm objetivos no mês em vista (histórico).
+  const [extras, setExtras] = useState<string[]>([]);
   const [objetivos, setObjetivos] = useState<Record<string, number>>({});
   const [orcamentos, setOrcamentos] = useState<Record<string, number>>({ GSC: 0, BMW: 0 });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [newVendedor, setNewVendedor] = useState('');
 
-  // Load vendedores from DB (distinct) on mount
+  // Equipa atual = quem tem objetivos no mês corrente ou em meses futuros (sem os que já
+  // saíram). Antes era "todos os que alguma vez tiveram uma linha", pelo que quem saía da
+  // equipa voltava sempre a aparecer. Sem nada de hoje em diante, usa o último mês com dados.
   useEffect(() => {
     supabase
       .from('objetivos_resp')
-      .select('responsavel')
+      .select('ano,mes,responsavel')
       .then(({ data }) => {
-        const fromDb = [...new Set((data ?? []).map((r: { responsavel: string }) => r.responsavel))].sort();
+        const rows = ((data ?? []) as { ano: number; mes: number; responsavel: string }[])
+          .filter(r => r.responsavel && !isRetiredMember(r.responsavel));
+        const key = (r: { ano: number; mes: number }) => r.ano * 100 + r.mes;
+        const hoje = now.getFullYear() * 100 + (now.getMonth() + 1);
+        let atuais = rows.filter(r => key(r) >= hoje);
+        if (atuais.length === 0 && rows.length > 0) {
+          const ultimo = Math.max(...rows.map(key));
+          atuais = rows.filter(r => key(r) === ultimo);
+        }
+        const fromDb = [...new Set(atuais.map(r => r.responsavel))].sort();
         setVendedores(fromDb.length > 0 ? fromDb : DEFAULT_VENDEDORES);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = useCallback(async () => {
@@ -51,6 +66,8 @@ export default function ObjetivosVnPanel({ editable }: { editable: boolean }) {
     const objMap: Record<string, number> = {};
     vendedores.forEach(v => { objMap[v] = 0; });
     (objData as ObjetivoResp[] ?? []).forEach(o => { objMap[o.responsavel] = o.objetivo; });
+    // Histórico: quem já saiu mas tem objetivos neste mês continua visível (para o total bater certo).
+    setExtras((objData as ObjetivoResp[] ?? []).map(o => o.responsavel).filter(r => !vendedores.includes(r)));
     setObjetivos(objMap);
 
     const orcMap: Record<string, number> = { GSC: 0, BMW: 0 };
@@ -60,9 +77,11 @@ export default function ObjetivosVnPanel({ editable }: { editable: boolean }) {
 
   useEffect(() => { if (vendedores.length > 0) load(); }, [load, vendedores]);
 
+  const lista = [...new Set([...vendedores, ...extras])].sort();
+
   async function saveAll() {
     setSaving(true);
-    const objPayload = vendedores.map(v => ({ ano, mes, responsavel: v, objetivo: objetivos[v] || 0 }));
+    const objPayload = lista.map(v => ({ ano, mes, responsavel: v, objetivo: objetivos[v] || 0 }));
     const orcPayload = (['GSC', 'BMW'] as const).map(tipo => ({ ano, mes, tipo, orcamento: orcamentos[tipo] || 0 }));
     const results = await Promise.all([
       supabase.from('objetivos_resp').upsert(objPayload, { onConflict: 'ano,mes,responsavel' }),
@@ -85,15 +104,27 @@ export default function ObjetivosVnPanel({ editable }: { editable: boolean }) {
     setNewVendedor('');
   }
 
-  function removeVendedor(name: string) {
+  // Remove o vendedor da equipa: apaga os objetivos dele do mês em vista em diante (os meses
+  // anteriores ficam, para não alterar o histórico). Antes só tirava da lista no ecrã, sem
+  // apagar nada na base de dados, pelo que voltava a aparecer ao recarregar.
+  async function removeVendedor(name: string) {
+    if (!window.confirm(`Remover ${name}? Apaga os objetivos de ${name} de ${MONTHS_SHORT[mes - 1]} ${ano} em diante.`)) return;
+    const { error } = await supabase
+      .from('objetivos_resp')
+      .delete()
+      .eq('responsavel', name)
+      .or(`ano.gt.${ano},and(ano.eq.${ano},mes.gte.${mes})`);
+    if (error) { toast.error(`Não foi possível remover ${name}: ${error.message}`); return; }
     setVendedores(v => v.filter(x => x !== name));
+    setExtras(x => x.filter(e => e !== name));
     setObjetivos(o => { const next = { ...o }; delete next[name]; return next; });
+    await refresh();
   }
 
   function prevMonth() { if (mes === 1) { setAno(a => a - 1); setMes(12); } else setMes(m => m - 1); }
   function nextMonth() { if (mes === 12) { setAno(a => a + 1); setMes(1); } else setMes(m => m + 1); }
 
-  const totalObj = vendedores.reduce((s, v) => s + (objetivos[v] || 0), 0);
+  const totalObj = lista.reduce((s, v) => s + (objetivos[v] || 0), 0);
 
   return (
     <div className="max-w-3xl space-y-5 animate-fade-in">
@@ -133,7 +164,7 @@ export default function ObjetivosVnPanel({ editable }: { editable: boolean }) {
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Objetivos — {MONTHS_SHORT[mes - 1]} {ano}</h3>
           </div>
           <div className="space-y-2">
-            {vendedores.map(v => (
+            {lista.map(v => (
               <div key={v} className="flex items-center gap-2">
                 <span className="text-sm font-medium flex-1 min-w-0 truncate">{v}</span>
                 <input
