@@ -33,3 +33,12 @@ export function eotIsLocalLead(i: EotDirectorInput): boolean {
   if (eotIsDirector(i)) return false;
   return i.capabilities.eotResponsaveis && i.canView('end-of-term:local');
 }
+
+/* Contas sem qualquer acesso ao End-of-Term (nem ao tab nem às permissões `end-of-term:*`),
+ * seja qual for o perfil. A base de dados impõe o mesmo (migração
+ * eot_conta_salesforce_sem_acesso). */
+export const EOT_BLOCKED_EMAILS = new Set(['caetanosalesforce@caetano.pt']);
+
+export function eotAccountBlocked(email: string | null | undefined): boolean {
+  return !!email && EOT_BLOCKED_EMAILS.has(email.toLowerCase());
+}

@@ -7,6 +7,7 @@ import {
   type AccessLevel, type AppCapabilities, type AppRole, type AppUser,
 } from '@/lib/permissions';
 import { client } from '@/clients';
+import { eotAccountBlocked } from '@/lib/eot-access';
 
 /* Tabs restritos a administradores (fora da matriz de funções). */
 const ADMIN_ONLY_TABS = new Set(ADMIN_ONLY_TAB_KEYS);
@@ -134,6 +135,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
     const access = (tab: string): AccessLevel => {
       if (DISABLED_TABS.has(tab)) return 'none';
+      // Contas sem acesso ao End-of-Term (prevalece sobre tudo, admin e exceções incluídos).
+      if ((tab === 'end-of-term' || tab.startsWith('end-of-term:')) && eotAccountBlocked(effMe?.email ?? email)) return 'none';
       if (isAdmin) return 'edit';
       // Tabs restritos a admin não são acessíveis a mais ninguém, mesmo que a
       // função os inclua na matriz (bloqueio "para já", ver TabDef.adminOnly).
