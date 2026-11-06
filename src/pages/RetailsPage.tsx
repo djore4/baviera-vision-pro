@@ -5,7 +5,7 @@ import { useRecordEditor } from '@/components/RecordEditor';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
-import { RetomaFilter, FlagsFilter, GarantiaFilter, TipoFilter } from '@/components/RetomaFilter';
+import { RetomaFilter, FlagsFilter, GarantiaFilter, TipoFilter, StatusFilter } from '@/components/RetomaFilter';
 import { ParkFilter } from '@/components/ExtraFilters';
 import { formatDate, getCurrentWeek, getDeliveryMonth, isRetailType } from '@/lib/excel-parser';
 import { seasonalFlags } from '@/lib/seasonal';
@@ -45,7 +45,7 @@ export default function RetailsPage() {
   const [selectedGar, setSelectedGar] = useState<'GAR' | 'nGAR' | null>(null);
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedPark, setSelectedPark] = useState<boolean>(false);
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('date298');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
@@ -69,7 +69,7 @@ export default function RetailsPage() {
     if (selectedGar) result = result.filter(r => r.gar === selectedGar);
     if (selectedTypes.size > 0) result = result.filter(r => selectedTypes.has(r.type));
     if (selectedPark) result = result.filter(r => r.week198.toUpperCase().includes('P') && r.status !== 'Retail');
-    if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
+    if (selectedStatus.size > 0) result = result.filter(r => selectedStatus.has(r.status));
     return result;
   }, [baseRecords, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedGar, selectedTypes, selectedPark, selectedStatus]);
 
@@ -248,7 +248,9 @@ export default function RetailsPage() {
   const handleQorClick = useCallback(() => { setSelectedQor(prev => prev === true ? null : true); }, []);
   const handleBevClick = useCallback(() => { setSelectedBev(prev => prev === true ? null : true); }, []);
   const handleMClick = useCallback(() => { setSelectedM(prev => prev === true ? null : true); }, []);
-  const handleStatusClick = useCallback((s: string) => { setSelectedStatus(prev => prev === s ? null : s); }, []);
+  const handleStatusClick = useCallback((s: string) => {
+    setSelectedStatus(prev => { const next = new Set(prev); if (next.has(s)) next.delete(s); else next.add(s); return next; });
+  }, []);
   const handleLegendClick = (e: any) => { if (e?.value) handleStatusClick(e.value); };
 
   const exportCSV = useCallback(() => {
@@ -306,7 +308,7 @@ export default function RetailsPage() {
     selectedGar && `Garantia: ${selectedGar}`,
     selectedTypes.size > 0 && `Tipo: ${Array.from(selectedTypes).join(', ')}`,
     selectedPark && 'Parque',
-    selectedStatus && `Status: ${selectedStatus}`,
+    selectedStatus.size > 0 && `Estado: ${Array.from(selectedStatus).join(', ')}`,
   ].filter(Boolean) as string[];
 
   const clearFilter = (type: string) => {
@@ -320,7 +322,7 @@ export default function RetailsPage() {
     if (type === 'gar') setSelectedGar(null);
     if (type === 'tipo') setSelectedTypes(new Set());
     if (type === 'park') setSelectedPark(false);
-    if (type === 'status') setSelectedStatus(null);
+    if (type === 'status') setSelectedStatus(new Set());
   };
 
   if (!data) {
@@ -340,6 +342,7 @@ export default function RetailsPage() {
         <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
           <PeriodFilter>
             <div className="space-y-2 border-t border-border pt-3">
+              <StatusFilter value={selectedStatus} onChange={setSelectedStatus} />
               <RetomaFilter value={selectedRet} onChange={setSelectedRet}
                 labelAction={<ParkFilter active={selectedPark} count={parkCount} onToggle={() => setSelectedPark(prev => !prev)} />} />
               <TipoFilter value={selectedTypes} onChange={setSelectedTypes} />
@@ -369,7 +372,7 @@ export default function RetailsPage() {
               {selectedGar && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('gar')}>Garantia: {selectedGar} x</Badge>}
               {selectedRet !== null && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('ret')}>Retoma: {selectedRet ? 'Com' : 'Sem'} x</Badge>}
               {selectedPark && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('park')}>Parque x</Badge>}
-              {selectedStatus && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('status')}>Status: {selectedStatus} x</Badge>}
+              {selectedStatus.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('status')}>Estado: {Array.from(selectedStatus).map(s => STATUS_LABELS[s] ?? s).join(', ')} x</Badge>}
             </div>
           )}
         </div>
@@ -401,13 +404,13 @@ export default function RetailsPage() {
                     formatter={(value: string) => (
                       <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal' }}>{STATUS_LABELS[value] ?? value}</span>
                     )} />
-                  <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Retail' ? 0.2 : 1}>
+                  <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer" opacity={selectedStatus.size > 0 && !selectedStatus.has('Retail') ? 0.2 : 1}>
                     {statusByResp.map(d => <Cell key={d.resp} fill={STATUS_COLORS.Retail} opacity={respDimmed(d.resp) ? 0.2 : 1} />)}
                   </Bar>
-                  <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Matricula' ? 0.2 : 1}>
+                  <Bar dataKey="Matricula" stackId="a" fill={STATUS_COLORS.Matricula} cursor="pointer" opacity={selectedStatus.size > 0 && !selectedStatus.has('Matricula') ? 0.2 : 1}>
                     {statusByResp.map(d => <Cell key={d.resp} fill={STATUS_COLORS.Matricula} opacity={respDimmed(d.resp) ? 0.2 : 1} />)}
                   </Bar>
-                  <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer" opacity={selectedStatus && selectedStatus !== 'Carteira' ? 0.2 : 1}>
+                  <Bar dataKey="Carteira" stackId="a" fill={STATUS_COLORS.Carteira} cursor="pointer" opacity={selectedStatus.size > 0 && !selectedStatus.has('Carteira') ? 0.2 : 1}>
                     {statusByResp.map(d => <Cell key={d.resp} fill={STATUS_COLORS.Carteira} opacity={respDimmed(d.resp) ? 0.2 : 1} />)}
                     <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                   </Bar>
