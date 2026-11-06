@@ -126,6 +126,48 @@ export function TipoFilter({ value, onChange, className = '' }: {
   );
 }
 
+/** Estado do processo (multi-seleção): Carteira / Matrícula / Retail. Sem nenhum escolhido = sem
+ * filtro; vários = união (mostra os que estão em qualquer um dos estados). Os valores guardados
+ * não têm acento ('Matricula'). */
+export const ESTADOS_VN = [
+  { label: 'Carteira', value: 'Carteira' },
+  { label: 'Matrícula', value: 'Matricula' },
+  { label: 'Retail', value: 'Retail' },
+] as const;
+
+export function StatusFilter({ value, onChange, className = '' }: {
+  value: Set<string>;
+  onChange: (v: Set<string>) => void;
+  className?: string;
+}) {
+  const toggle = (s: string) => {
+    const next = new Set(value);
+    if (next.has(s)) next.delete(s); else next.add(s);
+    onChange(next);
+  };
+  return (
+    <div className={className}>
+      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Estado</span>
+      <div className="grid grid-cols-1 gap-1.5">
+        {ESTADOS_VN.map(e => {
+          const active = value.has(e.value);
+          return (
+            <button
+              key={e.value}
+              type="button"
+              onClick={() => toggle(e.value)}
+              aria-pressed={active}
+              className={active ? 'rounded-md border border-primary bg-primary px-2 py-1.5 text-[11px] font-semibold text-primary-foreground' : 'rounded-md border border-border bg-background px-2 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent'}
+            >
+              {e.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /** Características (BEV / QoR / M) numa só linha: ligar um botão mostra só os que têm essa
  * característica; ligados vários, só os que têm todas. Desligado = sem filtro. Mesmo estilo
  * dos botões do Período (azul quando ligado). */
