@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, CalendarClock, Filter, Calculator, Users, Droplets, Building2, Package, UserCog, Archive, Target, Car, CarFront, ClipboardList, Handshake, Lightbulb, Megaphone, ScrollText, Sparkles, ChevronDown, Coins, type LucideIcon } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, CalendarClock, Filter, Calculator, Users, Droplets, Building2, Package, UserCog, Archive, Target, Car, CarFront, ClipboardList, Handshake, Lightbulb, Megaphone, ScrollText, Sparkles, ChevronDown, Coins, Swords, type LucideIcon } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { useProspec } from '@/contexts/ProspecContext';
@@ -26,6 +26,7 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   'campanha-i3': Megaphone,
   escala: CalendarDays,
   vendedores: Users,
+  comparativo: Swords,
   demos: CarFront,
   multas: Coins,
   prospecao: Target,
