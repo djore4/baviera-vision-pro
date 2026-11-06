@@ -45,3 +45,16 @@ describe('eotIsDirector — base de dados migrada (permissão por função)', ()
     expect(eotIsDirector({ isAdmin: true, roleName: 'Administrador', capabilities, canView: view({}, true) })).toBe(true);
   });
 });
+
+import { eotAccountBlocked } from '@/lib/eot-access';
+
+describe('eotAccountBlocked', () => {
+  it('bloqueia a conta partilhada da Sales Force (sem distinguir maiúsculas)', () => {
+    expect(eotAccountBlocked('caetanosalesforce@caetano.pt')).toBe(true);
+    expect(eotAccountBlocked('CaetanoSalesforce@Caetano.PT')).toBe(true);
+  });
+  it('não bloqueia as outras contas', () => {
+    expect(eotAccountBlocked('vendedor@caetano.pt')).toBe(false);
+    expect(eotAccountBlocked(null)).toBe(false);
+  });
+});
