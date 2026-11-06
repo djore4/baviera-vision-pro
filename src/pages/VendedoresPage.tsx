@@ -582,7 +582,7 @@ export default function VendedoresPage() {
                         opacity={selectedResps.size > 0 && !selectedResps.has(payload.value) ? 0.35 : 1}
                         fontWeight={selectedResps.has(payload.value) ? 'bold' : 'normal'}>{payload.value}</text>
                     )} />
-                  <Tooltip
+                  <Tooltip cursor={false}
                     contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                     formatter={(value: number, name: string, item: { payload?: { retails?: number; taxa?: number } }) =>
                       name === 'Retomas'
