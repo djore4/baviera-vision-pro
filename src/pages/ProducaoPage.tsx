@@ -64,9 +64,10 @@ export default function ProducaoPage() {
     });
   }, [data, filter]);
 
-  const filtered = useMemo(() => {
+  // Tudo menos o filtro de responsável: o gráfico por responsável mantém todas as
+  // barras e esbate as não selecionadas.
+  const filteredSemResp = useMemo(() => {
     let result = baseRecords;
-    if (selectedResp) result = result.filter(r => r.resp === selectedResp);
     if (selectedFin) result = result.filter(r => selectedFin === 'N/A' ? !r.fin : r.fin === selectedFin);
     if (selectedModel) result = result.filter(r => r.model === selectedModel);
     if (selectedQor !== null) result = result.filter(r => (r.qor === 1) === selectedQor);
@@ -77,7 +78,13 @@ export default function ProducaoPage() {
     if (selectedTypes.size > 0) result = result.filter(r => selectedTypes.has(r.type));
     if (selectedPark) result = result.filter(isParked);
     return result;
-  }, [baseRecords, selectedResp, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedGar, selectedTypes, selectedPark]);
+  }, [baseRecords, selectedFin, selectedModel, selectedQor, selectedBev, selectedM, selectedRet, selectedGar, selectedTypes, selectedPark]);
+
+  const filtered = useMemo(
+    () => selectedResp ? filteredSemResp.filter(r => r.resp === selectedResp) : filteredSemResp,
+    [filteredSemResp, selectedResp],
+  );
+  const respDimmed = (resp: string) => !!selectedResp && selectedResp !== resp;
 
   const extra: ExtraFiltersState = {
     ret: selectedRet, setRet: setSelectedRet, gar: selectedGar, setGar: setSelectedGar,
@@ -89,7 +96,7 @@ export default function ProducaoPage() {
   const negByResp = useMemo(() => {
     if (!data) return [];
     const map: Record<string, number> = {};
-    filtered.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
+    filteredSemResp.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
     const targetMap: Record<string, number> = {};
     data.objetivosResp.forEach(o => {
       const [oy, om] = o.mes.split('/').map(Number);
@@ -105,9 +112,12 @@ export default function ProducaoPage() {
     return Array.from(allResps).map(resp => ({
       resp, total: map[resp] || 0, objetivo: targetMap[resp] || 0,
     })).sort((a, b) => b.total - a.total);
-  }, [filtered, data, filter]);
+  }, [filteredSemResp, data, filter]);
 
-  const totalNeg = useMemo(() => negByResp.reduce((s, r) => s + r.total, 0), [negByResp]);
+  const totalNeg = useMemo(
+    () => negByResp.reduce((s, r) => s + (selectedResp && selectedResp !== r.resp ? 0 : r.total), 0),
+    [negByResp, selectedResp],
+  );
 
   const selectedMonthKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -340,14 +350,20 @@ export default function ProducaoPage() {
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={negByResp} barSize={40}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="resp" tick={{ fontSize: 10, cursor: 'pointer' }} />
+                  <XAxis dataKey="resp" tick={({ x, y, payload }: { x: number; y: number; payload: { value: string } }) => (
+                    <text x={x} y={y + 12} textAnchor="middle" fontSize={10} cursor="pointer" fill="hsl(var(--foreground))"
+                      opacity={respDimmed(payload.value) ? 0.35 : 1} fontWeight={selectedResp === payload.value ? 'bold' : 'normal'}
+                      onClick={() => handleRespClick(payload.value)}>{payload.value}</text>
+                  )} />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                   <Legend wrapperStyle={{ fontSize: 10 }} />
-                  <Bar dataKey="total" name="Negócios Fechados" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
+                  <Bar dataKey="total" name="Negócios Fechados" fill="#1C69D4" cursor="pointer" onClick={(entry: any) => entry?.resp &&  handleRespClick(entry.resp)}>
+                    {negByResp.map(d => <Cell key={d.resp} fill="#1C69D4" opacity={respDimmed(d.resp) ? 0.2 : 1} />)}
                     <LabelList dataKey="total" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                   </Bar>
                   <Bar dataKey="objetivo" name="Objetivo" fill="#334155" cursor="pointer" onClick={(entry: any) => entry?.resp && handleRespClick(entry.resp)}>
+                    {negByResp.map(d => <Cell key={d.resp} fill="#334155" opacity={respDimmed(d.resp) ? 0.2 : 1} />)}
                     <LabelList dataKey="objetivo" position="top" fontSize={9} fontWeight="bold" fill="hsl(var(--foreground))" />
                   </Bar>
                 </BarChart>

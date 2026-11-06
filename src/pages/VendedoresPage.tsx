@@ -6,7 +6,7 @@ import { isRetailType } from '@/lib/excel-parser';
 import { QualityRadarCard } from '@/components/QualityRadarCard';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList, Legend,
-  ComposedChart, Line, Tooltip, ReferenceLine, Customized,
+  ComposedChart, Line, Cell, Tooltip, ReferenceLine, Customized,
 } from 'recharts';
 
 /* ── Tab Vendedores (admin) ──────────────────────────────────────────────────
@@ -127,9 +127,14 @@ export default function VendedoresPage() {
   const negocios = useMemo(
     () => control.filter(r => isVehicle(r.type) && CLOSED.has(r.status) && inPeriod(r.neg) && respOk(r.resp)),
     [control, inPeriod, selectedResps]);
+  // Retails do período de todos os comerciais: o gráfico de retomas por comercial
+  // mantém todas as barras e esbate as não selecionadas.
+  const retailsTodos = useMemo(
+    () => control.filter(r => isVehicle(r.type) && r.status === 'Retail' && inPeriod(r.date298)),
+    [control, inPeriod]);
   const retails = useMemo(
-    () => control.filter(r => isVehicle(r.type) && r.status === 'Retail' && inPeriod(r.date298) && respOk(r.resp)),
-    [control, inPeriod, selectedResps]);
+    () => retailsTodos.filter(r => respOk(r.resp)),
+    [retailsTodos, selectedResps]);
 
   const teamR = retails.length ? negocios.length / retails.length : null;
 
@@ -238,7 +243,7 @@ export default function VendedoresPage() {
   // (retomas ÷ retails), para expor assimetrias no trabalho das retomas.
   const retomasByResp = useMemo(() => {
     const map: Record<string, { resp: string; retails: number; retomas: number }> = {};
-    retails.forEach(r => {
+    retailsTodos.forEach(r => {
       const e = (map[r.resp || '—'] ??= { resp: r.resp || '—', retails: 0, retomas: 0 });
       e.retails++;
       if (r.ret === 1) e.retomas++;
@@ -246,7 +251,7 @@ export default function VendedoresPage() {
     return Object.values(map)
       .map(e => ({ ...e, semRetoma: e.retails - e.retomas, taxa: pct(e.retomas, e.retails) }))
       .sort((a, b) => b.taxa - a.taxa || b.retomas - a.retomas);
-  }, [retails]);
+  }, [retailsTodos]);
 
   const teamRetomas = useMemo(() => retails.filter(r => r.ret === 1).length, [retails]);
   const teamTaxaRetoma = pct(teamRetomas, retails.length);
@@ -571,7 +576,12 @@ export default function VendedoresPage() {
                   margin={{ top: 4, right: 44, bottom: 4, left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
-                  <YAxis type="category" dataKey="resp" tick={{ fontSize: 10 }} width={70} />
+                  <YAxis type="category" dataKey="resp" width={70}
+                    tick={({ x, y, payload }: { x: number; y: number; payload: { value: string } }) => (
+                      <text x={x} y={y} dy={3} textAnchor="end" fontSize={10} fill="hsl(var(--foreground))"
+                        opacity={selectedResps.size > 0 && !selectedResps.has(payload.value) ? 0.35 : 1}
+                        fontWeight={selectedResps.has(payload.value) ? 'bold' : 'normal'}>{payload.value}</text>
+                    )} />
                   <Tooltip
                     contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                     formatter={(value: number, name: string, item: { payload?: { retails?: number; taxa?: number } }) =>
@@ -579,10 +589,12 @@ export default function VendedoresPage() {
                         ? [`${value} de ${item?.payload?.retails ?? 0} (${item?.payload?.taxa ?? 0}%)`, 'Retomas']
                         : [value, 'Sem retoma']} />
                   <Bar dataKey="retomas" name="Retomas" stackId="r" fill="#8B5CF6" barSize={22} radius={[3, 0, 0, 3]}>
+                    {retomasByResp.map(d => <Cell key={d.resp} fill="#8B5CF6" opacity={selectedResps.size > 0 && !selectedResps.has(d.resp) ? 0.2 : 1} />)}
                     <LabelList dataKey="retomas" position="center" fontSize={9} fontWeight={700} fill="#fff"
                       formatter={(v: number) => (v > 0 ? v : '')} />
                   </Bar>
                   <Bar dataKey="semRetoma" name="Sem retoma" stackId="r" fill="hsl(var(--muted))" barSize={22} radius={[0, 3, 3, 0]}>
+                    {retomasByResp.map(d => <Cell key={d.resp} fill="hsl(var(--muted))" opacity={selectedResps.size > 0 && !selectedResps.has(d.resp) ? 0.2 : 1} />)}
                     <LabelList dataKey="taxa" position="right" fontSize={10} fontWeight={700}
                       fill="hsl(var(--foreground))" formatter={(v: number) => `${v}%`} />
                   </Bar>
