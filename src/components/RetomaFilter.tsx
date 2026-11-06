@@ -148,7 +148,7 @@ export function StatusFilter({ value, onChange, className = '' }: {
   return (
     <div className={className}>
       <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Estado</span>
-      <div className="grid grid-cols-1 gap-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
         {ESTADOS_VN.map(e => {
           const active = value.has(e.value);
           return (
