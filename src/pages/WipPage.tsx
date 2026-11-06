@@ -468,7 +468,7 @@ export default function WipPage() {
                             opacity={respDimmed(payload.value) ? 0.35 : 1} fontWeight={selectedResps.has(payload.value) ? 'bold' : 'normal'}>{payload.value}</text>
                         )} />
                         <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                        <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                        <Tooltip cursor={false} contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
                         <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
                           formatter={(value: string) => {
                             const st = value.toUpperCase();
