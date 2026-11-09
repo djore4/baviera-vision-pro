@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { eotIsDirector, eotCanSeeUsersTab } from '@/lib/eot-access';
+import { eotIsDirector } from '@/lib/eot-access';
 
 const view = (perms: Record<string, 'view' | 'edit'>, isAdmin = false) =>
   (tab: string) => isAdmin || perms[tab] !== undefined;
@@ -56,16 +56,5 @@ describe('eotAccountBlocked', () => {
   it('não bloqueia as outras contas', () => {
     expect(eotAccountBlocked('vendedor@caetano.pt')).toBe(false);
     expect(eotAccountBlocked(null)).toBe(false);
-  });
-});
-
-describe('eotCanSeeUsersTab', () => {
-  it('Supervisor EoT nunca vê o separador Users', () => {
-    expect(eotCanSeeUsersTab({ isAdmin: false, roleName: 'Supervisor EoT', canManage: true })).toBe(false);
-  });
-  it('admin, Finance e chefes de equipa mantêm-no; sem gestão não há separador', () => {
-    expect(eotCanSeeUsersTab({ isAdmin: true, roleName: 'Supervisor EoT', canManage: true })).toBe(true);
-    expect(eotCanSeeUsersTab({ isAdmin: false, roleName: 'Finance', canManage: true })).toBe(true);
-    expect(eotCanSeeUsersTab({ isAdmin: false, roleName: 'Vendedor', canManage: false })).toBe(false);
   });
 });

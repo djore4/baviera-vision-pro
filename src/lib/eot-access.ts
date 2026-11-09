@@ -34,17 +34,6 @@ export function eotIsLocalLead(i: EotDirectorInput): boolean {
   return i.capabilities.eotResponsaveis && i.canView('end-of-term:local');
 }
 
-/* Separador "Users" (responsáveis e nomes do Excel): o perfil Supervisor EoT, apesar de
- * ver todos os contratos, não tem acesso a este separador (só admin, Finance e chefes de
- * equipa). Decisão definitiva — não depende de permissões configuráveis. */
-export const EOT_NO_USERS_TAB_ROLES = new Set(['Supervisor EoT']);
-
-export function eotCanSeeUsersTab(i: { isAdmin: boolean; roleName: string | null; canManage: boolean }): boolean {
-  if (!i.canManage) return false;
-  if (i.isAdmin) return true;
-  return !(i.roleName && EOT_NO_USERS_TAB_ROLES.has(i.roleName));
-}
-
 /* Contas sem qualquer acesso ao End-of-Term (nem ao tab nem às permissões `end-of-term:*`),
  * seja qual for o perfil. A base de dados impõe o mesmo (migração
  * eot_conta_salesforce_sem_acesso). */

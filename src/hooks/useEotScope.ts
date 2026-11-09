@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { eotIsDirector, eotIsLocalLead, eotCanSeeUsersTab } from '@/lib/eot-access';
+import { eotIsDirector, eotIsLocalLead } from '@/lib/eot-access';
 import type { Scope } from '@/lib/eot';
 
 /* Escopo de acesso ao End-of-Term:
@@ -27,8 +27,5 @@ export function useEotScope() {
   // Quem pode atribuir contratos e gerir responsáveis (e o mapa de nomes do Excel).
   const canManage = isDirector || isLocalLead;
 
-  // Separador Users: exclui o perfil Supervisor EoT (ver eotCanSeeUsersTab).
-  const canSeeUsersTab = eotCanSeeUsersTab({ isAdmin, roleName, canManage });
-
-  return { scope, isDirector, isLocalLead, canManage, canSeeUsersTab, isAdmin, myEmail: email, myNome: nome };
+  return { scope, isDirector, isLocalLead, canManage, isAdmin, myEmail: email, myNome: nome };
 }
