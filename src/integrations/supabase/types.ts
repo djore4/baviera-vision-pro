@@ -2452,6 +2452,7 @@ export type Database = {
         Args: { p_allow_empty?: boolean; p_rows: Json; p_table: string }
         Returns: number
       }
+      sf_perfil_insercao: { Args: Record<PropertyKey, never>; Returns: Json }
       url_encode: { Args: { p_text: string }; Returns: string }
       viaturas_local_ok: { Args: { p_local: Json }; Returns: boolean }
     }

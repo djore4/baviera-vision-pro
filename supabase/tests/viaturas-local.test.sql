@@ -50,6 +50,19 @@ select t.check('sem a permissão: não insere nem vê',
 select t.back();
 commit;
 
+begin;
+select t.as_user('via_feira@x.pt');
+select t.check('sf_perfil_insercao: devolve o perfil com os locais', public.sf_perfil_insercao() ->> 'email' = 'via_feira@x.pt'
+  and public.sf_perfil_insercao() -> 'local' = '["Feira"]'::jsonb and public.sf_perfil_insercao() -> 'negocio' = '["VD"]'::jsonb);
+select t.back();
+select t.as_user('via_sem@x.pt');
+select t.check('sf_perfil_insercao: sem a permissão devolve null', public.sf_perfil_insercao() is null);
+select t.back();
+select t.as_anon();
+select t.check('sf_perfil_insercao: anónimo não executa', not has_function_privilege('anon', 'public.sf_perfil_insercao()', 'execute'));
+select t.back();
+commit;
+
 do $$ declare f int := (select count(*) from t.results where not ok); begin
   raise notice 'viaturas-local: % falhas', f;
   if f > 0 then raise exception 'viaturas-local falhou'; end if; end $$;
