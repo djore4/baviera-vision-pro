@@ -87,6 +87,12 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   BSI — e regista em `historico`). `20261109211610` retira a parametrização de colunas por função
   de `20261109211555` (funções `demos_dep_colunas`/`demos_inputs_permitidos` e chaves
   `demos:col:*`). 
+- **Demos — gestão da frota** (`20261109213230`): `demos_criar_viatura` (administrador, ou
+  `demos:inserir-viaturas` nos seus locais), `demos_arquivar_viatura` / `demos_vendidas` /
+  `demos_repor_viatura` (administrador, ou `demos:precos` nas viaturas do seu local). O arquivo é a
+  tabela `viaturas_vendidas` da Sales Force: arquivar cristaliza preço e estatísticas, move a viatura
+  e regista em `historico`. A política `auth_rw_viaturas_vendidas` (qualquer autenticado lia e escrevia
+  o arquivo, com custos e margens) foi substituída por `salesforce_users`.
 - **Outras aplicações no mesmo projeto:** a Caetano Sales Force partilha este
   projeto e tem as suas próprias políticas (`salesforce_users*` em `historico`,
   `viaturas`, `utilizadores`; ver `20260930141317`). As políticas somam-se (OR) e
@@ -194,6 +200,7 @@ Estado a 2026-10-03 (projeto `yifxgiwmibjaornighvt`):
 | `20261109211511` | Demos por local (tab Demos aberto fora de Aveiro, com âmbito de linha) | aplicada |
 | `20261109211555` | Demos: demos_gravar_precos (as colunas por função foram retiradas em `…211610`) | aplicada |
 | `20261109211610` | Demos: gestão de preços só na janela da viatura | aplicada |
+| `20261109213230` | Demos: adicionar viaturas, arquivar como vendidas, consultar/recuperar o arquivo; fecha a política aberta de `viaturas_vendidas` | aplicada |
 
 Ao aplicar as últimas com o MCP/dashboard, o histórico remoto regista a versão
 com a hora da aplicação, não a do ficheiro: depois, renomear os ficheiros locais
