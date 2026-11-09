@@ -2447,6 +2447,17 @@ export type Database = {
       is_salesforce_user: { Args: Record<PropertyKey, never>; Returns: boolean }
       marketing_acesso: { Args: { p_level?: string }; Returns: boolean }
       marketing_local_ok: { Args: Record<PropertyKey, never>; Returns: boolean }
+      marketing_parque: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          chassis: string
+          local: Json
+          marca: string
+          matricula: string
+          modelo: string
+          versao: string
+        }[]
+      }
       my_access_exceptions: { Args: Record<PropertyKey, never>; Returns: Json }
       replace_rows: {
         Args: { p_allow_empty?: boolean; p_rows: Json; p_table: string }

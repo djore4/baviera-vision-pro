@@ -63,6 +63,24 @@ select t.check('sf_perfil_insercao: anónimo não executa', not has_function_pri
 select t.back();
 commit;
 
+insert into public.app_roles (name, is_admin, permissions) values ('Mkt Parque', false, '{"marketing": "view"}') on conflict (name) do update set permissions = excluded.permissions;
+insert into public.app_users (nome, email, perfil, local) values
+  ('Mkt', 'via_mkt@x.pt', 'Mkt Parque', '["Aveiro"]'), ('Mkt Porto', 'via_mktp@x.pt', 'Mkt Parque', '["Porto"]')
+  on conflict (email) do update set perfil = excluded.perfil, local = excluded.local;
+begin;
+select t.as_user('via_mkt@x.pt');
+select t.check('marketing_parque: Marketing de Aveiro vê o parque, sem inputs/stats',
+  (select count(*) from public.marketing_parque() where chassis like 'VIA%') >= 2);
+select t.check('marketing: continua sem ler a tabela viaturas', (select count(*) from public.viaturas) = 0);
+select t.back();
+select t.as_user('via_mktp@x.pt');
+select t.check('marketing_parque: Marketing fora de Aveiro não vê nada', (select count(*) from public.marketing_parque()) = 0);
+select t.back();
+select t.as_user('via_sem@x.pt');
+select t.check('marketing_parque: sem tab Marketing não vê nada', (select count(*) from public.marketing_parque()) = 0);
+select t.back();
+commit;
+
 do $$ declare f int := (select count(*) from t.results where not ok); begin
   raise notice 'viaturas-local: % falhas', f;
   if f > 0 then raise exception 'viaturas-local falhou'; end if; end $$;

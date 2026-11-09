@@ -268,7 +268,13 @@ export const descreverViatura = (v: Pick<ViaturaParque, 'marca' | 'modelo' | 've
   [[v.marca, v.modelo, v.versao].filter(Boolean).join(' '), v.matricula].filter(Boolean).join(' · ');
 
 export async function listParque(): Promise<ViaturaParque[]> {
-  const { data, error } = await supabase.from('viaturas').select('chassis, matricula, modelo, versao, marca, local').order('modelo');
+  // marketing_parque() só devolve campos de identificação (a tabela é só do administrador).
+  // Sem a função (migração por aplicar), lê a tabela como antes.
+  let q = await supabase.rpc('marketing_parque');
+  if (q.error && (q.error as { code?: string }).code === 'PGRST202') {
+    q = await supabase.from('viaturas').select('chassis, matricula, modelo, versao, marca, local').order('modelo') as unknown as typeof q;
+  }
+  const { data, error } = q;
   if (error) return [];
   return ((data ?? []) as (Omit<ViaturaParque, 'local'> & { local: unknown })[])
     .map(v => ({ ...v, local: locaisDoPerfil(v.local).join(', ') }));
