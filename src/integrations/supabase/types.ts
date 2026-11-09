@@ -101,6 +101,19 @@ export type Database = {
         }
         Relationships: []
       }
+      app_tabs_por_local: {
+        Row: {
+          tab: string
+        }
+        ComputedFields: never
+        Insert: {
+          tab: string
+        }
+        Update: {
+          tab?: string
+        }
+        Relationships: []
+      }
       app_users: {
         Row: {
           created_at: string
@@ -2445,6 +2458,7 @@ export type Database = {
       is_platform_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
       is_platform_user: { Args: Record<PropertyKey, never>; Returns: boolean }
       is_salesforce_user: { Args: Record<PropertyKey, never>; Returns: boolean }
+      local_restrito: { Args: Record<PropertyKey, never>; Returns: boolean }
       marketing_acesso: { Args: { p_level?: string }; Returns: boolean }
       marketing_local_ok: { Args: Record<PropertyKey, never>; Returns: boolean }
       marketing_parque: {
@@ -2464,7 +2478,11 @@ export type Database = {
         Returns: number
       }
       sf_perfil_insercao: { Args: Record<PropertyKey, never>; Returns: Json }
+      tabs_por_local: { Args: Record<PropertyKey, never>; Returns: string[] }
       url_encode: { Args: { p_text: string }; Returns: string }
+      viatura_do_meu_local: { Args: { p_chassis: string }; Returns: boolean }
+      viatura_do_meu_local_pasta: { Args: { p_pasta: string }; Returns: boolean }
+      viatura_local_visivel: { Args: { p_local: Json }; Returns: boolean }
       viaturas_local_ok: { Args: { p_local: Json }; Returns: boolean }
     }
     Enums: {
