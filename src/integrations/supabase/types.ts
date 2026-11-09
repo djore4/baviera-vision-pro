@@ -2431,6 +2431,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      eot_conta_bloqueada: { Args: Record<PropertyKey, never>; Returns: boolean }
       eot_contract_link: { Args: { p_contrato: string }; Returns: string }
       eot_my_team: { Args: Record<PropertyKey, never>; Returns: string[] }
       has_access: { Args: { p_level?: string; p_tab: string }; Returns: boolean }

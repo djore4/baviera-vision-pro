@@ -100,10 +100,10 @@ select t.check('edit fora de Aveiro: não vê nem escreve',
   and not t.can_insert_obj('marketing', 'x/porto2.pdf'));
 select t.back();
 select t.as_user('mkt_semlocal@x.pt');
-select t.check('sem local definido: não vê nada', t.n('marketing_eventos') = 0 and t.n('marketing_convidados') = 0);
+select t.check('sem local definido: não é barrado (segue a função)', t.n('marketing_eventos') = 1);
 select t.back();
 select t.as_user('mkt_todas@x.pt');
-select t.check('"Todas" não conta como Aveiro (igual à interface)', t.n('marketing_eventos') = 0);
+select t.check('"Todas" não é um local reconhecido: não é barrado (igual à interface)', t.n('marketing_eventos') = 1);
 select t.back();
 select t.as_user('mkt_excecao@x.pt');
 select t.check('exceção explícita por email para o tab: vê, mesmo fora de Aveiro',
