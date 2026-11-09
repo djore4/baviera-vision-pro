@@ -15,7 +15,7 @@
 --    Caetano Sales Force (que partilha a tabela e lê o mesmo formato).
 --    Quem tem 'demos:precos' vê os 13 valores das viaturas do seu local, para os poder editar.
 --
--- 3. Fora de Aveiro: já resolvido por 20261109140000 (demos_por_local): o tab Demos abre-se a
+-- 3. Fora de Aveiro: já resolvido por 20261109211511 (demos_por_local): o tab Demos abre-se a
 --    todos os locais com âmbito de linha (viatura_local_visivel). 'demos:precos' herda: como
 --    'demos' está em app_tabs_por_local, segue a função. Depende dessa migração.
 
