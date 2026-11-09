@@ -50,7 +50,7 @@ export function ModelPicker({ modelos, query, onQuery, serie, onSerie, visiveis,
         ) : (
           <div className="flex flex-wrap gap-2">
             {[...seriesPresentes(modelos), 'Todos'].map(s => (
-              <button key={s} className={cn(pill(serie === s), 'sm:px-6 text-sm')} onClick={() => onSerie(s)}>{s}</button>
+              <button key={s} className={pill(serie === s)} onClick={() => onSerie(s)}>{s}</button>
             ))}
           </div>
         )}

@@ -95,7 +95,7 @@ export function DadosTecnicos() {
             {mots.length === 0
               ? ['w-24', 'w-32', 'w-20'].map(w => <div key={w} className={cn('h-9 animate-pulse rounded-full bg-muted', w)} />)
               : mots.map(m => (
-                <button key={m.id} className={cn(pill(sel.includes(m.id)), 'rounded-full')} onClick={() => toggle(m.id)}>
+                <button key={m.id} className={pill(sel.includes(m.id))} onClick={() => toggle(m.id)}>
                   {nomeMot(m)}
                 </button>
               ))}

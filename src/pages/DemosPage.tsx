@@ -15,6 +15,7 @@ import { chassisCurto, formatMatricula, matriculaCompacta, parseNum } from '@/li
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 import PrecosDialog from '@/components/demos/PrecosDialog';
 import VendidasPanel from '@/components/demos/VendidasPanel';
+import { chip, btnPrimary, btnSecondary, btnGhost } from '@/lib/chip';
 import { TIPOS_NEGOCIO, MARCAS, TODAS, TODOS, tipoNegocio, marcasDe, opcoesFiltro, concessaoInicial } from '@/lib/viaturasFiltros';
 
 /* ── Parque de demonstradores (VN · Demos) ────────────────────────────────────
@@ -242,17 +243,13 @@ function ChipFilter({ label, options, selected, onToggle, onClear }: {
   onClear: () => void;
 }) {
   if (options.length === 0) return null;
-  const chip = (on: boolean) =>
-    `px-3 py-1 text-[11px] font-semibold rounded-md border transition-colors ${
-      on ? 'bg-brand-primary text-white border-brand-primary' : 'bg-background text-muted-foreground border-border hover:text-foreground hover:border-brand-primary/50'
-    }`;
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</span>
       <div className="flex flex-wrap gap-1.5">
-        <button onClick={onClear} aria-pressed={selected.size === 0} className={chip(selected.size === 0)}>Todas</button>
+        <button type="button" onClick={onClear} aria-pressed={selected.size === 0} className={chip(selected.size === 0)}>Todas</button>
         {options.map(o => (
-          <button key={o} onClick={() => onToggle(o)} aria-pressed={selected.has(o)} className={chip(selected.has(o))}>{o}</button>
+          <button key={o} type="button" onClick={() => onToggle(o)} aria-pressed={selected.has(o)} className={chip(selected.has(o))}>{o}</button>
         ))}
       </div>
     </div>
@@ -263,16 +260,12 @@ function ChipFilter({ label, options, selected, onToggle, onClear }: {
 function PillFilter({ label, todos, options, value, onChange, divider }: {
   label: string; todos: string; options: string[]; value: string; onChange: (v: string) => void; divider?: boolean;
 }) {
-  const pill = (on: boolean) =>
-    `px-3 py-1.5 text-[11px] font-bold rounded-md border transition-colors ${
-      on ? 'bg-brand-primary text-white border-brand-primary' : 'bg-background text-muted-foreground border-border hover:text-brand-primary hover:border-brand-primary'
-    }`;
   return (
     <div className={`flex flex-col gap-1.5 ${divider ? 'lg:border-l lg:border-border lg:pl-4' : ''}`}>
       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</span>
       <div className="flex flex-wrap gap-1.5" role="group" aria-label={label}>
         {[todos, ...options].map(o => (
-          <button key={o} type="button" onClick={() => onChange(o)} aria-pressed={value === o} className={pill(value === o)}>{o}</button>
+          <button key={o} type="button" onClick={() => onChange(o)} aria-pressed={value === o} className={chip(value === o)}>{o}</button>
         ))}
       </div>
     </div>
@@ -519,7 +512,7 @@ export default function DemosPage() {
           {podeArquivo && (
             <button
               onClick={() => setVista(v => (v === 'vendidas' ? 'parque' : 'vendidas'))}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold uppercase tracking-wider border border-border rounded-lg hover:bg-muted transition-colors"
+              className={btnSecondary}
             >
               <Archive className="h-3.5 w-3.5" /> {vista === 'vendidas' ? 'Voltar ao parque' : 'Vendidas'}
             </button>
@@ -527,7 +520,7 @@ export default function DemosPage() {
           {podeAdicionar && vista === 'parque' && (
             <button
               onClick={() => setNovaOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-wider bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 transition-colors"
+              className={btnPrimary}
             >
               <Plus className="h-3.5 w-3.5" /> Adicionar viatura
             </button>
@@ -566,7 +559,7 @@ export default function DemosPage() {
               <div>
                 <button
                   onClick={resetFilters}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground border border-border rounded-md hover:text-foreground hover:bg-muted transition-colors"
+                  className={btnGhost}
                 >
                   <RotateCcw className="h-3 w-3" /> Limpar filtros
                 </button>
