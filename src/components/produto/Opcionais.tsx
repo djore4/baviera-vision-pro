@@ -114,7 +114,7 @@ export function Opcionais() {
             {mots.length === 0
               ? ['w-24', 'w-32', 'w-20'].map(w => <div key={w} className={cn('h-9 animate-pulse rounded-full bg-muted', w)} />)
               : mots.map(m => (
-                <button key={m.id} className={cn(pill(motId === m.id), 'rounded-full')} onClick={() => onMot(m.id)}>{m.nome}</button>
+                <button key={m.id} className={pill(motId === m.id)} onClick={() => onMot(m.id)}>{m.nome}</button>
               ))}
           </div>
         </div>
@@ -133,7 +133,7 @@ export function Opcionais() {
               <div className="mb-3 overflow-x-auto rounded-xl border border-border bg-card px-4 py-4 shadow-sm sm:px-5">
                 <div className="flex flex-wrap gap-2">
                   {secoes.map(s => (
-                    <button key={s} className={cn(pill(secao === s), 'py-1.5')} onClick={() => setSecao(s)}>{s}</button>
+                    <button key={s} className={pill(secao === s)} onClick={() => setSecao(s)}>{s}</button>
                   ))}
                 </div>
               </div>
