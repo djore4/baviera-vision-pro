@@ -27,3 +27,9 @@ export function parseNum(txt: string, kind: 'pct' | 'eur'): string {
   if (kind === 'eur' && /^-?\d{1,3}(\.\d{3})+$/.test(t)) return t.replace(/\./g, '');
   return t;
 }
+
+/** AA00BB / aa-00-bb → AA-00-BB; null se não tiver 6 caracteres alfanuméricos (formato exigido ao adicionar viaturas). */
+export function normalizarMatricula(matricula: string | null | undefined): string | null {
+  const v = (matricula ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return v.length === 6 ? `${v.slice(0, 2)}-${v.slice(2, 4)}-${v.slice(4)}` : null;
+}

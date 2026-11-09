@@ -115,29 +115,29 @@ describe('permissões finas (SUB_PERMISSIONS)', () => {
 describe('getAppCapabilities', () => {
   it('lê as capacidades da base de dados', async () => {
     rpc.mockResolvedValue({ data: { lavagem_granular: true }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false, demosGestao: false });
     expect(rpc).toHaveBeenCalledWith('app_capabilities');
   });
 
   it('lê cada capacidade por separado', async () => {
     rpc.mockResolvedValue({ data: { lavagem_granular: true, eot_granular: true }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: true, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: true, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false, demosGestao: false });
     rpc.mockResolvedValue({ data: { eot_granular: true }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: true, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: true, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false, demosGestao: false });
     rpc.mockResolvedValue({ data: { eot_responsaveis: true }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: true, viaturasLocal: false, demosPrecos: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: true, viaturasLocal: false, demosPrecos: false, demosGestao: false });
   });
 
   it('sem a função (migração por aplicar) ou com erro: nenhuma capacidade', async () => {
     rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'missing' } });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false, demosGestao: false });
   });
 
   it('só um true explícito conta', async () => {
     rpc.mockResolvedValue({ data: { lavagem_granular: 'true' }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false, demosGestao: false });
     rpc.mockResolvedValue({ data: null, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false, demosGestao: false });
   });
 });
 

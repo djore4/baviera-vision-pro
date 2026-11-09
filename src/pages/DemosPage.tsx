@@ -1,19 +1,21 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { canonicalLocal, locaisDoPerfil } from '@/lib/locations';
+import { canonicalLocal, locaisDoPerfil, locaisDoGrupo } from '@/lib/locations';
 import {
   Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
   ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, ImageOff,
-  Camera, Trash2, Loader2, Pencil,
+  Camera, Trash2, Loader2, Pencil, Plus, Archive,
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import { client } from '@/clients';
 import { chassisCurto, formatMatricula, matriculaCompacta, parseNum } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 import PrecosDialog from '@/components/demos/PrecosDialog';
+import VendidasPanel from '@/components/demos/VendidasPanel';
+import { TIPOS_NEGOCIO, MARCAS, TODAS, TODOS, tipoNegocio, marcasDe, opcoesFiltro, concessaoInicial } from '@/lib/viaturasFiltros';
 
 /* ── Parque de demonstradores (VN · Demos) ────────────────────────────────────
  * Parque de viaturas (tabela `viaturas`, ainda partilhada com a plataforma Caetano).
@@ -79,11 +81,6 @@ function idadeDias(dataMatricula: string | null): number {
   return diff > 0 ? Math.floor(diff / (1000 * 60 * 60 * 24)) : 0;
 }
 
-/* Só demonstradores (VD) e carros: sem viaturas usadas (VU) nem motas. Mesma regra
- * da Caetano Sales Force: é VU só com estado_negocio 'VU', o resto conta como VD. */
-const isMota = (v: Viatura) => getArr(v.marca).some(m => m.trim().toLowerCase().includes('motorrad'));
-const isDemo = (v: Viatura) => v.estado_negocio !== 'VU' && !isMota(v);
-
 function isReservado(v: Viatura): boolean {
   return !!v.reserva_expira && new Date(v.reserva_expira).getTime() > Date.now();
 }
@@ -100,6 +97,7 @@ const perc1 = (n: number | null | undefined) =>
 interface Row extends Viatura {
   _inps: PricingInputs; _p: Pricing; _idade: number;
   _local: string; _tipologia: string[]; _tipo: Tipo;
+  _negocio: 'VD' | 'VU'; _marcas: string[];
 }
 
 function buildRow(v: Viatura): Row {
@@ -114,6 +112,8 @@ function buildRow(v: Viatura): Row {
     _local: getArr(v.local).join(', ') || '—',
     _tipologia: tipologia,
     _tipo: tipo,
+    _negocio: tipoNegocio(v.estado_negocio),
+    _marcas: marcasDe(getArr(v.marca)),
   };
 }
 
@@ -151,6 +151,16 @@ const COLS: Col[] = [
     key: 'local', label: 'Local', group: 'id', align: 'center',
     sort: r => r._local.toLowerCase(),
     cell: r => <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-semibold border border-border">{r._local}</span>,
+  },
+  {
+    key: 'negocio', label: 'Tipo / Marca', group: 'id', align: 'center',
+    sort: r => `${r._negocio} ${r._marcas.join(' ')}`.toLowerCase(),
+    cell: r => (
+      <span className="inline-flex items-center gap-1">
+        <span className={`px-1.5 py-0.5 rounded border text-[9px] font-black ${r._negocio === 'VU' ? 'bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400' : 'bg-brand-primary/10 text-brand-primary border-brand-primary/20'}`}>{r._negocio}</span>
+        {r._marcas.some(m => m !== 'BMW') && <span className="text-[9px] font-semibold text-muted-foreground">{r._marcas.filter(m => m !== 'BMW').join(', ')}</span>}
+      </span>
+    ),
   },
   { key: 'modelo', label: 'Modelo', group: 'id', ...text(r => r.modelo), cell: () => null /* render dedicado */ },
   { key: 'versao', label: 'Versão', group: 'id', ...text(r => r.versao), cls: 'text-muted-foreground' },
@@ -249,6 +259,26 @@ function ChipFilter({ label, options, selected, onToggle, onClear }: {
   );
 }
 
+/* Filtro de escolha única em botões ("Todas" ou uma opção), como na Gestão VD. */
+function PillFilter({ label, todos, options, value, onChange, divider }: {
+  label: string; todos: string; options: string[]; value: string; onChange: (v: string) => void; divider?: boolean;
+}) {
+  const pill = (on: boolean) =>
+    `px-3 py-1.5 text-[11px] font-bold rounded-md border transition-colors ${
+      on ? 'bg-brand-primary text-white border-brand-primary' : 'bg-background text-muted-foreground border-border hover:text-brand-primary hover:border-brand-primary'
+    }`;
+  return (
+    <div className={`flex flex-col gap-1.5 ${divider ? 'lg:border-l lg:border-border lg:pl-4' : ''}`}>
+      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</span>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={label}>
+        {[todos, ...options].map(o => (
+          <button key={o} type="button" onClick={() => onChange(o)} aria-pressed={value === o} className={pill(value === o)}>{o}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DemosPage() {
   const { session } = useAuth();
   const { canEdit, isAdmin, me, capabilities } = usePermissions();
@@ -264,16 +294,23 @@ export default function DemosPage() {
     const ls = localsOfRow(r);
     return ls.length > 0 && ls.every(l => meusLocais.includes(l));
   };
+  // Adicionar viaturas ('demos:inserir-viaturas', nos seus locais) e arquivar/consultar vendidas
+  // ('demos:precos', nas do seu local): a base de dados valida; aqui só se decide o que mostrar.
+  const podeAdicionar = capabilities.demosGestao && (isAdmin || canEdit('demos:inserir-viaturas'));
+  const podeArquivo = capabilities.demosGestao && (isAdmin || canEdit('demos:precos'));
+  const [vista, setVista] = useState<'parque' | 'vendidas'>('parque');
+  const [novaOpen, setNovaOpen] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [capas, setCapas] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  // Filtros em chips de seleção múltipla (vazio = todos), como no Caetano Sales Force.
-  const [fMarcas, setFMarcas] = useState<Set<string>>(new Set());
+  // Filtros de escolha única (Concessão, Tipo, Marca), como na Gestão VD da Sales Force.
+  // Por defeito, o parque abre na concessão do perfil (escolhida em Utilizadores), se for só uma.
+  const [fLocal, setFLocal] = useState<string>(() => concessaoInicial(locaisDoPerfil(me?.local)));
+  const [fTipo, setFTipo] = useState<string>(TODOS);
+  const [fMarca, setFMarca] = useState<string>(TODAS);
   const [fModelos, setFModelos] = useState<Set<string>>(new Set());
-  // Por defeito, o parque abre filtrado pelos locais do perfil (escolhidos em Utilizadores).
-  const [fLocais, setFLocais] = useState<Set<string>>(() => new Set(locaisDoPerfil(me?.local)));
   const localInit = useRef(false);
   const [fTipologia, setFTipologia] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
@@ -281,34 +318,31 @@ export default function DemosPage() {
   const [precosChassis, setPrecosChassis] = useState<string | null>(null);
   const [modeloW, setModeloW] = useState<number>(loadModeloW);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      setLoading(true);
-      // demos_viaturas() só devolve descontos, custo e margem ao administrador.
-      // Sem a função (migração 20261012120000 por aplicar) lê-se a tabela, como antes.
-      let viaturasQ = await supabase.rpc('demos_viaturas');
-      if (viaturasQ.error && (viaturasQ.error as { code?: string }).code === 'PGRST202') {
-        console.warn('demos_viaturas() em falta na base de dados: a ler a tabela viaturas. Aplicar a migração 20261012120000.');
-        viaturasQ = await supabase.from('viaturas').select('*') as unknown as typeof viaturasQ;
-      }
-      const [viaturasRes, capasRes] = await Promise.all([
-        Promise.resolve(viaturasQ),
-        supabase.from('demo_capas').select('chassis, url'),
-      ]);
-      if (!alive) return;
-      if (viaturasRes.error) { setError(viaturasRes.error.message); setRows([]); setLoading(false); return; }
-      const mapped: Row[] = ((viaturasRes.data as Viatura[]) ?? []).filter(isDemo).map(buildRow);
-      const capaMap: Record<string, string> = {};
-      for (const c of (capasRes.data as { chassis: string; url: string }[]) ?? []) {
-        if (c.chassis && c.url) capaMap[c.chassis] = c.url;
-      }
-      setRows(mapped);
-      setCapas(capaMap);
-      setLoading(false);
-    })();
-    return () => { alive = false; };
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    // demos_viaturas() só devolve descontos, custo e margem ao administrador (e a quem gere os preços do seu local).
+    // Sem a função (migração 20261012120000 por aplicar) lê-se a tabela, como antes.
+    let viaturasQ = await supabase.rpc('demos_viaturas');
+    if (viaturasQ.error && (viaturasQ.error as { code?: string }).code === 'PGRST202') {
+      console.warn('demos_viaturas() em falta na base de dados: a ler a tabela viaturas. Aplicar a migração 20261012120000.');
+      viaturasQ = await supabase.from('viaturas').select('*') as unknown as typeof viaturasQ;
+    }
+    const [viaturasRes, capasRes] = await Promise.all([
+      Promise.resolve(viaturasQ),
+      supabase.from('demo_capas').select('chassis, url'),
+    ]);
+    if (viaturasRes.error) { setError(viaturasRes.error.message); setRows([]); setLoading(false); return; }
+    setError(null);
+    const capaMap: Record<string, string> = {};
+    for (const c of (capasRes.data as { chassis: string; url: string }[]) ?? []) {
+      if (c.chassis && c.url) capaMap[c.chassis] = c.url;
+    }
+    setRows(((viaturasRes.data as Viatura[]) ?? []).map(buildRow));
+    setCapas(capaMap);
+    setLoading(false);
   }, []);
+
+  useEffect(() => { void carregar(); }, [carregar]);
 
   const handleCapaChange = (chassis: string, url: string | null) =>
     setCapas(prev => {
@@ -317,17 +351,19 @@ export default function DemosPage() {
       return next;
     });
 
-  const marcas = useMemo(() => [...new Set(rows.flatMap(r => getArr(r.marca)))].sort(), [rows]);
+  const opcoesLocal = useMemo(() => opcoesFiltro(locaisDoGrupo(), rows.flatMap(localsOfRow)), [rows]);
+  const opcoesTipo = useMemo(() => opcoesFiltro(TIPOS_NEGOCIO, rows.map(r => r._negocio)), [rows]);
+  const opcoesMarca = useMemo(() => opcoesFiltro(MARCAS, rows.flatMap(r => r._marcas)), [rows]);
   const modelos = useMemo(() => [...new Set(rows.map(r => (r.modelo ?? '').trim()).filter(Boolean))].sort(), [rows]);
   const locais = useMemo(() => [...new Set(rows.flatMap(localsOfRow))].sort(), [rows]);
   const tipologias = useMemo(() => [...new Set(rows.flatMap(r => r._tipologia))].sort(), [rows]);
 
-  // Se o parque não tiver nenhum dos locais do filtro inicial, limpa-o — só uma vez,
+  // Se o parque não tiver nenhuma viatura da concessão inicial, passa a "Todas" — só uma vez,
   // para não mostrar uma tabela vazia por causa do filtro inicial.
   useEffect(() => {
     if (localInit.current || rows.length === 0) return;
     localInit.current = true;
-    setFLocais(prev => ([...prev].some(l => locais.includes(l)) ? prev : new Set()));
+    setFLocal(prev => (prev === TODAS || locais.includes(prev) ? prev : TODAS));
   }, [rows, locais]);
 
   const viewRows = rows;
@@ -340,6 +376,22 @@ export default function DemosPage() {
       ? buildRow({ ...r, inputs: { ...r._inps, ...changed } })
       : r));
     setPrecosChassis(null);
+  };
+
+  // Arquivar como vendida (como na Gestão VD): preço e dados ficam cristalizados em "Vendidas".
+  const arquivar = async (chassis: string) => {
+    const r = rows.find(x => x.chassis === chassis);
+    if (!r) return;
+    const nome = [r.modelo, r.versao].filter(Boolean).join(' ') || chassisCurto(chassis);
+    if (!window.confirm(`Marcar ${nome} como VENDIDA?\n\nOs dados e o preço atuais ficam arquivados em "Vendidas" e a viatura sai do parque ativo.`)) return;
+    const { error: err } = await supabase.rpc('demos_arquivar_viatura', { p_chassis: chassis });
+    if (err) {
+      toast.error(err.code === '42501' ? 'Sem permissão para arquivar esta viatura.' : `Não foi possível arquivar: ${err.message}`);
+      return;
+    }
+    setRows(prev => prev.filter(x => x.chassis !== chassis));
+    setPrecosChassis(null);
+    toast.success('Viatura arquivada em "Vendidas".');
   };
 
   // Largura da coluna Modelo, ajustável arrastando a margem do cabeçalho (rato ou toque).
@@ -361,7 +413,7 @@ export default function DemosPage() {
   };
 
   // Com um só local filtrado, a coluna Local seria sempre igual: esconde-se.
-  const hideLocal = fLocais.size === 1;
+  const hideLocal = fLocal !== TODAS;
   const visibleCols = useMemo(
     () => cols.filter(c => !(hideLocal && c.key === 'local')),
     [cols, hideLocal],
@@ -395,9 +447,10 @@ export default function DemosPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = viewRows.filter(r => {
-      if (fMarcas.size && !getArr(r.marca).some(m => fMarcas.has(m))) return false;
+      if (fTipo !== TODOS && r._negocio !== fTipo) return false;
+      if (fMarca !== TODAS && !r._marcas.includes(fMarca)) return false;
       if (fModelos.size && !fModelos.has((r.modelo ?? '').trim())) return false;
-      if (fLocais.size && !localsOfRow(r).some(l => fLocais.has(l))) return false;
+      if (fLocal !== TODAS && !localsOfRow(r).includes(fLocal)) return false;
       if (fTipologia.size && !r._tipologia.some(t => fTipologia.has(t))) return false;
       if (!q) return true;
       return [r.modelo, r.versao, r.chassis, r.matricula, formatMatricula(r.matricula), r.encomenda, r._local]
@@ -421,7 +474,7 @@ export default function DemosPage() {
       });
     }
     return list;
-  }, [viewRows, search, fMarcas, fModelos, fLocais, fTipologia, sort]);
+  }, [viewRows, search, fTipo, fMarca, fModelos, fLocal, fTipologia, sort]);
 
   // Totais do que está filtrado (como a linha de totais de uma tabela Excel).
   const totals = useMemo(() => {
@@ -439,9 +492,9 @@ export default function DemosPage() {
       return null; // terceiro clique limpa
     });
 
-  const filtersActive = !!search || fMarcas.size > 0 || fModelos.size > 0 || fLocais.size > 0 || fTipologia.size > 0;
+  const filtersActive = !!search || fTipo !== TODOS || fMarca !== TODAS || fModelos.size > 0 || fLocal !== TODAS || fTipologia.size > 0;
   const resetFilters = () => {
-    setSearch(''); setFMarcas(new Set()); setFModelos(new Set()); setFLocais(new Set()); setFTipologia(new Set());
+    setSearch(''); setFTipo(TODOS); setFMarca(TODAS); setFModelos(new Set()); setFLocal(TODAS); setFTipologia(new Set());
   };
 
   const alignCls = (a?: 'right' | 'center') => a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left';
@@ -449,36 +502,78 @@ export default function DemosPage() {
 
   return (
     <div className="space-y-3 min-w-0 overflow-x-clip">
-      {/* Toolbar */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative w-full sm:flex-1 sm:w-auto sm:min-w-[220px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <input
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="Modelo, versão, matrícula, chassis, encomenda, local..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      {/* Cabeçalho: título, contagem e ações (como na Gestão VD) */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-black leading-tight">{vista === 'vendidas' ? 'Viaturas vendidas' : 'Gestão VD'}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {vista === 'vendidas'
+              ? 'Arquivo: dados e preço cristalizados no momento da venda.'
+              : <>
+                  {filtered.length}{filtered.length !== rows.length ? ` de ${rows.length}` : ''} viaturas
+                  {podeArquivo ? ' · clique numa viatura para editar preços ou arquivá-la como vendida.' : ''}
+                </>}
+          </p>
         </div>
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {filtered.length} de {rows.length} viaturas
-        </span>
-        {filtersActive && (
-          <button
-            onClick={resetFilters}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground border border-border rounded-md hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <RotateCcw className="h-3 w-3" /> Limpar
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {podeArquivo && (
+            <button
+              onClick={() => setVista(v => (v === 'vendidas' ? 'parque' : 'vendidas'))}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold uppercase tracking-wider border border-border rounded-lg hover:bg-muted transition-colors"
+            >
+              <Archive className="h-3.5 w-3.5" /> {vista === 'vendidas' ? 'Voltar ao parque' : 'Vendidas'}
+            </button>
+          )}
+          {podeAdicionar && vista === 'parque' && (
+            <button
+              onClick={() => setNovaOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-wider bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" /> Adicionar viatura
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Filtros (chips de seleção múltipla; "Todas" = sem filtro) */}
-      <div className="bg-card border border-border rounded-lg p-3 grid gap-3">
-        {marcas.length > 1 && <ChipFilter label="Marca" options={marcas} selected={fMarcas} onToggle={toggleIn(setFMarcas)} onClear={() => setFMarcas(new Set())} />}
-        <ChipFilter label="Local" options={locais} selected={fLocais} onToggle={toggleIn(setFLocais)} onClear={() => setFLocais(new Set())} />
-        <ChipFilter label="Tipologia" options={tipologias} selected={fTipologia} onToggle={toggleIn(setFTipologia)} onClear={() => setFTipologia(new Set())} />
-        <ChipFilter label="Modelo" options={modelos} selected={fModelos} onToggle={toggleIn(setFModelos)} onClear={() => setFModelos(new Set())} />
+      {vista === 'vendidas' ? (
+        <VendidasPanel onRepor={() => { void carregar(); }} />
+      ) : (<>
+      {/* Filtros: Concessão · Tipo · Marca · Pesquisa (escolha única, "Todas/Todos" = sem filtro) */}
+      <div className="bg-card border border-border rounded-xl p-3 space-y-3">
+        <div className="flex flex-col lg:flex-row gap-4 lg:items-end">
+          <PillFilter label="Concessão" todos={TODAS} options={opcoesLocal} value={fLocal} onChange={setFLocal} />
+          <PillFilter label="Tipo" todos={TODOS} options={opcoesTipo} value={fTipo} onChange={setFTipo} divider />
+          <PillFilter label="Marca" todos={TODAS} options={opcoesMarca} value={fMarca} onChange={setFMarca} divider />
+          <div className="lg:ml-auto w-full lg:w-96 flex flex-col gap-1.5">
+            <label htmlFor="demos-pesquisa" className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pesquisar</label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                id="demos-pesquisa" type="search"
+                className="w-full pl-8 pr-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="Modelo, versão, matrícula, chassis, encomenda..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+        {(tipologias.length > 0 || modelos.length > 0 || filtersActive) && (
+          <div className="grid gap-3 border-t border-border pt-3">
+            <ChipFilter label="Tecnologia" options={tipologias} selected={fTipologia} onToggle={toggleIn(setFTipologia)} onClear={() => setFTipologia(new Set())} />
+            <ChipFilter label="Modelo" options={modelos} selected={fModelos} onToggle={toggleIn(setFModelos)} onClear={() => setFModelos(new Set())} />
+            {filtersActive && (
+              <div>
+                <button
+                  onClick={resetFilters}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground border border-border rounded-md hover:text-foreground hover:bg-muted transition-colors"
+                >
+                  <RotateCcw className="h-3 w-3" /> Limpar filtros
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (
@@ -593,6 +688,7 @@ export default function DemosPage() {
           )}
         </div>
       )}
+      </>)}
 
       {selected && (
         <ShareCard
@@ -625,6 +721,21 @@ export default function DemosPage() {
           onClose={() => setPrecosChassis(null)}
           onSaved={changed => handlePrecosSaved(precosRow.chassis, changed)}
           onAbrirCartao={() => { setPrecosChassis(null); setSelectedChassis(precosRow.chassis); }}
+          onArquivar={capabilities.demosGestao ? () => arquivar(precosRow.chassis) : undefined}
+        />
+      )}
+
+      {novaOpen && (
+        <PrecosDialog
+          nova={{
+            locais: isAdmin ? opcoesLocal : meusLocais,
+            modelos,
+            chassisExistentes: rows.map(r => r.chassis),
+            matriculasExistentes: rows.map(r => matriculaCompacta(r.matricula)).filter(Boolean),
+          }}
+          inputs={{ ...TEMPLATE_INPUTS }}
+          onClose={() => setNovaOpen(false)}
+          onCriada={row => { setRows(prev => [buildRow(row as unknown as Viatura), ...prev]); setNovaOpen(false); }}
         />
       )}
     </div>
