@@ -9,6 +9,7 @@ import { matriculaCompacta, normalizarMatricula } from '@/lib/viaturaFormat';
 import { PRICE_FIELDS, toFieldText, fromFieldText, type Kind } from '@/lib/precoCampos';
 import { calcularEscalao30 } from '@/lib/escaloes30';
 import { descontoMaxPara, descMaxAplicavel, descMaxAcumulado, INCORPORACAO_OPCIONAIS, type DescMax } from '@/lib/descontosMax';
+import { MODELOS_BMW, versoesSugeridas } from '@/lib/demo-vehicles';
 
 /* ── Janela da viatura (gestão de preços pelo responsável local) ──────────────
  * Mesma mecânica da gestão VD da plataforma Caetano: 0. identificação (só leitura) e escalões
@@ -307,10 +308,11 @@ export default function PrecosDialog({ veiculo, nova, inputs, tipo: tipoProp, on
                   {campo('Data matrícula', 'dataMatricula', { type: 'date' })}
                   {campo('Quilómetros', 'kms', { type: 'number', placeholder: 'Ex: 0' })}
                   {campo('Modelo', 'modelo', { obrig: true, list: 'demos-modelos' })}
-                  {campo('Versão', 'versao', { obrig: true, span: 'md:col-span-2' })}
+                  {campo('Versão', 'versao', { obrig: true, span: 'md:col-span-2', list: 'demos-versoes' })}
                   {campo('Estado entrega', 'estadoEntrega', { placeholder: 'Ex: Imediata' })}
                 </div>
-                <datalist id="demos-modelos">{nova.modelos.map(m => <option key={m} value={m} />)}</datalist>
+                <datalist id="demos-modelos">{[...new Set([...MODELOS_BMW, ...nova.modelos])].map(m => <option key={m} value={m} />)}</datalist>
+                <datalist id="demos-versoes">{versoesSugeridas(ident.modelo).map(v => <option key={v} value={v} />)}</datalist>
                 <div className="grid sm:grid-cols-2 gap-3">
                   {botoes('Tipo de viatura', TIPOS_NEGOCIO, o => ident.negocio === o, o => setI('negocio', o))}
                   {botoes('Marca', MARCAS, o => ident.marca === o, o => setI('marca', o))}
