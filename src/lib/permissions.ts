@@ -88,7 +88,7 @@ const ALL_TABS: TabDef[] = [
   // ── Administração ───────────────────────────────────────────────────────────
   { key: 'dados', label: 'Dados', path: '/dados', area: 'admin' },
   { key: 'arquivo', label: 'Arquivo', path: '/arquivo', area: 'admin' },
-  { key: 'utilizadores', label: 'Utilizadores', path: '/utilizadores', area: 'admin' },
+  { key: 'utilizadores', label: 'Utilizadores', path: '/utilizadores', area: 'admin', adminOnly: true },
   // Sugestões e correções enviadas pelos utilizadores (qualquer um envia; este tab é a gestão).
   { key: 'sugestoes', label: 'Sugestões', path: '/sugestoes', area: 'admin' },
   // Quem entrou e o que usa (último login, última atividade): só administradores.

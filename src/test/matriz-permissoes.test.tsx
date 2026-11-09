@@ -19,7 +19,7 @@ import { RolesPanel } from '@/components/users/RolesPanel';
 import { AREAS, TABS, PERMISSION_TABS } from '@/lib/permissions';
 
 /* Tabs que NÃO se atribuem na matriz, por decisão (arrumados no Arquivo ou só de admin). */
-const FORA_DA_MATRIZ_DE_PROPOSITO = ['comparativo', 'database', 'emprestimos', 'escala-repsol', 'logs', 'pendentes', 'prospecao'];
+const FORA_DA_MATRIZ_DE_PROPOSITO = ['comparativo', 'database', 'emprestimos', 'escala-repsol', 'logs', 'pendentes', 'prospecao', 'utilizadores'];
 
 /* Tabs que TÊM de ser atribuíveis (pedido explícito do negócio): não podem sair da matriz. */
 const OBRIGATORIOS_NA_MATRIZ = ['multas', 'marketing', 'objetivos', 'end-of-term', 'demos', 'lavagem'];
