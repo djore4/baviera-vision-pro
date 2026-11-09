@@ -1,4 +1,4 @@
--- Demos por local (migração 20261109140000): fora de Aveiro vê-se o tab Demos, só do próprio local.
+-- Demos por local (migração 20261109211511): fora de Aveiro vê-se o tab Demos, só do próprio local.
 \set ON_ERROR_STOP on
 delete from t.results;
 insert into public.app_roles (name, is_admin, permissions) values

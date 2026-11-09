@@ -65,7 +65,7 @@ describe('escalões de 30 dias (como na Sales Force)', () => {
 
 describe('janela de preço ↔ base de dados', () => {
   it('edita exatamente os 13 valores que demos_gravar_precos aceita', () => {
-    const sql = readFileSync('supabase/migrations/20261109150000_demos_colunas_precos.sql', 'utf8');
+    const sql = readFileSync('supabase/migrations/20261109211555_demos_colunas_precos.sql', 'utf8');
     const m = /allowed constant text\[\] := array\[([^\]]+)\]/.exec(sql)![1];
     const db = [...m.matchAll(/'(\w+)'/g)].map(x => x[1]);
     expect([...PRICE_FIELDS].sort()).toEqual(db.sort());

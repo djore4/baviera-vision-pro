@@ -208,7 +208,7 @@ export const tabLivreForaDoLocal = (tab: string, tabsPorLocal: readonly string[]
   || tabsPorLocal.includes(tab.split(':')[0]);
 
 /* Tabs abertos fora de Aveiro, cada um limitado ao local da pessoa (função tabs_por_local,
- * migração 20261109140000). Sem a função (migração por aplicar): nenhum — a interface
+ * migração 20261109211511). Sem a função (migração por aplicar): nenhum — a interface
  * mantém a regra antiga e nunca abre mais do que a base de dados abre. */
 export async function getTabsPorLocal(): Promise<string[]> {
   const { data, error } = await supabase.rpc('tabs_por_local');

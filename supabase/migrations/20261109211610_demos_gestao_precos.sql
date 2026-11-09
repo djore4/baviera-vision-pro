@@ -1,5 +1,5 @@
 -- Demos: a gestão de preços fica só com a janela da viatura (permissão 'demos:precos').
--- Substitui a parametrização de colunas por função de 20261109150000, que deixou de fazer sentido:
+-- Substitui a parametrização de colunas por função de 20261109211555, que deixou de fazer sentido:
 -- a tabela mostra as mesmas colunas a todos e os valores de custo/descontos só aparecem na janela
 -- de preço, para quem a pode abrir.
 --
@@ -7,9 +7,9 @@
 --  * demos_viaturas(): volta à lista branca de chaves de preço de 20261012120000 para quem não é
 --    administrador; quem tem 'demos:precos' (edit) recebe ainda os 13 valores de `inputs` das
 --    viaturas do SEU local (viaturas_local_ok), para os poder gerir. Âmbito por local como em
---    20261109140000 (viatura_local_visivel). `stats` volta a levar só a lista branca antiga.
---  * demos_gravar_precos() (20261109150000) mantém-se tal como está.
--- Depende de 20261109140000 e 20261109150000.
+--    20261109211511 (viatura_local_visivel). `stats` volta a levar só a lista branca antiga.
+--  * demos_gravar_precos() (20261109211555) mantém-se tal como está.
+-- Depende de 20261109211511 e 20261109211555.
 
 drop function if exists public.demos_inputs_permitidos();
 drop function if exists public.demos_dep_colunas();
