@@ -145,7 +145,10 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       // o acesso total de admin). Só eleva o acesso, nunca o reduz.
       const exception = accessExceptions[tab];
       // Fora de Aveiro (ou sem local): só o End-of-Term. Uma exceção por email mantém-se.
-      if (!exception && restritoPeloLocal(effMe) && !tabLivreForaDoLocal(tab)) return 'none';
+      // Quem gere os preços do seu local ('demos:precos') abre também o Demos (e as suas colunas);
+      // a base de dados só lhe devolve as viaturas dos seus locais (demos_viaturas).
+      const demosDoLocal = role?.permissions?.['demos:precos'] === 'edit' && (tab === 'demos' || tab.startsWith('demos:col:'));
+      if (!exception && restritoPeloLocal(effMe) && !tabLivreForaDoLocal(tab) && !demosDoLocal) return 'none';
       const roleAccess = role ? ((role.permissions?.[tab] as AccessLevel) ?? 'none') : 'none';
       if (exception) {
         const rank: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };

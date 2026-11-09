@@ -2401,6 +2401,10 @@ export type Database = {
       }
       app_capabilities: { Args: Record<PropertyKey, never>; Returns: Json }
       can_write_excel_file: { Args: { p_name: string }; Returns: boolean }
+      demos_gravar_precos: { Args: { p_chassis: string; p_inputs: Json }; Returns: Json }
+      demos_dep_colunas: { Args: Record<PropertyKey, never>; Returns: Json }
+      demos_inputs_permitidos: { Args: Record<PropertyKey, never>; Returns: string[] }
+      demos_so_do_local: { Args: Record<PropertyKey, never>; Returns: boolean }
       demos_viaturas: {
         Args: Record<PropertyKey, never>
         Returns: {

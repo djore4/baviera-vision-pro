@@ -63,8 +63,9 @@ const ALL_TABS: TabDef[] = [
   // Visão do vendedor face aos colegas, em todos os KPIs. Só administradores "para já":
   // fora da matriz de funções até se decidir quem o pode ver (ver TabDef.adminOnly).
   { key: 'comparativo', label: 'Comparativo', path: '/comparativo', area: 'vn', adminOnly: true },
-  // Parque de demonstradores (dados partilhados com a plataforma Caetano —
-  // tabela `viaturas`). Acesso pela matriz de funções (ex.: perfil genius).
+  // Parque de demonstradores (tabela `viaturas`, ainda partilhada com a plataforma Caetano).
+  // Acesso pela matriz de funções; que colunas de preço cada função vê e quem gere os
+  // preços do seu local também se atribuem aí (ver demoColunas.ts).
   { key: 'demos', label: 'Demos', path: '/demos', area: 'vn' },
   // Multas de equipa. 'view': consulta; 'edit': lança multas. Gerir o catálogo, reiniciar o
   // ciclo e apagar multas lançadas é só do administrador (UI e RLS: migração multas_gestao_admin).
@@ -159,6 +160,9 @@ const ALL_SUB_PERMISSIONS: SubPermissionDef[] = [
   { key: 'demos:inserir-viaturas', parent: 'demos', label: 'Inserir viaturas (do seu local)',
     hint: 'Introduzir e corrigir viaturas dos locais da pessoa (Utilizadores → Local), na Sales Force. Não vê nem altera as de outros locais e não apaga.',
     capability: 'viaturasLocal' },
+  { key: 'demos:precos', parent: 'demos', label: 'Gerir preços (do seu local)',
+    hint: 'Abre a janela de preço de cada viatura e grava os valores (preço base, opcionais, descontos, depreciações, PVP final) das viaturas dos locais da pessoa (Utilizadores → Local). Exige o tab Demos. Fora de Aveiro, abre o tab Demos só com as viaturas do seu local. Que colunas vê define-se à parte, por função.',
+    capability: 'demosPrecos' },
 ];
 
 /* Só as dos tabs que existem nesta instalação. */
@@ -197,8 +201,8 @@ export const restritoPeloLocal = (user: { local?: unknown } | null | undefined):
 /** Este tab (ou permissão `tab:ação`) continua disponível a quem está fora do local? */
 export const tabLivreForaDoLocal = (tab: string): boolean =>
   tab === TAB_FORA_DO_LOCAL || tab.startsWith(`${TAB_FORA_DO_LOCAL}:`)
-  // Inserir viaturas: o âmbito já é o local da pessoa (RLS viaturas_local_ok).
-  || tab === 'demos:inserir-viaturas';
+  // Inserir viaturas e gerir preços: o âmbito já é o local da pessoa (RLS viaturas_local_ok).
+  || tab === 'demos:inserir-viaturas' || tab === 'demos:precos';
 
 export interface AppUser {
   id: number | string;
@@ -256,9 +260,9 @@ export async function getMyAccessExceptions(email?: string | null): Promise<Reco
 /* Capacidades que a base de dados já tem (função app_capabilities, migração
  * lavagem_permissoes_granulares). Sem a função, nenhuma: a interface mantém as
  * regras antigas até a migração ser aplicada. */
-export interface AppCapabilities { lavagemGranular: boolean; eotGranular: boolean; eotResponsaveis: boolean; viaturasLocal: boolean }
+export interface AppCapabilities { lavagemGranular: boolean; eotGranular: boolean; eotResponsaveis: boolean; viaturasLocal: boolean; demosPrecos: boolean }
 
-export const NO_CAPABILITIES: AppCapabilities = { lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false };
+export const NO_CAPABILITIES: AppCapabilities = { lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false };
 
 export async function getAppCapabilities(): Promise<AppCapabilities> {
   const { data, error } = await supabase.rpc('app_capabilities');
@@ -269,6 +273,7 @@ export async function getAppCapabilities(): Promise<AppCapabilities> {
     eotGranular: caps.eot_granular === true,
     eotResponsaveis: caps.eot_responsaveis === true,
     viaturasLocal: caps.viaturas_local === true,
+    demosPrecos: caps.demos_precos === true,
   };
 }
 
