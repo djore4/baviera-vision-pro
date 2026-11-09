@@ -2453,6 +2453,7 @@ export type Database = {
         Returns: number
       }
       url_encode: { Args: { p_text: string }; Returns: string }
+      viaturas_local_ok: { Args: { p_local: Json }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

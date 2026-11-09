@@ -156,6 +156,9 @@ const ALL_SUB_PERMISSIONS: SubPermissionDef[] = [
   { key: 'end-of-term:local', parent: 'end-of-term', label: 'Chefe de equipa',
     hint: 'Ver os contratos da sua equipa (os responsáveis que lhe estão atribuídos no tab Responsáveis do End-of-Term), passá-los entre eles e gerir essa equipa. Não vê os contratos sem responsável. Sem isto, cada pessoa só vê os contratos que lhe estão afetos.',
     capability: 'eotResponsaveis' },
+  { key: 'demos:inserir-viaturas', parent: 'demos', label: 'Inserir viaturas (do seu local)',
+    hint: 'Introduzir e corrigir viaturas dos locais da pessoa (Utilizadores → Local), na Sales Force. Não vê nem altera as de outros locais e não apaga.',
+    capability: 'viaturasLocal' },
 ];
 
 /* Só as dos tabs que existem nesta instalação. */
@@ -193,7 +196,9 @@ export const restritoPeloLocal = (user: { local?: unknown } | null | undefined):
 
 /** Este tab (ou permissão `tab:ação`) continua disponível a quem está fora do local? */
 export const tabLivreForaDoLocal = (tab: string): boolean =>
-  tab === TAB_FORA_DO_LOCAL || tab.startsWith(`${TAB_FORA_DO_LOCAL}:`);
+  tab === TAB_FORA_DO_LOCAL || tab.startsWith(`${TAB_FORA_DO_LOCAL}:`)
+  // Inserir viaturas: o âmbito já é o local da pessoa (RLS viaturas_local_ok).
+  || tab === 'demos:inserir-viaturas';
 
 export interface AppUser {
   id: number | string;
@@ -251,9 +256,9 @@ export async function getMyAccessExceptions(email?: string | null): Promise<Reco
 /* Capacidades que a base de dados já tem (função app_capabilities, migração
  * lavagem_permissoes_granulares). Sem a função, nenhuma: a interface mantém as
  * regras antigas até a migração ser aplicada. */
-export interface AppCapabilities { lavagemGranular: boolean; eotGranular: boolean; eotResponsaveis: boolean }
+export interface AppCapabilities { lavagemGranular: boolean; eotGranular: boolean; eotResponsaveis: boolean; viaturasLocal: boolean }
 
-export const NO_CAPABILITIES: AppCapabilities = { lavagemGranular: false, eotGranular: false, eotResponsaveis: false };
+export const NO_CAPABILITIES: AppCapabilities = { lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false };
 
 export async function getAppCapabilities(): Promise<AppCapabilities> {
   const { data, error } = await supabase.rpc('app_capabilities');
@@ -263,6 +268,7 @@ export async function getAppCapabilities(): Promise<AppCapabilities> {
     lavagemGranular: caps.lavagem_granular === true,
     eotGranular: caps.eot_granular === true,
     eotResponsaveis: caps.eot_responsaveis === true,
+    viaturasLocal: caps.viaturas_local === true,
   };
 }
 
