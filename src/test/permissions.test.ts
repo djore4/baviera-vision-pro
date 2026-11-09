@@ -161,6 +161,12 @@ describe('restrição por local', () => {
     expect(tabLivreForaDoLocal('end-of-term-x')).toBe(false);
     expect(tabLivreForaDoLocal('retails')).toBe(false);
     expect(tabLivreForaDoLocal('lavagem:reagendar')).toBe(false);
+    // Tabs por local (app_tabs_por_local): o tab e as suas ações, só quando configurados.
+    expect(tabLivreForaDoLocal('demos')).toBe(false);
+    expect(tabLivreForaDoLocal('demos', ['demos'])).toBe(true);
+    expect(tabLivreForaDoLocal('demos:inserir-viaturas', [])).toBe(true);
+    expect(tabLivreForaDoLocal('retails', ['demos'])).toBe(false);
+    expect(tabLivreForaDoLocal('demosx', ['demos'])).toBe(false);
   });
 });
 

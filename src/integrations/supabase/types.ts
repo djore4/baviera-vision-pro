@@ -2400,6 +2400,7 @@ export type Database = {
         }[]
       }
       app_capabilities: { Args: Record<PropertyKey, never>; Returns: Json }
+      tabs_por_local: { Args: Record<PropertyKey, never>; Returns: string[] }
       can_write_excel_file: { Args: { p_name: string }; Returns: boolean }
       demos_viaturas: {
         Args: Record<PropertyKey, never>
