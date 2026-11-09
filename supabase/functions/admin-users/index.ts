@@ -1,7 +1,7 @@
 // Edge function admin-users — operações privilegiadas sobre utilizadores/funções.
-// Só um administrador (email em platform_admins ou perfil com is_admin) pode invocar.
-// Exceção: a ação "create" também é permitida a quem gere o End-of-Term (perfil com
-// 'end-of-term:todos' em edição), mas só para funções com acesso ao End-of-Term e sem is_admin.
+// Só um administrador (email em platform_admins ou perfil com is_admin) pode invocar,
+// para TODAS as ações (criar, editar, eliminar utilizadores e gerir funções). Nenhum
+// outro perfil, incluindo os do End-of-Term, pode criar ou gerir utilizadores.
 // Usa o service role para criar/eliminar utilizadores de autenticação e para
 // escrever nas tabelas app_users/app_roles (que só permitem leitura a
 // utilizadores autenticados). A tabela app_users é exclusiva desta plataforma.
@@ -68,7 +68,6 @@ Deno.serve(async (req) => {
 
     // Validar admin: email em platform_admins OU perfil com is_admin.
     let isAdmin = false;
-    let eotManager = false;
     if (user.email) {
       const { data: pa } = await admin.from("platform_admins").select("email")
         .eq("email", user.email.toLowerCase()).maybeSingle();
@@ -77,32 +76,21 @@ Deno.serve(async (req) => {
     if (!isAdmin && user.email) {
       const { data: u } = await admin.from("app_users").select("perfil").ilike("email", user.email).maybeSingle();
       if (u?.perfil) {
-        const { data: r } = await admin.from("app_roles").select("is_admin, permissions").eq("name", u.perfil).maybeSingle();
+        const { data: r } = await admin.from("app_roles").select("is_admin").eq("name", u.perfil).maybeSingle();
         isAdmin = !!r?.is_admin;
-        eotManager = (r?.permissions as Record<string, string> | null)?.["end-of-term:todos"] === "edit";
       }
     }
 
     const body = await req.json().catch(() => ({}));
     const action = body?.action as string;
 
-    if (!isAdmin && !(eotManager && action === "create")) {
+    if (!isAdmin) {
       return json({ error: "Sem permissão de administrador." }, 403);
     }
 
     if (action === "create") {
       const { nome, email, password, perfil, local, negocio, marca } = body;
       if (!email || !password) return json({ error: "Email e password são obrigatórios." }, 400);
-
-      if (!isAdmin) {
-        // Gestor do End-of-Term: só funções com acesso ao End-of-Term e nunca administradoras.
-        const { data: target } = await admin.from("app_roles").select("is_admin, permissions")
-          .eq("name", String(perfil ?? "")).maybeSingle();
-        const eotLevel = (target?.permissions as Record<string, string> | null)?.["end-of-term"];
-        if (!target || target.is_admin || !(eotLevel === "view" || eotLevel === "edit")) {
-          return json({ error: "Só pode criar utilizadores com funções de End-of-Term (não administradoras)." }, 403);
-        }
-      }
 
       // Se o email já tem login (p.ex. criado pela Sales Force) reutiliza-se: a password
       // existente não é alterada e o perfil desta plataforma cria-se à parte.
