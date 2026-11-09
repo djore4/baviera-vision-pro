@@ -1,4 +1,4 @@
--- Demos: colunas por função e gestão de preços (migrações 20261109150000 e 20261109160000).
+-- Demos: colunas por função e gestão de preços (migrações 20261109211555 e 20261109211610).
 \set ON_ERROR_STOP on
 delete from t.results;
 
@@ -107,11 +107,11 @@ select t.check('anónimo: não executa', not has_function_privilege('anon', 'pub
 select t.back();
 commit;
 
--- 20261109160000 retira as chaves 'demos:col:*' das funções (volta a aplicar-se: é idempotente).
+-- 20261109211610 retira as chaves 'demos:col:*' das funções (volta a aplicar-se: é idempotente).
 insert into public.app_roles (name, is_admin, permissions) values
   ('Legado Cols', false, '{"demos": "view", "demos:col:pvp": "view", "demos:col:margem": "view", "demos:precos": "edit"}')
   on conflict (name) do update set permissions = excluded.permissions;
-\i :ROOT/supabase/migrations/20261109160000_demos_gestao_precos.sql
+\i :ROOT/supabase/migrations/20261109211610_demos_gestao_precos.sql
 select t.check('migração: retira demos:col:* e mantém o resto da função',
   (select permissions = '{"demos": "view", "demos:precos": "edit"}'::jsonb from public.app_roles where name = 'Legado Cols'));
 

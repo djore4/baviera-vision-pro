@@ -46,3 +46,14 @@ describe('matriculaCompacta', () => {
     expect(matriculaCompacta('L-12345')).toBe('L-12345');
   });
 });
+
+import { normalizarMatricula } from '@/lib/viaturaFormat';
+describe('normalizarMatricula (adicionar viatura)', () => {
+  it('normaliza para AA-00-BB e recusa o que não tem 6 caracteres', () => {
+    expect(normalizarMatricula('ab12cd')).toBe('AB-12-CD');
+    expect(normalizarMatricula(' ab-12-cd ')).toBe('AB-12-CD');
+    expect(normalizarMatricula('AB12')).toBeNull();
+    expect(normalizarMatricula('')).toBeNull();
+    expect(normalizarMatricula(null)).toBeNull();
+  });
+});

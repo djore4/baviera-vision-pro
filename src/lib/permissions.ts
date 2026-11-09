@@ -158,10 +158,10 @@ const ALL_SUB_PERMISSIONS: SubPermissionDef[] = [
     hint: 'Ver os contratos da sua equipa (os responsáveis que lhe estão atribuídos no tab Responsáveis do End-of-Term), passá-los entre eles e gerir essa equipa. Não vê os contratos sem responsável. Sem isto, cada pessoa só vê os contratos que lhe estão afetos.',
     capability: 'eotResponsaveis' },
   { key: 'demos:inserir-viaturas', parent: 'demos', label: 'Inserir viaturas (do seu local)',
-    hint: 'Introduzir e corrigir viaturas dos locais da pessoa (Utilizadores → Local), na Sales Force. Não vê nem altera as de outros locais e não apaga.',
+    hint: 'Introduzir viaturas dos locais da pessoa (Utilizadores → Local): botão "Adicionar viatura" no tab Demos e na Sales Force. Não vê nem altera as de outros locais e não apaga.',
     capability: 'viaturasLocal' },
   { key: 'demos:precos', parent: 'demos', label: 'Gerir preços (do seu local)',
-    hint: 'Ao clicar numa viatura abre a janela de preço (como na gestão VD da Sales Force: escalões de 30 dias, descontos máximos do modelo, estrutura base, descontos e margem) e grava os valores das viaturas dos locais da pessoa (Utilizadores → Local). Exige o tab Demos. Sem isto, a pessoa vê só o cartão da viatura.',
+    hint: 'Ao clicar numa viatura abre a janela de preço (como na gestão VD da Sales Force: escalões de 30 dias, descontos máximos do modelo, estrutura base, descontos e margem) e grava os valores das viaturas dos locais da pessoa (Utilizadores → Local). Também arquiva viaturas como vendidas e consulta/recupera o arquivo (só as do seu local). Exige o tab Demos. Sem isto, a pessoa vê só o cartão da viatura.',
     capability: 'demosPrecos' },
 ];
 
@@ -208,7 +208,7 @@ export const tabLivreForaDoLocal = (tab: string, tabsPorLocal: readonly string[]
   || tabsPorLocal.includes(tab.split(':')[0]);
 
 /* Tabs abertos fora de Aveiro, cada um limitado ao local da pessoa (função tabs_por_local,
- * migração 20261109140000). Sem a função (migração por aplicar): nenhum — a interface
+ * migração 20261109211511). Sem a função (migração por aplicar): nenhum — a interface
  * mantém a regra antiga e nunca abre mais do que a base de dados abre. */
 export async function getTabsPorLocal(): Promise<string[]> {
   const { data, error } = await supabase.rpc('tabs_por_local');
@@ -272,9 +272,9 @@ export async function getMyAccessExceptions(email?: string | null): Promise<Reco
 /* Capacidades que a base de dados já tem (função app_capabilities, migração
  * lavagem_permissoes_granulares). Sem a função, nenhuma: a interface mantém as
  * regras antigas até a migração ser aplicada. */
-export interface AppCapabilities { lavagemGranular: boolean; eotGranular: boolean; eotResponsaveis: boolean; viaturasLocal: boolean; demosPrecos: boolean }
+export interface AppCapabilities { lavagemGranular: boolean; eotGranular: boolean; eotResponsaveis: boolean; viaturasLocal: boolean; demosPrecos: boolean; demosGestao: boolean }
 
-export const NO_CAPABILITIES: AppCapabilities = { lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false };
+export const NO_CAPABILITIES: AppCapabilities = { lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false, demosGestao: false };
 
 export async function getAppCapabilities(): Promise<AppCapabilities> {
   const { data, error } = await supabase.rpc('app_capabilities');
@@ -286,6 +286,7 @@ export async function getAppCapabilities(): Promise<AppCapabilities> {
     eotResponsaveis: caps.eot_responsaveis === true,
     viaturasLocal: caps.viaturas_local === true,
     demosPrecos: caps.demos_precos === true,
+    demosGestao: caps.demos_gestao === true,
   };
 }
 
