@@ -13,9 +13,14 @@ const inputs: PricingInputs = {
   mgb: 0.07, esf: 0.05, pac: 0.06, dem: 0.09, sup: 0, pvp_desc: 39990, depreciacoes: 2239,
 };
 
+const veiculo = {
+  chassis: 'WBA1', titulo: '225e xDrive', matricula: 'AA-00-BB', local: 'Aveiro', encomenda: 'E123',
+  dataMatricula: '2026-01-01', kms: 1200, modelo: 'Série 2', versao: '225e', estadoEntrega: 'Imediata',
+};
+const tipoPhev = { ice: false, xev: true, bev: false, qor: false, m: false };
 const setup = (over: Partial<Parameters<typeof PrecosDialog>[0]> = {}) => {
   const onSaved = vi.fn(); const onClose = vi.fn();
-  render(<PrecosDialog chassis="WBA1" titulo="225e" inputs={inputs} tipo={{ xev: true, bev: false }} onClose={onClose} onSaved={onSaved} {...over} />);
+  render(<PrecosDialog veiculo={veiculo} inputs={inputs} tipo={tipoPhev} onClose={onClose} onSaved={onSaved} {...over} />);
   return { onSaved, onClose };
 };
 const field = (label: RegExp) => screen.getByText(label).closest('label')!.querySelector('input') as HTMLInputElement;
@@ -31,6 +36,45 @@ describe('janela de preço', () => {
     // Valores de referência do teste de demoPricing: P Custo 37 745,45 · margem 4 483,55
     expect(screen.getAllByText(/37\D?745,4\d/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/4\D?483,5\d/).length).toBeGreaterThan(0);
+  });
+
+  it('mostra a identificação só em leitura e os escalões de 30 dias', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-05T12:00:00Z')); // 63 dias após 2026-01-01
+    try {
+      setup();
+      expect(screen.getByText(/0\. Identificação da viatura/)).toBeTruthy();
+      expect(screen.getByText('E123')).toBeTruthy();
+      expect(screen.getByText('Imediata')).toBeTruthy();
+      expect(screen.queryByDisplayValue('E123')).toBeNull(); // não editável
+      expect(screen.getByText('Dias desde matrícula').nextElementSibling?.textContent).toBe('63');
+      expect(screen.getByText('Períodos de 30 dias').nextElementSibling?.textContent).toBe('2');
+      expect(screen.getByText('Próximo escalão em').nextElementSibling?.textContent).toBe('27 dias');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('mostra o desconto máximo do modelo (PHEV Série 2) e o escalão acumulado', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-05T12:00:00Z'));
+    try {
+      setup();
+      expect(screen.getByText(/Desconto máximo · PHEV · Série 2/)).toBeTruthy();
+      // penetração 930,9 / 38230,86 = 2,4 % < 19 % → aplica-se "sem 19% de opcionais" (11 %, 1,83 % mensal)
+      expect(screen.getByText('Sem 19% de opcionais').closest('div')!.className).toContain('border-brand-primary');
+      expect(screen.getByText(/Acumulado ao fim de 2 períodos/).textContent).toMatch(/3,66\s?%/);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('modelo fora da tabela de descontos máximos: aviso, sem inventar um valor', () => {
+    setup({ veiculo: { ...veiculo, modelo: 'Z8' } });
+    expect(screen.getByText(/Sem linha de desconto máximo para "Z8"/)).toBeTruthy();
+  });
+
+  it('o botão do cartão só existe quando há onAbrirCartao', () => {
+    const onAbrirCartao = vi.fn();
+    setup({ onAbrirCartao });
+    fireEvent.click(screen.getByRole('button', { name: /Cartão \/ partilhar/ }));
+    expect(onAbrirCartao).toHaveBeenCalled();
   });
 
   it('sem alterações não grava; alterado só envia o campo mudado', async () => {

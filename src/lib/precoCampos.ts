@@ -1,4 +1,5 @@
 import { parseNum } from '@/lib/viaturaFormat';
+import type { PricingInputs } from '@/lib/demoPricing';
 
 /* Conversão entre o valor guardado de um campo de preço e o texto que se escreve na janela
  * de preço. Percentagens escrevem-se em % (0,085 ↔ "8,5"), euros em formato PT. */
@@ -20,3 +21,8 @@ export const fromFieldText = (txt: string, kind: Kind): number | null => {
   if (!isFinite(n)) return null;
   return kind === 'pct' ? n / 100 : n;
 };
+
+/* Valores de `inputs` que a janela de preço edita; a base de dados (demos_gravar_precos) recusa outros. */
+export const PRICE_FIELDS: (keyof PricingInputs)[] = [
+  'pvb', 'opc', 'bsi', 'eco', 'leg', 'isv', 'mgb', 'esf', 'pac', 'dem', 'sup', 'depreciacoes', 'pvp_desc',
+];

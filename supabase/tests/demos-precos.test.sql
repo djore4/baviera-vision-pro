@@ -1,4 +1,4 @@
--- Demos: colunas por função e gestão de preços (migração 20261109150000).
+-- Demos: colunas por função e gestão de preços (migrações 20261109150000 e 20261109160000).
 \set ON_ERROR_STOP on
 delete from t.results;
 
@@ -8,16 +8,12 @@ grant execute on function t.sqlstate_of(text) to anon, authenticated;
 
 insert into public.app_roles (name, is_admin, permissions) values
   ('Resp Local',  false, '{"demos": "view", "demos:precos": "edit"}'),
-  ('Cols Preco',  false, '{"demos": "view", "demos:col:pvp": "view", "demos:col:pvp_desc": "view"}'),
-  ('Cols Margem', false, '{"demos": "view", "demos:col:margem": "view"}'),
   ('Sem Cols',    false, '{"demos": "view"}'),
   ('So Precos',   false, '{"demos:precos": "edit"}')
   on conflict (name) do update set permissions = excluded.permissions;
 insert into public.app_users (nome, email, perfil, local) values
   ('Resp Feira',  'dp_feira@x.pt',  'Resp Local',  '["Feira"]'),
   ('Resp Aveiro', 'dp_aveiro@x.pt', 'Resp Local',  '["Aveiro"]'),
-  ('Cols Preco',  'dp_preco@x.pt',  'Cols Preco',  '["Aveiro"]'),
-  ('Cols Margem', 'dp_margem@x.pt', 'Cols Margem', '["Aveiro"]'),
   ('Sem Cols',    'dp_sem@x.pt',    'Sem Cols',    '["Aveiro"]'),
   ('So Precos',   'dp_so@x.pt',     'So Precos',   '["Feira"]')
   on conflict (email) do update set perfil = excluded.perfil, local = excluded.local;
@@ -35,8 +31,8 @@ select t.check('resp. Feira (fora de Aveiro): abre o Demos e só vê as viaturas
   public.access_rank('demos') = 1
   and (select count(*) from public.demos_viaturas() where chassis like 'DP%') = 1
   and exists (select 1 from public.demos_viaturas() where chassis = 'DP-FEI'));
-select t.check('resp. Feira: recebe os valores de custo/desconto da sua viatura, sem stats internos',
-  (select inputs ? 'mgb' and inputs ? 'depreciacoes' and inputs ? 'pvb' from public.demos_viaturas() where chassis = 'DP-FEI')
+select t.check('resp. Feira: recebe os 13 valores de preço da sua viatura, sem stats internos (margem, preço mínimo)',
+  (select inputs ?& array['pvb', 'opc', 'bsi', 'eco', 'leg', 'isv', 'pvp_desc', 'mgb', 'esf', 'depreciacoes'] from public.demos_viaturas() where chassis = 'DP-FEI')
   and not (select stats ? 'mg' or stats ? 'preco_minimo' from public.demos_viaturas() where chassis = 'DP-FEI'));
 select t.check('resp. Feira: grava preços da sua viatura',
   t.sqlstate_of($q$ select public.demos_gravar_precos('DP-FEI', '{"mgb": 0.08, "pvp_desc": 61000}') $q$) = 'ok');
@@ -75,32 +71,23 @@ select t.check('resp. Aveiro: grava as suas, não as da Feira',
   and t.sqlstate_of($q$ select public.demos_gravar_precos('DP-FEI', '{"mgb": 0.12}') $q$) = '42501');
 select t.check('resp. Aveiro: vê o parque todo (Aveiro não está limitado pelo local)',
   (select count(*) from public.demos_viaturas() where chassis like 'DP%') = 2);
-select t.check('resp. Aveiro: dos preços da Feira só vê o que as colunas permitem (nada)',
-  (select inputs = '{}'::jsonb from public.demos_viaturas() where chassis = 'DP-FEI'));
+select t.check('resp. Aveiro: das viaturas da Feira só vê os preços de venda, sem descontos nem depreciações',
+  (select inputs ? 'pvb' and not (inputs ?| array['mgb', 'esf', 'pac', 'dem', 'sup', 'depreciacoes'])
+   from public.demos_viaturas() where chassis = 'DP-FEI'));
 select t.back();
 commit;
 
--- Colunas por função.
+-- Quem não gere preços: lista branca de preços de venda, sem descontos, depreciações nem stats de custo.
 begin;
-select t.as_user('dp_preco@x.pt');
-select t.check('colunas PVP + PVP Desc: recebe só os valores de que precisam',
-  (select array(select k from jsonb_object_keys(inputs) k order by k)
-   from public.demos_viaturas() where chassis = 'DP-FEI') = array['bsi', 'eco', 'isv', 'leg', 'opc', 'pvb', 'pvp_desc']);
-select t.check('colunas PVP + PVP Desc: não recebe descontos, depreciações nem stats de custo',
-  (select not (inputs ? 'mgb' or inputs ? 'depreciacoes') and not (stats ? 'mg' or stats ? 'preco_minimo')
-   from public.demos_viaturas() where chassis = 'DP-FEI'));
+select t.as_user('dp_sem@x.pt');
+select t.check('sem demos:precos: vê as viaturas só com preços de venda',
+  (select count(*) from public.demos_viaturas() where chassis like 'DP%') = 2
+  and (select bool_and(not (inputs ?| array['mgb', 'esf', 'pac', 'dem', 'sup', 'depreciacoes']) and not (stats ? 'mg' or stats ? 'preco_minimo'))
+       from public.demos_viaturas() where chassis like 'DP%')
+  and (select inputs ? 'pvb' and inputs ? 'pvp_desc' from public.demos_viaturas() where chassis = 'DP-AVR'));
 select t.check('sem demos:precos: não grava', t.sqlstate_of($q$ select public.demos_gravar_precos('DP-AVR', '{"mgb": 0.01}') $q$) = '42501');
 select t.back();
-select t.as_user('dp_margem@x.pt');
-select t.check('coluna Margem: traz as suas dependências (custo, descontos, depreciações, PVP Desc), sem o BSI',
-  (select inputs ?& array['pvb', 'opc', 'eco', 'leg', 'isv', 'mgb', 'esf', 'depreciacoes', 'pvp_desc'] and not inputs ? 'bsi'
-   from public.demos_viaturas() where chassis = 'DP-FEI'));
-select t.back();
-select t.as_user('dp_sem@x.pt');
-select t.check('sem colunas: vê as viaturas mas nenhum valor de preço',
-  (select count(*) from public.demos_viaturas() where chassis like 'DP%') = 2
-  and (select bool_and(inputs = '{}'::jsonb) from public.demos_viaturas() where chassis like 'DP%'));
-select t.back();
+
 select t.as_user('dp_so@x.pt');
 select t.check('só demos:precos (sem o tab Demos): a exceção do local não dá acesso ao tab',
   public.access_rank('demos') = 0 and (select count(*) from public.demos_viaturas()) = 0);
@@ -120,14 +107,13 @@ select t.check('anónimo: não executa', not has_function_privilege('anon', 'pub
 select t.back();
 commit;
 
--- Passo de dados da migração (volta a aplicar a migração, que é idempotente): funções com o tab ficam com as colunas que já viam.
-insert into public.app_roles (name, is_admin, permissions) values ('Legado Demos', false, '{"demos": "view"}'), ('Legado Sem', false, '{"retails": "view"}')
+-- 20261109160000 retira as chaves 'demos:col:*' das funções (volta a aplicar-se: é idempotente).
+insert into public.app_roles (name, is_admin, permissions) values
+  ('Legado Cols', false, '{"demos": "view", "demos:col:pvp": "view", "demos:col:margem": "view", "demos:precos": "edit"}')
   on conflict (name) do update set permissions = excluded.permissions;
-\i :ROOT/supabase/migrations/20261109150000_demos_colunas_precos.sql
-select t.check('migração: função com Demos ganha as colunas antigas; sem Demos fica igual',
-  (select permissions ? 'demos:col:pvp' and permissions ? 'demos:col:pvp_siva' and not permissions ? 'demos:col:margem' and not permissions ? 'demos:col:dsc'
-     from public.app_roles where name = 'Legado Demos')
-  and (select not permissions ? 'demos:col:pvp' from public.app_roles where name = 'Legado Sem'));
+\i :ROOT/supabase/migrations/20261109160000_demos_gestao_precos.sql
+select t.check('migração: retira demos:col:* e mantém o resto da função',
+  (select permissions = '{"demos": "view", "demos:precos": "edit"}'::jsonb from public.app_roles where name = 'Legado Cols'));
 
 do $$ declare f int := (select count(*) from t.results where not ok); begin
   raise notice 'demos-precos: % falhas', f;
