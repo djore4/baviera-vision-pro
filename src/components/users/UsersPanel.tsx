@@ -41,7 +41,7 @@ export function UsersPanel({
 }: {
   users: AppUser[]; loading: boolean; roleNames: string[]; roles?: AppRole[]; onChanged: () => Promise<void>;
 }) {
-  const { me, setViewAs } = usePermissions();
+  const { me, setViewAs, tabsPorLocal } = usePermissions();
   const navigate = useNavigate();
   const comLocais = locaisDoGrupo().length > 0;
   const [q, setQ] = useState('');
@@ -54,10 +54,12 @@ export function UsersPanel({
   const [pwTarget, setPwTarget] = useState<AppUser | null>(null);
   const [delTarget, setDelTarget] = useState<AppUser | null>(null);
 
-  // Fora de Aveiro (ou sem local) só se vê o End-of-Term, salvo funções "todos os locais".
+  // Fora de Aveiro (ou sem local) só se vê o End-of-Term e os tabs por local (Demos), salvo funções "todos os locais".
   const soEot = (u: AppUser) => {
     const r = roles.find(x => x.name === u.perfil);
-    return !!r && !r.is_admin && restritoPeloLocal(u);
+    if (!r || r.is_admin || !restritoPeloLocal(u)) return false;
+    // Se a função abre algum tab por local, a pessoa vê mais do que o End-of-Term.
+    return !tabsPorLocal.some(t => r.permissions?.[t] === 'view' || r.permissions?.[t] === 'edit');
   };
   const semLocal = (u: AppUser) => locaisDoPerfil(u.local).length === 0;
   const roleOf = (u: AppUser) => (u.perfil && u.perfil.trim()) || SEM_FUNCAO;
@@ -108,6 +110,8 @@ export function UsersPanel({
   };
 
   const handleLocaisChange = async (u: AppUser, locais: string[]) => {
+    // Toda a conta tem de ter pelo menos um local (só se aplica a instalações com locais configurados).
+    if (comLocais && locais.length === 0) { toast.error('Cada conta precisa de pelo menos um local.'); return; }
     setBusyId(u.id);
     try {
       await updateUser(u.id, { local: locais.length ? locais : null });

@@ -1,4 +1,4 @@
--- Demos: colunas por função e gestão de preços (migração 20261109140000).
+-- Demos: colunas por função e gestão de preços (migração 20261109150000).
 \set ON_ERROR_STOP on
 delete from t.results;
 
@@ -123,7 +123,7 @@ commit;
 -- Passo de dados da migração (volta a aplicar a migração, que é idempotente): funções com o tab ficam com as colunas que já viam.
 insert into public.app_roles (name, is_admin, permissions) values ('Legado Demos', false, '{"demos": "view"}'), ('Legado Sem', false, '{"retails": "view"}')
   on conflict (name) do update set permissions = excluded.permissions;
-\i :ROOT/supabase/migrations/20261109140000_demos_colunas_precos.sql
+\i :ROOT/supabase/migrations/20261109150000_demos_colunas_precos.sql
 select t.check('migração: função com Demos ganha as colunas antigas; sem Demos fica igual',
   (select permissions ? 'demos:col:pvp' and permissions ? 'demos:col:pvp_siva' and not permissions ? 'demos:col:margem' and not permissions ? 'demos:col:dsc'
      from public.app_roles where name = 'Legado Demos')

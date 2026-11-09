@@ -77,7 +77,7 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   política); a plataforma lê por `demos_viaturas()`, que a quem não é administrador
   devolve `inputs` e `stats` apenas com as chaves de preço (lista branca). Aplicar a
   migração **depois** de o código novo estar em produção.
-- **Demos — colunas por função e gestão de preços** (`20261109140000`): as chaves
+- **Demos — colunas por função e gestão de preços** (`20261109150000`): as chaves
   `demos:col:<coluna>` em `app_roles.permissions` dizem que colunas de preço cada função vê;
   `demos_viaturas()` só devolve em `inputs` os valores de que essas colunas precisam
   (`demos_dep_colunas()` — tem de coincidir com `src/lib/demoColunas.ts`, há um teste) e deixa
@@ -191,7 +191,7 @@ Estado a 2026-10-03 (projeto `yifxgiwmibjaornighvt`):
 | `20261003160000` | `responsavel_interno` (Empréstimos, arquivada) | não aplicada de propósito |
 | `20261003170000` | End-of-Term por vendedor | **por aplicar** |
 | `20261003180000` | Notificações do End-of-Term (com link) | **por aplicar** |
-| `20261109140000` | Demos: colunas por função e gestão de preços | **por aplicar** (depois do deploy do código) |
+| `20261109150000` | Demos: colunas por função e gestão de preços | **por aplicar** (depois do deploy do código) |
 
 Ao aplicar as últimas com o MCP/dashboard, o histórico remoto regista a versão
 com a hora da aplicação, não a do ficheiro: depois, renomear os ficheiros locais

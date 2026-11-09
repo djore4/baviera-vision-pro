@@ -10,7 +10,7 @@ const keys = (s: Set<DemoColKey>) => [...s].sort();
 
 describe('colunas do Demos por função', () => {
   it('as dependências coincidem com demos_dep_colunas() da migração (é o que a base de dados envia)', () => {
-    const sql = readFileSync('supabase/migrations/20261109140000_demos_colunas_precos.sql', 'utf8');
+    const sql = readFileSync('supabase/migrations/20261109150000_demos_colunas_precos.sql', 'utf8');
     const json = /select '(\{[\s\S]*?\})'::jsonb/.exec(sql)![1];
     const db = JSON.parse(json) as Record<string, string[]>;
     expect(Object.keys(db).sort()).toEqual(DEMO_COL_DEFS.map(c => c.key).sort());
@@ -48,7 +48,7 @@ describe('colunas do Demos por função', () => {
   });
 
   it('a janela de preço edita exatamente os 13 valores que a base de dados aceita', () => {
-    const sql = readFileSync('supabase/migrations/20261109140000_demos_colunas_precos.sql', 'utf8');
+    const sql = readFileSync('supabase/migrations/20261109150000_demos_colunas_precos.sql', 'utf8');
     const m = /allowed constant text\[\] := array\[([^\]]+)\]/.exec(sql)![1];
     const db = [...m.matchAll(/'(\w+)'/g)].map(x => x[1]);
     expect([...PRICE_FIELDS].sort()).toEqual(db.sort());

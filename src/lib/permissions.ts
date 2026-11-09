@@ -161,7 +161,7 @@ const ALL_SUB_PERMISSIONS: SubPermissionDef[] = [
     hint: 'Introduzir e corrigir viaturas dos locais da pessoa (Utilizadores → Local), na Sales Force. Não vê nem altera as de outros locais e não apaga.',
     capability: 'viaturasLocal' },
   { key: 'demos:precos', parent: 'demos', label: 'Gerir preços (do seu local)',
-    hint: 'Abre a janela de preço de cada viatura e grava os valores (preço base, opcionais, descontos, depreciações, PVP final) das viaturas dos locais da pessoa (Utilizadores → Local). Exige o tab Demos. Fora de Aveiro, abre o tab Demos só com as viaturas do seu local. Que colunas vê define-se à parte, por função.',
+    hint: 'Abre a janela de preço de cada viatura e grava os valores (preço base, opcionais, descontos, depreciações, PVP final) das viaturas dos locais da pessoa (Utilizadores → Local). Exige o tab Demos. Que colunas vê define-se à parte, por função.',
     capability: 'demosPrecos' },
 ];
 
@@ -198,11 +198,23 @@ export const restritoPeloLocal = (user: { local?: unknown } | null | undefined):
   return locais.length > 0 && !locais.includes(LOCAL_ACESSO_COMPLETO);
 };
 
-/** Este tab (ou permissão `tab:ação`) continua disponível a quem está fora do local? */
-export const tabLivreForaDoLocal = (tab: string): boolean =>
+/** Este tab (ou permissão `tab:ação`) continua disponível a quem está fora do local?
+ *  `tabsPorLocal`: tabs abertos a todos os locais com âmbito por linha na RLS
+ *  (tabela app_tabs_por_local; ver getTabsPorLocal). */
+export const tabLivreForaDoLocal = (tab: string, tabsPorLocal: readonly string[] = []): boolean =>
   tab === TAB_FORA_DO_LOCAL || tab.startsWith(`${TAB_FORA_DO_LOCAL}:`)
-  // Inserir viaturas e gerir preços: o âmbito já é o local da pessoa (RLS viaturas_local_ok).
-  || tab === 'demos:inserir-viaturas' || tab === 'demos:precos';
+  // Inserir viaturas: o âmbito já é o local da pessoa (RLS viaturas_local_ok).
+  || tab === 'demos:inserir-viaturas'
+  || tabsPorLocal.includes(tab.split(':')[0]);
+
+/* Tabs abertos fora de Aveiro, cada um limitado ao local da pessoa (função tabs_por_local,
+ * migração 20261109140000). Sem a função (migração por aplicar): nenhum — a interface
+ * mantém a regra antiga e nunca abre mais do que a base de dados abre. */
+export async function getTabsPorLocal(): Promise<string[]> {
+  const { data, error } = await supabase.rpc('tabs_por_local');
+  if (error || !Array.isArray(data)) return [];
+  return (data as unknown[]).filter((t): t is string => typeof t === 'string');
+}
 
 export interface AppUser {
   id: number | string;

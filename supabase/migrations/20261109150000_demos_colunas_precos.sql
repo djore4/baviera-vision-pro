@@ -15,9 +15,9 @@
 --    Caetano Sales Force (que partilha a tabela e lê o mesmo formato).
 --    Quem tem 'demos:precos' vê os 13 valores das viaturas do seu local, para os poder editar.
 --
--- 3. Fora de Aveiro. A regra "fora de Aveiro só o End-of-Term" (access_rank) abre uma exceção
---    para o tab Demos a quem tem 'demos:precos'; nesse caso demos_viaturas() devolve só as
---    viaturas dos seus locais. Continua a ser preciso ter o tab 'demos' atribuído na função.
+-- 3. Fora de Aveiro: já resolvido por 20261109140000 (demos_por_local): o tab Demos abre-se a
+--    todos os locais com âmbito de linha (viatura_local_visivel). 'demos:precos' herda: como
+--    'demos' está em app_tabs_por_local, segue a função. Depende dessa migração.
 
 -- Dependências: de que valores de `inputs` precisa cada coluna (espelha DEMO_COL_DEPS no código).
 create or replace function public.demos_dep_colunas()
@@ -59,33 +59,10 @@ as $$
   ) s;
 $$;
 
--- Verdadeiro se o utilizador está limitado pelo local (fora de Aveiro, sem exceção para o Demos):
--- a mesma condição de access_rank.
-create or replace function public.demos_so_do_local()
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select exists (
-      select 1 from public.app_users u
-      where lower(u.email) = lower(auth.jwt() ->> 'email')
-        and not coalesce(u.local ? 'Aveiro', false)
-        and coalesce(u.local ?| array['Maia', 'Porto', 'Gaia', 'Feira'], false)
-    )
-    and not exists (
-      select 1 from public.app_access_exceptions x
-      where x.email = lower(auth.jwt() ->> 'email') and x.tab = 'demos'
-    );
-$$;
-
 revoke all on function public.demos_dep_colunas() from public, anon;
 revoke all on function public.demos_inputs_permitidos() from public, anon;
-revoke all on function public.demos_so_do_local() from public, anon;
 grant execute on function public.demos_dep_colunas() to authenticated;
 grant execute on function public.demos_inputs_permitidos() to authenticated;
-grant execute on function public.demos_so_do_local() to authenticated;
 
 create or replace function public.demos_viaturas()
 returns setof public.viaturas
@@ -97,8 +74,7 @@ as $$
   with eu as (
     select (select public.is_app_admin()) as adm,
            (select public.has_access('demos:precos', 'edit')) as precos,
-           (select public.demos_inputs_permitidos()) as ok,
-           (select public.demos_so_do_local()) as so_local
+           (select public.demos_inputs_permitidos()) as ok
   )
   select (jsonb_populate_record(
     null::public.viaturas,
@@ -124,7 +100,7 @@ as $$
   from public.viaturas v, eu
   where eu.adm
      or ((select public.has_access('demos'))
-         and (not eu.so_local or public.viaturas_local_ok(v.local)));
+         and (select public.viatura_local_visivel(v.local)));
 $$;
 
 revoke all on function public.demos_viaturas() from public, anon;
@@ -217,44 +193,6 @@ $$;
 
 revoke all on function public.demos_gravar_precos(text, jsonb) from public, anon;
 grant execute on function public.demos_gravar_precos(text, jsonb) to authenticated;
-
--- access_rank: quem tem 'demos:precos' = edit abre o tab Demos mesmo fora de Aveiro
--- (como 'demos:inserir-viaturas', o âmbito é o local da pessoa: demos_viaturas / viaturas_local_ok).
-create or replace function public.access_rank(p_tab text)
-returns integer
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select case
-    when (select public.is_app_admin()) then 2
-    else coalesce((
-      select max(case lvl when 'edit' then 2 when 'view' then 1 else 0 end)
-      from (
-        select r.permissions ->> p_tab as lvl
-        from public.app_users u
-        join public.app_roles r on r.name = u.perfil
-        where lower(u.email) = lower(auth.jwt() ->> 'email')
-          and (
-            p_tab = 'end-of-term' or p_tab like 'end-of-term:%'
-            or p_tab = 'demos:inserir-viaturas' or p_tab = 'demos:precos'
-            or (p_tab = 'demos' and r.permissions ->> 'demos:precos' = 'edit')
-            or u.local ? 'Aveiro'
-            or not coalesce(u.local ?| array['Maia', 'Porto', 'Gaia', 'Feira'], false)
-            or exists (
-              select 1 from public.app_access_exceptions x
-              where x.email = lower(auth.jwt() ->> 'email') and x.tab = p_tab
-            )
-          )
-        union all
-        select e.level
-        from public.app_access_exceptions e
-        where e.email = lower(auth.jwt() ->> 'email') and e.tab = p_tab
-      ) levels
-    ), 0)
-  end;
-$$;
 
 -- Funções existentes ficam com as colunas que já viam (preço e venda; descontos e custo eram só do admin).
 update public.app_roles r
