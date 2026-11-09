@@ -87,7 +87,7 @@ describe('permissões finas (SUB_PERMISSIONS)', () => {
   });
 
   it('cada uma depende de uma capacidade que existe, para só aparecer com a migração aplicada', () => {
-    const known = ['lavagemGranular', 'eotGranular', 'eotResponsaveis', 'viaturasLocal'];
+    const known = ['lavagemGranular', 'eotGranular', 'eotResponsaveis', 'viaturasLocal', 'demosPrecos'];
     for (const sp of SUB_PERMISSIONS) expect(known).toContain(sp.capability);
   });
 
@@ -99,9 +99,10 @@ describe('permissões finas (SUB_PERMISSIONS)', () => {
 
   it('Demos tem a permissão de inserir viaturas do seu local, livre fora de Aveiro', () => {
     const v = SUB_PERMISSIONS.filter(sp => sp.parent === 'demos');
-    expect(v.map(sp => sp.key)).toEqual(['demos:inserir-viaturas']);
-    expect(v[0].capability).toBe('viaturasLocal');
+    expect(v.map(sp => sp.key)).toEqual(['demos:inserir-viaturas', 'demos:precos']);
+    expect(v.map(sp => sp.capability)).toEqual(['viaturasLocal', 'demosPrecos']);
     expect(tabLivreForaDoLocal('demos:inserir-viaturas')).toBe(true);
+    expect(tabLivreForaDoLocal('demos:precos', ['demos'])).toBe(true);
     expect(tabLivreForaDoLocal('demos')).toBe(false);
   });
 
@@ -114,29 +115,29 @@ describe('permissões finas (SUB_PERMISSIONS)', () => {
 describe('getAppCapabilities', () => {
   it('lê as capacidades da base de dados', async () => {
     rpc.mockResolvedValue({ data: { lavagem_granular: true }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: false, eotResponsaveis: false, viaturasLocal: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
     expect(rpc).toHaveBeenCalledWith('app_capabilities');
   });
 
   it('lê cada capacidade por separado', async () => {
     rpc.mockResolvedValue({ data: { lavagem_granular: true, eot_granular: true }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: true, eotResponsaveis: false, viaturasLocal: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: true, eotGranular: true, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
     rpc.mockResolvedValue({ data: { eot_granular: true }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: true, eotResponsaveis: false, viaturasLocal: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: true, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
     rpc.mockResolvedValue({ data: { eot_responsaveis: true }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: true, viaturasLocal: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: true, viaturasLocal: false, demosPrecos: false });
   });
 
   it('sem a função (migração por aplicar) ou com erro: nenhuma capacidade', async () => {
     rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'missing' } });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
   });
 
   it('só um true explícito conta', async () => {
     rpc.mockResolvedValue({ data: { lavagem_granular: 'true' }, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
     rpc.mockResolvedValue({ data: null, error: null });
-    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false });
+    expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false });
   });
 });
 

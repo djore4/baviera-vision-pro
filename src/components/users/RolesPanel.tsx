@@ -18,6 +18,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { saveRole, deleteRole, renameRole } from '@/lib/permissions';
+import { DEMO_COL_PERMS } from '@/lib/demoColunas';
+import { DemosColunasPicker } from '@/components/users/DemosColunasPicker';
 import { usePermissions } from '@/contexts/PermissionsContext';
 
 type Perms = Record<string, AccessLevel>;
@@ -32,7 +34,7 @@ const level = (p: Perms | undefined, key: string): AccessLevel => p?.[key] ?? 'n
 
 /* Chaves com valor 'none' equivalem a chave ausente: normaliza para comparar. */
 /* Chaves editáveis na matriz: os tabs e as suas permissões finas ('lavagem:iniciar'…). */
-const MATRIX_KEYS = [...PERMISSION_TABS.map(t => t.key), ...SUB_PERMISSIONS.map(sp => sp.key)];
+const MATRIX_KEYS = [...PERMISSION_TABS.map(t => t.key), ...SUB_PERMISSIONS.map(sp => sp.key), ...DEMO_COL_PERMS];
 const normalize = (p: Perms | undefined): Perms => {
   const out: Perms = {};
   MATRIX_KEYS.forEach(k => { const v = level(p, k); if (v !== 'none') out[k] = v; });
@@ -117,6 +119,11 @@ export function RolesPanel({
       tabKeys.forEach(k => { next[k] = value; });
       return { ...prev, [role.name]: next };
     });
+  };
+
+  const setMany = (patch: Perms) => {
+    if (!role) return;
+    setDrafts(prev => ({ ...prev, [role.name]: { ...(prev[role.name] ?? {}), ...patch } }));
   };
 
   const discard = () => {
@@ -287,6 +294,10 @@ export function RolesPanel({
                             </ToggleGroup>
                           </div>
                         ))}
+                        {/* Colunas de preço do Demos visíveis para esta função (só com o tab atribuído). */}
+                        {t.key === 'demos' && capabilities.demosPrecos && level(draft, 'demos') !== 'none' && (
+                          <DemosColunasPicker perms={draft} onChange={setMany} />
+                        )}
                       </li>
                     ))}
                   </ul>

@@ -84,13 +84,13 @@ describe('groupOwnersFor', () => {
 });
 
 describe('eotIsLocalLead', () => {
-  const caps = { lavagemGranular: true, eotGranular: true, eotResponsaveis: true, viaturasLocal: true };
+  const caps = { lavagemGranular: true, eotGranular: true, eotResponsaveis: true, viaturasLocal: true, demosPrecos: true };
   const can = (perms: string[], isAdmin = false) => (t: string) => isAdmin || perms.includes(t);
   it('é chefe local com a permissão e a migração aplicada', () => {
     expect(eotIsLocalLead({ isAdmin: false, roleName: 'X', capabilities: caps, canView: can(['end-of-term:local']) })).toBe(true);
   });
   it('sem a migração (capacidade) a permissão não conta', () => {
-    expect(eotIsLocalLead({ isAdmin: false, roleName: 'X', capabilities: { ...caps, eotResponsaveis: false, viaturasLocal: false }, canView: can(['end-of-term:local']) })).toBe(false);
+    expect(eotIsLocalLead({ isAdmin: false, roleName: 'X', capabilities: { ...caps, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false }, canView: can(['end-of-term:local']) })).toBe(false);
   });
   it('quem já vê tudo não é chefe local; o vendedor também não', () => {
     expect(eotIsLocalLead({ isAdmin: true, roleName: null, capabilities: caps, canView: can([], true) })).toBe(false);

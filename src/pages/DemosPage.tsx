@@ -6,20 +6,24 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import { canonicalLocal, locaisDoPerfil } from '@/lib/locations';
 import {
   Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
-  ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, RotateCcw, ImageOff,
-  Camera, Trash2, Loader2,
+  ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, ImageOff,
+  Camera, Trash2, Loader2, Pencil,
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import { client } from '@/clients';
 import DescontosMaxTable from '@/components/DescontosMaxTable';
 import { chassisCurto, formatMatricula, matriculaCompacta, parseNum } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
+import { LEGACY_DEMO_COLS } from '@/lib/demoColunas';
+import PrecosDialog from '@/components/demos/PrecosDialog';
 
 /* ── Parque de demonstradores (VN · Demos) ────────────────────────────────────
- * Consulta, apenas leitura, do parque de viaturas partilhado com a plataforma
- * Caetano (mesmo Supabase, tabela `viaturas`). Os preços são recalculados em
- * runtime a partir de `inputs`, segundo o racional do Excel "PARQUE BMW"
- * (ver lib/demoPricing.ts) — a tabela mostra a decomposição completa.
+ * Parque de viaturas (tabela `viaturas`, ainda partilhada com a plataforma Caetano).
+ * Os preços são recalculados em runtime a partir de `inputs`, segundo o racional do
+ * Excel "PARQUE BMW" (ver lib/demoPricing.ts). Que colunas de preço cada função vê
+ * define-se em Utilizadores → Permissões (lib/demoColunas.ts) e é imposto pela base de
+ * dados (demos_viaturas). Quem tem 'demos:precos' abre a janela de preço de cada
+ * viatura do seu local e grava (components/demos/PrecosDialog.tsx).
  * ──────────────────────────────────────────────────────────────────────────── */
 
 interface Viatura {
@@ -99,14 +103,28 @@ interface Row extends Viatura {
   _local: string; _tipologia: string[]; _tipo: Tipo;
 }
 
+function buildRow(v: Viatura): Row {
+  const tipologia = getArr(v.tipologia);
+  const tipo = tipoFlags(tipologia);
+  const inps = getInps(v.inputs);
+  return {
+    ...v,
+    _inps: inps,
+    _p: calcPricing(inps, tipo),
+    _idade: idadeDias(v.data_matricula),
+    _local: getArr(v.local).join(', ') || '—',
+    _tipologia: tipologia,
+    _tipo: tipo,
+  };
+}
+
 /* ── Colunas (espelham o Excel "PARQUE BMW") ──────────────────────────────── */
 type Group = 'id' | 'preco' | 'desc' | 'custo' | 'venda';
-/* Grupos colapsáveis: colapsados, mostram só a coluna-resumo (summary). */
-const GROUPS: { key: Group; label: string; collapsible?: boolean }[] = [
+const GROUPS: { key: Group; label: string }[] = [
   { key: 'id', label: 'Viatura' },
-  { key: 'preco', label: 'Preços', collapsible: true },
-  { key: 'desc', label: 'Descontos / apoios', collapsible: true },
-  { key: 'custo', label: 'Margem', collapsible: true },
+  { key: 'preco', label: 'Preços' },
+  { key: 'desc', label: 'Descontos / apoios' },
+  { key: 'custo', label: 'Margem' },
   { key: 'venda', label: 'Venda' },
 ];
 
@@ -119,19 +137,10 @@ interface Col {
   sort: (r: Row) => string | number;
   cell: (r: Row, reservado: boolean) => ReactNode;
   cls?: string;
-  /** Coluna que se mantém visível com o grupo colapsado. */
-  summary?: boolean;
-  /** Campo editável localmente (simulação — nunca é gravado). */
-  edit?: { field: EditField; kind: 'pct' | 'eur' };
 }
 
-/* Campos que se podem simular na tabela. Só em memória: nada é escrito no Supabase. */
-type EditField = 'mgb' | 'esf' | 'pac' | 'dem' | 'sup' | 'depreciacoes' | 'pvp_desc';
-type Overrides = Record<string, Partial<Record<EditField, number>>>;
-
-/* Descontos/apoios, custo e margem: só o administrador. A base de dados (demos_viaturas)
- * já nem envia estes valores aos restantes; isto evita colunas vazias na tabela. */
-const ADMIN_ONLY_GROUPS: Group[] = ['desc', 'custo'];
+/* As colunas fora do grupo 'id' são de preço: cada função vê as que a matriz de permissões
+ * lhe atribui (chave = key da coluna, ver lib/demoColunas.ts). O administrador vê todas. */
 
 /* Só há margem com preço de venda e custo conhecidos (sem PVB o custo não tem significado). */
 const temMargem = (r: Row) => r._p.pvp_desc > 0 && r._inps.pvb > 0;
@@ -195,18 +204,18 @@ const COLS: Col[] = [
   { key: 'isv', label: 'ISV', group: 'preco', ...money(r => r._inps.isv) },
   {
     key: 'pvp', label: 'PVP', title: '(PVB + OPC + BSI + ECO + LEG/TR + ISV) × 1,23', group: 'preco', align: 'right',
-    sort: r => r._p.pvp, cls: 'text-muted-foreground line-through', summary: true,
+    sort: r => r._p.pvp, cls: 'text-muted-foreground line-through',
     cell: r => r._p.pvp > 0 ? eur0(r._p.pvp) : '—',
   },
 
-  { key: 'mgb', label: 'MGB', group: 'desc', ...pct(r => r._inps.mgb), edit: { field: 'mgb', kind: 'pct' } },
-  { key: 'esf', label: 'ESF', group: 'desc', ...pct(r => r._inps.esf), edit: { field: 'esf', kind: 'pct' } },
-  { key: 'pac', label: 'PAC', group: 'desc', ...pct(r => r._inps.pac), edit: { field: 'pac', kind: 'pct' } },
-  { key: 'dem', label: 'DEM', group: 'desc', ...pct(r => r._inps.dem), edit: { field: 'dem', kind: 'pct' } },
-  { key: 'sup', label: 'SUP', group: 'desc', ...pct(r => r._inps.sup), edit: { field: 'sup', kind: 'pct' } },
+  { key: 'mgb', label: 'MGB', group: 'desc', ...pct(r => r._inps.mgb) },
+  { key: 'esf', label: 'ESF', group: 'desc', ...pct(r => r._inps.esf) },
+  { key: 'pac', label: 'PAC', group: 'desc', ...pct(r => r._inps.pac) },
+  { key: 'dem', label: 'DEM', group: 'desc', ...pct(r => r._inps.dem) },
+  { key: 'sup', label: 'SUP', group: 'desc', ...pct(r => r._inps.sup) },
   {
     key: 'dsc', label: 'DSC €', title: '(PVB + OPC) × (MGB + ESF + PAC + DEM + SUP)', group: 'desc', align: 'right',
-    sort: r => r._p.desc_eur, cls: 'text-red-600 font-medium', summary: true,
+    sort: r => r._p.desc_eur, cls: 'text-red-600 font-medium',
     cell: r => r._p.desc_eur ? eur0(r._p.desc_eur) : <span className="text-muted-foreground/40">—</span>,
   },
 
@@ -215,10 +224,10 @@ const COLS: Col[] = [
     sort: r => r._p.p_custo, cls: 'text-foreground font-medium',
     cell: r => r._p.p_custo > 0 ? eur0(r._p.p_custo) : '—',
   },
-  { key: 'dep', label: 'DEP', title: 'Depreciações', group: 'custo', ...money(r => r._inps.depreciacoes), edit: { field: 'depreciacoes', kind: 'eur' } },
+  { key: 'dep', label: 'DEP', title: 'Depreciações', group: 'custo', ...money(r => r._inps.depreciacoes) },
   {
     key: 'margem', label: 'Margem', title: 'PVP DESC − P Custo + DEP', group: 'custo', align: 'right',
-    sort: r => (temMargem(r) ? r._p.margem : -Infinity), summary: true,
+    sort: r => (temMargem(r) ? r._p.margem : -Infinity),
     cell: r => temMargem(r)
       ? <span className={`font-bold ${r._p.margem < 0 ? 'text-red-600' : 'text-green-600'}`}>{eur0(r._p.margem)}</span>
       : <span className="text-muted-foreground/40">—</span>,
@@ -226,7 +235,7 @@ const COLS: Col[] = [
 
   {
     key: 'pvp_desc', label: 'PVP Desc', title: 'Preço de venda (com IVA)', group: 'venda', align: 'right',
-    sort: r => r._p.pvp_desc, edit: { field: 'pvp_desc', kind: 'eur' },
+    sort: r => r._p.pvp_desc,
     cell: (r, reservado) => r._p.pvp_desc > 0
       ? <span className={`font-bold ${reservado ? 'text-red-600' : 'text-brand-primary'}`}>{eur0(r._p.pvp_desc)}</span>
       : '—',
@@ -243,77 +252,12 @@ const DESC_FIRST = new Set(['pvp', 'pvp_desc', 'pvp_siva', 'margem', 'idade', 'd
 /* Primeira coluna de cada grupo leva separador vertical. */
 const groupStarts = (cols: Col[]) => new Set(cols.filter((c, i) => i > 0 && cols[i - 1].group !== c.group).map(c => c.key));
 
-const COLLAPSE_KEY = 'demos.collapsedGroups';
 const MODELO_W_KEY = 'demos.modeloWidth';
 const MODELO_W_DEFAULT = 88;
 const clampModeloW = (w: number) => Math.min(320, Math.max(56, Math.round(w)));
 function loadModeloW(): number {
   try { const v = Number(localStorage.getItem(MODELO_W_KEY)); return v ? clampModeloW(v) : MODELO_W_DEFAULT; } catch { return MODELO_W_DEFAULT; }
 }
-function loadCollapsed(): Set<Group> {
-  try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? '[]') as Group[]); } catch { return new Set(); }
-}
-
-/* Aplica as simulações locais a uma linha e recalcula o pricing. */
-function applyOverrides(r: Row, o: Overrides[string] | undefined): Row {
-  if (!o || Object.keys(o).length === 0) return r;
-  const inps = { ...r._inps, ...o };
-  return { ...r, _inps: inps, _p: calcPricing(inps, r._tipo) };
-}
-
-/* Célula editável: clique para editar; Enter/fora confirma, Esc cancela, vazio repõe o original. */
-function EditableCell({ value, kind, edited, onCommit, children }: {
-  value: number;
-  kind: 'pct' | 'eur';
-  edited: boolean;
-  onCommit: (v: number | null) => void;
-  children: ReactNode;
-}) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const toText = (v: number) => kind === 'pct'
-    ? String(Math.round(v * 100 * 100) / 100).replace('.', ',')
-    : String(Math.round(v * 100) / 100).replace('.', ',');
-  const commit = () => {
-    if (draft === null) return;
-    const t = parseNum(draft, kind);
-    setDraft(null);
-    if (t === '') { onCommit(null); return; }
-    const n = Number(t);
-    if (!isFinite(n)) { toast.error('Valor inválido.'); return; }
-    onCommit(kind === 'pct' ? n / 100 : n);
-  };
-  if (draft !== null) {
-    return (
-      <input
-        autoFocus
-        inputMode="decimal"
-        value={draft}
-        onClick={e => e.stopPropagation()}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={e => {
-          if (e.key === 'Enter') commit();
-          if (e.key === 'Escape') setDraft(null);
-        }}
-        className="w-20 px-1.5 py-0.5 text-xs text-right bg-background border border-brand-primary rounded focus:outline-none focus:ring-1 focus:ring-brand-primary"
-        placeholder={kind === 'pct' ? '%' : '€'}
-      />
-    );
-  }
-  return (
-    <button
-      type="button"
-      onClick={e => { e.stopPropagation(); setDraft(value ? toText(value) : ''); }}
-      title={edited ? 'Valor simulado (não gravado) — clique para editar; apague para repor' : 'Clique para simular (não é gravado)'}
-      className={`px-1 -mx-1 rounded border border-dashed transition-colors ${
-        edited ? 'border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-400' : 'border-transparent hover:border-border'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function AgeBadge({ dias }: { dias: number }) {
   const cls = dias <= 90
     ? 'border-green-500/40 text-green-600 bg-green-500/10'
@@ -355,9 +299,25 @@ function ChipFilter({ label, options, selected, onToggle, onClear }: {
 
 export default function DemosPage() {
   const { session } = useAuth();
-  const { canEdit, isAdmin, me } = usePermissions();
-  const groups = useMemo(() => GROUPS.filter(g => isAdmin || !ADMIN_ONLY_GROUPS.includes(g.key)), [isAdmin]);
-  const cols = useMemo(() => COLS.filter(c => isAdmin || !ADMIN_ONLY_GROUPS.includes(c.group)), [isAdmin]);
+  const { canEdit, canView, isAdmin, me, capabilities } = usePermissions();
+  // Colunas de preço visíveis: as atribuídas à função (administrador: todas). Sem a migração
+  // (capacidade ausente) mantém-se a regra antiga: preços e venda, sem descontos nem custo.
+  const colVisible = (key: string) =>
+    isAdmin || (capabilities.demosPrecos ? canView(`demos:col:${key}`) : LEGACY_DEMO_COLS.has(key));
+  const cols = useMemo(
+    () => COLS.filter(c => c.group === 'id' || colVisible(c.key)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isAdmin, capabilities.demosPrecos, canView],
+  );
+  const groups = useMemo(() => GROUPS.filter(g => cols.some(c => c.group === g.key)), [cols]);
+  // Gerir preços: administrador, ou 'demos:precos' nas viaturas dos locais da pessoa (a base de dados valida).
+  const meusLocais = useMemo(() => locaisDoPerfil(me?.local), [me?.local]);
+  const podeGerirPrecos = (r: Pick<Row, 'local'>) => {
+    if (isAdmin) return true;
+    if (!capabilities.demosPrecos || !canEdit('demos:precos')) return false;
+    const ls = localsOfRow(r);
+    return ls.length > 0 && ls.every(l => meusLocais.includes(l));
+  };
   const [rows, setRows] = useState<Row[]>([]);
   const [capas, setCapas] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -372,9 +332,7 @@ export default function DemosPage() {
   const [fTipologia, setFTipologia] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const [selectedChassis, setSelectedChassis] = useState<string | null>(null);
-  // Simulações locais (MGB, ESF, PAC, DEM, SUP, DEP, PVP Desc) — só em memória, nunca gravadas.
-  const [overrides, setOverrides] = useState<Overrides>({});
-  const [collapsed, setCollapsed] = useState<Set<Group>>(loadCollapsed);
+  const [precosChassis, setPrecosChassis] = useState<string | null>(null);
   const [modeloW, setModeloW] = useState<number>(loadModeloW);
 
   useEffect(() => {
@@ -394,20 +352,7 @@ export default function DemosPage() {
       ]);
       if (!alive) return;
       if (viaturasRes.error) { setError(viaturasRes.error.message); setRows([]); setLoading(false); return; }
-      const mapped: Row[] = ((viaturasRes.data as Viatura[]) ?? []).filter(isDemo).map(v => {
-        const tipologia = getArr(v.tipologia);
-        const tipo = tipoFlags(tipologia);
-        const inps = getInps(v.inputs);
-        return {
-          ...v,
-          _inps: inps,
-          _p: calcPricing(inps, tipo),
-          _idade: idadeDias(v.data_matricula),
-          _local: getArr(v.local).join(', ') || '—',
-          _tipologia: tipologia,
-          _tipo: tipo,
-        };
-      });
+      const mapped: Row[] = ((viaturasRes.data as Viatura[]) ?? []).filter(isDemo).map(buildRow);
       const capaMap: Record<string, string> = {};
       for (const c of (capasRes.data as { chassis: string; url: string }[]) ?? []) {
         if (c.chassis && c.url) capaMap[c.chassis] = c.url;
@@ -439,17 +384,17 @@ export default function DemosPage() {
     setFLocais(prev => ([...prev].some(l => locais.includes(l)) ? prev : new Set()));
   }, [rows, locais]);
 
-  const viewRows = useMemo(() => rows.map(r => applyOverrides(r, overrides[r.chassis])), [rows, overrides]);
+  const viewRows = rows;
   const selected = selectedChassis ? viewRows.find(r => r.chassis === selectedChassis) ?? null : null;
-  const nEdited = Object.values(overrides).filter(o => Object.keys(o).length > 0).length;
+  const precosRow = precosChassis ? viewRows.find(r => r.chassis === precosChassis) ?? null : null;
 
-  const setOverride = (chassis: string, field: EditField, v: number | null) =>
-    setOverrides(prev => {
-      const cur = { ...(prev[chassis] ?? {}) };
-      const original = rows.find(r => r.chassis === chassis)?._inps[field];
-      if (v === null || v === original) delete cur[field]; else cur[field] = v;
-      return { ...prev, [chassis]: cur };
-    });
+  // Preços gravados: atualiza a linha em memória (a base de dados já tem os valores novos).
+  const handlePrecosSaved = (chassis: string, changed: Partial<PricingInputs>) => {
+    setRows(prev => prev.map(r => r.chassis === chassis
+      ? buildRow({ ...r, inputs: { ...r._inps, ...changed } })
+      : r));
+    setPrecosChassis(null);
+  };
 
   // Largura da coluna Modelo, ajustável arrastando a margem do cabeçalho (rato ou toque).
   const startResize = (e: React.PointerEvent) => {
@@ -469,19 +414,11 @@ export default function DemosPage() {
     try { localStorage.removeItem(MODELO_W_KEY); } catch { /* sem storage */ }
   };
 
-  const toggleGroup = (g: Group) =>
-    setCollapsed(prev => {
-      const next = new Set(prev);
-      if (next.has(g)) next.delete(g); else next.add(g);
-      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next])); } catch { /* sem storage */ }
-      return next;
-    });
-
   // Com um só local filtrado, a coluna Local seria sempre igual: esconde-se.
   const hideLocal = fLocais.size === 1;
   const visibleCols = useMemo(
-    () => cols.filter(c => (!collapsed.has(c.group) || c.summary) && !(hideLocal && c.key === 'local')),
-    [cols, collapsed, hideLocal],
+    () => cols.filter(c => !(hideLocal && c.key === 'local')),
+    [cols, hideLocal],
   );
 
   // Local e Modelo ficam fixas à esquerda ao deslizar a tabela (essencial em mobile).
@@ -544,7 +481,13 @@ export default function DemosPage() {
   const totals = useMemo(() => {
     const priced = filtered.filter(temMargem);
     const sum = (f: (r: Row) => number) => priced.reduce((s, r) => s + f(r), 0);
-    return { n: priced.length, pvpDesc: sum(r => r._p.pvp_desc), margem: sum(r => r._p.margem), pCusto: sum(r => r._p.p_custo) };
+    // O PVP Desc soma-se por si (não depende de haver custo); custo e margem só com PVB e PVP Desc.
+    const vendidos = filtered.filter(r => r._p.pvp_desc > 0);
+    return {
+      n: vendidos.length,
+      pvpDesc: vendidos.reduce((s, r) => s + r._p.pvp_desc, 0),
+      margem: sum(r => r._p.margem), pCusto: sum(r => r._p.p_custo),
+    };
   }, [filtered]);
 
   const toggleIn = (set: React.Dispatch<React.SetStateAction<Set<string>>>) => (v: string) =>
@@ -589,15 +532,6 @@ export default function DemosPage() {
             <RotateCcw className="h-3 w-3" /> Limpar
           </button>
         )}
-        {nEdited > 0 && (
-          <button
-            onClick={() => setOverrides({})}
-            title="As simulações são locais e nunca são gravadas"
-            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 border border-amber-500/40 bg-amber-500/10 rounded-md hover:bg-amber-500/20 transition-colors"
-          >
-            <RotateCcw className="h-3 w-3" /> Repor simulação ({nEdited})
-          </button>
-        )}
       </div>
 
       {/* Filtros (chips de seleção múltipla; "Todas" = sem filtro) */}
@@ -622,28 +556,15 @@ export default function DemosPage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-muted/30">
-                {groups.map((g, i) => {
-                  const isCollapsed = collapsed.has(g.key);
-                  return (
-                    <th
-                      key={g.key}
-                      colSpan={visibleCols.filter(c => c.group === g.key).length}
-                      className={`px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80 text-center whitespace-nowrap border-b border-border ${i > 0 ? 'border-l' : ''}`}
-                    >
-                      {g.collapsible ? (
-                        <button
-                          onClick={() => toggleGroup(g.key)}
-                          title={isCollapsed ? 'Expandir grupo' : 'Colapsar grupo'}
-                          aria-expanded={!isCollapsed}
-                          className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-foreground transition-colors"
-                        >
-                          {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-                          {g.label}
-                        </button>
-                      ) : g.label}
-                    </th>
-                  );
-                })}
+                {groups.map((g, i) => (
+                  <th
+                    key={g.key}
+                    colSpan={visibleCols.filter(c => c.group === g.key).length}
+                    className={`px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80 text-center whitespace-nowrap border-b border-border ${i > 0 ? 'border-l' : ''}`}
+                  >
+                    {g.label}
+                  </th>
+                ))}
               </tr>
               <tr className="bg-muted/50">
                 {visibleCols.map(c => {
@@ -707,16 +628,7 @@ export default function DemosPage() {
                       </td>
                     ) : (
                       <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, tintRow(reservado)).cls} px-2.5 py-1.5 whitespace-nowrap ${alignCls(c.align)} ${c.cls ?? ''} ${sepCls(c.key)}`}>
-                        {c.edit ? (
-                          <EditableCell
-                            value={r._inps[c.edit.field]}
-                            kind={c.edit.kind}
-                            edited={overrides[r.chassis]?.[c.edit.field] !== undefined}
-                            onCommit={v => setOverride(r.chassis, c.edit!.field, v)}
-                          >
-                            {c.cell(r, reservado)}
-                          </EditableCell>
-                        ) : c.cell(r, reservado)}
+                        {c.cell(r, reservado)}
                       </td>
                     ))}
                   </tr>
@@ -748,11 +660,6 @@ export default function DemosPage() {
           )}
         </div>
       )}
-      {!loading && filtered.length > 0 && (
-        <p className="text-[10px] text-muted-foreground">
-          MGB, ESF, PAC, DEM, SUP, DEP e PVP Desc podem ser simulados (clique no valor). A simulação é local: nada é gravado no parque.
-        </p>
-      )}
 
       {/* Tabela de descontos máximos (referência rápida, só administradores) */}
       {isAdmin && <DescontosMaxTable />}
@@ -763,8 +670,23 @@ export default function DemosPage() {
           capa={capas[selected.chassis]}
           canEdit={canEdit('demos')}
           email={session?.user.email ?? null}
+          vis={colVisible}
+          onGerirPrecos={podeGerirPrecos(selected) ? () => setPrecosChassis(selected.chassis) : undefined}
           onCapaChange={handleCapaChange}
           onClose={() => setSelectedChassis(null)}
+        />
+      )}
+
+      {precosRow && (
+        <PrecosDialog
+          key={precosRow.chassis}
+          chassis={precosRow.chassis}
+          titulo={[precosRow.modelo, precosRow.versao].filter(Boolean).join(' ') || 'Viatura'}
+          subtitulo={[precosRow.matricula ? formatMatricula(precosRow.matricula) : chassisCurto(precosRow.chassis), precosRow._local].join(' · ')}
+          inputs={precosRow._inps}
+          tipo={precosRow._tipo}
+          onClose={() => setPrecosChassis(null)}
+          onSaved={changed => handlePrecosSaved(precosRow.chassis, changed)}
         />
       )}
     </div>
@@ -774,25 +696,29 @@ export default function DemosPage() {
 /* ── Cartão de partilha / detalhe ─────────────────────────────────────────────*/
 const TRANSPARENT_PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
-function shareText(r: Row): string {
+function shareText(r: Row, vis: (col: string) => boolean): string {
   const L: string[] = [];
   L.push(`🚗 ${[r.modelo, r.versao].filter(Boolean).join(' ')}`.trim());
   const meta = [r._local !== '—' ? `📍 ${r._local}` : '', r._tipologia.join('/')].filter(Boolean).join(' · ');
   if (meta) L.push(meta);
   if (r.matricula) L.push(`Matrícula: ${formatMatricula(r.matricula)}`);
   L.push(`Kms: ${(r.kms ?? 0).toLocaleString('pt-PT')} · ${r._idade} dias`);
-  if (r._p.pvp > 0) L.push(`PVP: ${eur(r._p.pvp)}`);
-  if (r._p.desc_eur > 0) L.push(`Desconto: ${eur(r._p.desc_eur)} (${perc(r._p.desc_perc)})`);
-  if (r._p.pvp_desc > 0) L.push(`💰 PVP Final: ${eur(r._p.pvp_desc)}`);
+  if (vis('pvp') && r._p.pvp > 0) L.push(`PVP: ${eur(r._p.pvp)}`);
+  if (vis('dsc') && r._p.desc_eur > 0) L.push(`Desconto: ${eur(r._p.desc_eur)} (${perc(r._p.desc_perc)})`);
+  if (vis('pvp_desc') && r._p.pvp_desc > 0) L.push(`💰 PVP Final: ${eur(r._p.pvp_desc)}`);
   if (r.link_fotos && r.link_fotos.trim() !== '') L.push(`📷 Fotos: ${r.link_fotos}`);
   return L.join('\n');
 }
 
-function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
+function ShareCard({ row, capa, canEdit, email, vis, onGerirPrecos, onCapaChange, onClose }: {
   row: Row;
   capa?: string;
   canEdit: boolean;
   email: string | null;
+  /** A coluna de preço é visível para esta função? (só se mostra o que ela vê) */
+  vis: (col: string) => boolean;
+  /** Presente só para quem pode gerir os preços desta viatura. */
+  onGerirPrecos?: () => void;
   onCapaChange: (chassis: string, url: string | null) => void;
   onClose: () => void;
 }) {
@@ -927,7 +853,7 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
   }
 
   async function copiar() {
-    try { await navigator.clipboard.writeText(shareText(row)); toast.success('Resumo copiado.'); }
+    try { await navigator.clipboard.writeText(shareText(row, vis)); toast.success('Resumo copiado.'); }
     catch { toast.error('Não foi possível copiar.'); }
   }
 
@@ -1010,10 +936,12 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
             </p>
           </div>
           <div className="text-right shrink-0">
-            <div className={`text-xl font-black ${reservado ? 'text-red-600' : 'text-brand-primary'}`}>
-              {s.pvp_desc > 0 ? eur0(s.pvp_desc) : 'N/A'}
-            </div>
-            {s.pvp > 0 && s.pvp > s.pvp_desc && (
+            {vis('pvp_desc') && (
+              <div className={`text-xl font-black ${reservado ? 'text-red-600' : 'text-brand-primary'}`}>
+                {s.pvp_desc > 0 ? eur0(s.pvp_desc) : 'N/A'}
+              </div>
+            )}
+            {vis('pvp') && s.pvp > 0 && s.pvp > s.pvp_desc && (
               <div className="text-[11px] text-muted-foreground line-through">{eur0(s.pvp)}</div>
             )}
           </div>
@@ -1045,24 +973,40 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
           </div>
         )}
 
-        {/* Decomposição de preço */}
-        <div className="border border-border rounded-lg p-3">
-          <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Decomposição de preço</h3>
-          {line('Preço Base (PVB)', eur(inps.pvb))}
-          {line('Opcionais (OPC)', eur(inps.opc))}
-          {line('BSI', eur(inps.bsi))}
-          {line('ECO', eur(inps.eco))}
-          {line('Legalização', eur(inps.leg))}
-          {line('ISV', eur(inps.isv))}
-          <div className="border-t border-border my-1" />
-          {line('PVP', eur(s.pvp), { strong: true })}
-          {line(`Desconto (${perc(s.desc_perc)})`, '- ' + eur(s.desc_eur), { className: 'text-red-600' })}
-          {!share && line('IVA (s/ custo)', eur(s.iva))}
-          {!share && line('Preço de custo', eur(s.p_custo), { strong: true })}
-          <div className="border-t border-border my-1" />
-          {line('PVP Final', eur(s.pvp_desc), { strong: true, className: 'text-brand-primary' })}
-          {line(s.iva_dedutivel ? 'PVP s/ IVA' : 'PVP s/ IVA (ICE, não dedutível)', eur(s.pvp_sem_iva))}
-        </div>
+        {/* Decomposição de preço: só as linhas cuja coluna a função vê. */}
+        {(() => {
+          const base = [
+            vis('pvb') && line('Preço Base (PVB)', eur(inps.pvb)),
+            vis('opc') && line('Opcionais (OPC)', eur(inps.opc)),
+            vis('bsi') && line('BSI', eur(inps.bsi)),
+            vis('eco') && line('ECO', eur(inps.eco)),
+            vis('leg') && line('Legalização', eur(inps.leg)),
+            vis('isv') && line('ISV', eur(inps.isv)),
+          ].filter(Boolean);
+          const apuro = [
+            vis('pvp') && line('PVP', eur(s.pvp), { strong: true }),
+            vis('dsc') && line(`Desconto (${perc(s.desc_perc)})`, '- ' + eur(s.desc_eur), { className: 'text-red-600' }),
+            !share && vis('p_custo') && line('IVA (s/ custo)', eur(s.iva)),
+            !share && vis('p_custo') && line('Preço de custo', eur(s.p_custo), { strong: true }),
+          ].filter(Boolean);
+          const venda = [
+            vis('pvp_desc') && line('PVP Final', eur(s.pvp_desc), { strong: true, className: 'text-brand-primary' }),
+            vis('pvp_siva') && line(s.iva_dedutivel ? 'PVP s/ IVA' : 'PVP s/ IVA (ICE, não dedutível)', eur(s.pvp_sem_iva)),
+          ].filter(Boolean);
+          const blocos = [base, apuro, venda].filter(b => b.length > 0);
+          if (blocos.length === 0) return null;
+          return (
+            <div className="border border-border rounded-lg p-3">
+              <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Decomposição de preço</h3>
+              {blocos.map((b, i) => (
+                <div key={i}>
+                  {i > 0 && <div className="border-t border-border my-1" />}
+                  {b.map((el, j) => <div key={j}>{el}</div>)}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {!share && reservado && (
           <div className="text-xs text-muted-foreground bg-yellow-500/5 border border-yellow-500/20 rounded-lg p-2.5">
@@ -1088,6 +1032,15 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
             >
               {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />} Partilhar
             </button>
+            {onGerirPrecos && (
+              <button
+                onClick={onGerirPrecos}
+                title="Abrir a janela de preço (estrutura, descontos e margem)"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold border border-brand-primary/50 text-brand-primary rounded-lg hover:bg-brand-primary/10 transition-colors"
+              >
+                <Pencil className="h-3.5 w-3.5" /> Gerir preço
+              </button>
+            )}
             <button
               onClick={copiar}
               className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-muted transition-colors"

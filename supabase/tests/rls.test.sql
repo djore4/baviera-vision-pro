@@ -654,7 +654,7 @@ update public.viaturas set
   stats  = '{"pvp_bruto": 68000, "pvp_final": 60000, "mg": 4200, "mg_perc": 0.07, "preco_minimo": 55800,
              "desc_perc": 0.18, "desc_eur": 9900, "idade": 2, "idade_dias": 70, "penetracao": 0.1,
              "iva": 12600, "s_iva": 48780}'::jsonb;
-insert into public.app_roles (name, is_admin, permissions) values ('Demos', false, '{"demos": "view"}') on conflict (name) do nothing;
+insert into public.app_roles (name, is_admin, permissions) values ('Demos', false, '{"demos": "view", "demos:col:pvb": "view", "demos:col:opc": "view", "demos:col:bsi": "view", "demos:col:pen": "view", "demos:col:eco": "view", "demos:col:leg": "view", "demos:col:isv": "view", "demos:col:pvp": "view", "demos:col:pvp_desc": "view", "demos:col:pvp_siva": "view"}') on conflict (name) do nothing;
 insert into public.app_users (nome, email, perfil) values ('Demos', 'demos@x.pt', 'Demos') on conflict (email) do nothing;
 
 begin;
@@ -677,10 +677,9 @@ select t.check('demos_viaturas/Demos=view: inputs só com chaves de preço',
 select t.check('demos_viaturas/Demos=view: sem MGB, ESF, PAC, DEM, SUP nem depreciações',
   not exists (select 1 from public.demos_viaturas()
               where inputs ?| array['mgb', 'esf', 'pac', 'dem', 'sup', 'depreciacoes']));
-select t.check('demos_viaturas/Demos=view: stats sem margem, preço mínimo nem descontos',
-  (select bool_and(stats - array['pvp_bruto', 'pvp_final', 'idade', 'idade_dias', 'penetracao', 'iva', 's_iva'] = '{}'::jsonb
-                   and (stats ->> 'pvp_final') is not null)
-     from public.demos_viaturas() where stats ? 'pvp_final'));
+select t.check('demos_viaturas/Demos=view: stats só com a idade (sem margem, preço mínimo, descontos nem PVP final)',
+  (select bool_and(stats - array['idade', 'idade_dias'] = '{}'::jsonb and (stats ->> 'idade_dias') is not null)
+     from public.demos_viaturas() where stats ? 'idade_dias'));
 select t.check('Demos=view: já não lê a tabela viaturas diretamente',
   t.n('viaturas') = 0 and t.dml($q$ update public.viaturas set marca = marca $q$) = 0);
 select t.back();
