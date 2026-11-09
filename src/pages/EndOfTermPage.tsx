@@ -32,7 +32,7 @@ type SortKey = 'cliente' | 'viatura' | 'resp' | 'fim' | 'fase' | 'temp' | 'proxi
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
 
 export default function EndOfTermPage() {
-  const { scope, isDirector, isLocalLead, canManage, isAdmin, myEmail, myNome } = useEotScope();
+  const { scope, isDirector, isLocalLead, canManage, canSeeUsersTab, isAdmin, myEmail, myNome } = useEotScope();
   const { canEdit, capabilities, me } = usePermissions();
   // Gestão de responsáveis e do mapa de nomes: só com a migração aplicada (a tabela existir).
   const ownersEnabled = !!capabilities?.eotResponsaveis;
@@ -76,7 +76,7 @@ export default function EndOfTermPage() {
         listAgenda(scope),
         listEotVendedores(scope),
         canManage ? listEotOwners() : Promise.resolve([] as EotOwner[]),
-        canManage && ownersEnabled ? listEotVendedorMap() : Promise.resolve([] as EotVendedorMapRow[]),
+        canSeeUsersTab && ownersEnabled ? listEotVendedorMap() : Promise.resolve([] as EotVendedorMapRow[]),
       ]);
       setContracts(c);
       setAgenda(a);
@@ -88,7 +88,7 @@ export default function EndOfTermPage() {
     } finally {
       setLoading(false);
     }
-  }, [scope, canManage, ownersEnabled]);
+  }, [scope, canManage, canSeeUsersTab, ownersEnabled]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -366,7 +366,7 @@ export default function EndOfTermPage() {
             {kpis.overdueFollow > 0 && <span className="ml-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 leading-tight">{kpis.overdueFollow}</span>}
           </TabsTrigger>
           <TabsTrigger value="report" className="flex-1 sm:flex-none gap-1 px-2 sm:gap-1.5 sm:px-3 data-[state=active]:shadow-sm"><BarChart3 className="h-4 w-4" />Report</TabsTrigger>
-          {canManage && ownersEnabled && (
+          {canSeeUsersTab && ownersEnabled && (
             <TabsTrigger value="responsaveis" className="flex-1 sm:flex-none gap-1 px-2 sm:gap-1.5 sm:px-3 data-[state=active]:shadow-sm"><Users className="h-4 w-4" />Users</TabsTrigger>
           )}
         </TabsList>
@@ -540,7 +540,7 @@ export default function EndOfTermPage() {
         </TabsContent>
 
         {/* ── Responsáveis e nomes do Excel ───────────────────────────────────── */}
-        {canManage && ownersEnabled && (
+        {canSeeUsersTab && ownersEnabled && (
           <TabsContent value="responsaveis" className="mt-4">
             {loading ? <Loader /> : (
               <OwnersPanel contracts={contracts} owners={owners} ownerMap={ownerMap} leadEmail={isLocalLead ? myEmail : null} onChanged={load} />
