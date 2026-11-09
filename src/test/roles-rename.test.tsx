@@ -7,7 +7,7 @@ vi.mock('@/lib/permissions', async orig => ({
   ...(await orig<typeof import('@/lib/permissions')>()),
   renameRole: (...a: unknown[]) => renameRole(...a),
 }));
-vi.mock('@/contexts/PermissionsContext', () => ({ usePermissions: () => ({ capabilities: { lavagemGranular: true, eotGranular: true, eotResponsaveis: true } }) }));
+vi.mock('@/contexts/PermissionsContext', () => ({ usePermissions: () => ({ capabilities: { lavagemGranular: true, eotGranular: true, eotResponsaveis: true, viaturasLocal: true } }) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { RolesPanel } from '@/components/users/RolesPanel';

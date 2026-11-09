@@ -28,7 +28,7 @@ vi.mock('@/lib/permissions', async orig => ({
   listUsers: vi.fn(async () => USERS),
   isPlatformAdmin: vi.fn(async () => false),
   getMyAccessExceptions: vi.fn(async () => ({ utilizadores: 'edit' as const })), // exceção do admin real
-  getAppCapabilities: vi.fn(async () => ({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false })),
+  getAppCapabilities: vi.fn(async () => ({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false })),
 }));
 
 import { PermissionsProvider, usePermissions } from '@/contexts/PermissionsContext';
