@@ -8,7 +8,7 @@ describe('modelo M', () => {
   it('sugere as versões M (sem distinguir maiúsculas)', () => {
     for (const m of ['M', 'm', ' M ']) {
       expect(versoesSugeridas(m)).toEqual(
-        ['M2', 'M3', 'M4', 'M5', 'M8', 'X3M', 'X4M', 'X5M', 'X6M', 'XM 50e', 'XM Red Label'],
+        ['M2', 'M3', 'M4', 'M5', 'M8', 'X3M', 'X4M', 'X5M', 'X6M', 'XM'],
       );
     }
   });

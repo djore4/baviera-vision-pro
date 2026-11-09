@@ -82,7 +82,7 @@ export const MODELOS_BMW = [
 ] as const;
 
 export const VERSOES_BMW: Record<string, readonly string[]> = {
-  M: ['M2', 'M3', 'M4', 'M5', 'M8', 'X3M', 'X4M', 'X5M', 'X6M', 'XM 50e', 'XM Red Label'],
+  M: ['M2', 'M3', 'M4', 'M5', 'M8', 'X3M', 'X4M', 'X5M', 'X6M', 'XM'],
 };
 
 export function versoesSugeridas(modelo: string): readonly string[] {
