@@ -64,8 +64,8 @@ const ALL_TABS: TabDef[] = [
   // fora da matriz de funções até se decidir quem o pode ver (ver TabDef.adminOnly).
   { key: 'comparativo', label: 'Comparativo', path: '/comparativo', area: 'vn', adminOnly: true },
   // Parque de demonstradores (tabela `viaturas`, ainda partilhada com a plataforma Caetano).
-  // Acesso pela matriz de funções; que colunas de preço cada função vê e quem gere os
-  // preços do seu local também se atribuem aí (ver demoColunas.ts).
+  // Acesso pela matriz de funções; quem gere os preços do seu local atribui-se aí
+  // ('demos:precos': janela de preço da viatura).
   { key: 'demos', label: 'Demos', path: '/demos', area: 'vn' },
   // Multas de equipa. 'view': consulta; 'edit': lança multas. Gerir o catálogo, reiniciar o
   // ciclo e apagar multas lançadas é só do administrador (UI e RLS: migração multas_gestao_admin).
@@ -161,7 +161,7 @@ const ALL_SUB_PERMISSIONS: SubPermissionDef[] = [
     hint: 'Introduzir e corrigir viaturas dos locais da pessoa (Utilizadores → Local), na Sales Force. Não vê nem altera as de outros locais e não apaga.',
     capability: 'viaturasLocal' },
   { key: 'demos:precos', parent: 'demos', label: 'Gerir preços (do seu local)',
-    hint: 'Abre a janela de preço de cada viatura e grava os valores (preço base, opcionais, descontos, depreciações, PVP final) das viaturas dos locais da pessoa (Utilizadores → Local). Exige o tab Demos. Que colunas vê define-se à parte, por função.',
+    hint: 'Ao clicar numa viatura abre a janela de preço (como na gestão VD da Sales Force: escalões de 30 dias, descontos máximos do modelo, estrutura base, descontos e margem) e grava os valores das viaturas dos locais da pessoa (Utilizadores → Local). Exige o tab Demos. Sem isto, a pessoa vê só o cartão da viatura.',
     capability: 'demosPrecos' },
 ];
 

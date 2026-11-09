@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { calcPricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
-import { PRICE_FIELDS } from '@/lib/demoColunas';
-import { toFieldText, fromFieldText, type Kind } from '@/lib/precoCampos';
+import { PRICE_FIELDS, toFieldText, fromFieldText, type Kind } from '@/lib/precoCampos';
+import { calcularEscalao30 } from '@/lib/escaloes30';
+import { descontoMaxPara, descMaxAplicavel, descMaxAcumulado, INCORPORACAO_OPCIONAIS, type DescMax } from '@/lib/descontosMax';
 
-/* ── Janela de preço de uma viatura (gestão pelo responsável local) ───────────
- * Mesma mecânica do formulário de preços da plataforma Caetano: 1. estrutura base,
- * 2. descontos, 3. apuramento do PVP e da margem, com o cálculo em direto. As fórmulas
- * são as do Excel "PARQUE BMW" (lib/demoPricing.ts): o preço de custo NÃO inclui o BSI.
+/* ── Janela da viatura (gestão de preços pelo responsável local) ──────────────
+ * Mesma mecânica da gestão VD da plataforma Caetano: 0. identificação (só leitura) e escalões
+ * de 30 dias desde a matrícula; descontos máximos do modelo; 1. estrutura base, 2. descontos,
+ * 3. apuramento do PVP e da margem, com o cálculo em direto. As fórmulas são as do Excel
+ * "PARQUE BMW" (lib/demoPricing.ts): o preço de custo NÃO inclui o BSI.
  * Grava por demos_gravar_precos() (a base de dados valida quem pode e em que local) e só
  * envia os campos alterados, para não repor valores que outra pessoa mudou entretanto.
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -40,18 +42,32 @@ const FIM: FieldDef[] = [
 const eur = (n: number) => n.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const perc = (n: number) => (n * 100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %';
 
-export interface PrecosDialogProps {
+export interface VeiculoPrecos {
   chassis: string;
   titulo: string;
-  subtitulo?: string;
-  inputs: PricingInputs;
-  tipo: Pick<Tipo, 'xev' | 'bev'>;
-  onClose: () => void;
-  /** Valores gravados (a base de dados devolve `inputs` completo). */
-  onSaved: (inputs: Partial<PricingInputs>) => void;
+  matricula: string;
+  local: string;
+  encomenda: string | null;
+  dataMatricula: string | null;
+  kms: number | null;
+  modelo: string | null;
+  versao: string | null;
+  estadoEntrega: string | null;
 }
 
-export default function PrecosDialog({ chassis, titulo, subtitulo, inputs, tipo, onClose, onSaved }: PrecosDialogProps) {
+export interface PrecosDialogProps {
+  veiculo: VeiculoPrecos;
+  inputs: PricingInputs;
+  tipo: Tipo;
+  onClose: () => void;
+  /** Valores gravados (só os campos alterados). */
+  onSaved: (inputs: Partial<PricingInputs>) => void;
+  /** Abre o cartão da viatura (foto de capa, partilhar, copiar resumo). */
+  onAbrirCartao?: () => void;
+}
+
+export default function PrecosDialog({ veiculo, inputs, tipo, onClose, onSaved, onAbrirCartao }: PrecosDialogProps) {
+  const { chassis } = veiculo;
   const all = [...BASE, ...DESCS, ...FIM];
   const [text, setText] = useState<Record<string, string>>(() =>
     Object.fromEntries(all.map(f => [f.key, toFieldText(inputs[f.key], f.kind)])));
@@ -128,16 +144,68 @@ export default function PrecosDialog({ chassis, titulo, subtitulo, inputs, tipo,
   );
 
   const temMargem = live.pvp_desc > 0 && (parsed.pvb ?? inputs.pvb) > 0;
+  const escalao = calcularEscalao30(veiculo.dataMatricula);
+  const ident: [string, string][] = [
+    ['Encomenda', veiculo.encomenda || '—'],
+    ['Chassis', veiculo.chassis],
+    ['Matrícula', veiculo.matricula || '—'],
+    ['Data matrícula', veiculo.dataMatricula ? new Date(veiculo.dataMatricula).toLocaleDateString('pt-PT') : '—'],
+    ['Quilómetros', (veiculo.kms ?? 0).toLocaleString('pt-PT')],
+    ['Modelo', veiculo.modelo || '—'],
+    ['Versão', veiculo.versao || '—'],
+    ['Estado entrega', veiculo.estadoEntrega || '—'],
+  ];
 
   return (
     <Dialog open onOpenChange={o => { if (!o) tryClose(); }}>
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto p-0 gap-0">
-        <DialogHeader className="px-5 py-4 border-b border-border bg-muted/30 text-left">
-          <DialogTitle className="text-lg font-black leading-tight">{titulo}</DialogTitle>
-          <DialogDescription className="font-mono text-xs uppercase">{subtitulo ?? chassis}</DialogDescription>
+        <DialogHeader className="px-5 py-4 border-b border-border bg-muted/30 text-left pr-12">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <DialogTitle className="text-lg font-black leading-tight">{veiculo.titulo}</DialogTitle>
+              <DialogDescription className="font-mono text-xs uppercase">{veiculo.matricula} · {veiculo.local}</DialogDescription>
+            </div>
+            {onAbrirCartao && (
+              <button
+                type="button" onClick={onAbrirCartao}
+                title="Cartão da viatura: foto de capa, partilhar e copiar resumo"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-border rounded-lg hover:bg-muted transition-colors"
+              >
+                <Share2 className="h-3.5 w-3.5" /> Cartão / partilhar
+              </button>
+            )}
+          </div>
         </DialogHeader>
 
         <div className="p-4 sm:p-5 space-y-4">
+          <section className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-widest">0. Identificação da viatura</h3>
+            <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
+              {ident.map(([k, v]) => (
+                <div key={k} className="min-w-0">
+                  <dt className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{k}</dt>
+                  <dd className="text-sm font-semibold truncate" title={v}>{v}</dd>
+                </div>
+              ))}
+            </dl>
+            {escalao && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-lg border border-sky-500/30 bg-sky-500/5 px-4 py-3">
+                {([
+                  ['Dias desde matrícula', escalao.futura ? 'Data futura' : String(escalao.dias), ''],
+                  ['Períodos de 30 dias', String(escalao.periodos), 'text-brand-primary'],
+                  ['Próximo escalão em', escalao.faltam === 1 ? '1 dia' : `${escalao.faltam} dias`, escalao.faltam <= 5 ? 'text-orange-600' : ''],
+                  ['Data próximo escalão', escalao.proxima.toLocaleDateString('pt-PT', { timeZone: 'UTC' }), ''],
+                ] as const).map(([k, v, tone]) => (
+                  <div key={k}>
+                    <span className="block text-[9px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-300">{k}</span>
+                    <span className={`block text-lg font-black tabular-nums ${tone}`}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <DescMaxPanel modelo={veiculo.modelo} tipo={tipo} penetracao={live.penetracao} periodos={escalao?.futura === false ? escalao.periodos : 0} />
+          </section>
+
           <section className="rounded-xl border border-border overflow-hidden">
             <div className="p-4">
               <h3 className="text-xs font-bold uppercase tracking-widest mb-3">1. Estrutura base (€)</h3>
@@ -199,5 +267,55 @@ export default function PrecosDialog({ chassis, titulo, subtitulo, inputs, tipo,
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const pct = (n: number) => (n * 100).toLocaleString('pt-PT', { maximumFractionDigits: 2 }) + ' %';
+
+/* Desconto máximo do modelo e tipologia (máx. total e acumulação mensal). O valor aplicável é o
+ * "com 19% de opcionais" quando a penetração (OPC / PVB) o atinge; acompanha o preço em edição. */
+function DescMaxPanel({ modelo, tipo, penetracao, periodos }: {
+  modelo: string | null; tipo: Tipo; penetracao: number; periodos: number;
+}) {
+  const m = descontoMaxPara(modelo, tipo);
+  if (!m) {
+    return (
+      <p className="text-[11px] text-muted-foreground rounded-lg border border-dashed border-border px-3 py-2">
+        Sem linha de desconto máximo para "{modelo || '—'}" ({tipo.bev ? 'BEV' : tipo.xev ? 'PHEV' : 'ICE'}).
+      </p>
+    );
+  }
+  const { valor, comIncorporacao } = descMaxAplicavel(m.linha, penetracao);
+  const cel = (titulo: string, v: DescMax, ativo: boolean) => (
+    <div className={`rounded-md border px-3 py-2 ${ativo ? 'border-brand-primary bg-brand-primary/5' : 'border-border opacity-60'}`}>
+      <span className="block text-[10px] font-semibold text-muted-foreground leading-tight">{titulo}</span>
+      <span className="block text-base font-black tabular-nums">{pct(v.max)}</span>
+      <span className="block text-[10px] text-muted-foreground">{v.mensal === null ? 'sem acumulação mensal' : `${pct(v.mensal)} mensal`}</span>
+    </div>
+  );
+  return (
+    <div className="rounded-lg border border-border bg-card px-4 py-3 space-y-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h4 className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          Desconto máximo · {m.grupo} · {m.linha.modelos.join(', ')}
+        </h4>
+        <span className="text-[10px] text-muted-foreground">
+          Penetração de opcionais {pct(penetracao)} ({comIncorporacao ? 'atinge' : 'abaixo de'} {pct(INCORPORACAO_OPCIONAIS)})
+        </span>
+      </div>
+      {m.linha.sem ? (
+        <div className="grid grid-cols-2 gap-2">
+          {cel('Com 19% de opcionais', m.linha.com, comIncorporacao)}
+          {cel('Sem 19% de opcionais', m.linha.sem, !comIncorporacao)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2">{cel('Com ou sem 19% de opcionais', m.linha.com, true)}</div>
+      )}
+      <p className="text-[11px] text-muted-foreground">
+        Acumulado ao fim de {periodos} {periodos === 1 ? 'período' : 'períodos'} de 30 dias:{' '}
+        <strong className="text-foreground tabular-nums">{pct(descMaxAcumulado(valor, periodos))}</strong>
+        {valor.mensal !== null && <> (mensal × períodos, limitado a {pct(valor.max)})</>}
+      </p>
+    </div>
   );
 }

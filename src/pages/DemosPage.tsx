@@ -11,19 +11,18 @@ import {
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import { client } from '@/clients';
-import DescontosMaxTable from '@/components/DescontosMaxTable';
 import { chassisCurto, formatMatricula, matriculaCompacta, parseNum } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
-import { LEGACY_DEMO_COLS } from '@/lib/demoColunas';
 import PrecosDialog from '@/components/demos/PrecosDialog';
 
 /* ── Parque de demonstradores (VN · Demos) ────────────────────────────────────
  * Parque de viaturas (tabela `viaturas`, ainda partilhada com a plataforma Caetano).
- * Os preços são recalculados em runtime a partir de `inputs`, segundo o racional do
- * Excel "PARQUE BMW" (ver lib/demoPricing.ts). Que colunas de preço cada função vê
- * define-se em Utilizadores → Permissões (lib/demoColunas.ts) e é imposto pela base de
- * dados (demos_viaturas). Quem tem 'demos:precos' abre a janela de preço de cada
- * viatura do seu local e grava (components/demos/PrecosDialog.tsx).
+ * A tabela mostra as mesmas colunas a todos os perfis (identificação, PVP, PVP Desc, PVP s/IVA).
+ * Os preços são recalculados em runtime a partir de `inputs`, segundo o racional do Excel
+ * "PARQUE BMW" (ver lib/demoPricing.ts). Os economics (custo, descontos, margem) vivem na
+ * janela da viatura (components/demos/PrecosDialog.tsx), que abre ao clicar na linha para o
+ * administrador e para quem tem 'demos:precos' (nas viaturas do seu local); os restantes
+ * abrem o cartão de partilha.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 interface Viatura {
@@ -119,12 +118,10 @@ function buildRow(v: Viatura): Row {
 }
 
 /* ── Colunas (espelham o Excel "PARQUE BMW") ──────────────────────────────── */
-type Group = 'id' | 'preco' | 'desc' | 'custo' | 'venda';
+type Group = 'id' | 'preco' | 'venda';
 const GROUPS: { key: Group; label: string }[] = [
   { key: 'id', label: 'Viatura' },
-  { key: 'preco', label: 'Preços' },
-  { key: 'desc', label: 'Descontos / apoios' },
-  { key: 'custo', label: 'Margem' },
+  { key: 'preco', label: 'Preço' },
   { key: 'venda', label: 'Venda' },
 ];
 
@@ -139,20 +136,7 @@ interface Col {
   cls?: string;
 }
 
-/* As colunas fora do grupo 'id' são de preço: cada função vê as que a matriz de permissões
- * lhe atribui (chave = key da coluna, ver lib/demoColunas.ts). O administrador vê todas. */
 
-/* Só há margem com preço de venda e custo conhecidos (sem PVB o custo não tem significado). */
-const temMargem = (r: Row) => r._p.pvp_desc > 0 && r._inps.pvb > 0;
-
-const muted = (v: number, fmt: (n: number) => string) =>
-  v ? fmt(v) : <span className="text-muted-foreground/40">—</span>;
-const money = (get: (r: Row) => number): Pick<Col, 'align' | 'sort' | 'cell' | 'cls'> => ({
-  align: 'right', sort: get, cell: r => muted(get(r), eur0), cls: 'text-muted-foreground',
-});
-const pct = (get: (r: Row) => number): Pick<Col, 'align' | 'sort' | 'cell' | 'cls'> => ({
-  align: 'right', sort: get, cell: r => muted(get(r), perc1), cls: 'text-muted-foreground',
-});
 const text = (get: (r: Row) => string | null): Pick<Col, 'sort' | 'cell'> => ({
   sort: r => (get(r) ?? '').toLowerCase(), cell: r => get(r) || '—',
 });
@@ -195,42 +179,10 @@ const COLS: Col[] = [
     },
   },
 
-  { key: 'pvb', label: 'PVB', title: 'Preço base', group: 'preco', ...money(r => r._inps.pvb) },
-  { key: 'opc', label: 'OPC', title: 'Opcionais', group: 'preco', ...money(r => r._inps.opc) },
-  { key: 'bsi', label: 'BSI', group: 'preco', ...money(r => r._inps.bsi) },
-  { key: 'pen', label: '%', title: 'Penetração de opcionais (OPC / PVB)', group: 'preco', ...pct(r => r._p.penetracao) },
-  { key: 'eco', label: 'ECO', group: 'preco', ...money(r => r._inps.eco) },
-  { key: 'leg', label: 'LEG/TR', title: 'Legalização / transporte', group: 'preco', ...money(r => r._inps.leg) },
-  { key: 'isv', label: 'ISV', group: 'preco', ...money(r => r._inps.isv) },
   {
     key: 'pvp', label: 'PVP', title: '(PVB + OPC + BSI + ECO + LEG/TR + ISV) × 1,23', group: 'preco', align: 'right',
     sort: r => r._p.pvp, cls: 'text-muted-foreground line-through',
     cell: r => r._p.pvp > 0 ? eur0(r._p.pvp) : '—',
-  },
-
-  { key: 'mgb', label: 'MGB', group: 'desc', ...pct(r => r._inps.mgb) },
-  { key: 'esf', label: 'ESF', group: 'desc', ...pct(r => r._inps.esf) },
-  { key: 'pac', label: 'PAC', group: 'desc', ...pct(r => r._inps.pac) },
-  { key: 'dem', label: 'DEM', group: 'desc', ...pct(r => r._inps.dem) },
-  { key: 'sup', label: 'SUP', group: 'desc', ...pct(r => r._inps.sup) },
-  {
-    key: 'dsc', label: 'DSC €', title: '(PVB + OPC) × (MGB + ESF + PAC + DEM + SUP)', group: 'desc', align: 'right',
-    sort: r => r._p.desc_eur, cls: 'text-red-600 font-medium',
-    cell: r => r._p.desc_eur ? eur0(r._p.desc_eur) : <span className="text-muted-foreground/40">—</span>,
-  },
-
-  {
-    key: 'p_custo', label: 'P Custo', title: '(PVB + OPC − DSC + ECO + LEG/TR + ISV) × 1,23', group: 'custo', align: 'right',
-    sort: r => r._p.p_custo, cls: 'text-foreground font-medium',
-    cell: r => r._p.p_custo > 0 ? eur0(r._p.p_custo) : '—',
-  },
-  { key: 'dep', label: 'DEP', title: 'Depreciações', group: 'custo', ...money(r => r._inps.depreciacoes) },
-  {
-    key: 'margem', label: 'Margem', title: 'PVP DESC − P Custo + DEP', group: 'custo', align: 'right',
-    sort: r => (temMargem(r) ? r._p.margem : -Infinity),
-    cell: r => temMargem(r)
-      ? <span className={`font-bold ${r._p.margem < 0 ? 'text-red-600' : 'text-green-600'}`}>{eur0(r._p.margem)}</span>
-      : <span className="text-muted-foreground/40">—</span>,
   },
 
   {
@@ -247,7 +199,7 @@ const COLS: Col[] = [
   },
 ];
 
-const DESC_FIRST = new Set(['pvp', 'pvp_desc', 'pvp_siva', 'margem', 'idade', 'dsc', 'p_custo']);
+const DESC_FIRST = new Set(['pvp', 'pvp_desc', 'pvp_siva', 'idade']);
 
 /* Primeira coluna de cada grupo leva separador vertical. */
 const groupStarts = (cols: Col[]) => new Set(cols.filter((c, i) => i > 0 && cols[i - 1].group !== c.group).map(c => c.key));
@@ -299,22 +251,16 @@ function ChipFilter({ label, options, selected, onToggle, onClear }: {
 
 export default function DemosPage() {
   const { session } = useAuth();
-  const { canEdit, canView, isAdmin, me, capabilities } = usePermissions();
-  // Colunas de preço visíveis: as atribuídas à função (administrador: todas). Sem a migração
-  // (capacidade ausente) mantém-se a regra antiga: preços e venda, sem descontos nem custo.
-  const colVisible = (key: string) =>
-    isAdmin || (capabilities.demosPrecos ? canView(`demos:col:${key}`) : LEGACY_DEMO_COLS.has(key));
-  const cols = useMemo(
-    () => COLS.filter(c => c.group === 'id' || colVisible(c.key)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isAdmin, capabilities.demosPrecos, canView],
-  );
-  const groups = useMemo(() => GROUPS.filter(g => cols.some(c => c.group === g.key)), [cols]);
-  // Gerir preços: administrador, ou 'demos:precos' nas viaturas dos locais da pessoa (a base de dados valida).
+  const { canEdit, isAdmin, me, capabilities } = usePermissions();
+  const groups = GROUPS;
+  const cols = COLS;
+  // Janela de preço (economics): administrador, ou 'demos:precos' nas viaturas dos locais da pessoa
+  // (a base de dados valida). Os restantes abrem o cartão. Sem a migração, só o cartão.
   const meusLocais = useMemo(() => locaisDoPerfil(me?.local), [me?.local]);
   const podeGerirPrecos = (r: Pick<Row, 'local'>) => {
+    if (!capabilities.demosPrecos) return false;
     if (isAdmin) return true;
-    if (!capabilities.demosPrecos || !canEdit('demos:precos')) return false;
+    if (!canEdit('demos:precos')) return false;
     const ls = localsOfRow(r);
     return ls.length > 0 && ls.every(l => meusLocais.includes(l));
   };
@@ -479,15 +425,8 @@ export default function DemosPage() {
 
   // Totais do que está filtrado (como a linha de totais de uma tabela Excel).
   const totals = useMemo(() => {
-    const priced = filtered.filter(temMargem);
-    const sum = (f: (r: Row) => number) => priced.reduce((s, r) => s + f(r), 0);
-    // O PVP Desc soma-se por si (não depende de haver custo); custo e margem só com PVB e PVP Desc.
     const vendidos = filtered.filter(r => r._p.pvp_desc > 0);
-    return {
-      n: vendidos.length,
-      pvpDesc: vendidos.reduce((s, r) => s + r._p.pvp_desc, 0),
-      margem: sum(r => r._p.margem), pCusto: sum(r => r._p.p_custo),
-    };
+    return { n: vendidos.length, pvpDesc: vendidos.reduce((s, r) => s + r._p.pvp_desc, 0) };
   }, [filtered]);
 
   const toggleIn = (set: React.Dispatch<React.SetStateAction<Set<string>>>) => (v: string) =>
@@ -609,7 +548,7 @@ export default function DemosPage() {
                 return (
                   <tr
                     key={r.chassis}
-                    onClick={() => setSelectedChassis(r.chassis)}
+                    onClick={() => (podeGerirPrecos(r) ? setPrecosChassis(r.chassis) : setSelectedChassis(r.chassis))}
                     className={`group border-b border-border/50 cursor-pointer transition-colors ${reservado ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : 'hover:bg-muted/30'}`}
                   >
                     {visibleCols.map(c => c.key === 'modelo' ? (
@@ -639,14 +578,8 @@ export default function DemosPage() {
               <tfoot>
                 <tr className="bg-muted/50 font-semibold">
                   {visibleCols.map(c => {
-                    const v = c.key === 'p_custo' ? eur0(totals.pCusto)
-                      : c.key === 'margem' ? eur0(totals.margem)
-                      : c.key === 'pvp_desc' ? eur0(totals.pvpDesc)
-                      : c.key === 'modelo' ? 'Total'
-                      : c.key === 'dep' ? 'Σ'
-                      : '';
-                    const tone = c.key === 'margem' ? (totals.margem < 0 ? 'text-red-600' : 'text-green-600')
-                      : c.key === 'pvp_desc' ? 'text-brand-primary' : 'text-muted-foreground';
+                    const v = c.key === 'pvp_desc' ? eur0(totals.pvpDesc) : c.key === 'modelo' ? 'Total' : '';
+                    const tone = c.key === 'pvp_desc' ? 'text-brand-primary' : 'text-muted-foreground';
                     return (
                       <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, TINT_HEAD).cls} px-2.5 py-2 whitespace-nowrap ${alignCls(c.align)} ${tone} ${sepCls(c.key)}`}>{v}</td>
                     );
@@ -661,17 +594,12 @@ export default function DemosPage() {
         </div>
       )}
 
-      {/* Tabela de descontos máximos (referência rápida, só administradores) */}
-      {isAdmin && <DescontosMaxTable />}
-
       {selected && (
         <ShareCard
           row={selected}
           capa={capas[selected.chassis]}
           canEdit={canEdit('demos')}
           email={session?.user.email ?? null}
-          vis={colVisible}
-          onGerirPrecos={podeGerirPrecos(selected) ? () => setPrecosChassis(selected.chassis) : undefined}
           onCapaChange={handleCapaChange}
           onClose={() => setSelectedChassis(null)}
         />
@@ -680,13 +608,23 @@ export default function DemosPage() {
       {precosRow && (
         <PrecosDialog
           key={precosRow.chassis}
-          chassis={precosRow.chassis}
-          titulo={[precosRow.modelo, precosRow.versao].filter(Boolean).join(' ') || 'Viatura'}
-          subtitulo={[precosRow.matricula ? formatMatricula(precosRow.matricula) : chassisCurto(precosRow.chassis), precosRow._local].join(' · ')}
+          veiculo={{
+            chassis: precosRow.chassis,
+            titulo: [precosRow.modelo, precosRow.versao].filter(Boolean).join(' ') || 'Viatura',
+            matricula: precosRow.matricula ? formatMatricula(precosRow.matricula) : chassisCurto(precosRow.chassis),
+            local: precosRow._local,
+            encomenda: precosRow.encomenda,
+            dataMatricula: precosRow.data_matricula,
+            kms: precosRow.kms,
+            modelo: precosRow.modelo,
+            versao: precosRow.versao,
+            estadoEntrega: precosRow.estado_entrega,
+          }}
           inputs={precosRow._inps}
           tipo={precosRow._tipo}
           onClose={() => setPrecosChassis(null)}
           onSaved={changed => handlePrecosSaved(precosRow.chassis, changed)}
+          onAbrirCartao={() => { setPrecosChassis(null); setSelectedChassis(precosRow.chassis); }}
         />
       )}
     </div>
@@ -696,29 +634,25 @@ export default function DemosPage() {
 /* ── Cartão de partilha / detalhe ─────────────────────────────────────────────*/
 const TRANSPARENT_PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
-function shareText(r: Row, vis: (col: string) => boolean): string {
+function shareText(r: Row): string {
   const L: string[] = [];
   L.push(`🚗 ${[r.modelo, r.versao].filter(Boolean).join(' ')}`.trim());
   const meta = [r._local !== '—' ? `📍 ${r._local}` : '', r._tipologia.join('/')].filter(Boolean).join(' · ');
   if (meta) L.push(meta);
   if (r.matricula) L.push(`Matrícula: ${formatMatricula(r.matricula)}`);
   L.push(`Kms: ${(r.kms ?? 0).toLocaleString('pt-PT')} · ${r._idade} dias`);
-  if (vis('pvp') && r._p.pvp > 0) L.push(`PVP: ${eur(r._p.pvp)}`);
-  if (vis('dsc') && r._p.desc_eur > 0) L.push(`Desconto: ${eur(r._p.desc_eur)} (${perc(r._p.desc_perc)})`);
-  if (vis('pvp_desc') && r._p.pvp_desc > 0) L.push(`💰 PVP Final: ${eur(r._p.pvp_desc)}`);
+  if (r._p.pvp > 0) L.push(`PVP: ${eur(r._p.pvp)}`);
+  if (r._p.desc_eur > 0) L.push(`Desconto: ${eur(r._p.desc_eur)} (${perc(r._p.desc_perc)})`);
+  if (r._p.pvp_desc > 0) L.push(`💰 PVP Final: ${eur(r._p.pvp_desc)}`);
   if (r.link_fotos && r.link_fotos.trim() !== '') L.push(`📷 Fotos: ${r.link_fotos}`);
   return L.join('\n');
 }
 
-function ShareCard({ row, capa, canEdit, email, vis, onGerirPrecos, onCapaChange, onClose }: {
+function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
   row: Row;
   capa?: string;
   canEdit: boolean;
   email: string | null;
-  /** A coluna de preço é visível para esta função? (só se mostra o que ela vê) */
-  vis: (col: string) => boolean;
-  /** Presente só para quem pode gerir os preços desta viatura. */
-  onGerirPrecos?: () => void;
   onCapaChange: (chassis: string, url: string | null) => void;
   onClose: () => void;
 }) {
@@ -853,7 +787,7 @@ function ShareCard({ row, capa, canEdit, email, vis, onGerirPrecos, onCapaChange
   }
 
   async function copiar() {
-    try { await navigator.clipboard.writeText(shareText(row, vis)); toast.success('Resumo copiado.'); }
+    try { await navigator.clipboard.writeText(shareText(row)); toast.success('Resumo copiado.'); }
     catch { toast.error('Não foi possível copiar.'); }
   }
 
@@ -936,12 +870,10 @@ function ShareCard({ row, capa, canEdit, email, vis, onGerirPrecos, onCapaChange
             </p>
           </div>
           <div className="text-right shrink-0">
-            {vis('pvp_desc') && (
-              <div className={`text-xl font-black ${reservado ? 'text-red-600' : 'text-brand-primary'}`}>
-                {s.pvp_desc > 0 ? eur0(s.pvp_desc) : 'N/A'}
-              </div>
-            )}
-            {vis('pvp') && s.pvp > 0 && s.pvp > s.pvp_desc && (
+            <div className={`text-xl font-black ${reservado ? 'text-red-600' : 'text-brand-primary'}`}>
+              {s.pvp_desc > 0 ? eur0(s.pvp_desc) : 'N/A'}
+            </div>
+            {s.pvp > 0 && s.pvp > s.pvp_desc && (
               <div className="text-[11px] text-muted-foreground line-through">{eur0(s.pvp)}</div>
             )}
           </div>
@@ -973,40 +905,24 @@ function ShareCard({ row, capa, canEdit, email, vis, onGerirPrecos, onCapaChange
           </div>
         )}
 
-        {/* Decomposição de preço: só as linhas cuja coluna a função vê. */}
-        {(() => {
-          const base = [
-            vis('pvb') && line('Preço Base (PVB)', eur(inps.pvb)),
-            vis('opc') && line('Opcionais (OPC)', eur(inps.opc)),
-            vis('bsi') && line('BSI', eur(inps.bsi)),
-            vis('eco') && line('ECO', eur(inps.eco)),
-            vis('leg') && line('Legalização', eur(inps.leg)),
-            vis('isv') && line('ISV', eur(inps.isv)),
-          ].filter(Boolean);
-          const apuro = [
-            vis('pvp') && line('PVP', eur(s.pvp), { strong: true }),
-            vis('dsc') && line(`Desconto (${perc(s.desc_perc)})`, '- ' + eur(s.desc_eur), { className: 'text-red-600' }),
-            !share && vis('p_custo') && line('IVA (s/ custo)', eur(s.iva)),
-            !share && vis('p_custo') && line('Preço de custo', eur(s.p_custo), { strong: true }),
-          ].filter(Boolean);
-          const venda = [
-            vis('pvp_desc') && line('PVP Final', eur(s.pvp_desc), { strong: true, className: 'text-brand-primary' }),
-            vis('pvp_siva') && line(s.iva_dedutivel ? 'PVP s/ IVA' : 'PVP s/ IVA (ICE, não dedutível)', eur(s.pvp_sem_iva)),
-          ].filter(Boolean);
-          const blocos = [base, apuro, venda].filter(b => b.length > 0);
-          if (blocos.length === 0) return null;
-          return (
-            <div className="border border-border rounded-lg p-3">
-              <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Decomposição de preço</h3>
-              {blocos.map((b, i) => (
-                <div key={i}>
-                  {i > 0 && <div className="border-t border-border my-1" />}
-                  {b.map((el, j) => <div key={j}>{el}</div>)}
-                </div>
-              ))}
-            </div>
-          );
-        })()}
+        {/* Decomposição de preço */}
+        <div className="border border-border rounded-lg p-3">
+          <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Decomposição de preço</h3>
+          {line('Preço Base (PVB)', eur(inps.pvb))}
+          {line('Opcionais (OPC)', eur(inps.opc))}
+          {line('BSI', eur(inps.bsi))}
+          {line('ECO', eur(inps.eco))}
+          {line('Legalização', eur(inps.leg))}
+          {line('ISV', eur(inps.isv))}
+          <div className="border-t border-border my-1" />
+          {line('PVP', eur(s.pvp), { strong: true })}
+          {line(`Desconto (${perc(s.desc_perc)})`, '- ' + eur(s.desc_eur), { className: 'text-red-600' })}
+          {!share && line('IVA (s/ custo)', eur(s.iva))}
+          {!share && line('Preço de custo', eur(s.p_custo), { strong: true })}
+          <div className="border-t border-border my-1" />
+          {line('PVP Final', eur(s.pvp_desc), { strong: true, className: 'text-brand-primary' })}
+          {line(s.iva_dedutivel ? 'PVP s/ IVA' : 'PVP s/ IVA (ICE, não dedutível)', eur(s.pvp_sem_iva))}
+        </div>
 
         {!share && reservado && (
           <div className="text-xs text-muted-foreground bg-yellow-500/5 border border-yellow-500/20 rounded-lg p-2.5">
@@ -1032,15 +948,6 @@ function ShareCard({ row, capa, canEdit, email, vis, onGerirPrecos, onCapaChange
             >
               {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />} Partilhar
             </button>
-            {onGerirPrecos && (
-              <button
-                onClick={onGerirPrecos}
-                title="Abrir a janela de preço (estrutura, descontos e margem)"
-                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold border border-brand-primary/50 text-brand-primary rounded-lg hover:bg-brand-primary/10 transition-colors"
-              >
-                <Pencil className="h-3.5 w-3.5" /> Gerir preço
-              </button>
-            )}
             <button
               onClick={copiar}
               className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-muted transition-colors"
