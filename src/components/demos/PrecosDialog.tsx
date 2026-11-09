@@ -69,16 +69,30 @@ export interface NovaViaturaConfig {
   matriculasExistentes: string[];
 }
 
+/** Modo edição por administrador: toda a identificação passa a ser editável (demos_editar_viatura). */
+export interface EditarIdentConfig extends Omit<NovaViaturaConfig, 'chassisExistentes' | 'matriculasExistentes'> {
+  chassisExistentes: string[];
+  matriculasExistentes: string[];
+  inicial: IdentInicial;
+}
+export interface IdentInicial {
+  encomenda: string; chassis: string; matricula: string; dataMatricula: string; kms: string;
+  modelo: string; versao: string; estadoEntrega: string; negocio: string; marca: string;
+  tipologia: string[]; locais: string[]; iva: boolean; linkFotos: string;
+}
+
 export interface PrecosDialogProps {
   /** Viatura existente (modo edição). */
   veiculo?: VeiculoPrecos;
   nova?: NovaViaturaConfig;
+  /** Só administrador: permite editar também a identificação da viatura existente. */
+  editarIdent?: EditarIdentConfig;
   inputs: PricingInputs;
   /** Obrigatório em modo edição; em "nova" deriva-se da tecnologia escolhida. */
   tipo?: Tipo;
   onClose: () => void;
   /** Valores gravados (só os campos alterados). */
-  onSaved?: (inputs: Partial<PricingInputs>) => void;
+  onSaved?: (inputs: Partial<PricingInputs>, identAlterada: boolean) => void;
   /** Viatura criada (linha completa devolvida pela base de dados). */
   onCriada?: (row: Record<string, unknown>) => void;
   /** Abre o cartão da viatura (foto de capa, partilhar, copiar resumo). */
@@ -99,15 +113,23 @@ const IDENT_VAZIA: Ident = {
   negocio: 'VD', marca: 'BMW', tipologia: [], locais: [], iva: false, linkFotos: '',
 };
 
-export default function PrecosDialog({ veiculo, nova, inputs, tipo: tipoProp, onClose, onSaved, onCriada, onAbrirCartao, onArquivar }: PrecosDialogProps) {
-  const [ident, setIdent] = useState<Ident>(() => ({ ...IDENT_VAZIA, locais: nova && nova.locais.length === 1 ? [nova.locais[0]] : [] }));
+export default function PrecosDialog({ veiculo, nova, editarIdent, inputs, tipo: tipoProp, onClose, onSaved, onCriada, onAbrirCartao, onArquivar }: PrecosDialogProps) {
+  const [ident, setIdent] = useState<Ident>(() => editarIdent
+    ? { ...editarIdent.inicial }
+    : { ...IDENT_VAZIA, locais: nova && nova.locais.length === 1 ? [nova.locais[0]] : [] });
+  /** A identificação edita-se na janela: viatura nova ou edição por administrador. */
+  const identEditavel = !!nova || !!editarIdent;
+  const cfg = nova ?? editarIdent;
+  const chassisOriginal = veiculo?.chassis;
   const setI = <K extends keyof Ident>(k: K, v: Ident[K]) => setIdent(p => ({ ...p, [k]: v }));
-  const tipo: Tipo = nova ? tipoFlags(ident.tipologia) : tipoProp!;
+  const tipo: Tipo = identEditavel ? tipoFlags(ident.tipologia) : tipoProp!;
   const ver: VeiculoPrecos = nova
     ? { chassis: ident.chassis, titulo: 'Nova viatura', matricula: ident.matricula, local: ident.locais.join(', '), encomenda: ident.encomenda,
         dataMatricula: ident.dataMatricula || null, kms: ident.kms ? Number(ident.kms) : null, modelo: ident.modelo, versao: ident.versao, estadoEntrega: ident.estadoEntrega }
-    : veiculo!;
-  const chassis = ver.chassis;
+    : editarIdent
+      ? { ...veiculo!, modelo: ident.modelo, versao: ident.versao, dataMatricula: ident.dataMatricula || null }
+      : veiculo!;
+  const chassis = chassisOriginal ?? ver.chassis;
   const [arquivando, setArquivando] = useState(false);
   const all = [...BASE, ...DESCS, ...FIM];
   const [text, setText] = useState<Record<string, string>>(() =>
@@ -129,7 +151,8 @@ export default function PrecosDialog({ veiculo, nova, inputs, tipo: tipoProp, on
     return out;
   }, [parsed, inputs]);
   const nChanged = Object.keys(changed).length;
-  const identSuja = nova ? JSON.stringify(ident) !== JSON.stringify({ ...IDENT_VAZIA, locais: nova.locais.length === 1 ? [nova.locais[0]] : [] }) : false;
+  const identBase: Ident = editarIdent ? editarIdent.inicial : { ...IDENT_VAZIA, locais: nova && nova.locais.length === 1 ? [nova.locais[0]] : [] };
+  const identSuja = identEditavel ? JSON.stringify(ident) !== JSON.stringify(identBase) : false;
   const sujo = nChanged > 0 || identSuja;
 
   const live = useMemo(() => {
@@ -143,9 +166,9 @@ export default function PrecosDialog({ veiculo, nova, inputs, tipo: tipoProp, on
     onClose();
   };
 
-  /** Erros de identificação em falta/inválida (só modo "nova"). */
+  /** Erros de identificação em falta/inválida (viatura nova ou edição por administrador). */
   const errosIdent = (): string[] => {
-    if (!nova) return [];
+    if (!identEditavel) return [];
     const e: string[] = [];
     if (!ident.encomenda.trim()) e.push('Encomenda');
     if (!ident.chassis.trim()) e.push('Chassis');
@@ -190,16 +213,51 @@ export default function PrecosDialog({ veiculo, nova, inputs, tipo: tipoProp, on
   async function gravar() {
     if (nova) { await criar(); return; }
     if (invalid.length > 0) { toast.error(`Valor inválido em ${invalid.map(f => f.label).join(', ')}.`); return; }
-    if (nChanged === 0) return;
+    if (nChanged === 0 && !identSuja) return;
+    let patch: Record<string, unknown> | null = null;
+    let chassisAtual = chassis;
+    if (editarIdent && identSuja) {
+      const faltas = errosIdent();
+      if (faltas.length > 0) { toast.error(`Preenche: ${faltas.join(', ')}.`); return; }
+      const ini = editarIdent.inicial;
+      const ch = ident.chassis.trim().toUpperCase();
+      const mat = normalizarMatricula(ident.matricula)!;
+      if (ch !== ini.chassis.toUpperCase() && editarIdent.chassisExistentes.some(c => c.toUpperCase() === ch)) { toast.error(`O chassis ${ch} já existe no parque.`); return; }
+      if (matriculaCompacta(mat) !== matriculaCompacta(ini.matricula) && editarIdent.matriculasExistentes.includes(matriculaCompacta(mat))) { toast.error(`A matrícula ${mat} já está associada a outra viatura.`); return; }
+      const mudou = (a: unknown, b: unknown) => JSON.stringify(a) !== JSON.stringify(b);
+      patch = {};
+      if (ch !== ini.chassis) patch.chassis = ch;
+      if (mat !== normalizarMatricula(ini.matricula)) patch.matricula = mat;
+      if (ident.encomenda.trim() !== ini.encomenda) patch.encomenda = ident.encomenda.trim();
+      if (ident.modelo.trim() !== ini.modelo) patch.modelo = ident.modelo.trim();
+      if (ident.versao.trim() !== ini.versao) patch.versao = ident.versao.trim();
+      if (ident.negocio !== ini.negocio) patch.estado_negocio = ident.negocio;
+      if (ident.marca !== ini.marca) patch.marca = ident.marca;
+      if (mudou(ident.tipologia, ini.tipologia)) patch.tipologia = ident.tipologia;
+      if (mudou(ident.locais, ini.locais)) patch.local = ident.locais;
+      if (ident.dataMatricula !== ini.dataMatricula) patch.data_matricula = ident.dataMatricula || null;
+      if (ident.kms !== ini.kms) patch.kms = ident.kms || null;
+      if (ident.estadoEntrega.trim() !== ini.estadoEntrega) patch.estado_entrega = ident.estadoEntrega.trim() || null;
+      if (ident.linkFotos.trim() !== ini.linkFotos) patch.link_fotos = ident.linkFotos.trim() || null;
+      if (ident.iva !== ini.iva) patch.iva_dedutivel = ident.iva;
+      if (Object.keys(patch).length === 0) patch = null;
+    }
     setSaving(true);
     try {
-      const { error } = await supabase.rpc('demos_gravar_precos', { p_chassis: chassis, p_inputs: changed as never });
-      if (error) throw error;
-      toast.success('Preços gravados.');
-      onSaved?.(changed);
+      if (patch) {
+        const { error } = await supabase.rpc('demos_editar_viatura', { p_chassis: chassisAtual, p: patch as never });
+        if (error) throw error;
+        if (typeof patch.chassis === 'string') chassisAtual = patch.chassis;
+      }
+      if (nChanged > 0) {
+        const { error } = await supabase.rpc('demos_gravar_precos', { p_chassis: chassisAtual, p_inputs: changed as never });
+        if (error) throw error;
+      }
+      toast.success(patch && nChanged > 0 ? 'Dados e preços gravados.' : patch ? 'Dados gravados.' : 'Preços gravados.');
+      onSaved?.(changed, !!patch);
     } catch (err) {
       const e = err as { message?: string; code?: string };
-      toast.error(e.code === '42501' ? 'Sem permissão para gerir os preços desta viatura.' : `Não foi possível gravar: ${e.message ?? 'erro desconhecido'}`);
+      toast.error(e.code === '42501' ? (editarIdent ? 'Sem permissão para editar esta viatura.' : 'Sem permissão para gerir os preços desta viatura.') : `Não foi possível gravar: ${e.message ?? 'erro desconhecido'}`);
     } finally {
       setSaving(false);
     }
@@ -299,7 +357,7 @@ export default function PrecosDialog({ veiculo, nova, inputs, tipo: tipoProp, on
         <div className="p-4 sm:p-5 space-y-4">
           <section className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-widest">0. Identificação da viatura</h3>
-            {nova ? (
+            {identEditavel && cfg ? (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {campo('Encomenda', 'encomenda', { obrig: true })}
@@ -311,13 +369,13 @@ export default function PrecosDialog({ veiculo, nova, inputs, tipo: tipoProp, on
                   {campo('Versão', 'versao', { obrig: true, span: 'md:col-span-2', list: 'demos-versoes' })}
                   {campo('Estado entrega', 'estadoEntrega', { placeholder: 'Ex: Imediata' })}
                 </div>
-                <datalist id="demos-modelos">{[...new Set([...MODELOS_BMW, ...nova.modelos])].map(m => <option key={m} value={m} />)}</datalist>
+                <datalist id="demos-modelos">{[...new Set([...MODELOS_BMW, ...cfg.modelos])].map(m => <option key={m} value={m} />)}</datalist>
                 <datalist id="demos-versoes">{versoesSugeridas(ident.modelo).map(v => <option key={v} value={v} />)}</datalist>
                 <div className="grid sm:grid-cols-2 gap-3">
                   {botoes('Tipo de viatura', TIPOS_NEGOCIO, o => ident.negocio === o, o => setI('negocio', o))}
                   {botoes('Marca', MARCAS, o => ident.marca === o, o => setI('marca', o))}
                   {botoes('Tecnologia', TECNOLOGIAS, o => ident.tipologia.includes(o), o => setI('tipologia', ident.tipologia.includes(o) ? ident.tipologia.filter(x => x !== o) : [...ident.tipologia, o]))}
-                  {botoes('Concessão (multi-seleção) *', nova.locais, o => ident.locais.includes(o), o => setI('locais', ident.locais.includes(o) ? ident.locais.filter(x => x !== o) : [...ident.locais, o]))}
+                  {botoes('Concessão (multi-seleção) *', [...new Set([...cfg.locais, ...ident.locais])], o => ident.locais.includes(o), o => setI('locais', ident.locais.includes(o) ? ident.locais.filter(x => x !== o) : [...ident.locais, o]))}
                 </div>
                 <div className="grid sm:grid-cols-[auto_1fr] gap-3 items-end">
                   <label className="inline-flex items-center gap-2 cursor-pointer select-none pb-2">
@@ -419,7 +477,7 @@ export default function PrecosDialog({ veiculo, nova, inputs, tipo: tipoProp, on
           <div className="flex items-center gap-2">
             <button type="button" onClick={tryClose} className="px-3 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-muted transition-colors">Cancelar</button>
             <button
-              type="button" onClick={gravar} disabled={saving || arquivando || invalid.length > 0 || (!nova && nChanged === 0)}
+              type="button" onClick={gravar} disabled={saving || arquivando || invalid.length > 0 || (!nova && nChanged === 0 && !identSuja)}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-brand-primary text-white rounded-lg hover:bg-brand-primary/90 transition-colors disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} {nova ? 'Adicionar' : 'Gravar'}

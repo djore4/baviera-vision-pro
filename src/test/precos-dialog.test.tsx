@@ -91,7 +91,7 @@ describe('janela de preço', () => {
     expect(args.p_chassis).toBe('WBA1');
     expect(Object.keys(args.p_inputs)).toEqual(['mgb']);
     expect(args.p_inputs.mgb).toBeCloseTo(0.085);
-    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ mgb: expect.any(Number) })));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ mgb: expect.any(Number) }), false));
   });
 
   it('valores inválidos bloqueiam a gravação (texto, percentagem acima de 100)', () => {
@@ -111,5 +111,53 @@ describe('janela de preço', () => {
     fireEvent.click(screen.getByRole('button', { name: /Gravar/ }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Sem permissão para gerir os preços desta viatura.'));
     expect(onSaved).not.toHaveBeenCalled();
+  });
+});
+
+describe('edição de todos os dados pelo administrador', () => {
+  const editarIdent = {
+    locais: ['Aveiro', 'Porto'], modelos: ['Série 2'], chassisExistentes: ['WBA1', 'WBA2'], matriculasExistentes: ['AA00BB', 'CC11DD'],
+    inicial: {
+      encomenda: 'E123', chassis: 'WBA1', matricula: 'AA-00-BB', dataMatricula: '2026-01-01', kms: '1200',
+      modelo: 'Série 2', versao: '225e', estadoEntrega: 'Imediata', negocio: 'VD', marca: 'BMW',
+      tipologia: ['PHEV'], locais: ['Aveiro'], iva: false, linkFotos: '',
+    },
+  };
+
+  it('sem permissão de administrador a identificação continua só de leitura', () => {
+    setup();
+    expect(screen.queryByText(/^Modelo/, { selector: 'span' })).toBeNull();
+  });
+
+  it('o administrador edita a identificação e só envia os campos alterados', async () => {
+    rpc.mockResolvedValue({ data: {}, error: null });
+    const { onSaved } = setup({ editarIdent });
+    fireEvent.change(field(/^Modelo/), { target: { value: 'M' } });
+    fireEvent.change(field(/^Versão/), { target: { value: 'M3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Gravar/ }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+    const [fn, args] = rpc.mock.calls[0];
+    expect(fn).toBe('demos_editar_viatura');
+    expect(args.p_chassis).toBe('WBA1');
+    expect(args.p).toEqual({ modelo: 'M', versao: 'M3' });
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith({}, true));
+  });
+
+  it('recusa um chassis que já existe noutra viatura', async () => {
+    setup({ editarIdent });
+    fireEvent.change(field(/^Chassis/), { target: { value: 'wba2' } });
+    fireEvent.click(screen.getByRole('button', { name: /Gravar/ }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/já existe/)));
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('dados e preços alterados gravam primeiro os dados e depois os preços', async () => {
+    rpc.mockResolvedValue({ data: {}, error: null });
+    setup({ editarIdent });
+    fireEvent.change(field(/^Versão/), { target: { value: '230e' } });
+    fireEvent.change(field(/^MGB/), { target: { value: '8,5' } });
+    fireEvent.click(screen.getByRole('button', { name: /Gravar/ }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(2));
+    expect(rpc.mock.calls.map(c => c[0])).toEqual(['demos_editar_viatura', 'demos_gravar_precos']);
   });
 });

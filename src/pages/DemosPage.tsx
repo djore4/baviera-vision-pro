@@ -40,6 +40,7 @@ interface Viatura {
   local: unknown;
   marca: string | null;
   estado_negocio: string | null;
+  iva_dedutivel?: boolean | null;
   link_fotos: string | null;
   observacoes: string | null;
   kms: number | null;
@@ -709,10 +710,35 @@ export default function DemosPage() {
             versao: precosRow.versao,
             estadoEntrega: precosRow.estado_entrega,
           }}
+          editarIdent={isAdmin ? {
+            locais: opcoesLocal,
+            modelos,
+            chassisExistentes: rows.map(r => r.chassis),
+            matriculasExistentes: rows.map(r => matriculaCompacta(r.matricula)).filter(Boolean),
+            inicial: {
+              encomenda: precosRow.encomenda ?? '',
+              chassis: precosRow.chassis,
+              matricula: precosRow.matricula ? formatMatricula(precosRow.matricula) : '',
+              dataMatricula: precosRow.data_matricula ? String(precosRow.data_matricula).slice(0, 10) : '',
+              kms: precosRow.kms != null ? String(precosRow.kms) : '',
+              modelo: precosRow.modelo ?? '',
+              versao: precosRow.versao ?? '',
+              estadoEntrega: precosRow.estado_entrega ?? '',
+              negocio: precosRow.estado_negocio === 'VU' ? 'VU' : 'VD',
+              marca: precosRow._marcas.includes('BMW Motorrad') ? 'BMW Motorrad' : 'BMW',
+              tipologia: precosRow._tipologia,
+              locais: getArr(precosRow.local),
+              iva: precosRow.iva_dedutivel === true,
+              linkFotos: precosRow.link_fotos ?? '',
+            },
+          } : undefined}
           inputs={precosRow._inps}
           tipo={precosRow._tipo}
           onClose={() => setPrecosChassis(null)}
-          onSaved={changed => handlePrecosSaved(precosRow.chassis, changed)}
+          onSaved={(changed, identAlterada) => {
+            if (identAlterada) { setPrecosChassis(null); void carregar(); return; }
+            handlePrecosSaved(precosRow.chassis, changed);
+          }}
           onAbrirCartao={() => { setPrecosChassis(null); setSelectedChassis(precosRow.chassis); }}
           onArquivar={capabilities.demosGestao ? () => arquivar(precosRow.chassis) : undefined}
         />
