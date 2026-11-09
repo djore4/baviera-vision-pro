@@ -73,3 +73,19 @@ export function demoToRecordPatch(v: DemoVehicle): DemoPatch {
     m: t.m ? 1 : 0,
   };
 }
+
+/* Linhas de modelo BMW sugeridas no formulário de viatura. "M" é uma linha própria
+ * (M2, M3, …, X3M…X6M, XM); as versões sugeridas por modelo vêm de VERSOES_BMW. */
+export const MODELOS_BMW = [
+  'Série 1', 'Série 2', 'Série 3', 'Série 4', 'Série 5', 'Série 6', 'Série 7', 'Série 8',
+  'X1', 'X2', 'X3', 'X4', 'X5', 'X6', 'X7', 'Z4', 'iX', 'M',
+] as const;
+
+export const VERSOES_BMW: Record<string, readonly string[]> = {
+  M: ['M2', 'M3', 'M4', 'M5', 'M8', 'X3M', 'X4M', 'X5M', 'X6M', 'XM 50e', 'XM Red Label'],
+};
+
+export function versoesSugeridas(modelo: string): readonly string[] {
+  const k = Object.keys(VERSOES_BMW).find(m => m.toLowerCase() === modelo.trim().toLowerCase());
+  return k ? VERSOES_BMW[k] : [];
+}
