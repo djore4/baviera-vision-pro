@@ -1,4 +1,4 @@
--- Demos: adicionar, arquivar, consultar e recuperar viaturas (migração 20261109230000).
+-- Demos: adicionar, arquivar, consultar e recuperar viaturas (migração 20261109213230).
 \set ON_ERROR_STOP on
 delete from t.results;
 
