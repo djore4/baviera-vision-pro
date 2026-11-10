@@ -148,7 +148,8 @@ export function StatusFilter({ value, onChange, className = '' }: {
   return (
     <div className={className}>
       <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Estado</span>
-      <div className="grid grid-cols-3 gap-1.5">
+      {/* flex-auto: cada botão cresce a partir da largura do próprio texto, para "Matrícula" não ser cortado */}
+      <div className="flex gap-1.5">
         {ESTADOS_VN.map(e => {
           const active = value.has(e.value);
           return (
@@ -157,7 +158,7 @@ export function StatusFilter({ value, onChange, className = '' }: {
               type="button"
               onClick={() => toggle(e.value)}
               aria-pressed={active}
-              className={active ? 'rounded-md border border-primary bg-primary px-2 py-1.5 text-[11px] font-semibold text-primary-foreground' : 'rounded-md border border-border bg-background px-2 py-1.5 text-[11px] font-medium text-foreground hover:bg-accent'}
+              className={`flex-auto whitespace-nowrap rounded-md border px-1 py-1.5 text-center text-[10px] ${active ? 'border-primary bg-primary font-semibold text-primary-foreground' : 'border-border bg-background font-medium text-foreground hover:bg-accent'}`}
             >
               {e.label}
             </button>
