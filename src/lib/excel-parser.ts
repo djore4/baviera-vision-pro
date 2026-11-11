@@ -26,12 +26,6 @@ function num(val: unknown): number {
   return isNaN(n) ? 0 : n;
 }
 
-function numOrNull(val: unknown): number | null {
-  if (val === null || val === undefined || val === '') return null;
-  const n = Number(val);
-  return isNaN(n) ? null : n;
-}
-
 export function parseExcel(buffer: ArrayBuffer): AppData {
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true, cellNF: false, cellText: false });
 
@@ -91,8 +85,7 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
       xev: num(r[col(15)]),
       bev: num(r[col(16)]),
       mPerf: num(r[col(17)]),
-      csc: num(r[col(18)]),
-      cme: numOrNull(r[col(19)]),
+      csc: num(r[col(18)]) > 0 ? 1 : 0,
       ret: retIdx >= 0 ? num(r[retIdx]) : 0,
       fin: str(r[col(20)]),
       week198: str(r[col(21)]),
@@ -208,10 +201,6 @@ export function hasRetoma(r: ControlRecord): boolean {
 
 export function isMissingBizagi(r: ControlRecord): boolean {
   return !r.biz && r.status !== 'Perdido';
-}
-
-export function isMissingCME(r: ControlRecord): boolean {
-  return r.bev === 1 && r.cme === null && r.status !== 'Perdido' && r.status !== 'Retail';
 }
 
 export function getCurrentWeek(): number {

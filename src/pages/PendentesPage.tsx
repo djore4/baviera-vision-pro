@@ -6,7 +6,6 @@ import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import type { ControlRecord } from '@/types/data';
 
 type BizagiSortKey = 'resp' | 'model' | 'cliente' | 'enc' | 'neg';
-type CmeSortKey = 'resp' | 'model' | 'cliente' | 'enc' | 'neg';
 type SortDir = 'asc' | 'desc';
 
 export default function PendentesPage() {
@@ -15,10 +14,8 @@ export default function PendentesPage() {
   const cutoff2026 = new Date(2026, 0, 1);
 
   const [bizagiResp, setBizagiResp] = useState<string | null>(null);
-  const [cmeResp, setCmeResp] = useState<string | null>(null);
 
   const [bizagiSort, setBizagiSort] = useState<{ key: BizagiSortKey; dir: SortDir }>({ key: 'neg', dir: 'desc' });
-  const [cmeSort, setCmeSort] = useState<{ key: CmeSortKey; dir: SortDir }>({ key: 'neg', dir: 'desc' });
 
   const bizagiDeals = useMemo(() =>
     control.filter(r => r.neg instanceof Date && r.neg >= cutoff2026 && !r.biz), [control]);
@@ -28,15 +25,6 @@ export default function PendentesPage() {
     bizagiDeals.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
     return Object.entries(map).map(([resp, count]) => ({ resp, count })).sort((a, b) => b.count - a.count);
   }, [bizagiDeals]);
-
-  const cmeDeals = useMemo(() =>
-    control.filter(r => r.neg instanceof Date && r.neg >= cutoff2026 && r.bev === 1 && !r.cme), [control]);
-
-  const cmeByResp = useMemo(() => {
-    const map: Record<string, number> = {};
-    cmeDeals.forEach(r => { map[r.resp] = (map[r.resp] || 0) + 1; });
-    return Object.entries(map).map(([resp, count]) => ({ resp, count })).sort((a, b) => b.count - a.count);
-  }, [cmeDeals]);
 
   // Filtered + sorted table data
   const bizagiTable = useMemo(() => {
@@ -49,17 +37,6 @@ export default function PendentesPage() {
     });
     return rows;
   }, [bizagiDeals, bizagiResp, bizagiSort]);
-
-  const cmeTable = useMemo(() => {
-    let rows = cmeResp ? cmeDeals.filter(r => r.resp === cmeResp) : [...cmeDeals];
-    rows.sort((a, b) => {
-      let cmp = 0;
-      if (cmeSort.key === 'neg') cmp = (a.neg?.getTime() || 0) - (b.neg?.getTime() || 0);
-      else cmp = ((a as any)[cmeSort.key] || '').localeCompare((b as any)[cmeSort.key] || '');
-      return cmeSort.dir === 'asc' ? cmp : -cmp;
-    });
-    return rows;
-  }, [cmeDeals, cmeResp, cmeSort]);
 
   const toggleSort = <K extends string>(
     key: K,
@@ -80,7 +57,7 @@ export default function PendentesPage() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
+    <div className="grid grid-cols-1 md:grid-cols-1 gap-4 animate-fade-in">
 
       {/* BIZAGI */}
       <div className="space-y-2">
@@ -128,63 +105,6 @@ export default function PendentesPage() {
               </thead>
               <tbody>
                 {bizagiTable.map((r, i) => (
-                  <tr key={i} className="text-[11px] border-b border-border hover:bg-muted/50">
-                    <td className="px-3 py-1 font-medium">{r.resp}</td>
-                    <td className="px-3 py-1">{r.model}</td>
-                    <td className="px-3 py-1 max-w-[100px] truncate">{r.cliente}</td>
-                    <td className="px-3 py-1">{r.enc}</td>
-                    <td className="px-3 py-1">{formatDate(r.neg)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* CME */}
-      <div className="space-y-2">
-        <div className="rounded-lg border p-3" style={{ borderColor: '#1E40AF40' }}>
-          <h2 className="text-sm font-bold" style={{ color: '#1E40AF' }}>CME</h2>
-          <p className="text-[10px] text-muted-foreground mt-0.5">BEV s/ Lead CME</p>
-          <p className="text-2xl font-bold mt-1" style={{ color: '#1E40AF' }}>
-            {cmeResp ? cmeTable.length : cmeDeals.length} <span className="text-xs font-normal text-muted-foreground">pendentes</span>
-          </p>
-          
-        </div>
-        <div className="bg-card border border-border rounded-lg p-2">
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={cmeByResp} barSize={64} barCategoryGap="25%"
-              onClick={(d: any) => { const resp = d?.activePayload?.[0]?.payload?.resp; if (resp) setCmeResp(prev => prev === resp ? null : resp); }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="resp" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} width={24} />
-              <Tooltip contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-              <Bar dataKey="count" fill="#1E40AF" name="Total" label={{ position: 'top', fontSize: 9 }} cursor="pointer" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="bg-card border rounded-lg overflow-hidden" style={{ borderColor: '#1E40AF30' }}>
-          <div className="px-3 py-1.5" style={{ backgroundColor: '#1E40AF' }}>
-            <span className="text-[10px] font-semibold uppercase text-white">CME — {cmeTable.length} registos</span>
-          </div>
-          <div className="overflow-auto max-h-[40vh]">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
-                <tr className="text-[10px]">
-                  {(['resp', 'model', 'cliente', 'enc', 'neg'] as CmeSortKey[]).map((key, i) => (
-                    <th key={key} className="px-3 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap cursor-pointer hover:text-foreground"
-                      onClick={() => toggleSort(key, cmeSort, setCmeSort)}>
-                      <span className="inline-flex items-center">
-                        {['RESP', 'MODELO', 'CLIENTE', 'ENC', 'DATA FECHO'][i]}
-                        <SortIcon col={key} current={cmeSort} />
-                      </span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {cmeTable.map((r, i) => (
                   <tr key={i} className="text-[11px] border-b border-border hover:bg-muted/50">
                     <td className="px-3 py-1 font-medium">{r.resp}</td>
                     <td className="px-3 py-1">{r.model}</td>

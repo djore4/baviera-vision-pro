@@ -13,7 +13,7 @@ export interface RecordForm {
   type: string; biz: string;
   enc: string; chas: string; mat: string; model: string; version: string; gar: string;
   qor: number; xev: number; bev: number; m: number; mpa: number; gkl: number; ret: number;
-  csc: number; cme: number | null;
+  csc: number;
   fin: string; week198: string; dmat: string | null; date298: string | null; dfat: string | null; obs: string;
 }
 
@@ -21,15 +21,15 @@ const EMPTY: RecordForm = {
   status: '', neg: '', mes1: '', resp: '', id_cliente: '',
   type: '', biz: '', enc: '', chas: '', mat: '',
   model: '', version: '', gar: '', qor: 0, xev: 0, bev: 0, m: 0, mpa: 0, gkl: 0, ret: 0,
-  csc: 0, cme: null, fin: '', week198: '', dmat: '', date298: '', dfat: '', obs: '',
+  csc: 0, fin: '', week198: '', dmat: '', date298: '', dfat: '', obs: '',
 };
 
 const STATUS_OPTS = ['Frio','Morno','Quente','Carteira','Matricula','Retail','Adiado','Perdido'];
 const TYPE_OPTS   = ['VN','VD','RMK','VP'];
 const GAR_OPTS    = ['GAR','nGAR'];
 const FIN_OPTS    = ['PP','FS','Fint','Fext'];
-const CLASS_FLAGS  = ['qor','xev','bev','m','mpa','gkl','ret'] as const;
-const CLASS_LABELS: Record<string, string> = { qor:'QoR', xev:'xEV', bev:'BEV', m:'M', mpa:'MPA', gkl:'GKL', ret:'Retoma' };
+const CLASS_FLAGS  = ['qor','xev','bev','m','mpa','gkl','csc','ret'] as const;
+const CLASS_LABELS: Record<string, string> = { qor:'QoR', xev:'xEV', bev:'BEV', m:'M', mpa:'MPA', gkl:'GKL', csc:'CSC', ret:'Retoma' };
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 /** Data de hoje (dia local) em AAAA-MM-DD, para os campos de data. */
@@ -249,9 +249,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
     const payload = {
       ...form,
       qor: form.qor ? 1 : 0, xev: form.xev ? 1 : 0, bev: form.bev ? 1 : 0,
-      m: form.m ? 1 : 0, mpa: form.mpa ? 1 : 0, gkl: form.gkl ? 1 : 0, ret: form.ret ? 1 : 0,
-      csc: Number(form.csc) || 0,
-      cme: form.cme !== null && String(form.cme) !== '' ? Number(form.cme) : null,
+      m: form.m ? 1 : 0, mpa: form.mpa ? 1 : 0, gkl: form.gkl ? 1 : 0, csc: form.csc ? 1 : 0, ret: form.ret ? 1 : 0,
       neg: form.neg || null, dmat: form.dmat || null, date298: form.date298 || null, dfat: form.dfat || null,
     };
     const { error } = editId
@@ -350,8 +348,6 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                 <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Pagamento</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <SelectField k="fin" label="FIN — Forma de pagamento" opts={FIN_OPTS} />
-                  <TextField k="csc" label="CSC" type="number" />
-                  <TextField k="cme" label="CME" type="number" />
                 </div>
               </div>
 

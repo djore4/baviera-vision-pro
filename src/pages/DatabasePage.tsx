@@ -13,7 +13,7 @@ interface ControlRecord {
   type: string; biz: string;
   enc: string; chas: string; mat: string; model: string; version: string; gar: string;
   qor: number; xev: number; bev: number; m: number; mpa: number; gkl: number; ret: number;
-  csc: number; cme: number | null;
+  csc: number;
   fin: string; week198: string; dmat: string | null; date298: string | null; obs: string;
 }
 
@@ -37,6 +37,7 @@ const ALL_COLS: ColDef[] = [
   { key: 'm',          label: 'M',       type: 'number', group: 'Classificação' },
   { key: 'mpa',        label: 'MPA',     type: 'number', group: 'Classificação' },
   { key: 'gkl',        label: 'GKL',     type: 'number', group: 'Classificação' },
+  { key: 'csc',        label: 'CSC',     type: 'number', group: 'Classificação' },
   { key: 'dmat',       label: 'DMAT',    type: 'date', group: 'Datas' },
   { key: 'date298',    label: '298',     type: 'date', group: 'Datas' },
   { key: 'obs',        label: 'OBS',     group: 'Obs.' },
@@ -44,12 +45,10 @@ const ALL_COLS: ColDef[] = [
   { key: 'biz',      label: 'BIZ',     group: 'Veículo' },
   { key: 'enc',      label: 'ENC',     group: 'Veículo' },
   { key: 'chas',     label: 'CHAS',    group: 'Veículo' },
-  { key: 'csc',      label: 'CSC',     type: 'number', group: 'Financeiro' },
-  { key: 'cme',      label: 'CME',     type: 'number', group: 'Financeiro' },
   { key: 'week198',  label: '198',     group: 'Datas' },
 ];
 
-const DEFAULT_HIDDEN = new Set(['biz','enc','chas','csc','cme','week198','version']);
+const DEFAULT_HIDDEN = new Set(['biz','enc','chas','week198','version']);
 
 /* ── Filtros (valores distintos por campo, seleção de 1 ou vários) ── */
 interface SlicerDef { key: keyof ControlRecord; label: string; fmt?: (v: string) => string }
@@ -64,13 +63,14 @@ const VALUE_FILTERS: SlicerDef[] = [
 ];
 
 /* ── Filtro agregado "Segment": flags de classificação (0/1) num só filtro ── */
-const SEGMENT_OPTIONS: { key: 'bev' | 'xev' | 'm' | 'qor' | 'mpa' | 'gkl'; label: string }[] = [
+const SEGMENT_OPTIONS: { key: 'bev' | 'xev' | 'm' | 'qor' | 'mpa' | 'gkl' | 'csc'; label: string }[] = [
   { key: 'bev', label: 'BEV' },
   { key: 'xev', label: 'PHEV' },
   { key: 'm',   label: 'M' },
   { key: 'qor', label: 'QoR' },
   { key: 'mpa', label: 'MPA' },
   { key: 'gkl', label: 'GKL' },
+  { key: 'csc', label: 'CSC' },
 ];
 const SEGMENT_LABELS: Record<string, string> = Object.fromEntries(SEGMENT_OPTIONS.map(o => [o.key, o.label]));
 

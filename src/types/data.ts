@@ -18,7 +18,6 @@ export interface ControlRecord {
   bev: number;
   mPerf: number;
   csc: number;
-  cme: number | null;
   ret: number;
   fin: string;
   week198: string;

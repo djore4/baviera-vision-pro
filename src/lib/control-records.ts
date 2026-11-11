@@ -33,7 +33,6 @@ export function controlRecordToRow(r: ControlRecord) {
     bev: r.bev || 0,
     m: r.mPerf || 0,
     csc: r.csc || 0,
-    cme: r.cme,
     ret: r.ret || 0,
     fin: r.fin || null,
     week198: r.week198 || null,

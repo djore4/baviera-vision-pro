@@ -413,12 +413,10 @@ export type Database = {
       }
       control_records: {
         Row: {
-          app: string | null
           bev: number | null
           biz: string | null
           chas: string | null
           cliente: string | null
-          cme: number | null
           created_at: string | null
           csc: number | null
           date298: string | null
@@ -450,12 +448,10 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
-          app?: string | null
           bev?: number | null
           biz?: string | null
           chas?: string | null
           cliente?: string | null
-          cme?: number | null
           created_at?: string | null
           csc?: number | null
           date298?: string | null
@@ -486,12 +482,10 @@ export type Database = {
           xev?: number | null
         }
         Update: {
-          app?: string | null
           bev?: number | null
           biz?: string | null
           chas?: string | null
           cliente?: string | null
-          cme?: number | null
           created_at?: string | null
           csc?: number | null
           date298?: string | null
@@ -526,12 +520,10 @@ export type Database = {
       control_records_vu: {
         Row: {
           a360: number | null
-          app: string | null
           bev: number | null
           biz: string | null
           chas: string | null
           cliente: string | null
-          cme: number | null
           created_at: string | null
           csc: number | null
           date298: string | null
@@ -568,12 +560,10 @@ export type Database = {
         ComputedFields: never
         Insert: {
           a360?: number | null
-          app?: string | null
           bev?: number | null
           biz?: string | null
           chas?: string | null
           cliente?: string | null
-          cme?: number | null
           created_at?: string | null
           csc?: number | null
           date298?: string | null
@@ -609,12 +599,10 @@ export type Database = {
         }
         Update: {
           a360?: number | null
-          app?: string | null
           bev?: number | null
           biz?: string | null
           chas?: string | null
           cliente?: string | null
-          cme?: number | null
           created_at?: string | null
           csc?: number | null
           date298?: string | null

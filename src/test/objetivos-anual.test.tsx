@@ -15,7 +15,7 @@ import ObjetivosVnAnual from '@/components/objetivos/ObjetivosVnAnual';
 
 const rec = (over: Partial<ControlRecord>): ControlRecord => ({
   status: 'Retail', neg: null, mes1: '2026/10', resp: 'BR', cliente: '', type: 'VN', biz: '', enc: '', chas: '', mat: '',
-  model: '', version: '', gar: '', qor: 0, xev: 0, bev: 0, mPerf: 0, csc: 0, cme: null, ret: 0, fin: '', week198: '',
+  model: '', version: '', gar: '', qor: 0, xev: 0, bev: 0, mPerf: 0, csc: 0, ret: 0, fin: '', week198: '',
   dmat: null, date298: null, dfat: null, obs: '', ...over,
 });
 
