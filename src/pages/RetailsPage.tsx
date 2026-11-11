@@ -50,11 +50,11 @@ export default function RetailsPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // VP não conta para retails: só entra na lista quando é escolhido no filtro de tipo.
-  const includeVP = selectedTypes.has('VP');
+  // VP aparece sempre nas tabelas (conta para faturas) mas nunca soma retail:
+  // ver isRetailType nos segmentos "Retail" e nos gauges.
   const baseRecords = useMemo(() =>
-    filteredControl.filter(r => ['Carteira', 'Matricula', 'Retail'].includes(r.status) && (isRetailType(r.type) || (includeVP && r.type === 'VP'))),
-    [filteredControl, includeVP]);
+    filteredControl.filter(r => ['Carteira', 'Matricula', 'Retail'].includes(r.status) && (isRetailType(r.type) || r.type === 'VP')),
+    [filteredControl]);
 
   // Tudo menos o filtro de responsável: alimenta o gráfico por responsável, que
   // mantém todas as barras e esbate as não selecionadas.
@@ -86,7 +86,11 @@ export default function RetailsPage() {
       if (!map[r.resp]) map[r.resp] = { resp: r.resp, Carteira: 0, Matricula: 0, Retail: 0, total: 0 };
       if (r.status === 'Carteira') map[r.resp].Carteira++;
       else if (r.status === 'Matricula') map[r.resp].Matricula++;
-      else if (r.status === 'Retail') map[r.resp].Retail++;
+      else if (r.status === 'Retail') {
+        // VP não soma retail.
+        if (!isRetailType(r.type)) return;
+        map[r.resp].Retail++;
+      }
       map[r.resp].total++;
     });
     return Object.values(map).sort((a, b) => b.total - a.total);

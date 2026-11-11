@@ -43,7 +43,7 @@ export default function CarteiraPage() {
 
   const baseRecords = useMemo(() =>
     (data?.control ?? []).filter(r =>
-      (r.status === 'Carteira' || r.status === 'Matricula') && isRetailType(r.type)
+      (r.status === 'Carteira' || r.status === 'Matricula') && (isRetailType(r.type) || r.type === 'VP')
     ), [data]);
 
   const filtered = useMemo(() => {
