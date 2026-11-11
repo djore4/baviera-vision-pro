@@ -15,7 +15,7 @@ import { client } from '@/clients';
 import { chassisCurto, formatMatricula, matriculaCompacta, parseNum, pesquisaCorresponde } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 import PrecosDialog from '@/components/demos/PrecosDialog';
-import { comissaoFixa } from '@/lib/demo-comissao';
+import { comissaoTotalFixa } from '@/lib/demo-comissao';
 import VendidasPanel from '@/components/demos/VendidasPanel';
 import CartaoViatura, { type CartaoVM } from '@/components/demos/CartaoViatura';
 import { chip, btnPrimary, btnSecondary, btnGhost } from '@/lib/chip';
@@ -123,7 +123,7 @@ interface Row extends Viatura {
   _inps: PricingInputs; _p: Pricing; _idade: number;
   _local: string; _tipologia: string[]; _tipo: Tipo;
   _negocio: 'VD' | 'VU'; _marcas: string[];
-  /** Comissão fixa por modelo (só VD de automóvel); null se o modelo não consta da tabela. */
+  /** Comissão fixa por modelo (+25 € se BEV) (só VD de automóvel); null se o modelo não consta da tabela. */
   _comissao: number | null;
   /** Prémio de venda (€) que acresce à comissão; 0 = sem prémio. Vem de demos_premios. */
   _premio: number;
@@ -144,7 +144,7 @@ function buildRow(v: Viatura): Row {
     _negocio: tipoNegocio(v.estado_negocio),
     _marcas: marcasDe(getArr(v.marca)),
     _comissao: tipoNegocio(v.estado_negocio) === 'VD' && !marcasDe(getArr(v.marca)).some(m => /motorrad/i.test(m))
-      ? comissaoFixa(v.modelo, v.versao) : null,
+      ? comissaoTotalFixa(v.modelo, v.versao, tipo.bev) : null,
     _premio: 0,
   };
 }

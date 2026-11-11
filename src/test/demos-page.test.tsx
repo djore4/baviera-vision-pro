@@ -169,7 +169,7 @@ describe('tab Demos: cartões em telemóvel', () => {
     expect(c5.textContent).toContain('Reserva até');
     expect(c5.textContent).toContain('Prémio de venda');
     expect(c5.textContent).toContain('+100 €');
-    expect(c5.textContent).toContain('325 €');           // 225 + 100 de prémio
+    expect(c5.textContent).toContain('350 €');           // 225 + 25 (BEV) + 100 de prémio
     expect(c5.getAttribute('data-premio')).toBe('sim');
 
     fireEvent.click(screen.getByRole('button', { name: /Tabela/ }));
@@ -276,12 +276,12 @@ describe('tab Demos: pesquisa por matrícula', () => {
 });
 
 describe('tab Demos: comissão e prémio de venda', () => {
-  it('mostra a comissão fixa do modelo (iX1 = X1 → 125 €) e não realça a linha sem prémio', async () => {
+  it('mostra a comissão fixa do modelo (iX1 = X1 → 125 € + 25 BEV = 150 €) e não realça a linha sem prémio', async () => {
     perfil();
     render(<DemosPage />);
     await linha();
     expect(cabecalhos().some(h => h?.includes('Comissão'))).toBe(true);
-    expect(screen.getByText('125 €')).toBeTruthy();
+    expect(screen.getByText('150 €')).toBeTruthy();
     expect(document.querySelector('tbody tr[data-premio]')).toBeNull();
   });
 
@@ -294,8 +294,8 @@ describe('tab Demos: comissão e prémio de venda', () => {
     const realcadas = document.querySelectorAll('tbody tr[data-premio]');
     expect(realcadas).toHaveLength(1);
     expect(realcadas[0].textContent).toContain('Série 5');
-    expect(realcadas[0].textContent).toContain('325 €');            // 225 + 100
-    expect(realcadas[0].textContent).toContain('225 € + 100 € prémio');
+    expect(realcadas[0].textContent).toContain('350 €');            // 225 + 25 BEV + 100
+    expect(realcadas[0].textContent).toContain('250 € + 100 € prémio');
   });
 
   it('o administrador define o prémio na janela da viatura', async () => {
@@ -304,7 +304,7 @@ describe('tab Demos: comissão e prémio de venda', () => {
     fireEvent.click(await linha());
     const sec = await screen.findByTestId('premio-venda');
     expect(within(sec).getByLabelText('Prémio de venda')).toBeTruthy();
-    expect(within(sec).getAllByText(/125,00/).length).toBeGreaterThan(0);
+    expect(within(sec).getAllByText(/150,00/).length).toBeGreaterThan(0);
   });
 });
 

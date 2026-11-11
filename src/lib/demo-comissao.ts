@@ -55,3 +55,13 @@ export function comissaoFixa(modelo: string | null | undefined, versao: string |
   const k = chaveComissao(modelo, versao);
   return k && k in POR_CHAVE ? POR_CHAVE[k] : null;
 }
+
+/** Extra de comissão direta garantida (€) para viaturas BEV, somado à comissão fixa do modelo. */
+export const COMISSAO_BEV_EXTRA = 25;
+
+/** Comissão fixa + extra BEV. Um BEV fora da tabela de modelos recebe só o extra; null se não houver nada a pagar. */
+export function comissaoTotalFixa(modelo: string | null | undefined, versao: string | null | undefined, bev: boolean): number | null {
+  const base = comissaoFixa(modelo, versao);
+  if (!bev) return base;
+  return (base ?? 0) + COMISSAO_BEV_EXTRA;
+}

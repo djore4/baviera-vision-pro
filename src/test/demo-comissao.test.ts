@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { comissaoFixa, chaveComissao } from '@/lib/demo-comissao';
+import { comissaoFixa, chaveComissao, comissaoTotalFixa } from '@/lib/demo-comissao';
 
 describe('comissão fixa das demos', () => {
   it.each([
@@ -27,5 +27,13 @@ describe('comissão fixa das demos', () => {
     expect(comissaoFixa('M', 'M1')).toBe(175);
     expect(comissaoFixa('R', '1300 GSA')).toBeNull();
     expect(comissaoFixa(null, null)).toBeNull();
+  });
+
+  it('BEV acrescenta +25 € à comissão fixa', () => {
+    expect(comissaoTotalFixa('X1', 'iX1 20e', true)).toBe(150);
+    expect(comissaoTotalFixa('Série 5', 'i5 40e', true)).toBe(250);
+    expect(comissaoTotalFixa('Série 5', '530e', false)).toBe(225);
+    expect(comissaoTotalFixa('R', 'x', true)).toBe(25);
+    expect(comissaoTotalFixa('R', 'x', false)).toBeNull();
   });
 });
