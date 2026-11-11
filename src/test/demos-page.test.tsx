@@ -111,6 +111,22 @@ describe('tab Demos', () => {
   });
 });
 
+describe('tab Demos: pesquisa por matrícula', () => {
+  it('a matrícula (guardada com hífenes, mostrada sem) encontra-se com ou sem hífenes', async () => {
+    dados.parque = [viatura({ matricula: 'CH-99-AQ' }), viatura({ chassis: 'W2', modelo: 'Série 3', matricula: 'AA-11-BB' })];
+    perfil();
+    render(<DemosPage />);
+    await linha();
+    for (const q of ['CH99AQ', 'CH-99-AQ', 'ch 99 aq']) {
+      fireEvent.change(screen.getByLabelText('Pesquisar'), { target: { value: q } });
+      expect(await screen.findByText('iX1', { selector: 'td span.truncate' }), q).toBeTruthy();
+      expect(screen.queryByText('Série 3', { selector: 'td span.truncate' }), q).toBeNull();
+    }
+    fireEvent.change(screen.getByLabelText('Pesquisar'), { target: { value: 'CH98AQ' } });
+    expect(await screen.findByText('Nenhuma viatura encontrada.')).toBeTruthy();
+  });
+});
+
 describe('tab Demos: comissão e prémio de venda', () => {
   it('mostra a comissão fixa do modelo (iX1 = X1 → 125 €) e não realça a linha sem prémio', async () => {
     perfil();

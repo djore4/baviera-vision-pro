@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, RotateCcw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { chassisCurto, formatMatricula } from '@/lib/viaturaFormat';
+import { chassisCurto, formatMatricula, pesquisaCorresponde } from '@/lib/viaturaFormat';
 
 /* ── Arquivo de viaturas vendidas (consulta e recuperação) ────────────────────
  * Mesmo arquivo da Gestão VD da Sales Force (tabela viaturas_vendidas): dados e preço
@@ -45,8 +45,7 @@ export default function VendidasPanel({ onRepor }: { onRepor: () => void }) {
   const filtradas = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return rows;
-    return rows.filter(v => [v.modelo, v.versao, v.matricula, formatMatricula(v.matricula), v.chassis, v.encomenda]
-      .some(x => (x ?? '').toString().toLowerCase().includes(t)));
+    return rows.filter(v => pesquisaCorresponde(t, [v.modelo, v.versao, v.matricula, formatMatricula(v.matricula), v.chassis, v.encomenda]));
   }, [rows, q]);
 
   async function repor(v: Vendida) {
