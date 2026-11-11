@@ -27,7 +27,6 @@ const COLS: Col[] = [
   { header: 'BEV', width: 6, value: r => r.bev },
   { header: 'M', width: 5, value: r => r.mPerf },
   { header: 'CSC', width: 6, value: r => r.csc },
-  { header: 'CME', width: 6, value: r => r.cme },
   { header: 'RET', width: 6, value: r => r.ret },
   { header: 'FIN', width: 8, value: r => r.fin },
   { header: '198', width: 8, value: r => r.week198 },

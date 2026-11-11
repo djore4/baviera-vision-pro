@@ -102,9 +102,9 @@ describe('Editor — campos do ficheiro e data 298', () => {
   };
   const input = (label: string) => screen.getByText(label).parentElement!.querySelector('input')!;
 
-  it('tem BIZ, CSC, CME e DFAT', () => {
+  it('tem BIZ, CSC e DFAT', () => {
     open();
-    ['BIZ — Bizagi', 'CSC', 'CME', 'DFAT — Data da fatura'].forEach(l => expect(screen.getByText(l)).toBeInTheDocument());
+    ['BIZ — Bizagi', 'CSC', 'DFAT — Data da fatura'].forEach(l => expect(screen.getByText(l)).toBeInTheDocument());
   });
 
   it('hojeIso devolve o dia local em AAAA-MM-DD', () => {
