@@ -222,6 +222,43 @@ describe('tab Demos: cartões em telemóvel', () => {
   });
 });
 
+describe('tab Demos: botões e colunas fixas', () => {
+  it('os botões do topo ficam à esquerda: primeiro Adicionar viatura, depois Vendidas', async () => {
+    perfil({ canEdit: () => true, capabilities: { demosPrecos: true, demosGestao: true } });
+    render(<DemosPage />);
+    await linha();
+    const add = screen.getByRole('button', { name: /Adicionar viatura/ });
+    const vend = screen.getByRole('button', { name: /Vendidas/ });
+    expect(add.compareDocumentPosition(vend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(add.parentElement?.className).not.toMatch(/ml-auto/);
+  });
+
+  it('em telemóvel a tabela congela por ordem: Modelo/Versão, Matrícula, PVP Desc e Comissão', async () => {
+    mobile.value = true;
+    perfil();
+    render(<DemosPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Tabela/ }));
+    await linha();
+    const ths = within(screen.getByRole('table')).getAllByRole('columnheader').filter(h => h.textContent?.trim());
+    const nomes = ths.map(h => h.textContent?.replace(/\s+/g, ' ').trim());
+    expect(nomes).toContain('Modelo / Versão');
+    expect(nomes).not.toContain('Versão');
+    const fixas = ths.filter(h => h.className.includes('sticky')).map(h => h.textContent?.replace(/\s+/g, ' ').trim());
+    expect(fixas).toEqual(['Modelo / Versão', 'Matrícula', 'PVP Desc', '★ Comissão']);
+    // a versão aparece por baixo do modelo na mesma célula fixa
+    expect(screen.getByText('xDrive', { selector: 'td span.truncate' })).toBeTruthy();
+  });
+
+  it('no ecrã grande ficam fixas só Local e Modelo, com a Versão em coluna própria', async () => {
+    perfil({ me: { local: [] } });
+    render(<DemosPage />);
+    await linha();
+    const ths = within(screen.getByRole('table')).getAllByRole('columnheader').filter(h => h.textContent?.trim());
+    expect(ths.map(h => h.textContent?.replace(/\s+/g, ' ').trim())).toContain('Versão');
+    expect(ths.filter(h => h.className.includes('sticky')).map(h => h.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['Local', 'Modelo']);
+  });
+});
+
 describe('tab Demos: pesquisa por matrícula', () => {
   it('a matrícula (guardada com hífenes, mostrada sem) encontra-se com ou sem hífenes', async () => {
     dados.parque = [viatura({ matricula: 'CH-99-AQ' }), viatura({ chassis: 'W2', modelo: 'Série 3', matricula: 'AA-11-BB' })];

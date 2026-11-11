@@ -512,28 +512,10 @@ export default function DemosPage() {
   // Com um só local filtrado, a coluna Local seria sempre igual: esconde-se.
   const hideLocal = fLocal !== TODAS;
   const visibleCols = useMemo(
-    () => cols.filter(c => !(hideLocal && c.key === 'local') && !(c.key === 'reserva' && !podeReservar)),
-    [cols, hideLocal, podeReservar],
+    () => cols.filter(c => !(hideLocal && c.key === 'local') && !(c.key === 'reserva' && !podeReservar) && !(isMobile && c.key === 'versao')),
+    [cols, hideLocal, podeReservar, isMobile],
   );
 
-  // Local e Modelo ficam fixas à esquerda ao deslizar a tabela (essencial em mobile).
-  const localThRef = useRef<HTMLTableCellElement>(null);
-  const [localW, setLocalW] = useState(0);
-  useLayoutEffect(() => {
-    const el = localThRef.current;
-    if (!el) { setLocalW(0); return; }
-    setLocalW(el.offsetWidth);
-    const ro = new ResizeObserver(() => setLocalW(el.offsetWidth));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [hideLocal, loading]);
-  const sticky = (key: string, tint: string) => {
-    if (key !== 'local' && key !== 'modelo') return { cls: '', style: undefined };
-    return {
-      cls: `sticky z-10 bg-card ${tint} ${key === 'modelo' ? 'border-r border-border' : ''}`,
-      style: { left: key === 'local' ? 0 : (hideLocal ? 0 : localW) },
-    };
-  };
   // Tons equivalentes aos fundos semitransparentes das linhas, sobre fundo opaco.
   const TINT_HEAD = 'shadow-[inset_0_0_0_999px_hsl(var(--muted)/0.5)]';
   // Prémio de venda: a linha fica realçada (laranja) em relação ao resto da listagem.
@@ -603,6 +585,38 @@ export default function DemosPage() {
   const nReservadas = useMemo(() => viewRows.filter(isReservado).length, [viewRows]);
   const nComPremio = useMemo(() => viewRows.filter(r => r._premio > 0).length, [viewRows]);
 
+  // Colunas fixas ao deslizar a tabela. Ecrã grande: Local e Modelo. Telemóvel: congelamento seletivo —
+  // primeiro Modelo/Versão, depois a Matrícula, depois o preço (PVP Desc) e a Comissão. Cada coluna só
+  // fica presa quando chega à margem, encostada às anteriores (left = soma das larguras já presas).
+  const frozenKeys = useMemo(
+    () => (isMobile ? ['modelo', 'matricula', 'pvp_desc', 'comissao'] : hideLocal ? ['modelo'] : ['local', 'modelo'])
+      .filter(k => visibleCols.some(c => c.key === k)),
+    [isMobile, hideLocal, visibleCols],
+  );
+  const thRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
+  const [lefts, setLefts] = useState<Record<string, number>>({});
+  useLayoutEffect(() => {
+    const els = frozenKeys.map(k => thRefs.current[k]).filter((e): e is HTMLTableCellElement => !!e);
+    const medir = () => {
+      let x = 0;
+      const next: Record<string, number> = {};
+      for (const k of frozenKeys) { next[k] = x; x += thRefs.current[k]?.offsetWidth ?? 0; }
+      setLefts(prev => (frozenKeys.every(k => prev[k] === next[k]) ? prev : next));
+    };
+    medir();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(medir);
+    els.forEach(e => ro.observe(e));
+    return () => ro.disconnect();
+  }, [frozenKeys, loading, modeloW, filtered.length]);
+  const sticky = (key: string, tint: string) => {
+    if (!frozenKeys.includes(key)) return { cls: '', style: undefined };
+    return {
+      cls: `sticky z-10 bg-card ${tint} ${key === 'local' ? '' : 'border-r border-border'}`,
+      style: { left: lefts[key] ?? 0 },
+    };
+  };
+
   const alignCls = (a?: 'right' | 'center') => a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left';
   const pesquisaInput = (
     <div className="flex flex-col gap-1.5">
@@ -625,22 +639,9 @@ export default function DemosPage() {
     <div className="space-y-3 min-w-0 overflow-x-clip">
       {/* Cabeçalho: só as ações (o título do parque repetia o nome do tab); o arquivo mantém o título */}
       {(vista === 'vendidas' || podeArquivo || podeAdicionar) && (
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        {vista === 'vendidas' && (
-          <div>
-            <h2 className="text-xl font-black leading-tight">Viaturas vendidas</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Arquivo: dados e preço cristalizados no momento da venda.</p>
-          </div>
-        )}
-        <div className="flex flex-wrap items-center gap-2 ml-auto">
-          {podeArquivo && (
-            <button
-              onClick={() => setVista(v => (v === 'vendidas' ? 'parque' : 'vendidas'))}
-              className={btnSecondary}
-            >
-              <Archive className="h-3.5 w-3.5" /> {vista === 'vendidas' ? 'Voltar ao parque' : 'Vendidas'}
-            </button>
-          )}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {/* Ações encostadas à esquerda: primeiro Adicionar viatura, depois Vendidas */}
+        <div className="flex flex-wrap items-center gap-2">
           {podeAdicionar && vista === 'parque' && (
             <button
               onClick={() => setNovaOpen(true)}
@@ -649,7 +650,21 @@ export default function DemosPage() {
               <Plus className="h-3.5 w-3.5" /> Adicionar viatura
             </button>
           )}
+          {podeArquivo && (
+            <button
+              onClick={() => setVista(v => (v === 'vendidas' ? 'parque' : 'vendidas'))}
+              className={btnSecondary}
+            >
+              <Archive className="h-3.5 w-3.5" /> {vista === 'vendidas' ? 'Voltar ao parque' : 'Vendidas'}
+            </button>
+          )}
         </div>
+        {vista === 'vendidas' && (
+          <div>
+            <h2 className="text-xl font-black leading-tight">Viaturas vendidas</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Arquivo: dados e preço cristalizados no momento da venda.</p>
+          </div>
+        )}
       </div>
       )}
 
@@ -763,14 +778,14 @@ export default function DemosPage() {
                   return (
                     <th
                       key={c.key}
-                      ref={c.key === 'local' ? localThRef : undefined}
+                      ref={el => { thRefs.current[c.key] = el; }}
                       onClick={() => toggleSort(c.key)}
                       title={c.title}
                       style={{ ...st.style, ...(c.key === 'modelo' ? { width: modeloW, minWidth: modeloW, maxWidth: modeloW } : {}) }}
                       className={`${st.cls || (c.key === 'modelo' ? 'relative' : '')} px-2.5 py-2 font-semibold ${c.headCls ?? 'text-muted-foreground'} whitespace-nowrap border-b border-border transition-colors cursor-pointer select-none hover:text-foreground ${alignCls(c.align)} ${sepCls(c.key)}`}
                     >
                       <span className={`inline-flex items-center gap-1 ${c.align === 'right' ? 'flex-row-reverse' : ''}`}>
-                        {c.label}
+                        {c.key === 'modelo' && isMobile ? 'Modelo / Versão' : c.label}
                         {active
                           ? (sort!.dir === 'asc' ? <ChevronUp className="h-3 w-3 text-brand-primary" /> : <ChevronDown className="h-3 w-3 text-brand-primary" />)
                           : <ChevronsUpDown className="h-3 w-3 opacity-30" />}
@@ -819,6 +834,7 @@ export default function DemosPage() {
                           )}
                           <span className="truncate">{r.modelo || '—'}</span>
                         </span>
+                        {isMobile && <span className="block truncate text-[10px] font-normal text-muted-foreground" style={{ maxWidth: modeloW - 20 }}>{r.versao || '—'}</span>}
                       </td>
                     ) : c.key === 'reserva' ? (
                       <td key={c.key} className={`px-2.5 py-1.5 whitespace-nowrap text-center ${sepCls(c.key)}`}>
