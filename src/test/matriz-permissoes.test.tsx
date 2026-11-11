@@ -11,7 +11,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import type { AppRole } from '@/lib/permissions';
 
 vi.mock('@/contexts/PermissionsContext', () => ({
-  usePermissions: () => ({ capabilities: { lavagemGranular: true, eotGranular: true, eotResponsaveis: true, viaturasLocal: true, demosPrecos: true, demosGestao: true } }),
+  usePermissions: () => ({ capabilities: { lavagemGranular: true, eotGranular: true, eotResponsaveis: true, viaturasLocal: true, demosPrecos: true, demosGestao: true, demosReservas: true } }),
 }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 

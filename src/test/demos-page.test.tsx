@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 
-const { perm, rpc, toast, premiosDb } = vi.hoisted(() => ({ perm: { value: {} as Record<string, unknown> }, rpc: vi.fn(), toast: { success: vi.fn(), error: vi.fn() }, premiosDb: { rows: [] as unknown[] } }));
+const { perm, rpc, toast, premiosDb, mobile } = vi.hoisted(() => ({ perm: { value: {} as Record<string, unknown> }, rpc: vi.fn(), toast: { success: vi.fn(), error: vi.fn() }, premiosDb: { rows: [] as unknown[] }, mobile: { value: false } }));
 
 vi.mock('@/App', () => ({ useAuth: () => ({ session: { user: { email: 'x@x.pt' } } }) }));
 vi.mock('@/contexts/PermissionsContext', () => ({ usePermissions: () => perm.value }));
@@ -9,6 +9,7 @@ vi.mock('@/integrations/supabase/client', () => ({
   supabase: { rpc: (...a: unknown[]) => rpc(...a), from: (t: string) => ({ select: async () => ({ data: t === 'demos_premios' ? premiosDb.rows : [], error: null }) }) },
 }));
 vi.mock('sonner', () => ({ toast }));
+vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => mobile.value }));
 
 import DemosPage from '@/pages/DemosPage';
 
@@ -25,7 +26,7 @@ const viatura = (over: Record<string, unknown> = {}) => ({
 
 const perfil = (over: Record<string, unknown> = {}) => {
   perm.value = {
-    isAdmin: false, me: { local: ['Aveiro'] }, capabilities: { demosPrecos: true, demosGestao: true },
+    isAdmin: false, me: { local: ['Aveiro'] }, capabilities: { demosPrecos: true, demosGestao: true, demosReservas: true },
     canView: () => true, canEdit: (t: string) => t === 'demos:precos' ? false : false, ...over,
   };
 };
@@ -34,7 +35,8 @@ const cabecalhos = () => within(screen.getAllByRole('table')[0]).getAllByRole('c
 
 const dados = { parque: [viatura()] as unknown[], vendidas: [] as unknown[] };
 beforeEach(() => {
-  dados.parque = [viatura()]; dados.vendidas = []; premiosDb.rows = [];
+  dados.parque = [viatura()]; dados.vendidas = []; premiosDb.rows = []; mobile.value = false;
+  try { localStorage.removeItem('demos.modo'); } catch { /* */ }
   toast.success.mockReset(); toast.error.mockReset();
   rpc.mockReset();
   rpc.mockImplementation(async (fn: string) => {
@@ -90,7 +92,7 @@ describe('tab Demos', () => {
   });
 
   it('sem a migração (capacidade ausente) ninguém abre a janela: só o cartão', async () => {
-    perfil({ isAdmin: true, capabilities: { demosPrecos: false, demosGestao: false }, canEdit: () => true });
+    perfil({ isAdmin: true, capabilities: { demosPrecos: false, demosGestao: false, demosReservas: false }, canEdit: () => true });
     render(<DemosPage />);
     fireEvent.click(await linha());
     expect((await screen.findAllByText('Decomposição de preço')).length).toBeGreaterThan(0);
@@ -108,6 +110,79 @@ describe('tab Demos', () => {
     await linha();
     expect(within(screen.getAllByRole('table')[0]).getAllByRole('row').filter(r => r.closest('tbody'))).toHaveLength(3);
     expect(screen.getByText('R 1250', { selector: 'td span.truncate' })).toBeTruthy();
+  });
+});
+
+const futuro = () => new Date(Date.now() + 6 * 3600_000).toISOString();
+
+describe('tab Demos: reserva de 24 h', () => {
+  it('uma viatura reservada fica destacada para todos, sem coluna de reserva a quem não pode reservar', async () => {
+    dados.parque = [viatura({ reserva_expira: futuro(), reserva_user: 'Chefe X' }), viatura({ chassis: 'W2', modelo: 'Série 3' })];
+    perfil();
+    render(<DemosPage />);
+    await linha();
+    const reservadas = document.querySelectorAll('tbody tr[data-reservada]');
+    expect(reservadas).toHaveLength(1);
+    expect(reservadas[0].textContent).toContain('RESERVADA');
+    expect(cabecalhos()).not.toContain('Reserva');
+  });
+
+  it('o chefe de vendas reserva por 24 h e a viatura passa a destacada', async () => {
+    perfil({ canEdit: (t: string) => t === 'demos:reservar', capabilities: { demosPrecos: true, demosGestao: true, demosReservas: true } });
+    rpc.mockImplementation(async (fn: string, args: Record<string, unknown>) => {
+      if (fn === 'demos_viaturas') return { data: dados.parque, error: null };
+      if (fn === 'demos_reservar_viatura') return { data: { reserva_expira: futuro(), reserva_user: 'Chefe' }, error: null, args };
+      return { data: null, error: null };
+    });
+    render(<DemosPage />);
+    await linha();
+    expect(cabecalhos()).toContain('Reserva');
+    expect(document.querySelector('tbody tr[data-reservada]')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Reservar 24 h/ }));
+    await waitFor(() => expect(document.querySelector('tbody tr[data-reservada]')).not.toBeNull());
+    expect(rpc).toHaveBeenCalledWith('demos_reservar_viatura', { p_chassis: 'WBA0000000000001', p_libertar: false });
+    expect(toast.success).toHaveBeenCalled();
+    // e volta a poder libertá-la
+    fireEvent.click(screen.getByRole('button', { name: /Libertar/ }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith('demos_reservar_viatura', { p_chassis: 'WBA0000000000001', p_libertar: true }));
+  });
+
+  it('sem permissão (ou sem a migração) não há botão de reservar', async () => {
+    perfil({ canEdit: (t: string) => t === 'demos:reservar', capabilities: { demosPrecos: true, demosGestao: true, demosReservas: false } });
+    render(<DemosPage />);
+    await linha();
+    expect(screen.queryByRole('button', { name: /Reservar 24 h/ })).toBeNull();
+  });
+});
+
+describe('tab Demos: cartões em telemóvel', () => {
+  it('em telemóvel mostra cartões por defeito e deixa passar para a tabela e voltar', async () => {
+    mobile.value = true;
+    premiosDb.rows = [{ chassis: 'W2', premio: 100 }];
+    dados.parque = [viatura(), viatura({ chassis: 'W2', modelo: 'Série 5', versao: '530e Touring', reserva_expira: futuro(), reserva_user: 'Chefe' })];
+    perfil();
+    render(<DemosPage />);
+    const cartoes = await screen.findByTestId('demos-cartoes');
+    expect(within(cartoes).getAllByRole('article')).toHaveLength(2);
+    expect(screen.queryByRole('table')).toBeNull();
+    const c5 = within(cartoes).getByText('Série 5').closest('article')!;
+    expect(c5.textContent).toContain('RESERVADA');
+    expect(c5.textContent).toContain('325 €');           // 225 + 100 de prémio
+    expect(c5.getAttribute('data-premio')).toBe('sim');
+
+    fireEvent.click(screen.getByRole('button', { name: /Tabela/ }));
+    expect(await screen.findByRole('table')).toBeTruthy();
+    expect(screen.queryByTestId('demos-cartoes')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Cartões/ }));
+    expect(await screen.findByTestId('demos-cartoes')).toBeTruthy();
+  });
+
+  it('no ecrã grande é sempre tabela, sem seletor', async () => {
+    perfil();
+    render(<DemosPage />);
+    await linha();
+    expect(screen.queryByTestId('demos-cartoes')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Cartões/ })).toBeNull();
   });
 });
 
@@ -239,7 +314,7 @@ describe('tab Demos: adicionar, arquivar e consultar vendidas', () => {
     expect(screen.queryByRole('button', { name: /Vendidas/ })).toBeNull(); // arquivo é de demos:precos
     b.unmount();
 
-    perfil({ me: { local: [] }, canEdit: (t: string) => t === 'demos:inserir-viaturas', capabilities: { demosPrecos: true, demosGestao: false } });
+    perfil({ me: { local: [] }, canEdit: (t: string) => t === 'demos:inserir-viaturas', capabilities: { demosPrecos: true, demosGestao: false, demosReservas: false } });
     render(<DemosPage />);
     await linha();
     expect(screen.queryByRole('button', { name: /Adicionar viatura/ })).toBeNull();

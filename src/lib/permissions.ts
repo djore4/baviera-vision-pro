@@ -163,6 +163,9 @@ const ALL_SUB_PERMISSIONS: SubPermissionDef[] = [
   { key: 'demos:precos', parent: 'demos', label: 'Gerir preços (do seu local)',
     hint: 'Ao clicar numa viatura abre a janela de preço (como na gestão VD da Sales Force: escalões de 30 dias, descontos máximos do modelo, estrutura base, descontos e margem) e grava os valores das viaturas dos locais da pessoa (Utilizadores → Local). Também arquiva viaturas como vendidas e consulta/recupera o arquivo (só as do seu local). Exige o tab Demos. Sem isto, a pessoa vê só o cartão da viatura.',
     capability: 'demosPrecos' },
+  { key: 'demos:reservar', parent: 'demos', label: 'Reservar viaturas (24h)',
+    hint: 'Chefe de vendas: reservar uma viatura do seu local por 24 horas (fica destacada para todos) e libertar as reservas que fez. O administrador liberta qualquer reserva. Exige o tab Demos.',
+    capability: 'demosReservas' },
 ];
 
 /* Só as dos tabs que existem nesta instalação. */
@@ -272,9 +275,9 @@ export async function getMyAccessExceptions(email?: string | null): Promise<Reco
 /* Capacidades que a base de dados já tem (função app_capabilities, migração
  * lavagem_permissoes_granulares). Sem a função, nenhuma: a interface mantém as
  * regras antigas até a migração ser aplicada. */
-export interface AppCapabilities { lavagemGranular: boolean; eotGranular: boolean; eotResponsaveis: boolean; viaturasLocal: boolean; demosPrecos: boolean; demosGestao: boolean }
+export interface AppCapabilities { lavagemGranular: boolean; eotGranular: boolean; eotResponsaveis: boolean; viaturasLocal: boolean; demosPrecos: boolean; demosGestao: boolean; demosReservas: boolean }
 
-export const NO_CAPABILITIES: AppCapabilities = { lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false, demosGestao: false };
+export const NO_CAPABILITIES: AppCapabilities = { lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false, demosGestao: false, demosReservas: false };
 
 export async function getAppCapabilities(): Promise<AppCapabilities> {
   const { data, error } = await supabase.rpc('app_capabilities');
@@ -287,6 +290,7 @@ export async function getAppCapabilities(): Promise<AppCapabilities> {
     viaturasLocal: caps.viaturas_local === true,
     demosPrecos: caps.demos_precos === true,
     demosGestao: caps.demos_gestao === true,
+    demosReservas: caps.demos_reservas === true,
   };
 }
 

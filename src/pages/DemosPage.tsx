@@ -7,9 +7,10 @@ import { canonicalLocal, locaisDoPerfil, locaisDoGrupo } from '@/lib/locations';
 import {
   Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
   ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, ImageOff,
-  Camera, Trash2, Loader2, Pencil, Plus, Archive,
+  Camera, Trash2, Loader2, Pencil, Plus, Archive, Lock, LayoutGrid, Table2,
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { client } from '@/clients';
 import { chassisCurto, formatMatricula, matriculaCompacta, parseNum, pesquisaCorresponde } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
@@ -87,6 +88,9 @@ function idadeDias(dataMatricula: string | null): number {
 function isReservado(v: Viatura): boolean {
   return !!v.reserva_expira && new Date(v.reserva_expira).getTime() > Date.now();
 }
+
+const fmtReserva = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
 
 const eur = (n: number | null | undefined) =>
   (n || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -208,6 +212,11 @@ const COLS: Col[] = [
   },
 
   {
+    key: 'reserva', label: 'Reserva', title: 'Reserva de 24 h pelo chefe de vendas', group: 'venda', align: 'center',
+    sort: r => (isReservado(r) ? new Date(r.reserva_expira as string).getTime() : 0),
+    cell: () => null /* render dedicado (botão) */,
+  },
+  {
     key: 'pvp_desc', label: 'PVP Desc', title: 'Preço de venda (com IVA)', group: 'venda', align: 'right',
     sort: r => r._p.pvp_desc,
     cell: (r, reservado) => r._p.pvp_desc > 0
@@ -320,6 +329,24 @@ export default function DemosPage() {
   const podeAdicionar = capabilities.demosGestao && (isAdmin || canEdit('demos:inserir-viaturas'));
   const podeArquivo = capabilities.demosGestao && (isAdmin || canEdit('demos:precos'));
   const [vista, setVista] = useState<'parque' | 'vendidas'>('parque');
+  // Reservar por 24 h ('demos:reservar', nas viaturas do seu local; a base de dados valida).
+  const podeReservar = capabilities.demosReservas && (isAdmin || canEdit('demos:reservar'));
+  const podeReservarRow = (r: Pick<Row, 'local'>) => {
+    if (!podeReservar) return false;
+    if (isAdmin) return true;
+    const ls = localsOfRow(r);
+    return ls.length > 0 && ls.every(l => meusLocais.includes(l));
+  };
+  // Em telemóvel a listagem pode ver-se em cartões (por defeito) ou em tabela; no ecrã grande é sempre tabela.
+  const isMobile = useIsMobile();
+  const [modo, setModo] = useState<'cartoes' | 'tabela' | null>(() => {
+    try { const v = localStorage.getItem('demos.modo'); return v === 'tabela' || v === 'cartoes' ? v : null; } catch { return null; }
+  });
+  const emCartoes = isMobile && (modo ?? 'cartoes') === 'cartoes';
+  const escolherModo = (m: 'cartoes' | 'tabela') => {
+    setModo(m);
+    try { localStorage.setItem('demos.modo', m); } catch { /* sem storage */ }
+  };
   const [novaOpen, setNovaOpen] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [capas, setCapas] = useState<Record<string, string>>({});
@@ -409,6 +436,25 @@ export default function DemosPage() {
     setPrecosChassis(null);
   };
 
+  // Reservar / libertar: a base de dados valida quem pode e devolve a reserva gravada.
+  const [reservando, setReservando] = useState<string | null>(null);
+  const reservar = async (chassis: string, libertar: boolean) => {
+    setReservando(chassis);
+    const { data: res, error: err } = await supabase.rpc('demos_reservar_viatura', { p_chassis: chassis, p_libertar: libertar });
+    setReservando(null);
+    if (err) {
+      toast.error((err as { code?: string }).code === 'PGRST202'
+        ? 'A reserva ainda não está ativa na base de dados.'
+        : `Não foi possível ${libertar ? 'libertar' : 'reservar'}: ${err.message}`);
+      return;
+    }
+    const r = (res ?? {}) as { reserva_expira?: string | null; reserva_user?: string | null };
+    setRows(prev => prev.map(x => x.chassis === chassis
+      ? { ...x, reserva_expira: r.reserva_expira ?? null, reserva_user: r.reserva_user ?? null }
+      : x));
+    toast.success(libertar ? 'Reserva libertada.' : `Viatura reservada por 24 h (até ${fmtReserva(r.reserva_expira ?? null)}).`);
+  };
+
   // Arquivar como vendida (como na Gestão VD): preço e dados ficam cristalizados em "Vendidas".
   const arquivar = async (chassis: string) => {
     const r = rows.find(x => x.chassis === chassis);
@@ -446,8 +492,8 @@ export default function DemosPage() {
   // Com um só local filtrado, a coluna Local seria sempre igual: esconde-se.
   const hideLocal = fLocal !== TODAS;
   const visibleCols = useMemo(
-    () => cols.filter(c => !(hideLocal && c.key === 'local')),
-    [cols, hideLocal],
+    () => cols.filter(c => !(hideLocal && c.key === 'local') && !(c.key === 'reserva' && !podeReservar)),
+    [cols, hideLocal, podeReservar],
   );
 
   // Local e Modelo ficam fixas à esquerda ao deslizar a tabela (essencial em mobile).
@@ -471,10 +517,11 @@ export default function DemosPage() {
   // Tons equivalentes aos fundos semitransparentes das linhas, sobre fundo opaco.
   const TINT_HEAD = 'shadow-[inset_0_0_0_999px_hsl(var(--muted)/0.5)]';
   // Prémio de venda: a linha fica realçada (laranja) em relação ao resto da listagem.
-  const tintRow = (reservado: boolean, premio = false) => premio
-    ? 'shadow-[inset_0_0_0_999px_rgb(249_115_22/0.12)] group-hover:shadow-[inset_0_0_0_999px_rgb(249_115_22/0.2)]'
-    : reservado
-      ? 'shadow-[inset_0_0_0_999px_rgb(234_179_8/0.05)] group-hover:shadow-[inset_0_0_0_999px_rgb(234_179_8/0.1)]'
+  // Reserva (amarelo, vence) e prémio de venda (laranja): a linha fica realçada em relação ao resto.
+  const tintRow = (reservado: boolean, premio = false) => reservado
+    ? 'shadow-[inset_0_0_0_999px_rgb(250_204_21/0.22)] group-hover:shadow-[inset_0_0_0_999px_rgb(250_204_21/0.32)]'
+    : premio
+      ? 'shadow-[inset_0_0_0_999px_rgb(249_115_22/0.12)] group-hover:shadow-[inset_0_0_0_999px_rgb(249_115_22/0.2)]'
       : 'group-hover:shadow-[inset_0_0_0_999px_hsl(var(--muted)/0.3)]';
   const groupStart = useMemo(() => groupStarts(visibleCols), [visibleCols]);
 
@@ -612,9 +659,36 @@ export default function DemosPage() {
         </div>
       )}
 
-      {/* Tabela */}
+      {isMobile && vista === 'parque' && (
+        <div className="flex items-center justify-between gap-2" role="group" aria-label="Forma de apresentação">
+          <span className="text-[11px] text-muted-foreground">{filtered.length} {filtered.length === 1 ? 'viatura' : 'viaturas'}</span>
+          <div className="flex gap-1.5">
+            <button type="button" onClick={() => escolherModo('cartoes')} aria-pressed={emCartoes} className={chip(emCartoes)}>
+              <LayoutGrid className="inline h-3 w-3 mr-1" />Cartões
+            </button>
+            <button type="button" onClick={() => escolherModo('tabela')} aria-pressed={!emCartoes} className={chip(!emCartoes)}>
+              <Table2 className="inline h-3 w-3 mr-1" />Tabela
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tabela / cartões */}
       {loading ? (
         <div className="py-16 text-center text-sm text-muted-foreground">A carregar parque...</div>
+      ) : emCartoes ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5" data-testid="demos-cartoes">
+          {filtered.map(r => (
+            <CartaoViatura
+              key={r.chassis} row={r} capa={capas[r.chassis]}
+              podeReservar={podeReservarRow(r)} reservando={reservando === r.chassis} onReservar={reservar}
+              onAbrir={() => (podeGerirPrecos(r) ? setPrecosChassis(r.chassis) : setSelectedChassis(r.chassis))}
+            />
+          ))}
+          {filtered.length === 0 && (
+            <div className="col-span-full py-10 text-center text-xs text-muted-foreground">Nenhuma viatura encontrada.</div>
+          )}
+        </div>
       ) : (
         <div className="overflow-auto rounded-lg border border-border">
           <table className="w-full text-xs">
@@ -676,7 +750,8 @@ export default function DemosPage() {
                     key={r.chassis}
                     onClick={() => (podeGerirPrecos(r) ? setPrecosChassis(r.chassis) : setSelectedChassis(r.chassis))}
                     data-premio={destaque ? 'sim' : undefined}
-                    className={`group border-b border-border/50 cursor-pointer transition-colors ${destaque ? 'bg-orange-500/10 hover:bg-orange-500/20' : reservado ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : 'hover:bg-muted/30'}`}
+                    data-reservada={reservado ? 'sim' : undefined}
+                    className={`group border-b border-border/50 cursor-pointer transition-colors ${reservado ? 'bg-yellow-400/20 hover:bg-yellow-400/30' : destaque ? 'bg-orange-500/10 hover:bg-orange-500/20' : 'hover:bg-muted/30'}`}
                   >
                     {visibleCols.map(c => c.key === 'modelo' ? (
                       <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, tintRow(reservado, destaque)).cls} px-2.5 py-1.5 font-semibold text-foreground whitespace-nowrap`}>
@@ -686,12 +761,16 @@ export default function DemosPage() {
                           title={[r.modelo, reservado ? '(em negociação)' : ''].filter(Boolean).join(' ')}
                         >
                           {destaque && <span className="text-orange-500 shrink-0 text-[11px] leading-none" title="Prémio de venda" aria-label="Com prémio de venda">★</span>}
-                          {reservado && <span className="h-2 w-2 rounded-full bg-yellow-400 shrink-0" aria-label="Em negociação" />}
+                          {reservado && <span className="inline-flex items-center gap-0.5 rounded bg-yellow-400 px-1 py-px text-[8px] font-black text-black shrink-0" title={`Reservada por ${r.reserva_user || '—'} até ${fmtReserva(r.reserva_expira)}`}><Lock className="h-2 w-2" aria-hidden />RESERVADA</span>}
                           {capas[r.chassis] && (
                             <img src={capas[r.chassis]} alt="" className="h-5 w-7 rounded object-cover border border-border shrink-0" loading="lazy" />
                           )}
                           <span className="truncate">{r.modelo || '—'}</span>
                         </span>
+                      </td>
+                    ) : c.key === 'reserva' ? (
+                      <td key={c.key} className={`px-2.5 py-1.5 whitespace-nowrap text-center ${sepCls(c.key)}`}>
+                        <ReservaControlo row={r} reservado={reservado} pode={podeReservarRow(r)} busy={reservando === r.chassis} onToggle={reservar} />
                       </td>
                     ) : (
                       <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, tintRow(reservado, destaque)).cls} px-2.5 py-1.5 whitespace-nowrap ${alignCls(c.align)} ${c.cls ?? ''} ${sepCls(c.key)}`}>
@@ -729,6 +808,9 @@ export default function DemosPage() {
           capa={capas[selected.chassis]}
           canEdit={canEdit('demos')}
           email={session?.user.email ?? null}
+          podeReservar={podeReservarRow(selected)}
+          reservando={reservando === selected.chassis}
+          onReservar={reservar}
           onCapaChange={handleCapaChange}
           onClose={() => setSelectedChassis(null)}
         />
@@ -808,6 +890,89 @@ export default function DemosPage() {
   );
 }
 
+/* Botão da coluna Reserva: reservar por 24 h / libertar (só quem pode); os outros veem até quando. */
+function ReservaControlo({ row, reservado, pode, busy, onToggle }: {
+  row: Row; reservado: boolean; pode: boolean; busy: boolean; onToggle: (chassis: string, libertar: boolean) => void;
+}) {
+  if (!pode) return reservado
+    ? <span className="text-[10px] font-semibold text-yellow-700 dark:text-yellow-400">até {fmtReserva(row.reserva_expira)}</span>
+    : <span className="text-muted-foreground/40">—</span>;
+  return (
+    <button
+      type="button" disabled={busy}
+      onClick={e => { e.stopPropagation(); onToggle(row.chassis, reservado); }}
+      title={reservado ? `Reservada por ${row.reserva_user || '—'} até ${fmtReserva(row.reserva_expira)}` : 'Reservar por 24 h'}
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-bold ${reservado ? 'border-yellow-500/60 bg-yellow-400/30 text-yellow-900 dark:text-yellow-200' : 'border-border hover:bg-muted'}`}
+    >
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lock className="h-3 w-3" />}
+      {reservado ? `Libertar · ${fmtReserva(row.reserva_expira)}` : 'Reservar 24 h'}
+    </button>
+  );
+}
+
+/* Cartão de uma viatura (vista em telemóvel). Mesma informação da tabela, com o mesmo realce
+ * de reserva (amarelo) e de prémio (laranja). */
+function CartaoViatura({ row: r, capa, podeReservar, reservando, onReservar, onAbrir }: {
+  row: Row; capa?: string; podeReservar: boolean; reservando: boolean;
+  onReservar: (chassis: string, libertar: boolean) => void; onAbrir: () => void;
+}) {
+  const reservado = isReservado(r);
+  const destaque = r._premio > 0;
+  const comissaoCol = COLS.find(c => c.key === 'comissao');
+  const tags = TIPO_TAGS.filter(t => r._tipo[t.k]);
+  return (
+    <article
+      onClick={onAbrir}
+      data-premio={destaque ? 'sim' : undefined}
+      data-reservada={reservado ? 'sim' : undefined}
+      className={`rounded-xl border p-3 space-y-2 cursor-pointer ${reservado ? 'border-yellow-500/60 bg-yellow-400/15' : destaque ? 'border-orange-500/60 bg-orange-500/10' : 'border-border bg-card'}`}
+    >
+      {capa && <img src={capa} alt="" className="h-28 w-full rounded-lg object-cover border border-border" loading="lazy" />}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-sm font-black leading-tight flex items-center gap-1.5 flex-wrap">
+            {destaque && <span className="text-orange-500" title="Prémio de venda" aria-label="Com prémio de venda">★</span>}
+            <span>{r.modelo || '—'}</span>
+            {reservado && (
+              <span className="inline-flex items-center gap-0.5 rounded bg-yellow-400 px-1 py-px text-[9px] font-black text-black">
+                <Lock className="h-2.5 w-2.5" aria-hidden />RESERVADA até {fmtReserva(r.reserva_expira)}
+              </span>
+            )}
+          </h3>
+          <p className="text-[11px] text-muted-foreground truncate">{r.versao || '—'}</p>
+        </div>
+        <AgeBadge dias={r._idade} />
+      </div>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+        <span className="font-mono font-semibold uppercase">{matriculaCompacta(r.matricula) || 'sem matrícula'}</span>
+        <span className="font-mono text-muted-foreground uppercase">{chassisCurto(r.chassis)}</span>
+        <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-semibold border border-border">{r._local}</span>
+        {tags.map(t => <span key={t.k} className="px-1 py-0.5 rounded bg-brand-primary/10 text-brand-primary text-[9px] font-bold">{t.label}</span>)}
+      </div>
+      <div className="flex items-end justify-between gap-2">
+        <div>
+          {r._p.pvp > 0 && <span className="block text-[11px] text-muted-foreground line-through">{eur0(r._p.pvp)}</span>}
+          <span className={`block text-base font-black ${reservado ? 'text-red-600' : 'text-brand-primary'}`}>{r._p.pvp_desc > 0 ? eur0(r._p.pvp_desc) : '—'}</span>
+        </div>
+        <div className="text-right">
+          <span className="block text-[9px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">★ Comissão</span>
+          {comissaoCol?.cell(r, reservado)}
+        </div>
+      </div>
+      {podeReservar && (
+        <button
+          type="button" disabled={reservando}
+          onClick={e => { e.stopPropagation(); onReservar(r.chassis, reservado); }}
+          className={`w-full ${reservado ? btnSecondary : btnPrimary}`}
+        >
+          {reservando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
+          {reservado ? 'Libertar reserva' : 'Reservar por 24 h'}
+        </button>
+      )}
+    </article>
+  );
+}
+
 /* ── Cartão de partilha / detalhe ─────────────────────────────────────────────*/
 const TRANSPARENT_PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
@@ -825,8 +990,11 @@ function shareText(r: Row): string {
   return L.join('\n');
 }
 
-function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
+function ShareCard({ row, capa, canEdit, email, podeReservar, reservando, onReservar, onCapaChange, onClose }: {
   row: Row;
+  podeReservar: boolean;
+  reservando: boolean;
+  onReservar: (chassis: string, libertar: boolean) => void;
   capa?: string;
   canEdit: boolean;
   email: string | null;
@@ -1102,10 +1270,19 @@ function ShareCard({ row, capa, canEdit, email, onCapaChange, onClose }: {
         </div>
 
         {!share && reservado && (
-          <div className="text-xs text-muted-foreground bg-yellow-500/5 border border-yellow-500/20 rounded-lg p-2.5">
+          <div className="text-xs text-muted-foreground bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2.5">
             Reservado por <strong className="text-foreground">{row.reserva_user || 'Desconhecido'}</strong>
             {row.reserva_expira && <> · válido até {new Date(row.reserva_expira).toLocaleString('pt-PT')}</>}
           </div>
+        )}
+        {!share && podeReservar && (
+          <button
+            type="button" disabled={reservando} onClick={() => onReservar(row.chassis, reservado)}
+            className={reservado ? btnSecondary : btnPrimary}
+          >
+            {reservando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
+            {reservado ? 'Libertar reserva' : 'Reservar por 24 h'}
+          </button>
         )}
 
         {!share && row.observacoes && row.observacoes.trim() !== '' && (
