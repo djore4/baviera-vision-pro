@@ -57,3 +57,28 @@ describe('normalizarMatricula (adicionar viatura)', () => {
     expect(normalizarMatricula(null)).toBeNull();
   });
 });
+
+import { pesquisaCorresponde, textoBusca } from '@/lib/viaturaFormat';
+
+describe('pesquisa de viaturas', () => {
+  it('a matrícula pesquisa-se igual com ou sem hífenes, espaços e maiúsculas', () => {
+    const campos = ['Série 5', 'CH-99-AQ', 'WBA0000FX46063'];
+    for (const q of ['CH99AQ', 'CH-99-AQ', 'ch 99 aq', 'ch99', '99-aq', ' CH99AQ ']) expect(pesquisaCorresponde(q, campos), q).toBe(true);
+    for (const q of ['CH98AQ', 'zz']) expect(pesquisaCorresponde(q, campos), q).toBe(false);
+  });
+
+  it('funciona com a matrícula guardada sem hífenes', () => {
+    expect(pesquisaCorresponde('CH-99-AQ', ['CH99AQ'])).toBe(true);
+    expect(pesquisaCorresponde('CH99AQ', ['CH99AQ'])).toBe(true);
+  });
+
+  it('ignora acentos e pesquisa vazia devolve tudo', () => {
+    expect(pesquisaCorresponde('serie 5', ['Série 5'])).toBe(true);
+    expect(pesquisaCorresponde('', ['x'])).toBe(true);
+    expect(textoBusca('Série-5 / A')).toBe('serie5a');
+  });
+
+  it('pontuação sozinha não corresponde a tudo', () => {
+    expect(pesquisaCorresponde('-', ['CH99AQ'])).toBe(false);
+  });
+});

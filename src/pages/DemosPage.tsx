@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import { client } from '@/clients';
-import { chassisCurto, formatMatricula, matriculaCompacta, parseNum } from '@/lib/viaturaFormat';
+import { chassisCurto, formatMatricula, matriculaCompacta, parseNum, pesquisaCorresponde } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 import PrecosDialog from '@/components/demos/PrecosDialog';
 import { comissaoFixa } from '@/lib/demo-comissao';
@@ -487,8 +487,7 @@ export default function DemosPage() {
       if (fLocal !== TODAS && !localsOfRow(r).includes(fLocal)) return false;
       if (fTipologia.size && !r._tipologia.some(t => fTipologia.has(t))) return false;
       if (!q) return true;
-      return [r.modelo, r.versao, r.chassis, r.matricula, formatMatricula(r.matricula), r.encomenda, r._local]
-        .some(v => (v ?? '').toString().toLowerCase().includes(q));
+      return pesquisaCorresponde(q, [r.modelo, r.versao, r.chassis, r.matricula, formatMatricula(r.matricula), r.encomenda, r._local]);
     });
 
     const col = sort && COLS.find(c => c.key === sort.key);

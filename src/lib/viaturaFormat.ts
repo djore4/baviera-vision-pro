@@ -33,3 +33,19 @@ export function normalizarMatricula(matricula: string | null | undefined): strin
   const v = (matricula ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   return v.length === 6 ? `${v.slice(0, 2)}-${v.slice(2, 4)}-${v.slice(4)}` : null;
 }
+
+/** Texto de pesquisa: minúsculas, sem acentos e só letras/dígitos ("CH-99-AQ", "ch 99 aq" e "CH99AQ" ficam iguais). */
+export const textoBusca = (v: unknown): string =>
+  String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/** A pesquisa corresponde a algum dos campos? Compara o texto tal como está e também sem hífenes,
+ *  espaços e acentos — a matrícula pesquisa-se igual com ou sem hífenes, seja qual for o formato guardado. */
+export function pesquisaCorresponde(pesquisa: string, campos: unknown[]): boolean {
+  const q = pesquisa.trim().toLowerCase();
+  if (!q) return true;
+  const qn = textoBusca(q);
+  return campos.some(c => {
+    const t = String(c ?? '').toLowerCase();
+    return t.includes(q) || (qn !== '' && textoBusca(t).includes(qn));
+  });
+}
