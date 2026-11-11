@@ -96,13 +96,6 @@ export default function RetailsPage() {
     return Object.values(map).sort((a, b) => b.total - a.total);
   }, [filteredSemResp]);
 
-  // Totais do cabeçalho do gráfico (respeitam os filtros e o responsável selecionado).
-  // Retails: só VN/VD/RMK em estado Retail. Faturas: todos os tipos (inclui VP) com DFAT.
-  const retailsTotal = useMemo(
-    () => statusByResp.reduce((s, r) => s + (selectedResps.size > 0 && !selectedResps.has(r.resp) ? 0 : r.Retail), 0),
-    [statusByResp, selectedResps],
-  );
-  const faturasTotal = useMemo(() => filtered.filter(r => !!r.dfat).length, [filtered]);
 
   const selectedMonthKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -392,9 +385,18 @@ export default function RetailsPage() {
             <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Status por Responsável</h3>
+                {/* Atual / Previsão, mesmos valores e cores dos gauges de realização. */}
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">Retails <b className="text-sm">{retailsTotal}</b></span>
-                  <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">Faturas <b className="text-sm">{faturasTotal}</b></span>
+                  {[
+                    { label: 'Retails', color: '#1C69D4', atual: realization.retails, prev: realization.retailsPrevisao },
+                    { label: 'Faturas', color: '#16A34A', atual: realization.faturas, prev: realization.faturasPrevisao },
+                  ].map(k => (
+                    <span key={k.label} className="text-[11px] font-semibold px-2 py-0.5 rounded tabular-nums"
+                      style={{ color: k.color, background: `${k.color}1A` }}
+                      title={`${k.label}: atual / previsão`}>
+                      {k.label} <b className="text-sm">{k.atual}</b><span className="text-muted-foreground">/{k.prev}</span>
+                    </span>
+                  ))}
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={200}>
