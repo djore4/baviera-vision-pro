@@ -165,9 +165,10 @@ describe('tab Demos: cartões em telemóvel', () => {
     const cartoes = await screen.findByTestId('demos-cartoes');
     expect(within(cartoes).getAllByRole('article')).toHaveLength(2);
     expect(screen.queryByRole('table')).toBeNull();
-    const c5 = within(cartoes).getByText('Série 5').closest('article')!;
-    expect(c5.textContent).toContain('Reservada até');
-    expect(c5.textContent).toContain('Prémio de venda +100 €');
+    const c5 = within(cartoes).getByText('Série 5 530e Touring').closest('article')!;
+    expect(c5.textContent).toContain('Reserva até');
+    expect(c5.textContent).toContain('Prémio de venda');
+    expect(c5.textContent).toContain('+100 €');
     expect(c5.textContent).toContain('325 €');           // 225 + 100 de prémio
     expect(c5.getAttribute('data-premio')).toBe('sim');
 
