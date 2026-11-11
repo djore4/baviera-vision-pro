@@ -166,7 +166,8 @@ describe('tab Demos: cartões em telemóvel', () => {
     expect(within(cartoes).getAllByRole('article')).toHaveLength(2);
     expect(screen.queryByRole('table')).toBeNull();
     const c5 = within(cartoes).getByText('Série 5').closest('article')!;
-    expect(c5.textContent).toContain('RESERVADA');
+    expect(c5.textContent).toContain('Reservada até');
+    expect(c5.textContent).toContain('Prémio de venda +100 €');
     expect(c5.textContent).toContain('325 €');           // 225 + 100 de prémio
     expect(c5.getAttribute('data-premio')).toBe('sim');
 
@@ -177,12 +178,46 @@ describe('tab Demos: cartões em telemóvel', () => {
     expect(await screen.findByTestId('demos-cartoes')).toBeTruthy();
   });
 
-  it('no ecrã grande é sempre tabela, sem seletor', async () => {
+  it('no ecrã grande abre em tabela e também deixa escolher cartões', async () => {
     perfil();
     render(<DemosPage />);
     await linha();
     expect(screen.queryByTestId('demos-cartoes')).toBeNull();
-    expect(screen.queryByRole('button', { name: /Cartões/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Cartões/ }));
+    expect(await screen.findByTestId('demos-cartoes')).toBeTruthy();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('em telemóvel os filtros ficam recolhidos (só a pesquisa à vista) e abrem em "Filtros"', async () => {
+    mobile.value = true;
+    perfil();
+    render(<DemosPage />);
+    await screen.findByTestId('demos-cartoes');
+    expect(screen.getByLabelText('Pesquisar')).toBeTruthy();
+    const conc = screen.getByText('Concessão');
+    expect(conc.closest('.hidden')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Filtros/ }));
+    expect(screen.getByText('Concessão').closest('.hidden')).toBeNull();
+  });
+
+  it('o filtro Destaque mostra só as reservadas ou só as com prémio', async () => {
+    premiosDb.rows = [{ chassis: 'W2', premio: 100 }];
+    dados.parque = [
+      viatura({ reserva_expira: futuro(), reserva_user: 'Chefe' }),
+      viatura({ chassis: 'W2', modelo: 'Série 5', versao: '530e' }),
+      viatura({ chassis: 'W3', modelo: 'Série 3' }),
+    ];
+    perfil();
+    render(<DemosPage />);
+    await linha();
+    const modelos = () => Array.from(document.querySelectorAll('tbody td span.truncate')).map(e => e.textContent);
+    expect(modelos()).toHaveLength(3);
+    fireEvent.click(screen.getByRole('button', { name: 'Reservadas' }));
+    expect(modelos()).toEqual(['iX1']);
+    fireEvent.click(screen.getByRole('button', { name: 'Com prémio' }));
+    expect(modelos()).toEqual(['Série 5']);
+    fireEvent.click(within(screen.getByRole('group', { name: 'Destaque' })).getByRole('button', { name: 'Todas' }));
+    expect(modelos()).toHaveLength(3);
   });
 });
 
