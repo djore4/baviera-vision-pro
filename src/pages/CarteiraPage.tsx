@@ -43,7 +43,9 @@ export default function CarteiraPage() {
 
   const baseRecords = useMemo(() =>
     (data?.control ?? []).filter(r =>
-      (r.status === 'Carteira' || r.status === 'Matricula') && (isRetailType(r.type) || r.type === 'VP')
+      (r.status === 'Carteira' || r.status === 'Matricula') &&
+      // VP não gera retail, por isso a fatura é o seu fecho: com DFAT sai da carteira.
+      (isRetailType(r.type) || (r.type === 'VP' && !r.dfat))
     ), [data]);
 
   const filtered = useMemo(() => {
