@@ -144,6 +144,8 @@ interface Col {
   sort: (r: Row) => string | number;
   cell: (r: Row, reservado: boolean) => ReactNode;
   cls?: string;
+  /** Realce do cabeçalho da coluna (informação a que quem consulta deve prestar atenção). */
+  headCls?: string;
 }
 
 
@@ -213,17 +215,20 @@ const COLS: Col[] = [
       : '—',
   },
   {
-    key: 'comissao', label: 'Comissão', title: 'Comissão fixa por modelo + prémio de venda (se existir)', group: 'venda', align: 'right',
+    key: 'comissao', label: '★ Comissão', title: 'Comissão fixa por modelo + prémio de venda (se existir)', group: 'venda', align: 'right',
+    headCls: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-b-2 border-emerald-500/60',
     sort: r => (r._comissao ?? 0) + r._premio,
     cell: r => {
       const total = (r._comissao ?? 0) + r._premio;
       if (total <= 0) return <span className="text-muted-foreground/40">—</span>;
       return r._premio > 0 ? (
-        <span className="inline-flex flex-col items-end leading-tight">
-          <span className="font-black text-orange-600 dark:text-orange-400">{eur0(total)}</span>
+        <span className="inline-flex flex-col items-end leading-tight rounded-md border border-orange-500/60 bg-orange-500/15 px-2 py-1">
+          <span className="text-sm font-black text-orange-600 dark:text-orange-400">{eur0(total)}</span>
           <span className="text-[9px] font-semibold text-muted-foreground">{r._comissao ? `${eur0(r._comissao)} + ` : ''}{eur0(r._premio)} prémio</span>
         </span>
-      ) : <span className="font-semibold text-foreground/80">{eur0(total)}</span>;
+      ) : (
+        <span className="inline-block rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-sm font-black text-emerald-700 dark:text-emerald-400">{eur0(total)}</span>
+      );
     },
   },
   {
@@ -637,7 +642,7 @@ export default function DemosPage() {
                       onClick={() => toggleSort(c.key)}
                       title={c.title}
                       style={{ ...st.style, ...(c.key === 'modelo' ? { width: modeloW, minWidth: modeloW, maxWidth: modeloW } : {}) }}
-                      className={`${st.cls || (c.key === 'modelo' ? 'relative' : '')} px-2.5 py-2 font-semibold text-muted-foreground whitespace-nowrap border-b border-border transition-colors cursor-pointer select-none hover:text-foreground ${alignCls(c.align)} ${sepCls(c.key)}`}
+                      className={`${st.cls || (c.key === 'modelo' ? 'relative' : '')} px-2.5 py-2 font-semibold ${c.headCls ?? 'text-muted-foreground'} whitespace-nowrap border-b border-border transition-colors cursor-pointer select-none hover:text-foreground ${alignCls(c.align)} ${sepCls(c.key)}`}
                     >
                       <span className={`inline-flex items-center gap-1 ${c.align === 'right' ? 'flex-row-reverse' : ''}`}>
                         {c.label}

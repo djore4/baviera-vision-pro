@@ -116,7 +116,7 @@ describe('tab Demos: comissão e prémio de venda', () => {
     perfil();
     render(<DemosPage />);
     await linha();
-    expect(cabecalhos()).toContain('Comissão');
+    expect(cabecalhos().some(h => h?.includes('Comissão'))).toBe(true);
     expect(screen.getByText('125 €')).toBeTruthy();
     expect(document.querySelector('tbody tr[data-premio]')).toBeNull();
   });
