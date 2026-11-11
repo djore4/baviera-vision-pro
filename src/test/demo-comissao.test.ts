@@ -8,7 +8,7 @@ describe('comissão fixa das demos', () => {
     ['Série 5', '530e Touring', 225], ['Série 5', 'i5 40e', 225], ['X3', 'iX3 50 xDrive', 225], ['iX3', '40', 225], ['Z4', '', 225],
     ['X5', '50E', 350], ['X7', 'xDrive40d', 350], ['iX', 'xDrive45', 350], ['Série 7', '', 350],
     ['M', 'M2 Competition', 350], ['M', 'M3 CS Touring', 350], ['Série 2', 'M2 Coupé', 350],
-    ['M', 'XM 50e', 500], ['M', 'M8', 500], ['M', 'X5 M Competition', 500], ['M', 'X6M', 500],
+    ['M', 'XM 50e', 500], ['M', 'M8', 500], ['M', 'X5 M Competition', 500], ['M', 'X6M', 500], ['M', 'X3M', 350], ['M', 'X4 M Competition', 350], ['X3', 'X3 M', 350], ['X4', 'X4M', 350],
   ])('%s %s → %s €', (modelo, versao, valor) => {
     expect(comissaoFixa(modelo, versao)).toBe(valor);
   });
@@ -19,6 +19,7 @@ describe('comissão fixa das demos', () => {
     expect(comissaoFixa('Série 4', 'M440d')).toBe(175);
     expect(comissaoFixa('X2', 'M35i xDrive')).toBe(125);
     expect(comissaoFixa('X5', 'M60i')).toBe(350);
+    expect(comissaoFixa('X3', 'M40i')).toBe(225);
   });
 
   it('M1 vale 175 e modelos fora da tabela não têm comissão', () => {

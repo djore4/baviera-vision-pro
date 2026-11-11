@@ -2429,6 +2429,7 @@ export type Database = {
       demos_editar_viatura: { Args: { p_chassis: string; p: Json }; Returns: Json }
       demos_arquivar_viatura: { Args: { p_chassis: string }; Returns: number }
       demos_repor_viatura: { Args: { p_id: number }; Returns: string }
+      demos_reservar_viatura: { Args: { p_chassis: string; p_libertar?: boolean }; Returns: Json }
       demos_vendidas: { Args: Record<PropertyKey, never>; Returns: Record<string, Json>[] }
       demos_viaturas: {
         Args: Record<PropertyKey, never>
