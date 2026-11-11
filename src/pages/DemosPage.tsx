@@ -7,7 +7,7 @@ import { canonicalLocal, locaisDoPerfil, locaisDoGrupo } from '@/lib/locations';
 import {
   Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
   ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, ImageOff,
-  Camera, Trash2, Loader2, Pencil, Plus, Archive, Lock, LayoutGrid, Table2,
+  Camera, Trash2, Loader2, Pencil, Plus, Archive, Lock, LayoutGrid, Table2, SlidersHorizontal,
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -17,6 +17,7 @@ import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } f
 import PrecosDialog from '@/components/demos/PrecosDialog';
 import { comissaoFixa } from '@/lib/demo-comissao';
 import VendidasPanel from '@/components/demos/VendidasPanel';
+import CartaoViatura, { type CartaoVM } from '@/components/demos/CartaoViatura';
 import { chip, btnPrimary, btnSecondary, btnGhost } from '@/lib/chip';
 import { TIPOS_NEGOCIO, MARCAS, TODAS, TODOS, tipoNegocio, marcasDe, opcoesFiltro, concessaoInicial } from '@/lib/viaturasFiltros';
 
@@ -87,6 +88,21 @@ function idadeDias(dataMatricula: string | null): number {
 
 function isReservado(v: Viatura): boolean {
   return !!v.reserva_expira && new Date(v.reserva_expira).getTime() > Date.now();
+}
+
+function cartaoVM(r: Row, capa: string | undefined): CartaoVM {
+  return {
+    chassis: r.chassis,
+    modelo: r.modelo ?? '', versao: r.versao ?? '',
+    matricula: matriculaCompacta(r.matricula), chassisCurto: chassisCurto(r.chassis),
+    local: r._local === '—' ? '' : r._local, negocio: r._negocio,
+    marcaExtra: r._marcas.filter(m => m !== 'BMW').join(', '),
+    tags: TIPO_TAGS.filter(t => r._tipo[t.k]).map(t => t.label),
+    idade: r._idade, pvp: r._p.pvp, pvpDesc: r._p.pvp_desc,
+    comissao: r._comissao, premio: r._premio,
+    reservado: isReservado(r), reservaAte: fmtReserva(r.reserva_expira), reservaPor: r.reserva_user ?? '',
+    capa,
+  };
 }
 
 const fmtReserva = (iso: string | null) =>
@@ -337,12 +353,14 @@ export default function DemosPage() {
     const ls = localsOfRow(r);
     return ls.length > 0 && ls.every(l => meusLocais.includes(l));
   };
-  // Em telemóvel a listagem pode ver-se em cartões (por defeito) ou em tabela; no ecrã grande é sempre tabela.
+  // A listagem pode ver-se em tabela ou em cartões: telemóvel abre em cartões, ecrã grande em tabela (a escolha fica guardada).
   const isMobile = useIsMobile();
   const [modo, setModo] = useState<'cartoes' | 'tabela' | null>(() => {
     try { const v = localStorage.getItem('demos.modo'); return v === 'tabela' || v === 'cartoes' ? v : null; } catch { return null; }
   });
-  const emCartoes = isMobile && (modo ?? 'cartoes') === 'cartoes';
+  const emCartoes = (modo ?? (isMobile ? 'cartoes' : 'tabela')) === 'cartoes';
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const [fDestaque, setFDestaque] = useState<string>(TODAS);
   const escolherModo = (m: 'cartoes' | 'tabela') => {
     setModo(m);
     try { localStorage.setItem('demos.modo', m); } catch { /* sem storage */ }
@@ -533,6 +551,8 @@ export default function DemosPage() {
       if (fModelos.size && !fModelos.has((r.modelo ?? '').trim())) return false;
       if (fLocal !== TODAS && !localsOfRow(r).includes(fLocal)) return false;
       if (fTipologia.size && !r._tipologia.some(t => fTipologia.has(t))) return false;
+      if (fDestaque === 'Reservadas' && !isReservado(r)) return false;
+      if (fDestaque === 'Com prémio' && r._premio <= 0) return false;
       if (!q) return true;
       return pesquisaCorresponde(q, [r.modelo, r.versao, r.chassis, r.matricula, formatMatricula(r.matricula), r.encomenda, r._local]);
     });
@@ -554,7 +574,7 @@ export default function DemosPage() {
       });
     }
     return list;
-  }, [viewRows, search, fTipo, fMarca, fModelos, fLocal, fTipologia, sort]);
+  }, [viewRows, search, fTipo, fMarca, fModelos, fLocal, fTipologia, fDestaque, sort]);
 
   // Totais do que está filtrado (como a linha de totais de uma tabela Excel).
   const totals = useMemo(() => {
@@ -572,12 +592,31 @@ export default function DemosPage() {
       return null; // terceiro clique limpa
     });
 
-  const filtersActive = !!search || fTipo !== TODOS || fMarca !== TODAS || fModelos.size > 0 || fLocal !== TODAS || fTipologia.size > 0;
+  const filtersActive = !!search || fTipo !== TODOS || fMarca !== TODAS || fModelos.size > 0 || fLocal !== TODAS || fTipologia.size > 0 || fDestaque !== TODAS;
+  // Filtros ativos além da pesquisa (para o indicador do botão "Filtros" em telemóvel).
+  const nFiltros = [fTipo !== TODOS, fMarca !== TODAS, fModelos.size > 0, fLocal !== TODAS, fTipologia.size > 0, fDestaque !== TODAS].filter(Boolean).length;
   const resetFilters = () => {
-    setSearch(''); setFTipo(TODOS); setFMarca(TODAS); setFModelos(new Set()); setFLocal(TODAS); setFTipologia(new Set());
+    setSearch(''); setFTipo(TODOS); setFMarca(TODAS); setFModelos(new Set()); setFLocal(TODAS); setFTipologia(new Set()); setFDestaque(TODAS);
   };
+  const nReservadas = useMemo(() => viewRows.filter(isReservado).length, [viewRows]);
+  const nComPremio = useMemo(() => viewRows.filter(r => r._premio > 0).length, [viewRows]);
 
   const alignCls = (a?: 'right' | 'center') => a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left';
+  const pesquisaInput = (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor="demos-pesquisa" className={`text-[10px] font-semibold text-muted-foreground uppercase tracking-wider ${isMobile ? 'sr-only' : ''}`}>Pesquisar</label>
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <input
+          id="demos-pesquisa" type="search"
+          className="w-full pl-8 pr-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+          placeholder={isMobile ? 'Modelo, matrícula, chassis…' : 'Modelo, versão, matrícula, chassis, encomenda...'}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+    </div>
+  );
   const sepCls = (key: string) => groupStart.has(key) ? 'border-l border-border' : '';
 
   return (
@@ -615,42 +654,45 @@ export default function DemosPage() {
       {vista === 'vendidas' ? (
         <VendidasPanel onRepor={() => { void carregar(); }} />
       ) : (<>
-      {/* Filtros: Concessão · Tipo · Marca · Pesquisa (escolha única, "Todas/Todos" = sem filtro) */}
+      {/* Filtros: Concessão · Tipo · Marca · Destaque · Pesquisa (escolha única, "Todas/Todos" = sem filtro).
+          Em telemóvel só a pesquisa fica à vista; o resto abre em "Filtros". */}
       <div className="bg-card border border-border rounded-xl p-3 space-y-3">
-        <div className="flex flex-col lg:flex-row gap-4 lg:items-end">
-          <PillFilter label="Concessão" todos={TODAS} options={opcoesLocal} value={fLocal} onChange={setFLocal} />
-          <PillFilter label="Tipo" todos={TODOS} options={opcoesTipo} value={fTipo} onChange={setFTipo} divider />
-          <PillFilter label="Marca" todos={TODAS} options={opcoesMarca} value={fMarca} onChange={setFMarca} divider />
-          <div className="lg:ml-auto w-full lg:w-96 flex flex-col gap-1.5">
-            <label htmlFor="demos-pesquisa" className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pesquisar</label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                id="demos-pesquisa" type="search"
-                className="w-full pl-8 pr-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="Modelo, versão, matrícula, chassis, encomenda..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-        {(tipologias.length > 0 || modelos.length > 0 || filtersActive) && (
-          <div className="grid gap-3 border-t border-border pt-3">
-            <ChipFilter label="Tecnologia" options={tipologias} selected={fTipologia} onToggle={toggleIn(setFTipologia)} onClear={() => setFTipologia(new Set())} />
-            <ChipFilter label="Modelo" options={modelos} selected={fModelos} onToggle={toggleIn(setFModelos)} onClear={() => setFModelos(new Set())} />
-            {filtersActive && (
-              <div>
-                <button
-                  onClick={resetFilters}
-                  className={btnGhost}
-                >
-                  <RotateCcw className="h-3 w-3" /> Limpar filtros
-                </button>
-              </div>
-            )}
+        {isMobile && (
+          <div className="flex items-end gap-2">
+            <div className="min-w-0 flex-1">{pesquisaInput}</div>
+            <button
+              type="button" onClick={() => setFiltrosAbertos(o => !o)} aria-expanded={filtrosAbertos}
+              className={`${chip(filtrosAbertos || nFiltros > 0)} h-[38px] shrink-0 inline-flex items-center gap-1.5 text-xs`}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />Filtros{nFiltros > 0 ? ` (${nFiltros})` : ''}
+            </button>
           </div>
         )}
+        <div className={`space-y-3 ${isMobile && !filtrosAbertos ? 'hidden' : ''}`}>
+          <div className="flex flex-col lg:flex-row gap-4 lg:items-end">
+            <PillFilter label="Concessão" todos={TODAS} options={opcoesLocal} value={fLocal} onChange={setFLocal} />
+            <PillFilter label="Tipo" todos={TODOS} options={opcoesTipo} value={fTipo} onChange={setFTipo} divider />
+            <PillFilter label="Marca" todos={TODAS} options={opcoesMarca} value={fMarca} onChange={setFMarca} divider />
+            {(nReservadas > 0 || nComPremio > 0) && (
+              <PillFilter label="Destaque" todos={TODAS} options={[nReservadas > 0 || fDestaque === 'Reservadas' ? 'Reservadas' : '', nComPremio > 0 || fDestaque === 'Com prémio' ? 'Com prémio' : ''].filter(Boolean)}
+                value={fDestaque} onChange={setFDestaque} divider />
+            )}
+            {!isMobile && <div className="lg:ml-auto w-full lg:w-96">{pesquisaInput}</div>}
+          </div>
+          {(tipologias.length > 0 || modelos.length > 0 || filtersActive) && (
+            <div className="grid gap-3 border-t border-border pt-3">
+              <ChipFilter label="Tecnologia" options={tipologias} selected={fTipologia} onToggle={toggleIn(setFTipologia)} onClear={() => setFTipologia(new Set())} />
+              <ChipFilter label="Modelo" options={modelos} selected={fModelos} onToggle={toggleIn(setFModelos)} onClear={() => setFModelos(new Set())} />
+              {filtersActive && (
+                <div>
+                  <button onClick={resetFilters} className={btnGhost}>
+                    <RotateCcw className="h-3 w-3" /> Limpar filtros
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -659,16 +701,23 @@ export default function DemosPage() {
         </div>
       )}
 
-      {isMobile && vista === 'parque' && (
-        <div className="flex items-center justify-between gap-2" role="group" aria-label="Forma de apresentação">
-          <span className="text-[11px] text-muted-foreground">{filtered.length} {filtered.length === 1 ? 'viatura' : 'viaturas'}</span>
-          <div className="flex gap-1.5">
-            <button type="button" onClick={() => escolherModo('cartoes')} aria-pressed={emCartoes} className={chip(emCartoes)}>
-              <LayoutGrid className="inline h-3 w-3 mr-1" />Cartões
-            </button>
-            <button type="button" onClick={() => escolherModo('tabela')} aria-pressed={!emCartoes} className={chip(!emCartoes)}>
-              <Table2 className="inline h-3 w-3 mr-1" />Tabela
-            </button>
+      {vista === 'parque' && !loading && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            <strong className="text-foreground">{filtered.length}</strong>{filtered.length !== rows.length ? ` de ${rows.length}` : ''} {filtered.length === 1 ? 'viatura' : 'viaturas'}
+            {nReservadas > 0 && <> · <span className="font-semibold text-yellow-700 dark:text-yellow-400">{nReservadas} {nReservadas === 1 ? 'reservada' : 'reservadas'}</span></>}
+            {nComPremio > 0 && <> · <span className="font-semibold text-orange-600 dark:text-orange-400">{nComPremio} com prémio</span></>}
+          </p>
+          <div className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5" role="group" aria-label="Forma de apresentação">
+            {([['cartoes', 'Cartões', LayoutGrid], ['tabela', 'Tabela', Table2]] as const).map(([k, label, Icon]) => (
+              <button
+                key={k} type="button" onClick={() => escolherModo(k)} aria-pressed={(k === 'cartoes') === emCartoes}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  (k === 'cartoes') === emCartoes ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                <Icon className="h-3.5 w-3.5" />{label}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -677,11 +726,12 @@ export default function DemosPage() {
       {loading ? (
         <div className="py-16 text-center text-sm text-muted-foreground">A carregar parque...</div>
       ) : emCartoes ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5" data-testid="demos-cartoes">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-testid="demos-cartoes">
           {filtered.map(r => (
             <CartaoViatura
-              key={r.chassis} row={r} capa={capas[r.chassis]}
-              podeReservar={podeReservarRow(r)} reservando={reservando === r.chassis} onReservar={reservar}
+              key={r.chassis} vm={cartaoVM(r, capas[r.chassis])}
+              podeReservar={podeReservarRow(r)} reservando={reservando === r.chassis}
+              onReservar={libertar => void reservar(r.chassis, libertar)}
               onAbrir={() => (podeGerirPrecos(r) ? setPrecosChassis(r.chassis) : setSelectedChassis(r.chassis))}
             />
           ))}
@@ -907,69 +957,6 @@ function ReservaControlo({ row, reservado, pode, busy, onToggle }: {
       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lock className="h-3 w-3" />}
       {reservado ? `Libertar · ${fmtReserva(row.reserva_expira)}` : 'Reservar 24 h'}
     </button>
-  );
-}
-
-/* Cartão de uma viatura (vista em telemóvel). Mesma informação da tabela, com o mesmo realce
- * de reserva (amarelo) e de prémio (laranja). */
-function CartaoViatura({ row: r, capa, podeReservar, reservando, onReservar, onAbrir }: {
-  row: Row; capa?: string; podeReservar: boolean; reservando: boolean;
-  onReservar: (chassis: string, libertar: boolean) => void; onAbrir: () => void;
-}) {
-  const reservado = isReservado(r);
-  const destaque = r._premio > 0;
-  const comissaoCol = COLS.find(c => c.key === 'comissao');
-  const tags = TIPO_TAGS.filter(t => r._tipo[t.k]);
-  return (
-    <article
-      onClick={onAbrir}
-      data-premio={destaque ? 'sim' : undefined}
-      data-reservada={reservado ? 'sim' : undefined}
-      className={`rounded-xl border p-3 space-y-2 cursor-pointer ${reservado ? 'border-yellow-500/60 bg-yellow-400/15' : destaque ? 'border-orange-500/60 bg-orange-500/10' : 'border-border bg-card'}`}
-    >
-      {capa && <img src={capa} alt="" className="h-28 w-full rounded-lg object-cover border border-border" loading="lazy" />}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="text-sm font-black leading-tight flex items-center gap-1.5 flex-wrap">
-            {destaque && <span className="text-orange-500" title="Prémio de venda" aria-label="Com prémio de venda">★</span>}
-            <span>{r.modelo || '—'}</span>
-            {reservado && (
-              <span className="inline-flex items-center gap-0.5 rounded bg-yellow-400 px-1 py-px text-[9px] font-black text-black">
-                <Lock className="h-2.5 w-2.5" aria-hidden />RESERVADA até {fmtReserva(r.reserva_expira)}
-              </span>
-            )}
-          </h3>
-          <p className="text-[11px] text-muted-foreground truncate">{r.versao || '—'}</p>
-        </div>
-        <AgeBadge dias={r._idade} />
-      </div>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-        <span className="font-mono font-semibold uppercase">{matriculaCompacta(r.matricula) || 'sem matrícula'}</span>
-        <span className="font-mono text-muted-foreground uppercase">{chassisCurto(r.chassis)}</span>
-        <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-semibold border border-border">{r._local}</span>
-        {tags.map(t => <span key={t.k} className="px-1 py-0.5 rounded bg-brand-primary/10 text-brand-primary text-[9px] font-bold">{t.label}</span>)}
-      </div>
-      <div className="flex items-end justify-between gap-2">
-        <div>
-          {r._p.pvp > 0 && <span className="block text-[11px] text-muted-foreground line-through">{eur0(r._p.pvp)}</span>}
-          <span className={`block text-base font-black ${reservado ? 'text-red-600' : 'text-brand-primary'}`}>{r._p.pvp_desc > 0 ? eur0(r._p.pvp_desc) : '—'}</span>
-        </div>
-        <div className="text-right">
-          <span className="block text-[9px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">★ Comissão</span>
-          {comissaoCol?.cell(r, reservado)}
-        </div>
-      </div>
-      {podeReservar && (
-        <button
-          type="button" disabled={reservando}
-          onClick={e => { e.stopPropagation(); onReservar(r.chassis, reservado); }}
-          className={`w-full ${reservado ? btnSecondary : btnPrimary}`}
-        >
-          {reservando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
-          {reservado ? 'Libertar reserva' : 'Reservar por 24 h'}
-        </button>
-      )}
-    </article>
   );
 }
 
