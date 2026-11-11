@@ -14,14 +14,14 @@ export interface RecordForm {
   enc: string; chas: string; mat: string; model: string; version: string; gar: string;
   qor: number; xev: number; bev: number; m: number; mpa: number; gkl: number; ret: number;
   csc: number; cme: number | null;
-  fin: string; week198: string; dmat: string | null; date298: string | null; app: string | null; dfat: string | null; obs: string;
+  fin: string; week198: string; dmat: string | null; date298: string | null; dfat: string | null; obs: string;
 }
 
 const EMPTY: RecordForm = {
   status: '', neg: '', mes1: '', resp: '', id_cliente: '',
   type: '', biz: '', enc: '', chas: '', mat: '',
   model: '', version: '', gar: '', qor: 0, xev: 0, bev: 0, m: 0, mpa: 0, gkl: 0, ret: 0,
-  csc: 0, cme: null, fin: '', week198: '', dmat: '', date298: '', app: '', dfat: '', obs: '',
+  csc: 0, cme: null, fin: '', week198: '', dmat: '', date298: '', dfat: '', obs: '',
 };
 
 const STATUS_OPTS = ['Frio','Morno','Quente','Carteira','Matricula','Retail','Adiado','Perdido'];
@@ -252,7 +252,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
       m: form.m ? 1 : 0, mpa: form.mpa ? 1 : 0, gkl: form.gkl ? 1 : 0, ret: form.ret ? 1 : 0,
       csc: Number(form.csc) || 0,
       cme: form.cme !== null && String(form.cme) !== '' ? Number(form.cme) : null,
-      neg: form.neg || null, dmat: form.dmat || null, date298: form.date298 || null, app: form.app || null, dfat: form.dfat || null,
+      neg: form.neg || null, dmat: form.dmat || null, date298: form.date298 || null, dfat: form.dfat || null,
     };
     const { error } = editId
       ? await supabase.from('control_records').update(payload).eq('id', editId)
@@ -380,7 +380,6 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                   <TextField k="week198" label="198 — Semana prevista" />
                   <TextField k="dmat" label="DMAT — Data da matrícula" type="date" />
                   <TextField k="date298" label="298 — Retail / Entrega cliente" type="date" />
-                  <TextField k="app" label="APP — Data do Apping" type="date" />
                   <TextField k="dfat" label="DFAT — Data da fatura" type="date" />
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1.5">Ao passar o estado para Retail, a data 298 fica preenchida com a data de hoje; ao passar de Carteira para Matricula, a DMAT (podes alterá-las).</p>

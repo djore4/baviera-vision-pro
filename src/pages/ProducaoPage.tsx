@@ -23,7 +23,7 @@ import {
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
 
-type SortKey = 'neg' | 'mes1' | 'resp' | 'type' | 'model' | 'version' | 'cliente' | 'fin' | 'biz' | 'enc' | 'chas' | 'mat' | 'dmat' | 'date298' | 'app' | 'dfat';
+type SortKey = 'neg' | 'mes1' | 'resp' | 'type' | 'model' | 'version' | 'cliente' | 'fin' | 'biz' | 'enc' | 'chas' | 'mat' | 'dmat' | 'date298' | 'dfat';
 type SortDir = 'asc' | 'desc';
 
 export default function ProducaoPage() {
@@ -206,7 +206,6 @@ export default function ProducaoPage() {
         case 'neg': cmp = (a.neg?.getTime() || 0) - (b.neg?.getTime() || 0); break;
         case 'dmat': cmp = (a.dmat?.getTime() || 0) - (b.dmat?.getTime() || 0); break;
         case 'date298': cmp = (a.date298?.getTime() || 0) - (b.date298?.getTime() || 0); break;
-        case 'app': cmp = (a.app?.getTime() || 0) - (b.app?.getTime() || 0); break;
         case 'dfat': cmp = (a.dfat?.getTime() || 0) - (b.dfat?.getTime() || 0); break;
         default: cmp = ((a as any)[sortKey] || '').localeCompare((b as any)[sortKey] || '');
       }
@@ -237,8 +236,8 @@ export default function ProducaoPage() {
   const handleMClick = useCallback(() => { setSelectedM(prev => prev === true ? null : true); }, []);
 
   const exportCSV = useCallback(() => {
-    const headers = ['RESP', 'TIPO', 'MODELO', 'VERSÃO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Data Negócio', 'Data Matrícula', 'Data Retail', 'Data Fatura', 'Data Apping'];
-    const rows = tableData.map(r => [r.resp, r.type, r.model, r.version, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.dfat), formatDate(r.app)]);
+    const headers = ['RESP', 'TIPO', 'MODELO', 'VERSÃO', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Data Negócio', 'Data Matrícula', 'Data Retail', 'Data Fatura'];
+    const rows = tableData.map(r => [r.resp, r.type, r.model, r.version, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.dfat)]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -253,7 +252,7 @@ export default function ProducaoPage() {
     ['resp', 'RESP'], ['type', 'TIPO'], ['model', 'Modelo'], ['version', 'Versão'],
     ['cliente', 'CLIENTE'], ['fin', 'FIN'], ['biz', 'Bizagi'], ['enc', 'Encomenda'],
     ['chas', 'Chassis'], ['mat', 'Matrícula'], ['neg', 'Data Negócio'],
-    ['dmat', 'Data Matrícula'], ['date298', 'Data Retail'], ['dfat', 'Data Fatura'], ['app', 'Data Apping'],
+    ['dmat', 'Data Matrícula'], ['date298', 'Data Retail'], ['dfat', 'Data Fatura'],
   ];
 
   const activeFilters = [
@@ -558,7 +557,6 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.dmat)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.date298)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.dfat)}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.app)}</td>
                 {onDelete && <td className="px-2 py-1 text-right">{r.id && <RowDeleteButton onDelete={() => onDelete(r.id)} />}</td>}
               </tr>
             ))}

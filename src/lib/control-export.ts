@@ -33,7 +33,6 @@ const COLS: Col[] = [
   { header: '198', width: 8, value: r => r.week198 },
   { header: 'DMAT', width: 11, date: true, value: r => r.dmat },
   { header: '298', width: 11, date: true, value: r => r.date298 },
-  { header: 'APP', width: 11, date: true, value: r => r.app },
   { header: 'DFAT', width: 11, date: true, value: r => r.dfat },
   { header: 'OBS', width: 40, value: r => r.obs },
 ];

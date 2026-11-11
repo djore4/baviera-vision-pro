@@ -6,7 +6,7 @@ import type { ControlRecord } from '@/types/data';
 const rec = (over: Partial<ControlRecord>): ControlRecord => ({
   status: 'Retail', neg: null, mes1: '2026/10', resp: 'JD', cliente: 'Cliente X', type: 'VN', biz: '', enc: '',
   chas: '', mat: '', model: 'Série 5', version: '', gar: '', qor: 0, xev: 0, bev: 1, mPerf: 0,
-  csc: 0, cme: null, ret: 0, fin: 'PP', week198: '', dmat: null, date298: null, app: null,
+  csc: 0, cme: null, ret: 0, fin: 'PP', week198: '', dmat: null, date298: null,
   dfat: null, obs: '', ...over,
 });
 

@@ -26,7 +26,7 @@ const d = (y: number, m: number, day = 10) => new Date(y, m - 1, day);
 const rec = (over: Partial<ControlRecord>): ControlRecord => ({
   status: 'Retail', neg: null, mes1: '', resp: 'AA', cliente: '', type: 'VN', biz: '', enc: '', chas: '', mat: '',
   model: 'iX1', version: '', gar: '', qor: 0, xev: 0, bev: 0, mPerf: 0, csc: 0, cme: null, ret: 0, fin: '', week198: '',
-  dmat: null, date298: null, app: null, dfat: null, obs: '', ...over,
+  dmat: null, date298: null, dfat: null, obs: '', ...over,
 });
 
 const FILTER = { years: [2026], quarters: [], months: [] };

@@ -98,7 +98,6 @@ export function parseExcel(buffer: ArrayBuffer): AppData {
       week198: str(r[col(21)]),
       dmat: excelDateToJS(r[col(22)]),
       date298: excelDateToJS(r[col(23)]),
-      app: excelDateToJS(r[col(24)]),
       dfat: dfatIdx >= 0 ? excelDateToJS(r[dfatIdx]) : null,
       obs: str(r[col(25)]),
     });
@@ -205,10 +204,6 @@ export function isPortfolio(r: ControlRecord): boolean {
 
 export function hasRetoma(r: ControlRecord): boolean {
   return r.ret === 1;
-}
-
-export function isMissingApping(r: ControlRecord): boolean {
-  return isRetailDelivery(r) && !r.app;
 }
 
 export function isMissingBizagi(r: ControlRecord): boolean {

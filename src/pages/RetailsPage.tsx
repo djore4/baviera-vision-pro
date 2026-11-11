@@ -25,7 +25,7 @@ const STATUS_COLORS: Record<string, string> = { Retail: '#1C69D4', Matricula: '#
 /* Rótulos de apresentação dos estados (o valor guardado mantém-se sem acento). */
 const STATUS_LABELS: Record<string, string> = { Retail: 'Retail', Matricula: 'Matrícula', Carteira: 'Carteira' };
 
-type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'version' | 'week198' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'app' | 'dfat';
+type SortKey = 'resp' | 'gar' | 'status' | 'type' | 'model' | 'version' | 'week198' | 'cliente' | 'fin' | 'date298' | 'biz' | 'enc' | 'chas' | 'mat' | 'neg' | 'dmat' | 'dfat';
 type SortDir = 'asc' | 'desc';
 
 export default function RetailsPage() {
@@ -212,7 +212,6 @@ export default function RetailsPage() {
         case 'neg': cmp = (a.neg?.getTime() || 0) - (b.neg?.getTime() || 0); break;
         case 'dmat': cmp = (a.dmat?.getTime() || 0) - (b.dmat?.getTime() || 0); break;
         case 'date298': cmp = (a.date298?.getTime() || 0) - (b.date298?.getTime() || 0); break;
-        case 'app': cmp = (a.app?.getTime() || 0) - (b.app?.getTime() || 0); break;
         case 'dfat': cmp = (a.dfat?.getTime() || 0) - (b.dfat?.getTime() || 0); break;
       }
       return sortDir === 'asc' ? cmp : -cmp;
@@ -254,8 +253,8 @@ export default function RetailsPage() {
   const handleLegendClick = (e: any) => { if (e?.value) handleStatusClick(e.value); };
 
   const exportCSV = useCallback(() => {
-    const headers = ['RESP', 'GAR', 'STATUS', 'TIPO', 'MODELO', 'VERSÃO', '198', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Data Negócio', 'Data Matrícula', 'Data Retail', 'Data Fatura', 'Data Apping'];
-    const rows = tableData.map(r => [r.resp, r.gar === 'GAR' ? 'Certo' : 'Incerto', r.status, r.type, r.model, r.version, r.week198, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.dfat), formatDate(r.app)]);
+    const headers = ['RESP', 'GAR', 'STATUS', 'TIPO', 'MODELO', 'VERSÃO', '198', 'CLIENTE', 'FIN', 'Bizagi', 'Encomenda', 'Chassis', 'Matrícula', 'Data Negócio', 'Data Matrícula', 'Data Retail', 'Data Fatura'];
+    const rows = tableData.map(r => [r.resp, r.gar === 'GAR' ? 'Certo' : 'Incerto', r.status, r.type, r.model, r.version, r.week198, r.cliente, r.fin, r.biz, r.enc, r.chas, r.mat, formatDate(r.neg), formatDate(r.dmat), formatDate(r.date298), formatDate(r.dfat)]);
     const csv = [headers, ...rows].map(row => row.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -294,7 +293,7 @@ export default function RetailsPage() {
     ['resp', 'Resp'], ['status', 'Status'], ['type', 'Tipo'],
     ['model', 'Modelo'], ['version', 'Versão'], ['week198', '198'], ['cliente', 'Cliente'],
     ['fin', 'Pag'], ['biz', 'Bizagi'], ['enc', 'Encomenda'], ['chas', 'Chassis'], ['mat', 'Matrícula'],
-    ['neg', 'Data Fecho'], ['dmat', 'Data Matrícula'], ['date298', 'Data Retail'], ['dfat', 'Data Fatura'], ['app', 'Data Apping'],
+    ['neg', 'Data Fecho'], ['dmat', 'Data Matrícula'], ['date298', 'Data Retail'], ['dfat', 'Data Fatura'],
   ];
 
   const activeFilters = [
@@ -595,7 +594,6 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.dmat)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.date298)}</td>
                 <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.dfat)}</td>
-                <td className="px-3 py-1 whitespace-nowrap">{formatDate(r.app)}</td>
               </tr>
             ))}
           </tbody>
