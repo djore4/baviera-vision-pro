@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 
-const { perm, rpc, toast } = vi.hoisted(() => ({ perm: { value: {} as Record<string, unknown> }, rpc: vi.fn(), toast: { success: vi.fn(), error: vi.fn() } }));
+const { perm, rpc, toast, premiosDb } = vi.hoisted(() => ({ perm: { value: {} as Record<string, unknown> }, rpc: vi.fn(), toast: { success: vi.fn(), error: vi.fn() }, premiosDb: { rows: [] as unknown[] } }));
 
 vi.mock('@/App', () => ({ useAuth: () => ({ session: { user: { email: 'x@x.pt' } } }) }));
 vi.mock('@/contexts/PermissionsContext', () => ({ usePermissions: () => perm.value }));
 vi.mock('@/integrations/supabase/client', () => ({
-  supabase: { rpc: (...a: unknown[]) => rpc(...a), from: () => ({ select: async () => ({ data: [], error: null }) }) },
+  supabase: { rpc: (...a: unknown[]) => rpc(...a), from: (t: string) => ({ select: async () => ({ data: t === 'demos_premios' ? premiosDb.rows : [], error: null }) }) },
 }));
 vi.mock('sonner', () => ({ toast }));
 
@@ -34,7 +34,7 @@ const cabecalhos = () => within(screen.getAllByRole('table')[0]).getAllByRole('c
 
 const dados = { parque: [viatura()] as unknown[], vendidas: [] as unknown[] };
 beforeEach(() => {
-  dados.parque = [viatura()]; dados.vendidas = [];
+  dados.parque = [viatura()]; dados.vendidas = []; premiosDb.rows = [];
   toast.success.mockReset(); toast.error.mockReset();
   rpc.mockReset();
   rpc.mockImplementation(async (fn: string) => {
@@ -106,8 +106,41 @@ describe('tab Demos', () => {
     ];
     render(<DemosPage />);
     await linha();
-    expect(screen.getByText(/3 viaturas/)).toBeTruthy();
+    expect(within(screen.getAllByRole('table')[0]).getAllByRole('row').filter(r => r.closest('tbody'))).toHaveLength(3);
     expect(screen.getByText('R 1250', { selector: 'td span.truncate' })).toBeTruthy();
+  });
+});
+
+describe('tab Demos: comissão e prémio de venda', () => {
+  it('mostra a comissão fixa do modelo (iX1 = X1 → 125 €) e não realça a linha sem prémio', async () => {
+    perfil();
+    render(<DemosPage />);
+    await linha();
+    expect(cabecalhos()).toContain('Comissão');
+    expect(screen.getByText('125 €')).toBeTruthy();
+    expect(document.querySelector('tbody tr[data-premio]')).toBeNull();
+  });
+
+  it('com prémio: soma à comissão, mostra o detalhe e realça só essa viatura', async () => {
+    premiosDb.rows = [{ chassis: 'W2', premio: 100 }];
+    dados.parque = [viatura(), viatura({ chassis: 'W2', modelo: 'Série 5', versao: '530e Touring' })];
+    perfil();
+    render(<DemosPage />);
+    await linha('Série 5');
+    const realcadas = document.querySelectorAll('tbody tr[data-premio]');
+    expect(realcadas).toHaveLength(1);
+    expect(realcadas[0].textContent).toContain('Série 5');
+    expect(realcadas[0].textContent).toContain('325 €');            // 225 + 100
+    expect(realcadas[0].textContent).toContain('225 € + 100 € prémio');
+  });
+
+  it('o administrador define o prémio na janela da viatura', async () => {
+    perfil({ isAdmin: true, canEdit: () => true });
+    render(<DemosPage />);
+    fireEvent.click(await linha());
+    const sec = await screen.findByTestId('premio-venda');
+    expect(within(sec).getByLabelText('Prémio de venda')).toBeTruthy();
+    expect(within(sec).getAllByText(/125,00/).length).toBeGreaterThan(0);
   });
 });
 

@@ -843,6 +843,28 @@ export type Database = {
         }
         Relationships: []
       }
+      demos_premios: {
+        Row: {
+          chassis: string
+          premio: number
+          updated_at: string
+          updated_by: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          chassis: string
+          premio: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          chassis?: string
+          premio?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       demos: {
         Row: {
           bev: string | null

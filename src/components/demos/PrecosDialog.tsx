@@ -99,6 +99,14 @@ export interface PrecosDialogProps {
   onAbrirCartao?: () => void;
   /** Arquiva a viatura como vendida (pede confirmação e fecha a janela se correr bem). */
   onArquivar?: () => Promise<void>;
+  /** Comissão fixa do modelo (€), se constar da tabela. */
+  comissao?: number | null;
+  /** Prémio de venda atual (€); 0 = sem prémio. */
+  premio?: number;
+  /** A tabela demos_premios existe (migração aplicada). */
+  premioDisponivel?: boolean;
+  /** Prémio gravado (0 = removido). */
+  onPremioSaved?: (valor: number) => void;
 }
 
 const TECNOLOGIAS = ['ICE', 'BEV', 'PHEV', 'M'];
@@ -113,7 +121,23 @@ const IDENT_VAZIA: Ident = {
   negocio: 'VD', marca: 'BMW', tipologia: [], locais: [], iva: false, linkFotos: '',
 };
 
-export default function PrecosDialog({ veiculo, nova, editarIdent, inputs, tipo: tipoProp, onClose, onSaved, onCriada, onAbrirCartao, onArquivar }: PrecosDialogProps) {
+export default function PrecosDialog({ veiculo, nova, editarIdent, inputs, tipo: tipoProp, onClose, onSaved, onCriada, onAbrirCartao, onArquivar, comissao, premio = 0, premioDisponivel, onPremioSaved }: PrecosDialogProps) {
+  const [premioTxt, setPremioTxt] = useState(() => (premio > 0 ? String(premio).replace('.', ',') : ''));
+  const [premioSaving, setPremioSaving] = useState(false);
+  const premioNum = premioTxt.trim() === '' ? 0 : Number(premioTxt.replace(/\s/g, '').replace(',', '.'));
+  const premioValido = Number.isFinite(premioNum) && premioNum >= 0 && premioNum <= 100000;
+  const gravarPremio = async () => {
+    if (!veiculo || !premioValido) return;
+    setPremioSaving(true);
+    const valor = Math.round(premioNum * 100) / 100;
+    const { error } = valor > 0
+      ? await supabase.from('demos_premios').upsert({ chassis: veiculo.chassis, premio: valor, updated_at: new Date().toISOString() })
+      : await supabase.from('demos_premios').delete().eq('chassis', veiculo.chassis);
+    setPremioSaving(false);
+    if (error) { toast.error(`Não foi possível gravar o prémio: ${error.message}`); return; }
+    onPremioSaved?.(valor);
+    toast.success(valor > 0 ? 'Prémio gravado: a viatura fica realçada na lista.' : 'Prémio removido.');
+  };
   const [ident, setIdent] = useState<Ident>(() => editarIdent
     ? { ...editarIdent.inicial }
     : { ...IDENT_VAZIA, locais: nova && nova.locais.length === 1 ? [nova.locais[0]] : [] });
@@ -412,6 +436,40 @@ export default function PrecosDialog({ veiculo, nova, editarIdent, inputs, tipo:
             )}
             <DescMaxPanel modelo={ver.modelo} tipo={tipo} penetracao={live.penetracao} periodos={escalao?.futura === false ? escalao.periodos : 0} />
           </section>
+
+          {veiculo && !nova && premioDisponivel && (
+            <section className="rounded-xl border border-orange-500/40 bg-orange-500/5 p-4 space-y-3" data-testid="premio-venda">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-orange-700 dark:text-orange-400">Estímulo de venda</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+                <div>
+                  <span className="block text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Comissão fixa</span>
+                  <span className="block text-lg font-black tabular-nums">{comissao ? eur(comissao) : '—'}</span>
+                </div>
+                <label className="block">
+                  <span className="block text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Prémio (€)</span>
+                  <input
+                    inputMode="decimal" value={premioTxt} onChange={e => setPremioTxt(e.target.value)} placeholder="sem prémio"
+                    aria-label="Prémio de venda"
+                    className="mt-0.5 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums"
+                  />
+                </label>
+                <div>
+                  <span className="block text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Total a receber</span>
+                  <span className="block text-lg font-black tabular-nums text-orange-600 dark:text-orange-400">
+                    {eur((comissao ?? 0) + (premioValido ? premioNum : 0))}
+                  </span>
+                </div>
+                <button
+                  type="button" onClick={() => void gravarPremio()}
+                  disabled={premioSaving || !premioValido || (Math.round(premioNum * 100) / 100) === premio}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md bg-orange-500 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
+                >
+                  {premioSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Guardar prémio
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">O prémio acresce à comissão fixa do modelo. Com prémio, a viatura aparece realçada na lista. Deixa vazio para remover.</p>
+            </section>
+          )}
 
           <section className="rounded-xl border border-border overflow-hidden">
             <div className="p-4">

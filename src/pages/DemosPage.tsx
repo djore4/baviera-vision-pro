@@ -14,6 +14,7 @@ import { client } from '@/clients';
 import { chassisCurto, formatMatricula, matriculaCompacta, parseNum } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 import PrecosDialog from '@/components/demos/PrecosDialog';
+import { comissaoFixa } from '@/lib/demo-comissao';
 import VendidasPanel from '@/components/demos/VendidasPanel';
 import { chip, btnPrimary, btnSecondary, btnGhost } from '@/lib/chip';
 import { TIPOS_NEGOCIO, MARCAS, TODAS, TODOS, tipoNegocio, marcasDe, opcoesFiltro, concessaoInicial } from '@/lib/viaturasFiltros';
@@ -100,6 +101,10 @@ interface Row extends Viatura {
   _inps: PricingInputs; _p: Pricing; _idade: number;
   _local: string; _tipologia: string[]; _tipo: Tipo;
   _negocio: 'VD' | 'VU'; _marcas: string[];
+  /** Comissão fixa por modelo (só VD de automóvel); null se o modelo não consta da tabela. */
+  _comissao: number | null;
+  /** Prémio de venda (€) que acresce à comissão; 0 = sem prémio. Vem de demos_premios. */
+  _premio: number;
 }
 
 function buildRow(v: Viatura): Row {
@@ -116,6 +121,9 @@ function buildRow(v: Viatura): Row {
     _tipo: tipo,
     _negocio: tipoNegocio(v.estado_negocio),
     _marcas: marcasDe(getArr(v.marca)),
+    _comissao: tipoNegocio(v.estado_negocio) === 'VD' && !marcasDe(getArr(v.marca)).some(m => /motorrad/i.test(m))
+      ? comissaoFixa(v.modelo, v.versao) : null,
+    _premio: 0,
   };
 }
 
@@ -205,13 +213,27 @@ const COLS: Col[] = [
       : '—',
   },
   {
+    key: 'comissao', label: 'Comissão', title: 'Comissão fixa por modelo + prémio de venda (se existir)', group: 'venda', align: 'right',
+    sort: r => (r._comissao ?? 0) + r._premio,
+    cell: r => {
+      const total = (r._comissao ?? 0) + r._premio;
+      if (total <= 0) return <span className="text-muted-foreground/40">—</span>;
+      return r._premio > 0 ? (
+        <span className="inline-flex flex-col items-end leading-tight">
+          <span className="font-black text-orange-600 dark:text-orange-400">{eur0(total)}</span>
+          <span className="text-[9px] font-semibold text-muted-foreground">{r._comissao ? `${eur0(r._comissao)} + ` : ''}{eur0(r._premio)} prémio</span>
+        </span>
+      ) : <span className="font-semibold text-foreground/80">{eur0(total)}</span>;
+    },
+  },
+  {
     key: 'pvp_siva', label: 'PVP s/IVA', title: 'xEV/BEV: PVP DESC / 1,23 (IVA dedutível) · ICE: PVP DESC', group: 'venda', align: 'right',
     sort: r => r._p.pvp_sem_iva, cls: 'text-foreground/80 font-medium',
     cell: r => r._p.pvp_desc > 0 ? eur0(r._p.pvp_sem_iva) : '—',
   },
 ];
 
-const DESC_FIRST = new Set(['pvp', 'pvp_desc', 'pvp_siva', 'idade']);
+const DESC_FIRST = new Set(['pvp', 'pvp_desc', 'pvp_siva', 'idade', 'comissao']);
 
 /* Primeira coluna de cada grupo leva separador vertical. */
 const groupStarts = (cols: Col[]) => new Set(cols.filter((c, i) => i > 0 && cols[i - 1].group !== c.group).map(c => c.key));
@@ -296,6 +318,9 @@ export default function DemosPage() {
   const [novaOpen, setNovaOpen] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [capas, setCapas] = useState<Record<string, string>>({});
+  // Prémios de venda (demos_premios). `premiosOk` = a tabela existe (migração aplicada): só então se edita.
+  const [premios, setPremios] = useState<Record<string, number>>({});
+  const [premiosOk, setPremiosOk] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -321,9 +346,10 @@ export default function DemosPage() {
       console.warn('demos_viaturas() em falta na base de dados: a ler a tabela viaturas. Aplicar a migração 20261012120000.');
       viaturasQ = await supabase.from('viaturas').select('*') as unknown as typeof viaturasQ;
     }
-    const [viaturasRes, capasRes] = await Promise.all([
+    const [viaturasRes, capasRes, premiosRes] = await Promise.all([
       Promise.resolve(viaturasQ),
       supabase.from('demo_capas').select('chassis, url'),
+      supabase.from('demos_premios').select('chassis, premio'),
     ]);
     if (viaturasRes.error) { setError(viaturasRes.error.message); setRows([]); setLoading(false); return; }
     setError(null);
@@ -331,6 +357,12 @@ export default function DemosPage() {
     for (const c of (capasRes.data as { chassis: string; url: string }[]) ?? []) {
       if (c.chassis && c.url) capaMap[c.chassis] = c.url;
     }
+    const premioMap: Record<string, number> = {};
+    for (const p of (premiosRes.data as { chassis: string; premio: number }[] | null) ?? []) {
+      if (p.chassis && Number(p.premio) > 0) premioMap[p.chassis] = Number(p.premio);
+    }
+    setPremios(premioMap);
+    setPremiosOk(!premiosRes.error);
     setRows(((viaturasRes.data as Viatura[]) ?? []).map(buildRow));
     setCapas(capaMap);
     setLoading(false);
@@ -360,7 +392,7 @@ export default function DemosPage() {
     setFLocal(prev => (prev === TODAS || locais.includes(prev) ? prev : TODAS));
   }, [rows, locais]);
 
-  const viewRows = rows;
+  const viewRows = useMemo(() => rows.map(r => ({ ...r, _premio: premios[r.chassis] ?? 0 })), [rows, premios]);
   const selected = selectedChassis ? viewRows.find(r => r.chassis === selectedChassis) ?? null : null;
   const precosRow = precosChassis ? viewRows.find(r => r.chassis === precosChassis) ?? null : null;
 
@@ -433,9 +465,12 @@ export default function DemosPage() {
   };
   // Tons equivalentes aos fundos semitransparentes das linhas, sobre fundo opaco.
   const TINT_HEAD = 'shadow-[inset_0_0_0_999px_hsl(var(--muted)/0.5)]';
-  const tintRow = (reservado: boolean) => reservado
-    ? 'shadow-[inset_0_0_0_999px_rgb(234_179_8/0.05)] group-hover:shadow-[inset_0_0_0_999px_rgb(234_179_8/0.1)]'
-    : 'group-hover:shadow-[inset_0_0_0_999px_hsl(var(--muted)/0.3)]';
+  // Prémio de venda: a linha fica realçada (laranja) em relação ao resto da listagem.
+  const tintRow = (reservado: boolean, premio = false) => premio
+    ? 'shadow-[inset_0_0_0_999px_rgb(249_115_22/0.12)] group-hover:shadow-[inset_0_0_0_999px_rgb(249_115_22/0.2)]'
+    : reservado
+      ? 'shadow-[inset_0_0_0_999px_rgb(234_179_8/0.05)] group-hover:shadow-[inset_0_0_0_999px_rgb(234_179_8/0.1)]'
+      : 'group-hover:shadow-[inset_0_0_0_999px_hsl(var(--muted)/0.3)]';
   const groupStart = useMemo(() => groupStarts(visibleCols), [visibleCols]);
 
   const filtered = useMemo(() => {
@@ -496,20 +531,16 @@ export default function DemosPage() {
 
   return (
     <div className="space-y-3 min-w-0 overflow-x-clip">
-      {/* Cabeçalho: título, contagem e ações (como na Gestão VD) */}
+      {/* Cabeçalho: só as ações (o título do parque repetia o nome do tab); o arquivo mantém o título */}
+      {(vista === 'vendidas' || podeArquivo || podeAdicionar) && (
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-black leading-tight">{vista === 'vendidas' ? 'Viaturas vendidas' : 'Gestão VD'}</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {vista === 'vendidas'
-              ? 'Arquivo: dados e preço cristalizados no momento da venda.'
-              : <>
-                  {filtered.length}{filtered.length !== rows.length ? ` de ${rows.length}` : ''} viaturas
-                  {podeArquivo ? ' · clique numa viatura para editar preços ou arquivá-la como vendida.' : ''}
-                </>}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+        {vista === 'vendidas' && (
+          <div>
+            <h2 className="text-xl font-black leading-tight">Viaturas vendidas</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Arquivo: dados e preço cristalizados no momento da venda.</p>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2 ml-auto">
           {podeArquivo && (
             <button
               onClick={() => setVista(v => (v === 'vendidas' ? 'parque' : 'vendidas'))}
@@ -528,6 +559,7 @@ export default function DemosPage() {
           )}
         </div>
       </div>
+      )}
 
       {vista === 'vendidas' ? (
         <VendidasPanel onRepor={() => { void carregar(); }} />
@@ -634,19 +666,22 @@ export default function DemosPage() {
             <tbody>
               {filtered.map(r => {
                 const reservado = isReservado(r);
+                const destaque = r._premio > 0;
                 return (
                   <tr
                     key={r.chassis}
                     onClick={() => (podeGerirPrecos(r) ? setPrecosChassis(r.chassis) : setSelectedChassis(r.chassis))}
-                    className={`group border-b border-border/50 cursor-pointer transition-colors ${reservado ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : 'hover:bg-muted/30'}`}
+                    data-premio={destaque ? 'sim' : undefined}
+                    className={`group border-b border-border/50 cursor-pointer transition-colors ${destaque ? 'bg-orange-500/10 hover:bg-orange-500/20' : reservado ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : 'hover:bg-muted/30'}`}
                   >
                     {visibleCols.map(c => c.key === 'modelo' ? (
-                      <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, tintRow(reservado)).cls} px-2.5 py-1.5 font-semibold text-foreground whitespace-nowrap`}>
+                      <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, tintRow(reservado, destaque)).cls} px-2.5 py-1.5 font-semibold text-foreground whitespace-nowrap`}>
                         <span
                           className="flex items-center gap-1.5 overflow-hidden"
                           style={{ maxWidth: modeloW - 20 }}
                           title={[r.modelo, reservado ? '(em negociação)' : ''].filter(Boolean).join(' ')}
                         >
+                          {destaque && <span className="text-orange-500 shrink-0 text-[11px] leading-none" title="Prémio de venda" aria-label="Com prémio de venda">★</span>}
                           {reservado && <span className="h-2 w-2 rounded-full bg-yellow-400 shrink-0" aria-label="Em negociação" />}
                           {capas[r.chassis] && (
                             <img src={capas[r.chassis]} alt="" className="h-5 w-7 rounded object-cover border border-border shrink-0" loading="lazy" />
@@ -655,7 +690,7 @@ export default function DemosPage() {
                         </span>
                       </td>
                     ) : (
-                      <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, tintRow(reservado)).cls} px-2.5 py-1.5 whitespace-nowrap ${alignCls(c.align)} ${c.cls ?? ''} ${sepCls(c.key)}`}>
+                      <td key={c.key} style={sticky(c.key, '').style} className={`${sticky(c.key, tintRow(reservado, destaque)).cls} px-2.5 py-1.5 whitespace-nowrap ${alignCls(c.align)} ${c.cls ?? ''} ${sepCls(c.key)}`}>
                         {c.cell(r, reservado)}
                       </td>
                     ))}
@@ -739,6 +774,14 @@ export default function DemosPage() {
             if (identAlterada) { setPrecosChassis(null); void carregar(); return; }
             handlePrecosSaved(precosRow.chassis, changed);
           }}
+          comissao={precosRow._comissao}
+          premio={precosRow._premio}
+          premioDisponivel={premiosOk}
+          onPremioSaved={valor => setPremios(prev => {
+            const n = { ...prev };
+            if (valor > 0) n[precosRow.chassis] = valor; else delete n[precosRow.chassis];
+            return n;
+          })}
           onAbrirCartao={() => { setPrecosChassis(null); setSelectedChassis(precosRow.chassis); }}
           onArquivar={capabilities.demosGestao ? () => arquivar(precosRow.chassis) : undefined}
         />
