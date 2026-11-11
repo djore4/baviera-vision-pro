@@ -2,14 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { AppData, PeriodFilter, ControlRecord } from '@/types/data';
 import { parseExcel, getDeliveryMonth } from '@/lib/excel-parser';
 import { supabase } from '@/integrations/supabase/client';
-import { importControlExcel } from '@/lib/control-records';
 import { loadObjetivos } from '@/lib/objetivos';
 
 interface DataContextValue {
   data: AppData | null;
   loading: boolean;
   error: string | null;
-  uploadFile: (file: File) => Promise<number>;
   refresh: () => Promise<void>;
   filter: PeriodFilter;
   setFilter: React.Dispatch<React.SetStateAction<PeriodFilter>>;
@@ -145,44 +143,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // Upload de Excel (apenas recurso): importa control + objetivos para o
-  // Supabase ("gravar por cima") e recarrega os dados a partir da BD.
-  // Devolve o número de registos de control importados.
-  const uploadFile = useCallback(async (file: File): Promise<number> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const buffer = await file.arrayBuffer();
-      const parsed = parseExcel(buffer);
-
-      // Importa para o Supabase (fonte de verdade única), registos e objetivos
-      // numa só transação.
-      const count = await importControlExcel(parsed);
-
-      // Guarda o Excel como cópia de segurança (já não é lido pela app).
-      const { error: uploadError } = await supabase.storage
-        .from(BUCKET)
-        .upload(FILE_PATH, file, { upsert: true });
-      if (uploadError) console.warn('Backup do Excel falhou:', uploadError.message);
-
-      // Recarrega a partir do Supabase.
-      const [control, objetivos] = await Promise.all([loadControlFromDb(), loadObjetivos()]);
-      setData({
-        control,
-        objetivosTotal: objetivos.objetivosTotal,
-        objetivosResp: objetivos.objetivosResp,
-        lastUpdated: new Date().toLocaleString('pt-PT'),
-      });
-      return count;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Erro ao processar ficheiro';
-      setError(msg);
-      throw e;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const availablePeriods = React.useMemo(() => {
     if (!data) return { years: [], months: [] };
     const yearsSet = new Set<number>();
@@ -234,7 +194,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [data, filter]);
 
   return (
-    <DataContext.Provider value={{ data, loading, error, uploadFile, refresh, filter, setFilter, filteredControl, availablePeriods }}>
+    <DataContext.Provider value={{ data, loading, error, refresh, filter, setFilter, filteredControl, availablePeriods }}>
       {children}
     </DataContext.Provider>
   );
