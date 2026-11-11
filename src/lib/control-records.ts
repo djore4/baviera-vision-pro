@@ -39,7 +39,6 @@ export function controlRecordToRow(r: ControlRecord) {
     week198: r.week198 || null,
     dmat: isoDate(r.dmat),
     date298: isoDate(r.date298),
-    app: isoDate(r.app),
     dfat: isoDate(r.dfat),
     obs: r.obs || null,
     mpa: 0,

@@ -24,7 +24,6 @@ export interface ControlRecord {
   week198: string;
   dmat: Date | null;
   date298: Date | null;
-  app: Date | null;
   dfat: Date | null;
   obs: string;
   /** Receção do email "matrícula pedida" (preenchido pela sincronização); null = pedido por confirmar. */

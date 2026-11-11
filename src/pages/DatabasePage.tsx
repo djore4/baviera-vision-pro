@@ -14,7 +14,7 @@ interface ControlRecord {
   enc: string; chas: string; mat: string; model: string; version: string; gar: string;
   qor: number; xev: number; bev: number; m: number; mpa: number; gkl: number; ret: number;
   csc: number; cme: number | null;
-  fin: string; week198: string; dmat: string | null; date298: string | null; app: string | null; obs: string;
+  fin: string; week198: string; dmat: string | null; date298: string | null; obs: string;
 }
 
 interface ColDef { key: keyof ControlRecord; label: string; type?: 'date' | 'number'; group?: string }
@@ -39,7 +39,6 @@ const ALL_COLS: ColDef[] = [
   { key: 'gkl',        label: 'GKL',     type: 'number', group: 'Classificação' },
   { key: 'dmat',       label: 'DMAT',    type: 'date', group: 'Datas' },
   { key: 'date298',    label: '298',     type: 'date', group: 'Datas' },
-  { key: 'app',        label: 'APP',     type: 'date', group: 'Datas' },
   { key: 'obs',        label: 'OBS',     group: 'Obs.' },
   // hidden by default but available
   { key: 'biz',      label: 'BIZ',     group: 'Veículo' },
