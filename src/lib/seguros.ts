@@ -150,7 +150,7 @@ export const fmtDia = (iso: string | null): string => {
 };
 
 export const fmtEuro = (n: number | null | undefined): string =>
-  n == null ? '—' : n.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 });
+  n == null ? '—' : new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2, useGrouping: 'always' as unknown as boolean }).format(n);
 
 /** Matrícula sem hífens/espaços e em maiúsculas — a chave de cruzamento ("00-AA-00" = "00aa00"). */
 export const normMatricula = (m: string | null | undefined): string =>
