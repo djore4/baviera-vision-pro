@@ -9,7 +9,7 @@ import { RECORDS_CHANGED_EVENT } from '@/components/RecordEditor';
 import SincronizarMatriculasButton from '@/components/SincronizarMatriculasButton';
 import { aplicarFaturas, parseFaturasReport, planFaturas, type FaturasPlano } from '@/lib/faturas-report';
 import {
-  aplicarMapaRetail, dia, extrairDeImagem, linhasParaFaturas, planearMapaRetail, validarFicheiro,
+  aplicarMapaRetail, dia, extrairDeImagem, lerMapaCopiado, linhasParaFaturas, planearMapaRetail, validarFicheiro,
   type PlanoMapa,
 } from '@/lib/importar';
 
@@ -82,16 +82,26 @@ export default function ImportarButton({ className }: { className?: string }) {
     }
   }, [control]);
 
-  // Ctrl+V: uma captura de ecrã colada em qualquer ponto do diálogo.
+  // Tabela copiada do portal: grátis e exata (sem leitura de imagem).
+  const lerTabela = useCallback((html: string, texto: string): boolean => {
+    const linhas = lerMapaCopiado(html, texto);
+    if (!linhas || !control) return false;
+    setEstado({ fase: 'mapa', plano: planearMapaRetail(control, linhas) });
+    return true;
+  }, [control]);
+
+  // Ctrl+V: tabela copiada do portal ou captura de ecrã, colada em qualquer ponto do diálogo.
   useEffect(() => {
     if (!aberto || estado.fase !== 'inicio') return;
     const onPaste = (e: ClipboardEvent) => {
-      const f = Array.from(e.clipboardData?.files ?? [])[0];
+      const cd = e.clipboardData;
+      if (cd && lerTabela(cd.getData('text/html'), cd.getData('text/plain'))) { e.preventDefault(); return; }
+      const f = Array.from(cd?.files ?? [])[0];
       if (f) { e.preventDefault(); void lerFicheiro(f); }
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
-  }, [aberto, estado.fase, lerFicheiro]);
+  }, [aberto, estado.fase, lerFicheiro, lerTabela]);
 
   if (!isAdmin) return null;
 
@@ -151,8 +161,8 @@ export default function ImportarButton({ className }: { className?: string }) {
                 className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${arrastar ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'}`}
               >
                 <ClipboardPaste className="h-6 w-6 text-muted-foreground" />
-                <p className="text-sm font-medium">Cola aqui (Ctrl+V) uma captura de ecrã</p>
-                <p className="text-muted-foreground">ou larga / escolhe uma imagem, PDF ou Excel · mapa «Mapas de Retail - Veículos Novos» ou faturas</p>
+                <p className="text-sm font-medium">Cola aqui (Ctrl+V) a tabela copiada do portal</p>
+                <p className="text-muted-foreground">Seleciona a tabela do mapa «Mapas de Retail», copia (Ctrl+C) e cola aqui: grátis e exato. Também aceita imagem, PDF ou Excel (imagem/PDF usam IA paga).</p>
                 <span className="inline-flex items-center gap-1 text-primary"><FileUp className="h-3 w-3" />Escolher ficheiro</span>
                 <input ref={inputRef} type="file" className="hidden" accept="image/png,image/jpeg,image/webp,application/pdf,.xlsx,.xls,.csv"
                   data-testid="ficheiro"

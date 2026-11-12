@@ -131,7 +131,7 @@ describe('Importar (botão)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Importar/ }));
     const png = new File([new Uint8Array([1])], 'print.png', { type: 'image/png' });
     const ev = new Event('paste', { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
-    ev.clipboardData = { files: [png] };
+    ev.clipboardData = { files: [png], getData: () => '' };
     document.dispatchEvent(ev);
     await waitFor(() => expect(invoke).toHaveBeenCalled());
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Não foi possível importar', { description: expect.stringMatching(/Não reconheci/) }));
@@ -144,5 +144,30 @@ describe('Importar (botão)', () => {
     fireEvent.change(screen.getByTestId('ficheiro'), { target: { files: [new File([new Uint8Array([1])], 'a.png', { type: 'image/png' })] } });
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Não foi possível importar', { description: expect.stringMatching(/importar-extrair/) }));
     expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe('mapa copiado do portal (sem IA)', () => {
+  const html = `<table><tr><th>Marca</th><th>Nº Enc.</th><th>Chassis</th><th>Matrícula</th><th>Data Pedido Matrícula</th><th>Data Matrícula</th><th>Data de 298</th><th>Data Entrega</th></tr>
+    <tr><td>BMW</td><td>230828</td><td>WBA51JB000FX46707</td><td>CN99JT</td><td>06/11/2026 15:03:27</td><td>06/11/2026</td><td>12/11/2026 09:18:30</td><td>12/11/2026 00:00:00</td></tr></table>`;
+  it('lê a tabela HTML coluna a coluna', async () => {
+    const { lerMapaCopiado } = await import('@/lib/importar');
+    expect(lerMapaCopiado(html, '')).toEqual([{ enc: '230828', chassis: 'WBA51JB000FX46707', matricula: 'CN99JT', dataPedidoMatricula: '2026-11-06', dataMatricula: '2026-11-06', data298: '2026-11-12', dataEntrega: '2026-11-12' }]);
+  });
+  it('texto simples: usa o chassis e as datas pela ordem', async () => {
+    const { lerMapaCopiado } = await import('@/lib/importar');
+    const txt = 'BMW 230828 NA0 51JB i3 50 xDrive BEV WBA51JB000FX46707 CN99JT 06/11/2026 15:03:27 06/11/2026 12/11/2026 09:18:30 Não Não 1 12/11/2026 00:00:00';
+    expect(lerMapaCopiado(null, txt)?.[0]).toMatchObject({ chassis: 'WBA51JB000FX46707', matricula: 'CN99JT', dataMatricula: '2026-11-06', data298: '2026-11-12' });
+  });
+  it('Ctrl+V com a tabela mostra a pré-visualização sem chamar a IA', async () => {
+    CONTROL = [rec({ id: 'a', enc: '230828', chas: 'FX46707', status: 'Matricula' })];
+    render(<ImportarButton />);
+    fireEvent.click(screen.getByRole('button', { name: /Importar/ }));
+    const ev = new Event('paste', { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
+    ev.clipboardData = { files: [], getData: (t: string) => (t === 'text/html' ? html : '') };
+    document.dispatchEvent(ev);
+    await screen.findByText('Mapa de Retail');
+    expect(invoke).not.toHaveBeenCalled();
+    expect(screen.getByText('230828')).toBeInTheDocument();
   });
 });

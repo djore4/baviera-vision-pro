@@ -186,3 +186,68 @@ export function linhasParaFaturas(linhas: LinhaExtraida[]): FaturaRow[] {
   }
   return out;
 }
+
+/* ── Tabela copiada do portal (grátis, sem IA) ────────────────────────────────
+ * Ao selecionar a tabela do mapa e copiar (Ctrl+C), o browser põe na área de transferência o
+ * HTML da tabela. Lê-se diretamente, coluna a coluna — sem reconhecimento de imagem, por isso
+ * sem custo e sem risco de trocar caracteres do chassis.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const normCab = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+/** «12/11/2026 09:53:53» → 2026-11-12 (ou null). */
+export function isoDeDMY(s: string): string | null {
+  const m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  return m ? dataIso(`${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`) : null;
+}
+const VIN = /\b[A-HJ-NPR-Z0-9]{17}\b/;
+const PLACA = /\b(?:[A-Z]{2}-?\d{2}-?[A-Z]{2}|\d{2}-?[A-Z]{2}-?\d{2}|[A-Z]{2}-?\d{2}-?\d{2}|\d{2}-?\d{2}-?[A-Z]{2})\b/;
+
+function daCelulas(linhas: string[][]): LinhaExtraida[] | null {
+  const iCab = linhas.findIndex(r => { const n = r.map(normCab); return n.includes('chassis') && n.some(c => c.startsWith('data de 298')); });
+  if (iCab < 0) return null;
+  const cab = linhas[iCab].map(normCab);
+  const col = (...nomes: string[]) => cab.findIndex(c => nomes.some(n => c === n || c.startsWith(n)));
+  const iEnc = col('n enc', 'no enc'), iChas = col('chassis'), iMat = col('matricula'),
+    iPed = col('data pedido matricula'), iDmat = col('data matricula'), i298 = col('data de 298'), iEnt = col('data entrega');
+  const out: LinhaExtraida[] = [];
+  for (const r of linhas.slice(iCab + 1)) {
+    const chassis = (r[iChas] ?? '').replace(/\s+/g, '').toUpperCase();
+    if (!VIN.test(chassis)) continue;
+    out.push({
+      enc: iEnc >= 0 ? r[iEnc] ?? null : null, chassis, matricula: iMat >= 0 ? r[iMat] ?? null : null,
+      dataPedidoMatricula: iPed >= 0 ? isoDeDMY(r[iPed] ?? '') : null, dataMatricula: iDmat >= 0 ? isoDeDMY(r[iDmat] ?? '') : null,
+      data298: i298 >= 0 ? isoDeDMY(r[i298] ?? '') : null, dataEntrega: iEnt >= 0 ? isoDeDMY(r[iEnt] ?? '') : null,
+    });
+  }
+  return out.length > 0 ? out : null;
+}
+
+/** Texto simples (sem HTML): cada viatura começa num chassis; as datas vêm pela ordem das colunas
+ *  (pedido de matrícula, matrícula, 298, entrega). Sem encomenda: casa-se pelo chassis. */
+function daTextoSimples(texto: string): LinhaExtraida[] | null {
+  const re = new RegExp(VIN.source, 'g');
+  const pos = [...texto.matchAll(re)].map(m => ({ vin: m[0], i: m.index ?? 0, fim: (m.index ?? 0) + m[0].length }));
+  const out: LinhaExtraida[] = [];
+  pos.forEach((p, n) => {
+    const resto = texto.slice(p.fim, n + 1 < pos.length ? pos[n + 1].i : undefined);
+    const datas = [...resto.matchAll(/\d{1,2}\/\d{1,2}\/\d{4}/g)].map(m => isoDeDMY(m[0]));
+    const mat = resto.match(PLACA)?.[0] ?? null;
+    if (datas.length < 3) return; // sem 298 não é retail
+    out.push({ chassis: p.vin, matricula: mat, dataPedidoMatricula: datas[0], dataMatricula: datas[1], data298: datas[2], dataEntrega: datas[3] ?? null });
+  });
+  return out.length > 0 ? out : null;
+}
+
+/** Lê o mapa de Retail copiado do portal (HTML da tabela, ou texto como alternativa). */
+export function lerMapaCopiado(html: string | null | undefined, texto: string | null | undefined): LinhaExtraida[] | null {
+  if (html && /<table/i.test(html) && typeof DOMParser !== 'undefined') {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    for (const t of Array.from(doc.querySelectorAll('table'))) {
+      const linhas = Array.from(t.querySelectorAll('tr')).map(tr => Array.from(tr.querySelectorAll('th,td')).map(c => (c.textContent ?? '').replace(/\s+/g, ' ').trim()));
+      const r = daCelulas(linhas);
+      if (r) return r;
+    }
+  }
+  if (texto && /data de 298|chassis/i.test(texto) || (texto && VIN.test(texto) && /\d{2}\/\d{2}\/\d{4}/.test(texto))) return daTextoSimples(texto ?? '');
+  return null;
+}
