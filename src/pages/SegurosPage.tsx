@@ -183,7 +183,7 @@ export default function SegurosPage() {
           </p>
           {avisos.expirados.length > 0 && (
             <AlertaLinha titulo="Seguro terminado e por arquivar — a viatura pode estar a circular sem seguro" seguros={avisos.expirados}
-              render={s => `${s.matricula} · terminou há ${-diasParaFim(s, hoje)} d`} onOpen={s => editable && setFormOpen({ id: s.id, initial: formFromSeguro(s) })} />
+              render={s => `${s.matricula} · terminou há ${-(diasParaFim(s, hoje) ?? 0)} d`} onOpen={s => editable && setFormOpen({ id: s.id, initial: formFromSeguro(s) })} />
           )}
           {avisos.vendidosAtivos.length > 0 && (
             <AlertaLinha titulo="Viatura já vendida com seguro por arquivar — cancelar para cortar o custo" seguros={avisos.vendidosAtivos}
@@ -272,10 +272,10 @@ export default function SegurosPage() {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{fmtDia(s.data_pedido)}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {fmtDia(s.inicio)} → {fmtDia(s.fim)}
-                      {!s.arquivado && est !== 'futuro' && (
+                      {fmtDia(s.inicio)} → {s.fim ? fmtDia(s.fim) : 'sem termo'}
+                      {!s.arquivado && est !== 'futuro' && s.fim && (
                         <div className="text-xs text-muted-foreground">
-                          {diasParaFim(s, hoje) >= 0 ? `faltam ${diasParaFim(s, hoje)} d` : `terminou há ${-diasParaFim(s, hoje)} d`}
+                          {(diasParaFim(s, hoje) ?? 0) >= 0 ? `faltam ${diasParaFim(s, hoje)} d` : `terminou há ${-(diasParaFim(s, hoje) ?? 0)} d`}
                         </div>
                       )}
                     </td>
@@ -448,8 +448,8 @@ function SeguroForm({ initial, editing, saving, parque, vendidasSet, outros, onS
   };
 
   const vendida = mNorm !== '' && vendidasSet.has(mNorm);
-  const sobrepoe = mNorm !== '' && v.inicio && v.fim
-    && outros.some(s => s.matricula_norm === mNorm && s.inicio <= v.fim && s.fim >= v.inicio);
+  const sobrepoe = mNorm !== '' && v.inicio
+    && outros.some(s => s.matricula_norm === mNorm && s.inicio <= (v.fim || '9999-12-31') && (!s.fim || s.fim >= v.inicio));
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
@@ -478,7 +478,7 @@ function SeguroForm({ initial, editing, saving, parque, vendidasSet, outros, onS
           <Campo id="seg-cli" label="A serviço de (cliente)"><Input id="seg-cli" value={v.cliente} onChange={e => set('cliente', e.target.value)} placeholder="Opcional" /></Campo>
           <Campo id="seg-ped" label="Data do pedido"><Input id="seg-ped" type="date" value={v.data_pedido} onChange={e => set('data_pedido', e.target.value)} /></Campo>
           <Campo id="seg-ini" label="Início *"><Input id="seg-ini" type="date" value={v.inicio} onChange={e => set('inicio', e.target.value)} /></Campo>
-          <Campo id="seg-fim" label="Fim *"><Input id="seg-fim" type="date" value={v.fim} onChange={e => set('fim', e.target.value)} /></Campo>
+          <Campo id="seg-fim" label="Fim (vazio = sem termo)"><Input id="seg-fim" type="date" value={v.fim} onChange={e => set('fim', e.target.value)} /></Campo>
           <Campo id="seg-cob" label="Cobertura *">
             <Select value={v.cobertura} onValueChange={c => set('cobertura', c as Cobertura)}>
               <SelectTrigger id="seg-cob"><SelectValue /></SelectTrigger>
