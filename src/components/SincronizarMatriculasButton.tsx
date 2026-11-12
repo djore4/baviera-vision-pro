@@ -77,7 +77,7 @@ async function chamar(simular: boolean): Promise<Resposta> {
  * de matrículas. Mostra primeiro o que mudaria e só grava depois de confirmar.
  * Só administrador, só VN.
  */
-export default function SincronizarMatriculasButton({ className }: { className?: string }) {
+export default function SincronizarMatriculasButton({ className, rotulo = 'Sincronizar' }: { className?: string; rotulo?: string }) {
   const { isAdmin } = usePermissions();
   const { data, refresh } = useData();
   // Como gravar o que a pré-visualização mostrou (depende da fonte: browser ou servidor).
@@ -149,7 +149,7 @@ export default function SincronizarMatriculasButton({ className }: { className?:
       <Button variant="outline" size="sm" className={`h-7 gap-1 text-[11px] ${className ?? ''}`} onClick={sincronizar} disabled={busy}
         title="Puxar do email as respostas ao pedido de matrícula e as matrículas atribuídas (Aveiro)">
         {busy && !previa ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-        Sincronizar
+        {rotulo}
       </Button>
 
       <Dialog open={!!previa} onOpenChange={o => { if (!o && !busy) setPrevia(null); }}>

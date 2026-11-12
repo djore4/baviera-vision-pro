@@ -105,8 +105,15 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   **eliminar** só apaga o login se o email não estiver em `utilizadores`; **repor a password**
   de um login partilhado é recusado (mudaria também o acesso à outra app). Precisa de deploy:
   `supabase functions deploy admin-users`.
-- A edge function `sync-matriculas` (botão **Sincronizar** em WIP, Produção e Carteira,
-  só para administradores) lê do Outlook as respostas ao pedido de matrícula: "matrícula
+- O botão **Importar** (WIP, Produção e Carteira, só administradores) junta o antigo
+  Sincronizar (agora «Sincronizar email») e a importação por **imagem, PDF ou Excel**: cola
+  (Ctrl+V) um print do mapa «Mapas de Retail - Veículos Novos» (ou de faturas) e a edge
+  function `importar-extrair` lê-o (precisa de `ANTHROPIC_API_KEY` e de
+  `supabase functions deploy importar-extrair`). Casa por chassis (7 últimos) ou encomenda,
+  mostra o que muda e só grava depois de confirmar: estado → Retail, `date298` (Data de 298),
+  `dmat`, matrícula (só se vazia) e completa o VIN. Faturas usam as mesmas regras do controlo
+  de faturas (DFAT/DMAT).
+- A edge function `sync-matriculas` (botão **Sincronizar email**, dentro de Importar) lê do Outlook as respostas ao pedido de matrícula: "matrícula
   pedida" grava `control_records.mat_pedida_em` (migração `20261104120000`) e a matrícula
   atribuída preenche `mat` (só se vazia e com o pedido confirmado). Precisa de deploy
   (`supabase functions deploy sync-matriculas`) e dos segredos `MS_TENANT_ID`,
