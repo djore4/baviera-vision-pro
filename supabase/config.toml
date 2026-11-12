@@ -12,3 +12,7 @@ verify_jwt = false
 [functions.sync-matriculas]
 # Validação do JWT feita dentro da função (getUser), como em admin-users.
 verify_jwt = false
+
+[functions.importar-extrair]
+# Validação do JWT feita dentro da função (getUser), como em admin-users.
+verify_jwt = false

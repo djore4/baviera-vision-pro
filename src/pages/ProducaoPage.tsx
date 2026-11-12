@@ -14,7 +14,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download, Plus } from 'lucide-
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import SincronizarMatriculasButton from '@/components/SincronizarMatriculasButton';
+import ImportarButton from '@/components/ImportarButton';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LabelList, Legend,
@@ -517,7 +517,7 @@ function DetailTableBlock({ tableData, tableColumns, searchTerm, setSearchTerm, 
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
             <Input placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-7 pl-7 text-[11px]" />
           </div>
-          <SincronizarMatriculasButton />
+          <ImportarButton />
           <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px]" onClick={exportCSV}>
             <Download className="h-3 w-3" />CSV
           </Button>
