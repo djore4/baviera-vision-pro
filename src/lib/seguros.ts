@@ -60,7 +60,7 @@ export interface Seguro {
   cliente: string | null;     // a serviço de
   data_pedido: string;        // ISO 'AAAA-MM-DD'
   inicio: string;
-  fim: string;
+  fim: string | null;         // null = sem termo (apólice de frota em vigor até ser cancelada)
   cobertura: Cobertura;
   capital_seguro: number | null;
   premio: number | null;
@@ -100,7 +100,7 @@ export interface SeguroFormValues {
   cliente: string;
   data_pedido: string;
   inicio: string;
-  fim: string;
+  fim: string;                // '' = sem termo
   cobertura: Cobertura;
   capital_seguro: string;
   premio: string;
@@ -155,17 +155,19 @@ export const estadoDef = (e: EstadoSeguro) => ESTADOS_SEGURO.find(x => x.value =
 /** `fim` é inclusivo: um seguro que termina hoje ainda cobre hoje. */
 export function estadoSeguro(s: Pick<Seguro, 'inicio' | 'fim' | 'arquivado'>, hoje: string = hojeIso()): EstadoSeguro {
   if (s.arquivado) return 'arquivado';
-  if (s.fim < hoje) return 'expirado';
+  if (s.fim && s.fim < hoje) return 'expirado';
   if (s.inicio > hoje) return 'futuro';
+  if (!s.fim) return 'ativo';
   return diasEntre(hoje, s.fim) <= DIAS_AVISO ? 'a_expirar' : 'ativo';
 }
 
 /** Cobre a viatura hoje: começou, não acabou e não foi arquivado. */
 export const cobreHoje = (s: Pick<Seguro, 'inicio' | 'fim' | 'arquivado'>, hoje: string = hojeIso()): boolean =>
-  !s.arquivado && s.inicio <= hoje && s.fim >= hoje;
+  !s.arquivado && s.inicio <= hoje && (!s.fim || s.fim >= hoje);
 
-/** Dias até ao fim (negativo = já terminou há N dias). */
-export const diasParaFim = (s: Pick<Seguro, 'fim'>, hoje: string = hojeIso()): number => diasEntre(hoje, s.fim);
+/** Dias até ao fim (negativo = já terminou há N dias); null se não tem termo. */
+export const diasParaFim = (s: Pick<Seguro, 'fim'>, hoje: string = hojeIso()): number | null =>
+  s.fim ? diasEntre(hoje, s.fim) : null;
 
 /* ── Alertas de controlo ─────────────────────────────────────────────────────── */
 
@@ -185,9 +187,9 @@ export function alertas(list: Seguro[], vendidas: Pick<ViaturaVendida, 'matricul
   const vendidasSet = new Set(vendidas.map(v => normMatricula(v.matricula)).filter(Boolean));
 
   const expirados = porArquivar.filter(s => estadoSeguro(s, hoje) === 'expirado')
-    .sort((a, b) => a.fim.localeCompare(b.fim));
+    .sort((a, b) => (a.fim ?? '').localeCompare(b.fim ?? ''));
   const aExpirar = porArquivar.filter(s => estadoSeguro(s, hoje) === 'a_expirar')
-    .sort((a, b) => a.fim.localeCompare(b.fim));
+    .sort((a, b) => (a.fim ?? '').localeCompare(b.fim ?? ''));
   const vendidosAtivos = porArquivar.filter(s => vendidasSet.has(s.matricula_norm || normMatricula(s.matricula)));
 
   const porMatricula = new Map<string, Seguro[]>();
@@ -202,7 +204,7 @@ export function alertas(list: Seguro[], vendidas: Pick<ViaturaVendida, 'matricul
     const envolvidos = new Set<Seguro>();
     for (let i = 0; i < ord.length; i++) {
       for (let j = i + 1; j < ord.length; j++) {
-        if (ord[j].inicio <= ord[i].fim) { envolvidos.add(ord[i]); envolvidos.add(ord[j]); }
+        if (ord[j].inicio <= (ord[i].fim ?? '9999-12-31')) { envolvidos.add(ord[i]); envolvidos.add(ord[j]); }
       }
     }
     if (envolvidos.size) sobrepostos.push({ matricula: ord[0].matricula, seguros: ord.filter(s => envolvidos.has(s)) });
@@ -282,7 +284,7 @@ export function filtrar(list: Seguro[], f: SeguroFiltro, hoje: string = hojeIso(
     }
     return true;
   }).sort((a, b) => f.separador === 'ativos'
-    ? a.fim.localeCompare(b.fim)                                          // o que acaba primeiro, primeiro
+    ? (a.fim ?? '9999').localeCompare(b.fim ?? '9999')                                      // o que acaba primeiro, primeiro
     : (b.arquivado_em ?? '').localeCompare(a.arquivado_em ?? ''));
 }
 
@@ -296,7 +298,7 @@ export const emptyForm = (hoje: string = hojeIso()): SeguroFormValues => ({
 
 export const formFromSeguro = (s: Seguro): SeguroFormValues => ({
   matricula: s.matricula, chassis: s.chassis ?? '', viatura: s.viatura, area: s.area,
-  solicitante: s.solicitante, cliente: s.cliente ?? '', data_pedido: s.data_pedido, inicio: s.inicio, fim: s.fim,
+  solicitante: s.solicitante, cliente: s.cliente ?? '', data_pedido: s.data_pedido, inicio: s.inicio, fim: s.fim ?? '',
   cobertura: s.cobertura, capital_seguro: s.capital_seguro != null ? String(s.capital_seguro) : '',
   premio: s.premio != null ? String(s.premio) : '', seguradora: s.seguradora ?? '', apolice: s.apolice ?? '', obs: s.obs ?? '',
 });
@@ -315,8 +317,7 @@ export function validarForm(v: SeguroFormValues): string | null {
   if (!v.viatura.trim()) return 'Indica a viatura (marca e modelo).';
   if (!v.solicitante.trim()) return 'Indica quem pede o seguro.';
   if (!v.inicio) return 'Indica a data de início.';
-  if (!v.fim) return 'Indica a data de fim.';
-  if (v.fim < v.inicio) return 'A data de fim não pode ser anterior à de início.';
+  if (v.fim && v.fim < v.inicio) return 'A data de fim não pode ser anterior à de início.';
   if (v.cobertura === 'danos_proprios') {
     const c = parseEuro(v.capital_seguro);
     if (c == null || c <= 0) return 'Em danos próprios, indica o valor seguro.';
@@ -342,7 +343,7 @@ const toRow = (v: SeguroFormValues) => ({
   cliente: clean(v.cliente),
   data_pedido: v.data_pedido || hojeIso(),
   inicio: v.inicio,
-  fim: v.fim,
+  fim: v.fim || null,
   cobertura: v.cobertura,
   capital_seguro: v.cobertura === 'danos_proprios' ? parseEuro(v.capital_seguro) : null,
   premio: parseEuro(v.premio),

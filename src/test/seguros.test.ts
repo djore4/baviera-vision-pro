@@ -66,6 +66,22 @@ describe('alertas', () => {
   });
 });
 
+describe('sem termo (fim nulo)', () => {
+  it('apólice de frota sem fim cobre sempre, nunca expira nem alerta', () => {
+    const s = mk('a', { fim: null });
+    expect(estadoSeguro(s, HOJE)).toBe('ativo');
+    expect(cobreHoje(s, HOJE)).toBe(true);
+    expect(alertas([s], [], HOJE).expirados).toHaveLength(0);
+    expect(estadoSeguro(mk('b', { fim: null, inicio: '2026-12-01' }), HOJE)).toBe('futuro');
+  });
+  it('sobrepõe-se a qualquer seguro posterior da mesma matrícula', () => {
+    expect(alertas([mk('a', { fim: null }), mk('b', { inicio: '2027-05-01', fim: '2027-12-31' })], [], HOJE).sobrepostos).toHaveLength(1);
+  });
+  it('o formulário aceita fim vazio', () => {
+    expect(validarForm({ ...emptyForm(HOJE), matricula: '00-AA-00', viatura: 'BMW X1', solicitante: 'Rui' })).toBeNull();
+  });
+});
+
 describe('kpis e custo', () => {
   it('só somam prémios dos que cobrem hoje', () => {
     const list = [
