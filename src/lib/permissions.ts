@@ -86,6 +86,9 @@ const ALL_TABS: TabDef[] = [
   // Linha do tempo dos eventos de marketing. 'view': consulta e gere só os seus convidados;
   // 'edit': gere eventos, todos os convidados e o orçamento (RLS: migração marketing_acessos).
   { key: 'marketing', label: 'Marketing', path: '/marketing', area: 'apv' },
+  // Seguros das viaturas a serviço de colaboradores/clientes (todas as áreas). 'view': consulta;
+  // 'edit': regista, altera e arquiva. Apagar é só do administrador (RLS: migração seguros).
+  { key: 'seguros', label: 'Seguros', path: '/seguros', area: 'apv' },
   // ── Administração ───────────────────────────────────────────────────────────
   { key: 'dados', label: 'Dados', path: '/dados', area: 'admin' },
   { key: 'arquivo', label: 'Arquivo', path: '/arquivo', area: 'admin' },
