@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Archive, ArchiveRestore, Ban, History, Loader2, Pencil, Plus, RefreshCw, Search, ShieldCheck, ShieldPlus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Archive, ArchiveRestore, Ban, History, Loader2, MoreHorizontal, Pencil, Plus, RefreshCw, Search, ShieldCheck, ShieldPlus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -34,6 +35,25 @@ import {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 type Separador = 'ativos' | 'arquivados';
+type Foco = 'todos' | 'baixa' | 'sem_seguro' | 'expirados' | 'a_expirar' | 'incompletos';
+
+const FOCO_AJUDA: Partial<Record<Foco, string>> = {
+  baixa: 'Viaturas já vendidas que ainda têm seguro. 1) Cancelar seguro: copia o pedido para o Outlook. 2) Quando a seguradora confirmar, Arquivar.',
+  sem_seguro: 'Viaturas do Stock VU e dos Demos VN sem nenhum seguro a cobri-las hoje.',
+  expirados: 'O seguro terminou e continua por arquivar: a viatura pode estar a circular sem seguro. Atualiza as datas (renovação) ou arquiva.',
+  a_expirar: 'Terminam nos próximos 30 dias: renovar ou cancelar.',
+  incompletos: 'Danos próprios exigem valor seguro, início, fim e responsável pela informação. Completa os dados em falta.',
+};
+
+/* Ordem na lista: o que exige ação primeiro. */
+function ordemUrgencia(s: Seguro, vendidas: ViaturaVendida[], hoje: string): number {
+  if (vendaDe(s, vendidas)) return 0;
+  const e = estadoSeguro(s, hoje);
+  if (e === 'expirado') return 1;
+  if (dadosEmFalta(s).length) return 2;
+  if (e === 'a_expirar') return 3;
+  return 4;
+}
 
 export default function SegurosPage() {
   const { canEdit, isAdmin } = usePermissions();
@@ -51,7 +71,7 @@ export default function SegurosPage() {
   const [q, setQ] = useState(() => { try { return new URLSearchParams(window.location.search).get('mat') ?? ''; } catch { return ''; } });
   const [area, setArea] = useState<Area | 'all'>('all');
   const [cobertura, setCobertura] = useState<Cobertura | 'all'>('all');
-  const [estado, setEstado] = useState<EstadoSeguro | 'all'>('all');
+  const [foco, setFoco] = useState<Foco>('todos');
 
   const [formOpen, setFormOpen] = useState<{ id: string | null; initial: SeguroFormValues } | null>(null);
   const [aArquivar, setAArquivar] = useState<{ s: Seguro; motivo: MotivoArquivo } | null>(null);
@@ -82,10 +102,36 @@ export default function SegurosPage() {
   const semMatricula = useMemo(() => parqueSemMatricula(parque), [parque]);
   const vendidasSet = useMemo(() => new Set(vendidas.map(v => normMatricula(v.matricula))), [vendidas]);
 
-  const visiveis = useMemo(
-    () => filtrar(list, { separador, area, cobertura, estado: separador === 'ativos' ? estado : 'all', q }, hoje),
-    [list, separador, area, cobertura, estado, q, hoje],
+  const base = useMemo(
+    () => filtrar(list, { separador, area, cobertura, estado: 'all', q }, hoje),
+    [list, separador, area, cobertura, q, hoje],
   );
+  const doFoco = useCallback((k: Foco, s: Seguro): boolean => {
+    switch (k) {
+      case 'baixa': return !!vendaDe(s, vendidas);
+      case 'expirados': return estadoSeguro(s, hoje) === 'expirado';
+      case 'a_expirar': return estadoSeguro(s, hoje) === 'a_expirar';
+      case 'incompletos': return dadosEmFalta(s).length > 0;
+      default: return true;
+    }
+  }, [vendidas, hoje]);
+  const focos = useMemo(() => {
+    const n = (k: Foco) => list.filter(s => !s.arquivado && doFoco(k, s)).length;
+    return ([
+      { key: 'todos' as const, label: 'Todos', n: list.filter(s => !s.arquivado).length, tom: undefined },
+      { key: 'baixa' as const, label: 'Dar baixa', n: n('baixa'), tom: 'bad' as const },
+      { key: 'sem_seguro' as const, label: 'Sem seguro', n: semSeguro.length, tom: 'bad' as const },
+      { key: 'expirados' as const, label: 'Expirados', n: n('expirados'), tom: 'bad' as const },
+      { key: 'a_expirar' as const, label: 'A expirar', n: n('a_expirar'), tom: 'warn' as const },
+      { key: 'incompletos' as const, label: 'Dados em falta', n: n('incompletos'), tom: 'warn' as const },
+    ]).filter(f => f.key === 'todos' || f.n > 0 || f.key === foco);
+  }, [list, doFoco, semSeguro.length, foco]);
+  const visiveis = useMemo(() => {
+    const r = separador === 'ativos' ? base.filter(s => doFoco(foco, s)) : base;
+    return separador === 'ativos'
+      ? [...r].sort((a, b) => ordemUrgencia(a, vendidas, hoje) - ordemUrgencia(b, vendidas, hoje) || (a.fim ?? '9999').localeCompare(b.fim ?? '9999'))
+      : r;
+  }, [base, separador, foco, doFoco, vendidas, hoje]);
   const nArquivados = useMemo(() => list.filter(s => s.arquivado).length, [list]);
 
   const replace = (upd: Seguro) => setList(l => l.map(s => (s.id === upd.id ? upd : s)));
@@ -153,16 +199,10 @@ export default function SegurosPage() {
 
   /* ── Render ─────────────────────────────────────────────────────────────── */
 
-  const temAlertas = avisos.expirados.length + avisos.vendidosAtivos.length + avisos.sobrepostos.length
-    + semSeguro.length + resumo.dadosEmFalta > 0;
-
   return (
-    <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold"><ShieldCheck className="h-5 w-5 text-primary" /> Seguros</h1>
-          <p className="text-sm text-muted-foreground">Seguros das viaturas a serviço de colaboradores e clientes, em todas as áreas.</p>
-        </div>
+    <div className="mx-auto max-w-5xl space-y-3 p-3 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <h1 className="flex items-center gap-2 text-xl font-semibold"><ShieldCheck className="h-5 w-5 text-primary" /> Seguros</h1>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} aria-label="Atualizar">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
@@ -173,189 +213,101 @@ export default function SegurosPage() {
 
       {loadError && <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{loadError}</div>}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
-        <Kpi label="Ativos" value={resumo.ativos} />
-        <Kpi label="Parque sem seguro" value={semSeguro.length} tone={semSeguro.length ? 'bad' : undefined} />
-        <Kpi label="A expirar (≤30 dias)" value={resumo.aExpirar} tone={resumo.aExpirar ? 'warn' : undefined} />
-        <Kpi label="Expirados por arquivar" value={resumo.expirados} tone={resumo.expirados ? 'bad' : undefined} />
-        <Kpi label="Dar baixa (vendidas)" value={resumo.vendidosAtivos} tone={resumo.vendidosAtivos ? 'bad' : undefined} />
-        <Kpi label="Danos próprios incompletos" value={resumo.dadosEmFalta} tone={resumo.dadosEmFalta ? 'warn' : undefined} />
-        <Kpi label="Prémios ativos" value={fmtEuro(resumo.premioAtivo)} hint={resumo.capitalAtivo ? `Capital seguro ${fmtEuro(resumo.capitalAtivo)}` : undefined} />
-      </div>
-
-      {/* Alertas de controlo */}
-      {temAlertas && (
-        <div className="space-y-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm dark:border-red-500/40 dark:bg-red-500/10" data-testid="alertas">
-          <p className="flex items-center gap-1.5 font-semibold text-red-700 dark:text-red-300">
-            <AlertTriangle className="h-4 w-4" /> Requer ação
+      {/* Resumo: só o essencial */}
+      <div className="rounded-lg border bg-card px-4 py-3" data-testid="resumo">
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+          <Stat valor={resumo.ativos} label="seguros ativos" />
+          {resumo.premioAtivo > 0 && <Stat valor={fmtEuro(resumo.premioAtivo)} label="em prémios" />}
+          {resumo.capitalAtivo > 0 && <Stat valor={fmtEuro(resumo.capitalAtivo)} label="capital seguro" />}
+        </div>
+        {custo.some(c => c.premio > 0) ? (
+          <p className="mt-1 text-xs text-muted-foreground" data-testid="custo-area">
+            {custo.filter(c => c.premio > 0).map(c => `${areaLabel(c.area)} ${fmtEuro(c.premio)}`).join(' · ')}
           </p>
-          {avisos.expirados.length > 0 && (
-            <AlertaLinha titulo="Seguro terminado e por arquivar — a viatura pode estar a circular sem seguro" seguros={avisos.expirados}
-              render={s => `${s.matricula} · terminou há ${-(diasParaFim(s, hoje) ?? 0)} d`} onOpen={s => editable && setFormOpen({ id: s.id, initial: formFromSeguro(s) })} />
-          )}
-          {avisos.vendidosAtivos.length > 0 && (
-            <AlertaLinha titulo="DAR BAIXA: viatura vendida com seguro por cancelar" seguros={avisos.vendidosAtivos}
-              render={s => { const v = vendaDe(s, vendidas); return `${s.matricula} · ${v ? textoVenda(v) : 'vendida'}`; }}
-              onOpen={s => editable && setAArquivar({ s, motivo: 'viatura_vendida' })} />
-          )}
-          {resumo.dadosEmFalta > 0 && (
-            <p><strong>{resumo.dadosEmFalta}</strong> seguro{resumo.dadosEmFalta === 1 ? '' : 's'} de danos próprios sem todos os dados obrigatórios (valor seguro, início, fim e responsável pela informação) — completar.</p>
-          )}
-          {avisos.sobrepostos.map(g => (
-            <p key={g.matricula}>
-              <strong>{g.matricula}</strong> tem {g.seguros.length} seguros sobrepostos no tempo — custo duplicado.
-            </p>
-          ))}
-        </div>
-      )}
-
-      {/* Custo por área */}
-      {custo.length > 0 && (
-        <div className="flex flex-wrap gap-2 text-xs" data-testid="custo-area">
-          {custo.map(c => (
-            <span key={c.area} className="rounded-md border bg-card px-2.5 py-1">
-              <strong>{areaLabel(c.area)}</strong> · {c.seguros} seguro{c.seguros === 1 ? '' : 's'} · {fmtEuro(c.premio)}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Separadores e filtros */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Tabs value={separador} onValueChange={v => setSeparador(v as Separador)}>
-          <TabsList>
-            <TabsTrigger value="ativos">Ativos ({list.length - nArquivados})</TabsTrigger>
-            <TabsTrigger value="arquivados">Arquivados ({nArquivados})</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <div className="relative min-w-[12rem] flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Matrícula, viatura, pedido por, cliente, apólice…" className="pl-8" aria-label="Pesquisar" />
-        </div>
-        <FiltroSelect label="Área" value={area} onChange={v => setArea(v as Area | 'all')} options={AREAS_SEGURO} />
-        <FiltroSelect label="Cobertura" value={cobertura} onChange={v => setCobertura(v as Cobertura | 'all')} options={COBERTURAS} />
-        {separador === 'ativos' && (
-          <FiltroSelect label="Estado" value={estado} onChange={v => setEstado(v as EstadoSeguro | 'all')}
-            options={ESTADOS_SEGURO.filter(e => e.value !== 'arquivado')} />
+        ) : resumo.ativos > 0 && (
+          <p className="mt-1 text-xs text-muted-foreground">Preenche o prémio de cada seguro para ver o custo por área.</p>
         )}
       </div>
 
-      {/* Tabela */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" /> A carregar…</div>
-      ) : visiveis.length === 0 ? (
-        <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
-          {list.length === 0 ? 'Ainda não há seguros registados.' : 'Nenhum seguro corresponde aos filtros.'}
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[60rem] text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">Matrícula / viatura</th>
-                <th className="px-3 py-2">Área</th>
-                <th className="px-3 py-2">Pedido por</th>
-                <th className="px-3 py-2">Pedido em</th>
-                <th className="px-3 py-2">Período</th>
-                <th className="px-3 py-2">Cobertura</th>
-                <th className="px-3 py-2 text-right">Valor seguro</th>
-                <th className="px-3 py-2 text-right">Prémio</th>
-                <th className="px-3 py-2">{separador === 'ativos' ? 'Estado' : 'Arquivo'}</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {visiveis.map(s => {
-                const est = estadoSeguro(s, hoje);
-                const def = estadoDef(est);
-                const venda = s.arquivado ? null : vendaDe(s, vendidas);
-                const vendida = !!venda;
-                const falta = dadosEmFalta(s);
-                return (
-                  <tr key={s.id} data-testid="seguro" className={cn('border-t align-top', vendida && 'bg-red-50 dark:bg-red-500/10')}>
-                    <td className="px-3 py-2">
-                      <div className="font-mono font-medium">{s.matricula}</div>
-                      <div className="text-xs text-muted-foreground">{s.viatura}</div>
-                      {venda && <Badge variant="destructive" className="mt-1 whitespace-normal">DAR BAIXA · {textoVenda(venda)}</Badge>}
-                      {s.cancelamento_pedido_em && !s.arquivado && <Badge variant="outline" className="mt-1 whitespace-normal">Cancelamento pedido em {fmtDia(s.cancelamento_pedido_em)}</Badge>}
-                      {s.dp_desde && s.cobertura === 'danos_proprios' && <div className="mt-1 text-xs text-muted-foreground">Danos próprios desde {fmtDia(s.dp_desde)}</div>}
-                      {falta.length > 0 && <Badge variant="outline" className="mt-1 whitespace-normal border-amber-500 text-amber-700 dark:text-amber-300">Em falta: {falta.join(', ')}</Badge>}
-                    </td>
-                    <td className="px-3 py-2">{areaLabel(s.area)}</td>
-                    <td className="px-3 py-2">
-                      <div>{s.solicitante}</div>
-                      {s.cliente && <div className="text-xs text-muted-foreground">Cliente: {s.cliente}</div>}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{fmtDia(s.data_pedido)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {fmtDia(s.inicio)} → {s.fim ? fmtDia(s.fim) : 'sem termo'}
-                      {!s.arquivado && est !== 'futuro' && s.fim && (
-                        <div className="text-xs text-muted-foreground">
-                          {(diasParaFim(s, hoje) ?? 0) >= 0 ? `faltam ${diasParaFim(s, hoje)} d` : `terminou há ${-(diasParaFim(s, hoje) ?? 0)} d`}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {coberturaLabel(s.cobertura)}
-                      {s.seguradora && <div className="text-xs text-muted-foreground">{s.seguradora}{s.apolice ? ` · ${s.apolice}` : ''}</div>}
-                    </td>
-                    <td className="px-3 py-2 text-right">{s.cobertura === 'danos_proprios' ? fmtEuro(s.capital_seguro) : '—'}</td>
-                    <td className="px-3 py-2 text-right">{fmtEuro(s.premio)}</td>
-                    <td className="px-3 py-2">
-                      {separador === 'ativos'
-                        ? <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', def.cls)}>{def.label}</span>
-                        : <><div>{motivoLabel(s.motivo_arquivo)}</div><div className="text-xs text-muted-foreground">{fmtDia(s.arquivado_em)}</div></>}
-                    </td>
-                    <td className="px-3 py-2">
-                      {editable && (
-                        <div className="flex flex-wrap justify-end gap-1">
-                          {!s.arquivado && <Button size="sm" variant="outline" aria-label={`Cancelar seguro ${s.matricula}`} onClick={() => setACancelar(s)}><Ban className="mr-1 h-3.5 w-3.5" />Cancelar seguro</Button>}
-                          {!s.arquivado && s.cobertura === 'terceiros' && <Button size="sm" variant="outline" aria-label={`Upgrade para danos próprios ${s.matricula}`} onClick={() => setAUpgrade(s)}><ShieldPlus className="mr-1 h-3.5 w-3.5" />Danos próprios</Button>}
-                          <Button size="icon" variant="ghost" aria-label={`Histórico ${s.matricula}`} onClick={() => setVerHistorico(s)}><History className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" aria-label={`Editar ${s.matricula}`}
-                            onClick={() => setFormOpen({ id: s.id, initial: formFromSeguro(s) })}><Pencil className="h-4 w-4" /></Button>
-                          {s.arquivado
-                            ? <Button size="icon" variant="ghost" aria-label={`Reativar ${s.matricula}`} disabled={saving} onClick={() => void reativar(s)}><ArchiveRestore className="h-4 w-4" /></Button>
-                            : <Button size={vendida ? 'sm' : 'icon'} variant={vendida ? 'destructive' : 'ghost'} aria-label={`Arquivar ${s.matricula}`}
-                                onClick={() => setAArquivar({ s, motivo: vendida ? 'viatura_vendida' : 'terminado' })}>
-                                {vendida ? 'Dar baixa' : <Archive className="h-4 w-4" />}</Button>}
-                          {isAdmin && <Button size="icon" variant="ghost" aria-label={`Apagar ${s.matricula}`} onClick={() => setAApagar(s)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* O que exige ação: cada botão filtra a lista */}
+      {separador === 'ativos' && (
+        <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Filtrar por situação" data-testid="alertas">
+          {focos.map(f => (
+            <button key={f.key} type="button" onClick={() => setFoco(f.key)} aria-pressed={foco === f.key}
+              className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors',
+                foco === f.key ? 'border-primary bg-primary text-primary-foreground'
+                  : f.tom === 'bad' ? 'border-red-500/60 text-red-600 hover:bg-red-500/10 dark:text-red-300'
+                  : f.tom === 'warn' ? 'border-amber-500/60 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300'
+                  : 'hover:bg-muted')}>
+              {f.label}<span className="font-semibold">{f.n}</span>
+            </button>
+          ))}
         </div>
       )}
+      {separador === 'ativos' && foco !== 'todos' && FOCO_AJUDA[foco] && (
+        <p className="rounded-md bg-muted/60 px-3 py-2 text-sm text-muted-foreground">{FOCO_AJUDA[foco]}</p>
+      )}
+      {separador === 'ativos' && foco === 'todos' && avisos.sobrepostos.length > 0 && (
+        <p className="rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-900 dark:bg-amber-500/15 dark:text-amber-200">
+          <AlertTriangle className="mr-1 inline h-4 w-4" />
+          Seguros sobrepostos (custo duplicado): {avisos.sobrepostos.map(g => g.matricula).join(', ')}
+        </p>
+      )}
 
-      {/* Parque que tem de estar segurado: Demos VN e Stock VU — sempre à vista */}
-      {(semSeguro.length > 0 || semMatricula.length > 0) && (
-        <div className="rounded-lg border border-red-300 p-3 text-sm dark:border-red-500/40" data-testid="parque-sem-seguro">
-          <p className="mb-2 font-semibold">
-            Viaturas sem seguro ({semSeguro.length}) <span className="font-normal text-muted-foreground">— Demos VN e Stock VU</span>
-          </p>
-          <ul className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
-            {semSeguro.map(v => (
-              <li key={v.ref} className="flex items-center justify-between gap-2 rounded border px-2 py-1">
-                <span>
-                  <span className="font-mono">{v.matricula}</span>{' '}
-                  <span className="text-xs text-muted-foreground">{[v.marca, v.modelo].filter(Boolean).join(' ')}</span>{' '}
-                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{ORIGENS_PARQUE[v.origem]}</Badge>
-                </span>
-                {editable && <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => novo(v.matricula ?? '', v)}>Registar</Button>}
-              </li>
-            ))}
-          </ul>
+      {/* Separadores e pesquisa */}
+      <div className="space-y-2">
+        <Tabs value={separador} onValueChange={v => setSeparador(v as Separador)}>
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="ativos" className="flex-1 sm:flex-none">Ativos ({list.length - nArquivados})</TabsTrigger>
+            <TabsTrigger value="arquivados" className="flex-1 sm:flex-none">Arquivados ({nArquivados})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="flex flex-wrap gap-2">
+          <div className="relative min-w-[12rem] flex-1 basis-full sm:basis-0">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar matrícula, viatura, apólice…" className="pl-8" aria-label="Pesquisar" />
+          </div>
+          <FiltroSelect label="Área" value={area} onChange={v => setArea(v as Area | 'all')} options={AREAS_SEGURO} />
+          <FiltroSelect label="Cobertura" value={cobertura} onChange={v => setCobertura(v as Cobertura | 'all')} options={COBERTURAS} />
+        </div>
+      </div>
+
+      {/* Lista */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" /> A carregar…</div>
+      ) : separador === 'ativos' && foco === 'sem_seguro' ? (
+        <div data-testid="parque-sem-seguro" className="space-y-2">
+          {semSeguro.length === 0 && <Vazio texto="Todas as viaturas do parque com matrícula têm seguro." />}
+          {semSeguro.filter(v => !q.trim() || `${v.matricula} ${v.marca} ${v.modelo}`.toLowerCase().includes(q.trim().toLowerCase())).map(v => (
+            <div key={v.ref} className="flex items-center justify-between gap-3 rounded-lg border border-red-500/40 bg-card p-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-base font-semibold">{v.matricula}</span>
+                  <Tag cls="bg-slate-500/15 text-slate-700 dark:text-slate-300">{ORIGENS_PARQUE[v.origem]}</Tag>
+                </div>
+                <div className="truncate text-sm text-muted-foreground">{[v.marca, v.modelo, v.versao].filter(Boolean).join(' ')}</div>
+              </div>
+              {editable && <Button size="sm" onClick={() => novo(v.matricula ?? '', v)}><Plus className="mr-1 h-4 w-4" />Registar seguro</Button>}
+            </div>
+          ))}
           {semMatricula.length > 0 && (
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Ainda sem matrícula (não se podem segurar): {semMatricula.map(v => `${v.modelo ?? '—'} (${ORIGENS_PARQUE[v.origem]})`).join(' · ')}
             </p>
           )}
         </div>
+      ) : visiveis.length === 0 ? (
+        <Vazio texto={list.length === 0 ? 'Ainda não há seguros registados.' : 'Nenhum seguro corresponde aos filtros.'} />
+      ) : (
+        <ul className="space-y-2">
+          {visiveis.map(s => (
+            <SeguroCard key={s.id} s={s} hoje={hoje} venda={s.arquivado ? null : vendaDe(s, vendidas)}
+              editable={editable} isAdmin={isAdmin} saving={saving}
+              onEditar={() => setFormOpen({ id: s.id, initial: formFromSeguro(s) })}
+              onCancelar={() => setACancelar(s)} onUpgrade={() => setAUpgrade(s)} onHistorico={() => setVerHistorico(s)}
+              onArquivar={motivo => setAArquivar({ s, motivo })} onReativar={() => void reativar(s)} onApagar={() => setAApagar(s)} />
+          ))}
+        </ul>
       )}
 
       {/* Formulário */}
@@ -452,7 +404,7 @@ function FiltroSelect({ label, value, onChange, options }: {
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-[9.5rem]" aria-label={label}><SelectValue /></SelectTrigger>
+      <SelectTrigger className="w-[calc(50%-0.25rem)] sm:w-[11rem]" aria-label={label}><SelectValue /></SelectTrigger>
       <SelectContent>
         <SelectItem value="all">{label}: todos</SelectItem>
         {options.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
@@ -491,48 +443,48 @@ function SeguroForm({ initial, editing, saving, parque, vendidasSet, outros, onS
           <DialogTitle>{editing ? 'Editar seguro' : 'Novo seguro'}</DialogTitle>
           <DialogDescription>Um registo por matrícula e período de cobertura.</DialogDescription>
         </DialogHeader>
-        <form className="grid gap-3 sm:grid-cols-2" onSubmit={e => { e.preventDefault(); if (!erro && !saving) onSubmit(v); }}>
+        <form className="grid grid-cols-2 gap-3" onSubmit={e => { e.preventDefault(); if (!erro && !saving) onSubmit(v); }}>
           <Campo id="seg-mat" label="Matrícula *">
             <Input id="seg-mat" list="seg-parque" value={v.matricula} onChange={e => escolherMatricula(e.target.value)} placeholder="00-AA-00" autoFocus />
-            <datalist id="seg-parque">{parque.filter(p => p.matricula).map(p => <option key={p.chassis} value={p.matricula!}>{p.modelo}</option>)}</datalist>
+            <datalist id="seg-parque">{parque.filter(p => p.matricula).map(p => <option key={p.ref} value={p.matricula!}>{p.modelo}</option>)}</datalist>
           </Campo>
-          <Campo id="seg-via" label="Viatura *"><Input id="seg-via" value={v.viatura} onChange={e => set('viatura', e.target.value)} placeholder="BMW iX1 xDrive30" /></Campo>
-
-          {vendida && <Aviso>Esta matrícula consta das viaturas vendidas — não deve ter seguro novo.</Aviso>}
-          {sobrepoe && <Aviso>Já existe outro seguro por arquivar desta matrícula a sobrepor-se a este período (custo duplicado).</Aviso>}
-
           <Campo id="seg-area" label="Área *">
             <Select value={v.area} onValueChange={a => set('area', a as Area)}>
               <SelectTrigger id="seg-area"><SelectValue /></SelectTrigger>
               <SelectContent>{AREAS_SEGURO.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
             </Select>
           </Campo>
+          <Campo id="seg-via" label="Viatura *" wide><Input id="seg-via" value={v.viatura} onChange={e => set('viatura', e.target.value)} placeholder="BMW iX1 xDrive30" /></Campo>
+
+          {vendida && <Aviso>Esta matrícula consta das viaturas vendidas — não deve ter seguro novo.</Aviso>}
+          {sobrepoe && <Aviso>Já existe outro seguro por arquivar desta matrícula a sobrepor-se a este período (custo duplicado).</Aviso>}
+
           <Campo id="seg-sol" label="Quem pede *"><Input id="seg-sol" value={v.solicitante} onChange={e => set('solicitante', e.target.value)} /></Campo>
-          <Campo id="seg-resp" label={`Responsável pela informação${v.cobertura === 'danos_proprios' ? ' *' : ''}`}>
-            <Input id="seg-resp" value={v.responsavel_info} onChange={e => set('responsavel_info', e.target.value)} placeholder="Quem prestou os dados do seguro" />
+          <Campo id="seg-resp" label={`Responsável pela info.${v.cobertura === 'danos_proprios' ? ' *' : ''}`}>
+            <Input id="seg-resp" value={v.responsavel_info} onChange={e => set('responsavel_info', e.target.value)} placeholder="Quem deu os dados" />
           </Campo>
-          <Campo id="seg-cli" label="A serviço de (cliente)"><Input id="seg-cli" value={v.cliente} onChange={e => set('cliente', e.target.value)} placeholder="Opcional" /></Campo>
-          <Campo id="seg-ped" label="Data do pedido"><Input id="seg-ped" type="date" value={v.data_pedido} onChange={e => set('data_pedido', e.target.value)} /></Campo>
+          <Campo id="seg-cli" label="A serviço de (cliente)" wide><Input id="seg-cli" value={v.cliente} onChange={e => set('cliente', e.target.value)} placeholder="Opcional" /></Campo>
           <Campo id="seg-ini" label="Início *"><Input id="seg-ini" type="date" value={v.inicio} onChange={e => set('inicio', e.target.value)} /></Campo>
-          <Campo id="seg-fim" label={v.cobertura === 'danos_proprios' ? 'Fim *' : 'Fim (vazio = sem termo)'}><Input id="seg-fim" type="date" value={v.fim} onChange={e => set('fim', e.target.value)} /></Campo>
+          <Campo id="seg-fim" label={v.cobertura === 'danos_proprios' ? 'Fim *' : 'Fim (opcional)'}><Input id="seg-fim" type="date" value={v.fim} onChange={e => set('fim', e.target.value)} /></Campo>
           <Campo id="seg-cob" label="Cobertura *">
             <Select value={v.cobertura} onValueChange={c => set('cobertura', c as Cobertura)}>
               <SelectTrigger id="seg-cob"><SelectValue /></SelectTrigger>
               <SelectContent>{COBERTURAS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
             </Select>
           </Campo>
-          {v.cobertura === 'danos_proprios' && (
-            <Campo id="seg-cap" label="Valor seguro (€) *"><Input id="seg-cap" inputMode="decimal" value={v.capital_seguro} onChange={e => set('capital_seguro', e.target.value)} placeholder="35000" /></Campo>
-          )}
-          <Campo id="seg-pre" label="Prémio (€)"><Input id="seg-pre" inputMode="decimal" value={v.premio} onChange={e => set('premio', e.target.value)} placeholder="Custo do seguro" /></Campo>
+          {v.cobertura === 'danos_proprios'
+            ? <Campo id="seg-cap" label="Valor seguro (€) *"><Input id="seg-cap" inputMode="decimal" value={v.capital_seguro} onChange={e => set('capital_seguro', e.target.value)} placeholder="35000" /></Campo>
+            : <Campo id="seg-pre" label="Prémio (€)"><Input id="seg-pre" inputMode="decimal" value={v.premio} onChange={e => set('premio', e.target.value)} placeholder="Custo" /></Campo>}
+          {v.cobertura === 'danos_proprios' && <Campo id="seg-pre" label="Prémio (€)"><Input id="seg-pre" inputMode="decimal" value={v.premio} onChange={e => set('premio', e.target.value)} placeholder="Custo" /></Campo>}
           <Campo id="seg-seg" label="Seguradora"><Input id="seg-seg" value={v.seguradora} onChange={e => set('seguradora', e.target.value)} /></Campo>
           <Campo id="seg-apo" label="Apólice"><Input id="seg-apo" value={v.apolice} onChange={e => set('apolice', e.target.value)} /></Campo>
-          <div className="space-y-1.5 sm:col-span-2">
+          <Campo id="seg-ped" label="Data do pedido"><Input id="seg-ped" type="date" value={v.data_pedido} onChange={e => set('data_pedido', e.target.value)} /></Campo>
+          <div className="col-span-2 space-y-1.5">
             <Label htmlFor="seg-obs">Observações</Label>
             <Textarea id="seg-obs" rows={2} value={v.obs} onChange={e => set('obs', e.target.value)} />
           </div>
-          {erro && <p className="text-xs text-muted-foreground sm:col-span-2">{erro}</p>}
-          <DialogFooter className="sm:col-span-2">
+          {erro && <p className="col-span-2 text-xs text-muted-foreground">{erro}</p>}
+          <DialogFooter className="sticky bottom-0 col-span-2 -mx-1 gap-2 bg-background px-1 pb-1 pt-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={!!erro || saving}>{saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Guardar</Button>
           </DialogFooter>
@@ -542,12 +494,12 @@ function SeguroForm({ initial, editing, saving, parque, vendidasSet, outros, onS
   );
 }
 
-const Campo = ({ id, label, children }: { id: string; label: string; children: React.ReactNode }) => (
-  <div className="space-y-1.5"><Label htmlFor={id}>{label}</Label>{children}</div>
+const Campo = ({ id, label, children, wide }: { id: string; label: string; children: React.ReactNode; wide?: boolean }) => (
+  <div className={cn('min-w-0 space-y-1.5', wide && 'col-span-2')}><Label htmlFor={id}>{label}</Label>{children}</div>
 );
 
 const Aviso = ({ children }: { children: React.ReactNode }) => (
-  <p className="flex items-start gap-1.5 rounded-md bg-amber-100 px-3 py-2 text-xs text-amber-900 sm:col-span-2 dark:bg-amber-500/20 dark:text-amber-200">
+  <p className="flex items-start gap-1.5 rounded-md bg-amber-100 px-3 py-2 text-xs text-amber-900 col-span-2 dark:bg-amber-500/20 dark:text-amber-200">
     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {children}
   </p>
 );
@@ -573,14 +525,14 @@ function CancelarSeguroDialog({ s, venda, onClose, onCopiado }: {
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Cancelar seguro {s.matricula}</DialogTitle>
           <DialogDescription>Copia a mensagem e cola-a no email à seguradora. Depois de confirmado o cancelamento, arquiva o seguro (Dar baixa).</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-3">
           <Campo id="can-efeito" label="Efeito a partir de"><Input id="can-efeito" type="date" value={efeito} onChange={e => setEfeito(e.target.value)} /></Campo>
-          <Campo id="can-motivo" label="Motivo"><Input id="can-motivo" value={motivo} onChange={e => setMotivo(e.target.value)} /></Campo>
+          <Campo id="can-motivo" label="Motivo" wide><Input id="can-motivo" value={motivo} onChange={e => setMotivo(e.target.value)} /></Campo>
         </div>
         <Textarea readOnly rows={12} value={texto} aria-label="Mensagem de cancelamento" className="font-mono text-xs" />
         <DialogFooter>
@@ -612,13 +564,13 @@ function UpgradeDialog({ s, onClose, onDone }: { s: Seguro; onClose: () => void;
           <DialogTitle>Danos próprios — {s.matricula}</DialogTitle>
           <DialogDescription>Passa o seguro de contra terceiros a danos próprios. A alteração fica registada no histórico.</DialogDescription>
         </DialogHeader>
-        <form className="grid gap-3 sm:grid-cols-2" onSubmit={e => { e.preventDefault(); void guardar(); }}>
+        <form className="grid grid-cols-2 gap-3" onSubmit={e => { e.preventDefault(); void guardar(); }}>
           <Campo id="up-cap" label="Valor seguro (€) *"><Input id="up-cap" inputMode="decimal" value={v.capital_seguro} onChange={e => set('capital_seguro', e.target.value)} autoFocus /></Campo>
           <Campo id="up-desde" label="Início dos danos próprios *"><Input id="up-desde" type="date" value={v.dp_desde} onChange={e => set('dp_desde', e.target.value)} /></Campo>
           <Campo id="up-fim" label="Fim *"><Input id="up-fim" type="date" value={v.fim} onChange={e => set('fim', e.target.value)} /></Campo>
           <Campo id="up-resp" label="Responsável pela informação *"><Input id="up-resp" value={v.responsavel_info} onChange={e => set('responsavel_info', e.target.value)} /></Campo>
-          {erro && <p className="text-xs text-muted-foreground sm:col-span-2">{erro}</p>}
-          <DialogFooter className="sm:col-span-2">
+          {erro && <p className="col-span-2 text-xs text-muted-foreground">{erro}</p>}
+          <DialogFooter className="col-span-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={!!erro || busy}>{busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Fazer upgrade</Button>
           </DialogFooter>
@@ -650,5 +602,107 @@ function HistoricoDialog({ s, onClose }: { s: Seguro; onClose: () => void }) {
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ── Apresentação ────────────────────────────────────────────────────────────── */
+
+const Stat = ({ valor, label }: { valor: number | string; label: string }) => (
+  <span className="flex items-baseline gap-1.5"><span className="text-xl font-semibold">{valor}</span><span className="text-sm text-muted-foreground">{label}</span></span>
+);
+
+const Tag = ({ cls, children }: { cls: string; children: React.ReactNode }) => (
+  <span className={cn('inline-flex items-center whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium', cls)}>{children}</span>
+);
+
+const Vazio = ({ texto }: { texto: string }) => (
+  <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">{texto}</div>
+);
+
+function Dado({ k, children }: { k: string; children: React.ReactNode }) {
+  return <div className="min-w-0"><dt className="text-xs text-muted-foreground">{k}</dt><dd className="break-words">{children}</dd></div>;
+}
+
+function SeguroCard({ s, hoje, venda, editable, isAdmin, saving, onEditar, onCancelar, onUpgrade, onHistorico, onArquivar, onReativar, onApagar }: {
+  s: Seguro; hoje: string; venda: ViaturaVendida | null; editable: boolean; isAdmin: boolean; saving: boolean;
+  onEditar: () => void; onCancelar: () => void; onUpgrade: () => void; onHistorico: () => void;
+  onArquivar: (m: MotivoArquivo) => void; onReativar: () => void; onApagar: () => void;
+}) {
+  const est = estadoSeguro(s, hoje);
+  const def = estadoDef(est);
+  const falta = dadosEmFalta(s);
+  const dias = diasParaFim(s, hoje);
+  const urgente = !!venda || est === 'expirado';
+  const pedido = !!s.cancelamento_pedido_em;
+  const [menu, setMenu] = useState(false);
+  const item = 'flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm hover:bg-muted';
+
+  return (
+    <li data-testid="seguro" className={cn('rounded-lg border bg-card p-3', urgente && 'border-red-500/60')}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-mono text-base font-semibold">{s.matricula}</span>
+            {!s.arquivado && (venda
+              ? <Tag cls="bg-red-500/15 text-red-700 dark:text-red-300">Vendida</Tag>
+              : <Tag cls={def.cls}>{def.label}</Tag>)}
+            {s.arquivado && <Tag cls="bg-slate-500/15 text-slate-600 dark:text-slate-300">{motivoLabel(s.motivo_arquivo)} · {fmtDia(s.arquivado_em)}</Tag>}
+          </div>
+          <div className="truncate text-sm text-muted-foreground">{s.viatura} · {areaLabel(s.area)}</div>
+        </div>
+        {(
+          <div className="flex shrink-0 items-center gap-1">
+            {editable && venda && !s.arquivado && (pedido
+              ? <Button size="sm" variant="destructive" aria-label={`Arquivar ${s.matricula}`} onClick={() => onArquivar('viatura_vendida')}>Baixa feita</Button>
+              : <Button size="sm" variant="destructive" aria-label={`Cancelar seguro ${s.matricula}`} onClick={onCancelar}>Cancelar seguro</Button>)}
+            {editable && !venda && est === 'expirado' && <Button size="sm" variant="outline" onClick={onEditar}>Atualizar datas</Button>}
+            {editable && !venda && est !== 'expirado' && falta.length > 0 && <Button size="sm" variant="outline" onClick={onEditar}>Completar</Button>}
+            <Popover open={menu} onOpenChange={setMenu}>
+              <PopoverTrigger asChild>
+                <Button size="icon" variant="ghost" aria-label={`Mais ações ${s.matricula}`}><MoreHorizontal className="h-4 w-4" /></Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-56 p-1" onClick={() => setMenu(false)}>
+                {editable && !s.arquivado && <button type="button" className={item} aria-label={`Cancelar seguro ${s.matricula}`} onClick={onCancelar}><Ban className="h-4 w-4" />Cancelar seguro</button>}
+                {editable && !s.arquivado && s.cobertura === 'terceiros' && <button type="button" className={item} aria-label={`Upgrade para danos próprios ${s.matricula}`} onClick={onUpgrade}><ShieldPlus className="h-4 w-4" />Passar a danos próprios</button>}
+                {editable && <button type="button" className={item} aria-label={`Editar ${s.matricula}`} onClick={onEditar}><Pencil className="h-4 w-4" />Editar</button>}
+                <button type="button" className={item} aria-label={`Histórico ${s.matricula}`} onClick={onHistorico}><History className="h-4 w-4" />Histórico</button>
+                {editable && (s.arquivado
+                  ? <button type="button" className={item} disabled={saving} aria-label={`Reativar ${s.matricula}`} onClick={onReativar}><ArchiveRestore className="h-4 w-4" />Reativar</button>
+                  : <button type="button" className={item} aria-label={`Arquivar ${s.matricula}`} onClick={() => onArquivar(venda ? 'viatura_vendida' : 'terminado')}><Archive className="h-4 w-4" />Arquivar</button>)}
+                {editable && isAdmin && <button type="button" className={cn(item, 'text-destructive')} aria-label={`Apagar ${s.matricula}`} onClick={onApagar}><Trash2 className="h-4 w-4" />Apagar</button>}
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+      </div>
+
+      {venda && !s.arquivado && (
+        <p className="mt-2 rounded bg-red-500/10 px-2.5 py-1.5 text-sm font-medium text-red-700 dark:text-red-300">
+          Viatura vendida ({textoVenda(venda)}) — dar baixa do seguro.
+          {pedido && <span className="font-normal"> Cancelamento pedido em {fmtDia(s.cancelamento_pedido_em)}; aguarda confirmação.</span>}
+        </p>
+      )}
+      {!venda && pedido && !s.arquivado && (
+        <p className="mt-2 rounded bg-muted px-2.5 py-1.5 text-sm">Cancelamento pedido em {fmtDia(s.cancelamento_pedido_em)}.</p>
+      )}
+      {falta.length > 0 && (
+        <p className="mt-2 rounded bg-amber-500/10 px-2.5 py-1.5 text-sm text-amber-800 dark:text-amber-300">Em falta (danos próprios): {falta.join(', ')}.</p>
+      )}
+
+      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+        <Dado k="Cobertura">
+          {coberturaLabel(s.cobertura)}
+          {s.cobertura === 'danos_proprios' && s.capital_seguro ? <span className="block text-xs text-muted-foreground">Valor seguro {fmtEuro(s.capital_seguro)}</span> : null}
+        </Dado>
+        <Dado k="Período">
+          {fmtDia(s.inicio)} →<br className="sm:hidden" /> {s.fim ? fmtDia(s.fim) : 'sem termo'}
+          {!s.arquivado && s.fim && dias !== null && est !== 'futuro' && (
+            <span className="block text-xs text-muted-foreground">{dias >= 0 ? `faltam ${dias} d` : `terminou há ${-dias} d`}</span>
+          )}
+        </Dado>
+        {s.premio != null && <Dado k="Prémio">{fmtEuro(s.premio)}</Dado>}
+        {s.solicitante !== 'Por atribuir' && <Dado k="Pedido por">{s.solicitante}{s.cliente ? ` · ${s.cliente}` : ''}</Dado>}
+      </dl>
+    </li>
   );
 }

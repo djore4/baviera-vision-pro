@@ -46,6 +46,8 @@ beforeEach(() => {
   ];
 });
 
+const abrirMenu = async (mat: string) => fireEvent.click(await screen.findByRole('button', { name: `Mais ações ${mat}` }));
+
 describe('SegurosPage', () => {
   it('separa ativos de arquivados', async () => {
     render(<SegurosPage />);
@@ -56,18 +58,24 @@ describe('SegurosPage', () => {
     expect(screen.getByText('44-DD-44')).toBeTruthy();
   });
 
-  it('destaca expirados por arquivar e viaturas vendidas com seguro', async () => {
+  it('destaca expirados e viaturas vendidas, com contadores que filtram a lista', async () => {
     render(<SegurosPage />);
-    const alertasEl = await screen.findByTestId('alertas');
-    expect(alertasEl.textContent).toContain('11-BB-11');
-    expect(alertasEl.textContent).toContain('33-CC-33');
-    expect(alertasEl.textContent).not.toContain('00-AA-00');
+    await screen.findAllByTestId('seguro');
+    const chips = screen.getByTestId('alertas');
+    expect(chips.textContent).toMatch(/Dar baixa1/);
+    expect(chips.textContent).toMatch(/Expirados1/);
+    fireEvent.click(screen.getByRole('button', { name: /Dar baixa/ }));
+    const cards = screen.getAllByTestId('seguro');
+    expect(cards).toHaveLength(1);
+    expect(cards[0].textContent).toContain('33-CC-33');
+    expect(cards[0].textContent).toContain('Viatura vendida (passou a Retail em 05-11-2026)');
   });
 
   it('arquiva uma viatura vendida com o motivo pré-preenchido', async () => {
     DB = [mk('3', { matricula: '33-CC-33', matricula_norm: '33CC33' })];
     arquivar.mockResolvedValue(mk('3', { arquivado: true, motivo_arquivo: 'viatura_vendida', arquivado_em: hojeIso() }));
     render(<SegurosPage />);
+    await abrirMenu('33-CC-33');
     fireEvent.click(await screen.findByRole('button', { name: 'Arquivar 33-CC-33' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Arquivar' }));
     await waitFor(() => expect(arquivar).toHaveBeenCalledWith('3', 'viatura_vendida'));
@@ -78,14 +86,24 @@ describe('SegurosPage', () => {
     render(<SegurosPage />);
     await screen.findAllByTestId('seguro');
     expect(screen.queryByRole('button', { name: /Novo seguro/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Cancelar seguro/ })).toBeNull();
+    await abrirMenu('00-AA-00');
     expect(screen.queryByRole('button', { name: /Editar/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Histórico 00-AA-00' })).toBeTruthy();   // consulta continua
   });
 
-  it('realça a baixa a dar e lista as viaturas do parque sem seguro (a que tem seguro fica de fora)', async () => {
+  it('a viatura vendida tem o botão Cancelar seguro em destaque e a baixa realçada', async () => {
+    render(<SegurosPage />);
+    const botao = await screen.findByRole('button', { name: 'Cancelar seguro 33-CC-33' });
+    expect(botao).toBeTruthy();
+    expect(screen.getAllByText(/Viatura vendida \(passou a Retail em 05-11-2026\)/).length).toBeGreaterThan(0);
+  });
+
+  it('lista as viaturas do parque sem seguro (a que tem seguro fica de fora)', async () => {
     render(<SegurosPage />);
     await screen.findAllByTestId('seguro');
-    expect(screen.getAllByText(/DAR BAIXA · passou a Retail em 05-11-2026/).length).toBeGreaterThan(0);
-    const parque = screen.getByTestId('parque-sem-seguro');
+    fireEvent.click(screen.getByRole('button', { name: /Sem seguro/ }));
+    const parque = await screen.findByTestId('parque-sem-seguro');
     expect(parque.textContent).toContain('77-XX-77');
     expect(parque.textContent).toContain('Demos VN');
     expect(parque.textContent).not.toContain('00-AA-00');   // já tem seguro
@@ -95,6 +113,7 @@ describe('SegurosPage', () => {
     DB = [mk('1', { apolice: '123' })];
     cancelar.mockResolvedValue(mk('1', { apolice: '123', cancelamento_pedido_em: '2026-11-12' }));
     render(<SegurosPage />);
+    await abrirMenu('00-AA-00');
     fireEvent.click(await screen.findByRole('button', { name: 'Cancelar seguro 00-AA-00' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Copiar mensagem' }));
     await waitFor(() => expect(copiar).toHaveBeenCalled());
@@ -107,8 +126,11 @@ describe('SegurosPage', () => {
     upgrade.mockResolvedValue(mk('1', { cobertura: 'danos_proprios', capital_seguro: 30000, dp_desde: '2026-11-12', fim: '2099-12-31', responsavel_info: 'Ana' }));
     render(<SegurosPage />);
     await screen.findAllByTestId('seguro');
+    await abrirMenu('11-BB-11');
     expect(screen.queryByRole('button', { name: 'Upgrade para danos próprios 11-BB-11' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Upgrade para danos próprios 00-AA-00' }));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await abrirMenu('00-AA-00');
+    fireEvent.click(await screen.findByRole('button', { name: 'Upgrade para danos próprios 00-AA-00' }));
     const fazer = await screen.findByRole('button', { name: 'Fazer upgrade' });
     expect((fazer as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText('Valor seguro (€) *'), { target: { value: '30000' } });
@@ -120,7 +142,8 @@ describe('SegurosPage', () => {
 
   it('mostra o histórico de um seguro', async () => {
     render(<SegurosPage />);
-    fireEvent.click((await screen.findAllByRole('button', { name: /Histórico/ }))[0]);
+    await abrirMenu('00-AA-00');
+    fireEvent.click(await screen.findByRole('button', { name: 'Histórico 00-AA-00' }));
     expect((await screen.findByTestId('historico')).textContent).toContain('Contra terceiros → Danos próprios');
   });
 });
