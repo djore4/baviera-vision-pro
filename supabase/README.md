@@ -109,7 +109,7 @@ segue a mesma lógica (`can_write_excel_file(nome)` decide por ficheiro).
   Sincronizar (agora «Sincronizar email») e a importação por **imagem, PDF ou Excel**: cola
   (Ctrl+V) um print do mapa «Mapas de Retail - Veículos Novos» (ou de faturas) e a edge
   function `importar-extrair` lê-o (precisa de `ANTHROPIC_API_KEY` e de
-  `supabase functions deploy importar-extrair`). Casa por chassis (7 últimos) ou encomenda,
+  `supabase functions deploy importar-extrair`). **Grátis:** copiar a tabela do portal (Ctrl+C) e colar (Ctrl+V) é lido sem IA (HTML da tabela); só imagem/PDF gastam crédito da API. Casa por chassis (7 últimos) ou encomenda,
   mostra o que muda e só grava depois de confirmar: estado → Retail, `date298` (Data de 298),
   `dmat`, matrícula (só se vazia) e completa o VIN. Faturas usam as mesmas regras do controlo
   de faturas (DFAT/DMAT).
