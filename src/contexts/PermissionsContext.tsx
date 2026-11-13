@@ -3,11 +3,12 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/App';
 import {
   listRoles, listUsers, isPlatformAdmin, getMyAccessExceptions, getAppCapabilities, getTabsPorLocal, NO_CAPABILITIES, TABS, ADMIN_ONLY_TAB_KEYS,
-  restritoPeloLocal, tabLivreForaDoLocal,
+  nivelDaFuncao,
   type AccessLevel, type AppCapabilities, type AppRole, type AppUser,
 } from '@/lib/permissions';
 import { client } from '@/clients';
 import { eotAccountBlocked } from '@/lib/eot-access';
+import { locaisDoPerfil } from '@/lib/locations';
 
 /* Tabs restritos a administradores (fora da matriz de funções). */
 const ADMIN_ONLY_TABS = new Set(ADMIN_ONLY_TAB_KEYS);
@@ -149,9 +150,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       // Exceção pontual por email (tem precedência sobre a função, mas não sobre
       // o acesso total de admin). Só eleva o acesso, nunca o reduz.
       const exception = accessExceptions[tab];
-      // Fora de Aveiro (ou sem local): só o End-of-Term e os tabs de tabsPorLocal (Demos, do seu local). Uma exceção por email mantém-se.
-      if (!exception && restritoPeloLocal(effMe) && !tabLivreForaDoLocal(tab, tabsPorLocal)) return 'none';
-      const roleAccess = role ? ((role.permissions?.[tab] as AccessLevel) ?? 'none') : 'none';
+      // A função dá o nível do(s) local(is) da pessoa (matriz função × local); sem local, o da matriz base.
+      const roleAccess = nivelDaFuncao(role, locaisDoPerfil(effMe?.local), tab, { tabsPorLocal, comExcecao: !!exception });
       if (exception) {
         const rank: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
         return rank[exception] >= rank[roleAccess] ? exception : roleAccess;

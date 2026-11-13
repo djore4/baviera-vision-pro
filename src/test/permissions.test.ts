@@ -5,6 +5,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: (...a: unkno
 
 import {
   getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS, ARCHIVED_TAB_KEYS, restritoPeloLocal, tabLivreForaDoLocal,
+  nivelDaFuncao, permissoesDoLocal, type AppRole,
 } from '@/lib/permissions';
 
 beforeEach(() => { rpc.mockReset(); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
@@ -178,5 +179,44 @@ describe('Comparativo', () => {
     expect(t?.adminOnly).toBe(true);
     expect(PERMISSION_TABS.some(x => x.key === 'comparativo')).toBe(false);
     expect(ARCHIVED_TAB_KEYS).not.toContain('comparativo');
+  });
+});
+
+describe('matriz função × local', () => {
+  const role: AppRole = {
+    name: 'R', is_admin: false,
+    permissions: { retails: 'view', lavagem: 'edit', 'end-of-term': 'view', demos: 'view' },
+    permissions_local: { Porto: { retails: 'edit', lavagem: 'view' }, Gaia: {} },
+  };
+  const n = (locais: string[], tab: string, o = {}) => nivelDaFuncao(role, locais, tab, o);
+
+  it('um local com entrada manda: o que falta é sem acesso', () => {
+    expect(n(['Porto'], 'retails')).toBe('edit');
+    expect(n(['Porto'], 'lavagem')).toBe('view');
+    expect(n(['Porto'], 'end-of-term')).toBe('none');
+    expect(n(['Gaia'], 'retails')).toBe('none');
+  });
+
+  it('um local sem entrada segue a regra anterior (Aveiro: matriz base; outros: só EoT e tabs por local)', () => {
+    expect(n(['Aveiro'], 'lavagem')).toBe('edit');
+    expect(n(['Feira'], 'end-of-term')).toBe('view');
+    expect(n(['Feira'], 'retails')).toBe('none');
+    expect(n(['Feira'], 'demos')).toBe('none');
+    expect(n(['Feira'], 'demos', { tabsPorLocal: ['demos'] })).toBe('view');
+    expect(n(['Feira'], 'retails', { comExcecao: true })).toBe('view');
+  });
+
+  it('vários locais: o nível mais alto; sem local: a matriz base', () => {
+    expect(n(['Porto', 'Feira'], 'end-of-term')).toBe('view');
+    expect(n(['Porto', 'Feira'], 'retails')).toBe('edit');
+    expect(n([], 'lavagem')).toBe('edit');
+  });
+
+  it('permissoesDoLocal devolve a entrada guardada ou a derivada da regra anterior', () => {
+    expect(permissoesDoLocal(role, 'Porto')).toEqual({ retails: 'edit', lavagem: 'view' });
+    expect(permissoesDoLocal(role, 'Gaia')).toEqual({});
+    expect(permissoesDoLocal(role, 'Aveiro')).toEqual(role.permissions);
+    expect(permissoesDoLocal(role, 'Feira')).toEqual({ 'end-of-term': 'view' });
+    expect(permissoesDoLocal(null, 'Feira')).toEqual({});
   });
 });

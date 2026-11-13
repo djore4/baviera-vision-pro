@@ -181,7 +181,11 @@ export const TAB_BY_PATH: Record<string, TabDef> =
 export interface AppRole {
   name: string;
   is_admin: boolean;
+  /** Matriz base: vale para quem não tem nenhum local reconhecido. */
   permissions: Record<string, AccessLevel>;
+  /** Matriz por local: { Aveiro: { retails: 'edit', … }, Porto: { … } }. Um local sem entrada
+   *  segue a regra anterior (ver permissoesDoLocal). */
+  permissions_local?: Record<string, Record<string, AccessLevel>>;
 }
 
 /* ── Restrição por local ─────────────────────────────────────────────────────
@@ -219,6 +223,53 @@ export async function getTabsPorLocal(): Promise<string[]> {
   return (data as unknown[]).filter((t): t is string => typeof t === 'string');
 }
 
+/* ── Matriz função × local ───────────────────────────────────────────────────
+ * Cada função tem uma matriz de permissões por local (app_roles.permissions_local). O acesso
+ * de uma pessoa é o MÁXIMO dos níveis dos seus locais; sem nenhum local reconhecido, vale a
+ * matriz base (app_roles.permissions). Um local sem entrada na função segue a regra anterior
+ * à matriz por local (Aveiro: a matriz base; os outros: só o End-of-Term e os tabs por local),
+ * de modo que nada muda até um administrador editar o local. Espelha role_tab_level (SQL).
+ * ──────────────────────────────────────────────────────────────────────────── */
+const RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
+
+const nivel = (v: unknown): AccessLevel => (v === 'view' || v === 'edit' ? v : 'none');
+
+/** Permissões que a regra anterior dava a um local sem entrada na função. */
+export function permissoesDoLocalLegado(
+  perms: Record<string, AccessLevel> | undefined, local: string, tabsPorLocal: readonly string[] = [],
+): Record<string, AccessLevel> {
+  if (local === LOCAL_ACESSO_COMPLETO) return { ...(perms ?? {}) };
+  const out: Record<string, AccessLevel> = {};
+  Object.entries(perms ?? {}).forEach(([k, v]) => { if (tabLivreForaDoLocal(k, tabsPorLocal)) out[k] = v; });
+  return out;
+}
+
+/** Matriz efetiva de uma função num local (a guardada, ou a derivada da regra anterior). */
+export function permissoesDoLocal(role: AppRole | null | undefined, local: string, tabsPorLocal: readonly string[] = []): Record<string, AccessLevel> {
+  if (!role) return {};
+  const guardada = role.permissions_local?.[local];
+  return guardada && typeof guardada === 'object' ? guardada : permissoesDoLocalLegado(role.permissions, local, tabsPorLocal);
+}
+
+/** Nível que a função dá a quem opera nestes locais (canónicos) neste tab/permissão. */
+export function nivelDaFuncao(
+  role: AppRole | null | undefined, locais: readonly string[], tab: string,
+  opts: { tabsPorLocal?: readonly string[]; comExcecao?: boolean } = {},
+): AccessLevel {
+  if (!role) return 'none';
+  if (locais.length === 0) return nivel(role.permissions?.[tab]);
+  let best: AccessLevel = 'none';
+  for (const l of locais) {
+    const guardada = role.permissions_local?.[l];
+    let v: AccessLevel;
+    if (guardada && typeof guardada === 'object') v = nivel(guardada[tab]);
+    // Sem entrada: regra anterior (uma exceção por email também abre o tab à função).
+    else v = l === LOCAL_ACESSO_COMPLETO || opts.comExcecao || tabLivreForaDoLocal(tab, opts.tabsPorLocal) ? nivel(role.permissions?.[tab]) : 'none';
+    if (RANK[v] > RANK[best]) best = v;
+  }
+  return best;
+}
+
 export interface AppUser {
   id: number | string;
   nome: string | null;
@@ -236,9 +287,17 @@ export interface AppUser {
 export async function listRoles(): Promise<AppRole[]> {
   const { data, error } = await supabase
     .from('app_roles')
-    .select('name, is_admin, permissions')
+    .select('name, is_admin, permissions, permissions_local')
     .order('name', { ascending: true });
-  if (error) throw error;
+  if (error) {
+    // Coluna em falta (migração permissoes_por_local por aplicar): lê-se a matriz base, como antes.
+    if ((error as { code?: string }).code === '42703') {
+      const legado = await supabase.from('app_roles').select('name, is_admin, permissions').order('name', { ascending: true });
+      if (legado.error) throw legado.error;
+      return (legado.data ?? []) as AppRole[];
+    }
+    throw error;
+  }
   return (data ?? []) as AppRole[];
 }
 
@@ -379,8 +438,11 @@ export async function saveRole(
   name: string,
   permissions: Record<string, AccessLevel>,
   is_admin: boolean,
+  permissions_local?: Record<string, Record<string, AccessLevel>>,
 ): Promise<AppRole> {
-  const res = await invokeAdmin<{ role: AppRole }>({ action: 'save_role', name, permissions, is_admin });
+  const res = await invokeAdmin<{ role: AppRole }>({
+    action: 'save_role', name, permissions, is_admin, ...(permissions_local ? { permissions_local } : {}),
+  });
   return res.role;
 }
 

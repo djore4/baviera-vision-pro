@@ -82,6 +82,7 @@ export type Database = {
           is_admin: boolean
           name: string
           permissions: NonNullable<Json>
+          permissions_local: NonNullable<Json>
           updated_at: string
         }
         ComputedFields: never
@@ -90,6 +91,7 @@ export type Database = {
           is_admin?: boolean
           name: string
           permissions?: NonNullable<Json>
+          permissions_local?: NonNullable<Json>
           updated_at?: string
         }
         Update: {
@@ -97,6 +99,7 @@ export type Database = {
           is_admin?: boolean
           name?: string
           permissions?: NonNullable<Json>
+          permissions_local?: NonNullable<Json>
           updated_at?: string
         }
         Relationships: []

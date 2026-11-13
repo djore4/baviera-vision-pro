@@ -169,11 +169,15 @@ Deno.serve(async (req) => {
     }
 
     if (action === "save_role") {
-      const { name, permissions, is_admin } = body;
+      const { name, permissions, is_admin, permissions_local } = body;
       if (!name || !String(name).trim()) return json({ error: "Nome da função em falta." }, 400);
       const { data: row, error: rErr } = await admin.from("app_roles")
-        .upsert({ name: String(name).trim(), permissions: permissions ?? {}, is_admin: !!is_admin }, { onConflict: "name" })
-        .select("name, is_admin, permissions").single();
+        // permissions_local só se grava quando vem no pedido (clientes antigos não o enviam).
+        .upsert({
+          name: String(name).trim(), permissions: permissions ?? {}, is_admin: !!is_admin,
+          ...(permissions_local && typeof permissions_local === "object" && !Array.isArray(permissions_local) ? { permissions_local } : {}),
+        }, { onConflict: "name" })
+        .select("name, is_admin, permissions, permissions_local").single();
       if (rErr) return json({ error: rErr.message }, 400);
       return json({ role: row });
     }
@@ -184,7 +188,7 @@ Deno.serve(async (req) => {
       if (!name || !to) return json({ error: "Nome da função em falta." }, 400);
       if (to === name) return json({ error: "O novo nome é igual ao atual." }, 400);
       const { data: old } = await admin.from("app_roles")
-        .select("name, is_admin, permissions").eq("name", name).maybeSingle();
+        .select("name, is_admin, permissions, permissions_local").eq("name", name).maybeSingle();
       if (!old) return json({ error: "Função não encontrada." }, 404);
       const { data: all } = await admin.from("app_roles").select("name");
       if ((all ?? []).some((r) => r.name !== name && String(r.name).toLowerCase() === to.toLowerCase())) {
@@ -194,7 +198,7 @@ Deno.serve(async (req) => {
       // isso: 1) cria a função com o novo nome, 2) passa os utilizadores, 3) apaga a
       // antiga. Se o passo 2 falhar, desfaz o 1 e nada muda.
       const { error: cErr } = await admin.from("app_roles")
-        .insert({ name: to, permissions: old.permissions, is_admin: old.is_admin });
+        .insert({ name: to, permissions: old.permissions, permissions_local: old.permissions_local ?? {}, is_admin: old.is_admin });
       if (cErr) return json({ error: cErr.message }, 400);
       const { error: uErr } = await admin.from("app_users").update({ perfil: to }).eq("perfil", name);
       if (uErr) {
@@ -203,7 +207,7 @@ Deno.serve(async (req) => {
       }
       const { error: dErr } = await admin.from("app_roles").delete().eq("name", name);
       if (dErr) return json({ error: `Renomeada, mas não foi possível remover o nome antigo: ${dErr.message}` }, 500);
-      return json({ role: { name: to, permissions: old.permissions, is_admin: old.is_admin } });
+      return json({ role: { name: to, permissions: old.permissions, permissions_local: old.permissions_local ?? {}, is_admin: old.is_admin } });
     }
 
     if (action === "delete_role") {
