@@ -33,16 +33,21 @@ interface Cycle {
   notes: string | null;
 }
 
+const EXTRA_RESPS = ['JD', 'JG'];
+const EXCLUDED_RESPS = ['TG', 'RD', 'AL', 'MP'];
+
 export default function MultasPage() {
   const { data } = useData();
   const { isAdmin, canEdit } = usePermissions();
   const canLaunch = canEdit('multas');
-  // Responsáveis = quem tem negócios em Carteira (mesmo critério do tab Carteira).
-  const resps = useMemo(() => Array.from(new Set(
-    (data?.control ?? [])
+  // Responsáveis = quem tem negócios em Carteira (mesmo critério do tab Carteira),
+  // mais os que têm de constar sempre (EXTRA_RESPS) e sem os que não levam multas (EXCLUDED_RESPS).
+  const resps = useMemo(() => Array.from(new Set([
+    ...(data?.control ?? [])
       .filter(r => (r.status === 'Carteira' || r.status === 'Matricula') && isRetailType(r.type))
-      .map(r => r.resp).filter(Boolean)
-  )).sort(), [data]);
+      .map(r => r.resp).filter(Boolean),
+    ...EXTRA_RESPS,
+  ])).filter(r => !EXCLUDED_RESPS.includes(r)).sort(), [data]);
   const [infractions, setInfractions] = useState<Infraction[]>([]);
   const [penalties, setPenalties] = useState<Penalty[]>([]);
   const [currentCycle, setCurrentCycle] = useState<number>(1);
