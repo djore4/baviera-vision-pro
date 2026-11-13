@@ -846,28 +846,6 @@ export type Database = {
         }
         Relationships: []
       }
-      demos_premios: {
-        Row: {
-          chassis: string
-          premio: number
-          updated_at: string
-          updated_by: string | null
-        }
-        ComputedFields: never
-        Insert: {
-          chassis: string
-          premio: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          chassis?: string
-          premio?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       demos: {
         Row: {
           bev: string | null
@@ -998,6 +976,28 @@ export type Database = {
           updated_at?: string | null
           versao?: string | null
           xev?: string | null
+        }
+        Relationships: []
+      }
+      demos_premios: {
+        Row: {
+          chassis: string
+          premio: number
+          updated_at: string
+          updated_by: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          chassis: string
+          premio: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          chassis?: string
+          premio?: number
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -2240,6 +2240,136 @@ export type Database = {
         }
         Relationships: []
       }
+      seguros: {
+        Row: {
+          apolice: string | null
+          area: string
+          arquivado: boolean
+          arquivado_em: string | null
+          cancelamento_pedido_em: string | null
+          capital_seguro: number | null
+          chassis: string | null
+          cliente: string | null
+          cobertura: string
+          created_at: string
+          criado_por: string | null
+          data_pedido: string
+          dp_desde: string | null
+          fim: string | null
+          id: string
+          inicio: string
+          matricula: string
+          matricula_norm: string | null
+          motivo_arquivo: string | null
+          obs: string | null
+          premio: number | null
+          responsavel_info: string | null
+          seguradora: string | null
+          solicitante: string
+          updated_at: string
+          viatura: string
+        }
+        ComputedFields: never
+        Insert: {
+          apolice?: string | null
+          area: string
+          arquivado?: boolean
+          arquivado_em?: string | null
+          cancelamento_pedido_em?: string | null
+          capital_seguro?: number | null
+          chassis?: string | null
+          cliente?: string | null
+          cobertura: string
+          created_at?: string
+          criado_por?: string | null
+          data_pedido?: string
+          dp_desde?: string | null
+          fim?: string | null
+          id?: string
+          inicio: string
+          matricula: string
+          matricula_norm?: never
+          motivo_arquivo?: string | null
+          obs?: string | null
+          premio?: number | null
+          responsavel_info?: string | null
+          seguradora?: string | null
+          solicitante: string
+          updated_at?: string
+          viatura: string
+        }
+        Update: {
+          apolice?: string | null
+          area?: string
+          arquivado?: boolean
+          arquivado_em?: string | null
+          cancelamento_pedido_em?: string | null
+          capital_seguro?: number | null
+          chassis?: string | null
+          cliente?: string | null
+          cobertura?: string
+          created_at?: string
+          criado_por?: string | null
+          data_pedido?: string
+          dp_desde?: string | null
+          fim?: string | null
+          id?: string
+          inicio?: string
+          matricula?: string
+          matricula_norm?: never
+          motivo_arquivo?: string | null
+          obs?: string | null
+          premio?: number | null
+          responsavel_info?: string | null
+          seguradora?: string | null
+          solicitante?: string
+          updated_at?: string
+          viatura?: string
+        }
+        Relationships: []
+      }
+      seguros_historico: {
+        Row: {
+          autor: string | null
+          created_at: string
+          de: string | null
+          detalhe: string | null
+          id: string
+          para: string | null
+          seguro_id: string
+          tipo: string
+        }
+        ComputedFields: never
+        Insert: {
+          autor?: string | null
+          created_at?: string
+          de?: string | null
+          detalhe?: string | null
+          id?: string
+          para?: string | null
+          seguro_id: string
+          tipo: string
+        }
+        Update: {
+          autor?: string | null
+          created_at?: string
+          de?: string | null
+          detalhe?: string | null
+          id?: string
+          para?: string | null
+          seguro_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seguros_historico_seguro_id_fkey"
+            columns: ["seguro_id"]
+            isOneToOne: false
+            referencedRelation: "seguros"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       sugestoes: {
         Row: {
           autor_email: string
@@ -2384,6 +2514,82 @@ export type Database = {
         }
         Relationships: []
       }
+      viaturas_vendidas: {
+        Row: {
+          chassis: string | null
+          created_at: string | null
+          data_matricula: string | null
+          data_venda: string | null
+          encomenda: string | null
+          estado_entrega: string | null
+          estado_negocio: string | null
+          id: number
+          inputs: Json | null
+          iva_dedutivel: boolean
+          kms: string | null
+          link_fotos: string | null
+          local: Json | null
+          marca: Json | null
+          matricula: string | null
+          modelo: string | null
+          observacoes: string | null
+          preco_final: number | null
+          stats: Json | null
+          tipologia: Json | null
+          vendido_por: string | null
+          versao: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          chassis?: string | null
+          created_at?: string | null
+          data_matricula?: string | null
+          data_venda?: string | null
+          encomenda?: string | null
+          estado_entrega?: string | null
+          estado_negocio?: string | null
+          id?: number
+          inputs?: Json | null
+          iva_dedutivel?: boolean
+          kms?: string | null
+          link_fotos?: string | null
+          local?: Json | null
+          marca?: Json | null
+          matricula?: string | null
+          modelo?: string | null
+          observacoes?: string | null
+          preco_final?: number | null
+          stats?: Json | null
+          tipologia?: Json | null
+          vendido_por?: string | null
+          versao?: string | null
+        }
+        Update: {
+          chassis?: string | null
+          created_at?: string | null
+          data_matricula?: string | null
+          data_venda?: string | null
+          encomenda?: string | null
+          estado_entrega?: string | null
+          estado_negocio?: string | null
+          id?: number
+          inputs?: Json | null
+          iva_dedutivel?: boolean
+          kms?: string | null
+          link_fotos?: string | null
+          local?: Json | null
+          marca?: Json | null
+          matricula?: string | null
+          modelo?: string | null
+          observacoes?: string | null
+          preco_final?: number | null
+          stats?: Json | null
+          tipologia?: Json | null
+          vendido_por?: string | null
+          versao?: string | null
+        }
+        Relationships: []
+      }
       vu_objetivos: {
         Row: {
           bmw: number
@@ -2426,14 +2632,49 @@ export type Database = {
         }[]
       }
       app_capabilities: { Args: Record<PropertyKey, never>; Returns: Json }
+      app_locais: { Args: Record<PropertyKey, never>; Returns: string[] }
       can_write_excel_file: { Args: { p_name: string }; Returns: boolean }
-      demos_gravar_precos: { Args: { p_chassis: string; p_inputs: Json }; Returns: Json }
-      demos_criar_viatura: { Args: { p: Json }; Returns: Json }
-      demos_editar_viatura: { Args: { p_chassis: string; p: Json }; Returns: Json }
       demos_arquivar_viatura: { Args: { p_chassis: string }; Returns: number }
+      demos_calc_stats: { Args: { p_inputs: Json; p_stats: Json }; Returns: Json }
+      demos_criar_viatura: { Args: { p: Json }; Returns: Json }
+      demos_editar_viatura: { Args: { p: Json; p_chassis: string }; Returns: Json }
+      demos_gravar_precos: { Args: { p_chassis: string; p_inputs: Json }; Returns: Json }
       demos_repor_viatura: { Args: { p_id: number }; Returns: string }
       demos_reservar_viatura: { Args: { p_chassis: string; p_libertar?: boolean }; Returns: Json }
-      demos_vendidas: { Args: Record<PropertyKey, never>; Returns: Record<string, Json>[] }
+      demos_validar_inputs: { Args: { p_inputs: Json }; Returns: undefined }
+      demos_vendidas: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          chassis: string | null
+          created_at: string | null
+          data_matricula: string | null
+          data_venda: string | null
+          encomenda: string | null
+          estado_entrega: string | null
+          estado_negocio: string | null
+          id: number
+          inputs: Json | null
+          iva_dedutivel: boolean
+          kms: string | null
+          link_fotos: string | null
+          local: Json | null
+          marca: Json | null
+          matricula: string | null
+          modelo: string | null
+          observacoes: string | null
+          preco_final: number | null
+          stats: Json | null
+          tipologia: Json | null
+          vendido_por: string | null
+          versao: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "viaturas_vendidas"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       demos_viaturas: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -2496,6 +2737,47 @@ export type Database = {
       replace_rows: {
         Args: { p_allow_empty?: boolean; p_rows: Json; p_table: string }
         Returns: number
+      }
+      role_tab_level: {
+        Args: {
+          p_has_exception?: boolean
+          p_perms: Json
+          p_perms_local: Json
+          p_tab: string
+          p_user_local: Json
+        }
+        Returns: string
+      }
+      seguros_avisar_venda: { Args: { p_matricula: string; p_origem: string }; Returns: undefined }
+      seguros_parque: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          area: string
+          chassis: string
+          marca: string
+          matricula: string
+          modelo: string
+          origem: string
+          ref: string
+          versao: string
+        }[]
+      }
+      seguros_vendas_detetadas: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          data_venda: string
+          matricula: string
+          matricula_norm: string
+          origem: string
+        }[]
+      }
+      seguros_vendidas: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          data_venda: string
+          matricula: string
+          origem: string
+        }[]
       }
       sf_perfil_insercao: { Args: Record<PropertyKey, never>; Returns: Json }
       tabs_por_local: { Args: Record<PropertyKey, never>; Returns: string[] }
