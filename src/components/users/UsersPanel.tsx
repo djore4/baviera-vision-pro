@@ -6,7 +6,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { createUser, updateUser, deleteUser, AdminError, restritoPeloLocal, type AppRole, type AppUser } from '@/lib/permissions';
+import { createUser, updateUser, deleteUser, AdminError, nivelDaFuncao, PERMISSION_TABS, type AppRole, type AppUser } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import { generatePassword } from '@/lib/password';
 import { locaisDoGrupo, locaisDoPerfil } from '@/lib/locations';
@@ -54,12 +54,13 @@ export function UsersPanel({
   const [pwTarget, setPwTarget] = useState<AppUser | null>(null);
   const [delTarget, setDelTarget] = useState<AppUser | null>(null);
 
-  // Fora de Aveiro (ou sem local) só se vê o End-of-Term e os tabs por local (Demos), salvo funções "todos os locais".
+  // Quem tem local e, nesse(s) local(is), a função só abre o End-of-Term (nenhum outro tab da matriz).
   const soEot = (u: AppUser) => {
     const r = roles.find(x => x.name === u.perfil);
-    if (!r || r.is_admin || !restritoPeloLocal(u)) return false;
-    // Se a função abre algum tab por local, a pessoa vê mais do que o End-of-Term.
-    return !tabsPorLocal.some(t => r.permissions?.[t] === 'view' || r.permissions?.[t] === 'edit');
+    const locais = locaisDoPerfil(u.local);
+    if (!r || r.is_admin || locais.length === 0) return false;
+    const nivel = (tab: string) => nivelDaFuncao(r, locais, tab, { tabsPorLocal });
+    return nivel('end-of-term') !== 'none' && !PERMISSION_TABS.some(t => t.key !== 'end-of-term' && nivel(t.key) !== 'none');
   };
   const semLocal = (u: AppUser) => locaisDoPerfil(u.local).length === 0;
   const roleOf = (u: AppUser) => (u.perfil && u.perfil.trim()) || SEM_FUNCAO;
@@ -209,7 +210,7 @@ export function UsersPanel({
                           <span className="grid place-items-center h-8 w-8 rounded-full bg-primary/10 text-primary text-[11px] font-bold shrink-0">{initialsOf(u)}</span>
                           <div className="min-w-0">
                             <div className="font-medium truncate">
-                              {u.nome || '—'}{soEot(u) && <span className="ml-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-300" title="Fora de Aveiro (ou sem local) a função só dá acesso ao End-of-Term. Define o local, ou ativa 'Todos os locais' na função.">só End-of-Term</span>}{isMe && <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">tu</span>}
+                              {u.nome || '—'}{soEot(u) && <span className="ml-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-300" title="Nos locais desta conta, a função só dá acesso ao End-of-Term. Ajusta a matriz do local em Funções.">só End-of-Term</span>}{isMe && <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">tu</span>}
                             </div>
                             <div className="text-xs text-muted-foreground truncate">{u.email}</div>
                           </div>

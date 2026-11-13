@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { listTaskAlerts, listRecentAccounts, type Account, type Scope, type Task, type TaskAlerts } from '@/lib/prospec';
+import { listTaskAlerts, listRecentAccounts, type Account, type Scope, type TaskAlerts } from '@/lib/prospec';
 import { pushSupported, subscribeToPush, unsubscribeFromPush, sendTestPush } from '@/lib/prospecPush';
 
 /* ── Notificações de tarefas (Prospeção) ──────────────────────────────────────

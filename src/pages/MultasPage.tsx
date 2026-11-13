@@ -26,13 +26,6 @@ interface Penalty {
   created_at: string;
 }
 
-interface Cycle {
-  id: number;
-  started_at: string;
-  ended_at: string | null;
-  notes: string | null;
-}
-
 const EXTRA_RESPS = ['JD', 'JG'];
 const EXCLUDED_RESPS = ['TG', 'RD', 'AL', 'MP'];
 
@@ -91,7 +84,6 @@ export default function MultasPage() {
     setSubmitting(true);
     const inf = infractions.find(i => i.id === selectedInfraction);
     if (!inf) { setSubmitting(false); return; }
-    const { data: { user } } = await supabase.auth.getUser();
     await supabase.from('penalties').insert({
       resp: selectedResp,
       infraction_id: inf.id,

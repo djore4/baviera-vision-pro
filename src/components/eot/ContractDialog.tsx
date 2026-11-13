@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
-  Loader2, Trash2, Check, Plus, Phone, Mail, MapPin, Car, CalendarClock,
+  Loader2, Trash2, Check, Plus, Phone, MapPin, Car, CalendarClock,
   Gauge, Euro, Clock, User,
 } from 'lucide-react';
 import {
@@ -21,14 +21,6 @@ import {
   type EotContract, type EotActivity, type EotOwner, type EotVendedorMapRow, type Fase, type ActTipo, type Temperatura,
 } from '@/lib/eot';
 import { relativeLabel } from '@/components/prospecao/ui';
-
-/* datetime-local <-> ISO */
-const toLocalInput = (iso: string | null) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const off = d.getTimezoneOffset();
-  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 16);
-};
 
 const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';

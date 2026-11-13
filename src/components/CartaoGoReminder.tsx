@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { CreditCard } from 'lucide-react';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
-  aplicaCartaoGo, lerAlertas, listarRegistosDoMes, MAX_ALERTAS_HORA, OBJETIVO_MENSAL, podeAlertar, registarAlerta,
+  aplicaCartaoGo, lerAlertas, listarRegistosDoMes, OBJETIVO_MENSAL, podeAlertar, registarAlerta,
 } from '@/lib/cartao-go';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';

@@ -86,11 +86,6 @@ export function cycleStatus(c: CarWashCycle): CycleStatus {
 export const effectiveAt = (c: CarWashCycle): string =>
   c.effective_at ?? c.started_at ?? c.scheduled_at ?? c.created_at;
 
-/* Chave de ordenação da fila de execução (segundos): ordem manual, se definida,
- * senão a hora do plano. Permite antecipar/reordenar sem tocar em scheduled_at. */
-export const queueKey = (c: CarWashCycle): number =>
-  c.queue_order ?? new Date(c.scheduled_at ?? c.effective_at ?? c.created_at).getTime() / 1000;
-
 /* Desvio (min) entre o início real e a hora agendada.
  * Negativo = antecipada; positivo = iniciada em atraso; null = sem base de comparação. */
 export function startDeviationMin(c: CarWashCycle): number | null {
@@ -193,17 +188,6 @@ export async function listCycles(range?: { from?: string; to?: string }): Promis
   return (data ?? []) as CarWashCycle[];
 }
 
-/* Ciclos por terminar (agendados + em curso), independentemente da semana. */
-export async function listActiveCycles(): Promise<CarWashCycle[]> {
-  const { data, error } = await supabase
-    .from('car_wash_cycles')
-    .select('*')
-    .is('ended_at', null)
-    .order('effective_at', { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as CarWashCycle[];
-}
-
 /* Cria um ciclo de lavagem. A duração é fixada a partir do tipo.
  * - start_now -> "Agendar já": agenda para este instante e arranca de imediato
  *   (scheduled_at e started_at = agora);
@@ -283,43 +267,6 @@ export async function rescheduleCycle(id: string, scheduledAtISO: string, by?: s
   await logEvent({
     cycle_id: updated.id, action: 'reschedule', plate: updated.plate,
     wash_type: updated.wash_type, detail: `Reagendada para ${fmtPT(scheduledAtISO)}`,
-    snapshot: updated,
-  });
-  return updated;
-}
-
-/* Ajuste operacional da fila: define a ordem manual (antecipar/reordenar).
- * Não altera o plano (scheduled_at) nem a agenda. */
-export async function setQueueOrder(id: string, order: number): Promise<CarWashCycle> {
-  const { data, error } = await supabase
-    .from('car_wash_cycles')
-    .update({ queue_order: order })
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) throw error;
-  const updated = data as CarWashCycle;
-  await logEvent({
-    cycle_id: updated.id, action: 'queue', plate: updated.plate,
-    wash_type: updated.wash_type, detail: `Ordem manual na fila: ${order}`,
-    snapshot: updated,
-  });
-  return updated;
-}
-
-/* Encerra o ciclo (botão "Terminar"). */
-export async function endCycle(id: string): Promise<CarWashCycle> {
-  const { data, error } = await supabase
-    .from('car_wash_cycles')
-    .update({ ended_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) throw error;
-  const updated = data as CarWashCycle;
-  await logEvent({
-    cycle_id: updated.id, action: 'end', plate: updated.plate,
-    wash_type: updated.wash_type, detail: `Terminada às ${fmtPT(updated.ended_at)}`,
     snapshot: updated,
   });
   return updated;

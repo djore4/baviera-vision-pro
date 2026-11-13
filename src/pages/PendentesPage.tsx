@@ -3,7 +3,6 @@ import { useData } from '@/contexts/DataContext';
 import { formatDate } from '@/lib/excel-parser';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import type { ControlRecord } from '@/types/data';
 
 type BizagiSortKey = 'resp' | 'model' | 'cliente' | 'enc' | 'neg';
 type SortDir = 'asc' | 'desc';

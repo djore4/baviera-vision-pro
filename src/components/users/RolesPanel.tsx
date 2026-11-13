@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, Save, Trash2, ShieldCheck, Undo2, Copy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
-import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
+import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, permissoesDoLocal, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
+import { locaisDoGrupo } from '@/lib/locations';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +22,19 @@ import { saveRole, deleteRole, renameRole } from '@/lib/permissions';
 import { usePermissions } from '@/contexts/PermissionsContext';
 
 type Perms = Record<string, AccessLevel>;
+
+/* Rascunho de uma função: a matriz base (contas sem local) e uma matriz por local. */
+interface Draft { base: Perms; locais: Record<string, Perms> }
+
+/* Âmbito em edição: 'base' (contas sem local) ou o nome de um local. */
+const BASE = '__base__';
+const LOCAIS = locaisDoGrupo();
+
+/* Matrizes guardadas de uma função; um local sem entrada mostra o que a regra anterior lhe dava. */
+const draftOf = (r: AppRole, tabsPorLocal: readonly string[]): Draft => ({
+  base: { ...(r.permissions ?? {}) },
+  locais: Object.fromEntries(LOCAIS.map(l => [l, { ...permissoesDoLocal(r, l, tabsPorLocal) }])),
+});
 
 const LEVELS: { value: AccessLevel; label: string; on: string }[] = [
   { value: 'none', label: 'Sem acesso', on: 'data-[state=on]:bg-muted data-[state=on]:text-foreground' },
@@ -52,6 +66,11 @@ const samePerms = (a: Perms | undefined, b: Perms | undefined) => {
   const keys = new Set([...Object.keys(na), ...Object.keys(nb)]);
   return [...keys].every(k => na[k] === nb[k]);
 };
+const sameLocais = (a: Draft | undefined, b: Draft | undefined) =>
+  LOCAIS.every(l => samePerms(a?.locais[l], b?.locais[l]));
+const sameDraft = (a: Draft | undefined, b: Draft | undefined) => samePerms(a?.base, b?.base) && sameLocais(a, b);
+const locaisForSave = (d: Draft | undefined): Record<string, Perms> =>
+  Object.fromEntries(LOCAIS.map(l => [l, forSave(d?.locais[l])]));
 
 export function RolesPanel({
   roles, users, loading, onSaved,
@@ -62,11 +81,12 @@ export function RolesPanel({
   // As permissões por ação (ex.: 'lavagem:iniciar') só se mostram quando a base de
   // dados já as suporta: antes disso a interface usa as regras antigas por nome de
   // função, e guardar uma chave nova numa função não faria o que o utilizador espera.
-  const { capabilities } = usePermissions();
+  const { capabilities, tabsPorLocal } = usePermissions();
   const editableRoles = useMemo(() => roles.filter(r => !r.is_admin), [roles]);
   const adminRoles = useMemo(() => roles.filter(r => r.is_admin), [roles]);
 
-  const [drafts, setDrafts] = useState<Record<string, Perms>>({});
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [scope, setScope] = useState<string>(LOCAIS[0] ?? BASE);
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -82,15 +102,15 @@ export function RolesPanel({
     const antes = prevRoles.current;
     prevRoles.current = roles;
     setDrafts(prev => {
-      const d: Record<string, Perms> = {};
+      const d: Record<string, Draft> = {};
       roles.forEach(r => {
         const old = antes.find(x => x.name === r.name);
-        const sujo = !!prev[r.name] && !!old && !samePerms(prev[r.name], old.permissions);
-        d[r.name] = sujo ? prev[r.name] : { ...(r.permissions ?? {}) };
+        const sujo = !!prev[r.name] && !!old && !sameDraft(prev[r.name], draftOf(old, tabsPorLocal));
+        d[r.name] = sujo ? prev[r.name] : draftOf(r, tabsPorLocal);
       });
       return d;
     });
-  }, [roles]);
+  }, [roles, tabsPorLocal]);
 
   useEffect(() => {
     if (!selected || !editableRoles.some(r => r.name === selected)) setSelected(editableRoles[0]?.name ?? null);
@@ -102,38 +122,72 @@ export function RolesPanel({
     return m;
   }, [users]);
 
-  const savedOf = (name: string) => roles.find(r => r.name === name)?.permissions ?? {};
-  const isDirty = (name: string) => !samePerms(drafts[name], savedOf(name));
+  const savedOf = (name: string): Draft => {
+    const r = roles.find(x => x.name === name);
+    return r ? draftOf(r, tabsPorLocal) : { base: {}, locais: {} };
+  };
+  const isDirty = (name: string) => !sameDraft(drafts[name], savedOf(name));
   const dirtyRoles = editableRoles.filter(r => isDirty(r.name));
 
   const role = editableRoles.find(r => r.name === selected) ?? null;
-  const draft = (role && drafts[role.name]) || {};
+  const roleDraft = role ? drafts[role.name] : undefined;
+  // Âmbito efetivo: sem locais configurados (outra instalação) só existe a matriz base.
+  const scopeAtivo = LOCAIS.length === 0 || scope === BASE ? BASE : LOCAIS.includes(scope) ? scope : LOCAIS[0];
+  const draft: Perms = (scopeAtivo === BASE ? roleDraft?.base : roleDraft?.locais[scopeAtivo]) ?? {};
   const members = (role && userCount.get(role.name)) || [];
 
   const setLevel = (tabKeys: string[], value: AccessLevel) => {
     if (!role) return;
     setDrafts(prev => {
-      const next = { ...(prev[role.name] ?? {}) };
+      const cur = prev[role.name] ?? { base: {}, locais: {} };
+      const next = { ...(scopeAtivo === BASE ? cur.base : cur.locais[scopeAtivo] ?? {}) };
       tabKeys.forEach(k => { next[k] = value; });
-      return { ...prev, [role.name]: next };
+      return { ...prev, [role.name]: scopeAtivo === BASE ? { ...cur, base: next } : { ...cur, locais: { ...cur.locais, [scopeAtivo]: next } } };
     });
   };
 
   const discard = () => {
     if (!role) return;
-    setDrafts(prev => ({ ...prev, [role.name]: { ...savedOf(role.name) } }));
+    setDrafts(prev => ({ ...prev, [role.name]: savedOf(role.name) }));
+  };
+
+  /* Copia a matriz de outro âmbito (outro local, ou a base) para o âmbito em edição. */
+  const copyScope = (from: string) => {
+    if (!role) return;
+    setDrafts(prev => {
+      const cur = prev[role.name]; if (!cur) return prev;
+      const src = from === BASE ? cur.base : cur.locais[from] ?? {};
+      const mine = scopeAtivo === BASE ? cur.base : cur.locais[scopeAtivo];
+      const novo = { ...hiddenKeys(mine), ...normalize(src) };
+      return { ...prev, [role.name]: scopeAtivo === BASE ? { ...cur, base: novo } : { ...cur, locais: { ...cur.locais, [scopeAtivo]: novo } } };
+    });
+    toast.success(`Permissões de ${from === BASE ? 'sem local' : from} copiadas para ${scopeAtivo === BASE ? 'sem local' : scopeAtivo} (por guardar).`);
   };
 
   const copyFrom = (source: string) => {
     if (!role) return;
-    setDrafts(prev => ({ ...prev, [role.name]: { ...hiddenKeys(prev[role.name]), ...normalize(prev[source]) } }));
+    setDrafts(prev => {
+      const src = prev[source]; const cur = prev[role.name];
+      if (!src || !cur) return prev;
+      const merge = (mine: Perms | undefined, from: Perms | undefined): Perms => ({ ...hiddenKeys(mine), ...normalize(from) });
+      return { ...prev, [role.name]: {
+        base: merge(cur.base, src.base),
+        locais: Object.fromEntries(LOCAIS.map(l => [l, merge(cur.locais[l], src.locais[l])])),
+      } };
+    });
     toast.success(`Permissões de "${source}" copiadas (por guardar).`);
   };
 
   const saveAll = async () => {
     setSaving(true);
     try {
-      for (const r of dirtyRoles) await saveRole(r.name, forSave(drafts[r.name]), false);
+      for (const r of dirtyRoles) {
+        const d = drafts[r.name];
+        // Só se envia a matriz por local quando algo mudou nos locais: assim editar só a matriz base
+        // não "congela" em entradas os locais que ainda seguem a regra anterior.
+        const locaisMudaram = !sameLocais(d, savedOf(r.name));
+        await saveRole(r.name, forSave(d?.base), false, locaisMudaram ? locaisForSave(d) : undefined);
+      }
       toast.success(dirtyRoles.length === 1 ? `Permissões de "${dirtyRoles[0].name}" guardadas.` : `${dirtyRoles.length} funções guardadas.`);
       await onSaved();
     } catch (err) {
@@ -235,6 +289,36 @@ export function RolesPanel({
               </div>
             </div>
 
+            {LOCAIS.length > 0 && (
+              <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-semibold leading-tight">Permissões por local</h4>
+                    <p className="text-xs text-muted-foreground">
+                      {scopeAtivo === BASE
+                        ? 'Vale para contas sem local definido. Quem tem local segue a matriz do(s) seu(s) local(is).'
+                        : `Vale para quem opera em ${scopeAtivo}. Quem opera em vários locais fica com o nível mais alto entre eles.`}
+                    </p>
+                  </div>
+                  <Select value="" onValueChange={copyScope}>
+                    <SelectTrigger className="h-8 w-[170px] text-xs gap-1"><Copy className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Copiar de…" /></SelectTrigger>
+                    <SelectContent>
+                      {[...LOCAIS, BASE].filter(x => x !== scopeAtivo).map(x => (
+                        <SelectItem key={x} value={x}>{x === BASE ? 'Sem local' : x}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <ToggleGroup
+                  type="single" size="sm" variant="outline" value={scopeAtivo} aria-label="Local"
+                  onValueChange={v => v && setScope(v)} className="flex-wrap justify-start gap-1"
+                >
+                  {LOCAIS.map(l => <ToggleGroupItem key={l} value={l} className="h-8 px-3 text-xs">{l}</ToggleGroupItem>)}
+                  <ToggleGroupItem value={BASE} className="h-8 px-3 text-xs">Sem local</ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+            )}
+
             {AREAS.map(area => {
               const tabs = PERMISSION_TABS.filter(t => t.area === area.key);
               if (tabs.length === 0) return null;
@@ -316,7 +400,7 @@ export function RolesPanel({
       )}
 
       <CreateRoleDialog
-        open={createOpen} onOpenChange={setCreateOpen} roles={editableRoles} allNames={roles.map(r => r.name)}
+        open={createOpen} onOpenChange={setCreateOpen} roles={editableRoles} allNames={roles.map(r => r.name)} tabsPorLocal={tabsPorLocal}
         onCreated={async name => { await onSaved(); setSelected(name); }}
       />
 
@@ -344,8 +428,8 @@ export function RolesPanel({
   );
 }
 
-function CreateRoleDialog({ open, onOpenChange, roles, allNames, onCreated }: {
-  open: boolean; onOpenChange: (v: boolean) => void; roles: AppRole[]; allNames: string[];
+function CreateRoleDialog({ open, onOpenChange, roles, allNames, tabsPorLocal, onCreated }: {
+  open: boolean; onOpenChange: (v: boolean) => void; roles: AppRole[]; allNames: string[]; tabsPorLocal: readonly string[];
   onCreated: (name: string) => Promise<void>;
 }) {
   const NONE = '__none__';
@@ -362,8 +446,11 @@ function CreateRoleDialog({ open, onOpenChange, roles, allNames, onCreated }: {
     if (allNames.some(x => x.toLowerCase() === n.toLowerCase())) { toast.error('Já existe uma função com esse nome.'); return; }
     setSaving(true);
     try {
-      const base = from === NONE ? {} : normalize(roles.find(r => r.name === from)?.permissions);
-      await saveRole(n, base, false);
+      const src = from === NONE ? undefined : roles.find(r => r.name === from);
+      const base = src ? normalize(src.permissions) : {};
+      // Uma função nova guarda sempre a matriz de todos os locais (sem entrada, o local seguiria a regra anterior).
+      const locais = Object.fromEntries(LOCAIS.map(l => [l, src ? normalize(permissoesDoLocal(src, l, tabsPorLocal)) : {}]));
+      await saveRole(n, base, false, LOCAIS.length > 0 ? locais : undefined);
       toast.success(`Função "${n}" criada.`);
       close(false);
       await onCreated(n);

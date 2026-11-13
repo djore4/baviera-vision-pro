@@ -81,9 +81,6 @@ const fmtDayMonth = (d: Date) =>
   new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: '2-digit' }).format(d);
 
 const minutesOfDay = (iso: string) => { const d = new Date(iso); return d.getHours() * 60 + d.getMinutes(); };
-const fmtDayTime = (iso: string) =>
-  new Intl.DateTimeFormat('pt-PT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
-
 /* Nome legível do interlocutor a partir do email (parte antes do @, com
  * separadores convertidos em espaços e iniciais maiúsculas). */
 const personLabel = (email: string | null | undefined): string => {

@@ -1,7 +1,7 @@
 import type { ControlRecord, ObjetivoResp } from '@/types/data';
 import { isRetailType } from '@/lib/excel-parser';
 import type { QualityRow } from '@/lib/quality';
-import { QUALITY_METRICS, QUALITY_MAX } from '@/lib/quality';
+import { QUALITY_METRICS } from '@/lib/quality';
 
 /* ── Comparativo de vendedores — cálculo (puro, testável) ─────────────────────
  * Tudo o que o tab "Comparativo" mostra sai daqui: um conjunto de KPIs por
@@ -148,8 +148,6 @@ export function qualityTotals(rows: QualityRow[] | null | undefined): Record<str
   });
   return out;
 }
-export const QUALITY_MAX_TOTAL = QUALITY_METRICS.length * QUALITY_MAX;
-
 export interface ComparativoInput {
   control: ControlRecord[];
   objetivos: ObjetivoResp[];

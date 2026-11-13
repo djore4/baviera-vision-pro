@@ -37,8 +37,6 @@ export const FONTES: { value: Fonte; label: string }[] = [
   { value: 'outro',      label: 'Outro' },
 ];
 
-export const fonteLabel = (f: Fonte | null) => FONTES.find(x => x.value === f)?.label ?? '—';
-
 export type TaskType = 'todo' | 'next_action';
 
 /* Patamares da dimensão da frota (substituem a antiga escala 1–5). */
@@ -47,8 +45,6 @@ export const FLEET_TIERS: { value: number; label: string; short: string }[] = [
   { value: 1, label: '3–14 viaturas', short: '3–14' },
   { value: 2, label: '15+ viaturas', short: '15+' },
 ];
-
-export const fleetLabel = (v: number | null) => FLEET_TIERS.find(t => t.value === v)?.label ?? '—';
 
 /* Contribuição do patamar de frota para o score, na escala 1–5. */
 export const fleetScoreValue = (v: number | null): number =>

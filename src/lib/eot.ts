@@ -581,19 +581,6 @@ export async function listAgenda(scope: Scope): Promise<AgendaItem[]> {
   }));
 }
 
-/* Contagem de follow-ups em atraso (done=false AND due_at < agora). Badge da nav. */
-export async function countOverdue(scope: Scope): Promise<number> {
-  let q = supabase
-    .from(ACT_TABLE)
-    .select('id', { count: 'exact', head: true })
-    .eq('done', false)
-    .lt('due_at', new Date().toISOString());
-  if (ownOnly(scope)) q = q.eq('owner_email', scope.email!);
-  const { count, error } = await q;
-  if (error) return 0;
-  return count ?? 0;
-}
-
 /* Local (cidade) de um contrato: parte do "concessionário responsável" sem a marca
  * nem o sufixo numérico — "Baviera Aveiro 2" e "Caetano Aveiro" → "Aveiro". */
 export function contractLocal(c: Pick<EotContract, 'concessionario_resp' | 'concessionario'>): string {

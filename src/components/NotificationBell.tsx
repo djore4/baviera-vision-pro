@@ -18,7 +18,7 @@ import {
   type Notification,
 } from '@/lib/notifications';
 import {
-  listTaskAlerts, listRecentAccounts, type Account, type Task, type TaskAlerts,
+  listTaskAlerts, listRecentAccounts, type Account, type TaskAlerts,
 } from '@/lib/prospec';
 import { client } from '@/clients';
 

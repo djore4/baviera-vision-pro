@@ -7,14 +7,6 @@
  * O modelo da viatura vem da plataforma ("Série 5", "X1", "iX", "M"…) e a versão traz o detalhe
  * (p.ex. modelo "M" + versão "M3 CS Touring"; modelo "X1" + versão "iX1 20e"). */
 
-export const COMISSAO_TABELA: { valor: number; modelos: string }[] = [
-  { valor: 125, modelos: 'S1, S2, X1, X2' },
-  { valor: 175, modelos: 'S3, S4, M1' },
-  { valor: 225, modelos: 'S5, X3, X4, Z4' },
-  { valor: 350, modelos: 'S6, S7, S8, X5, X6, X7, iX, M2, M3, M4, M5, X3 M, X4 M' },
-  { valor: 500, modelos: 'M6, M7, M8, X5 M, X6 M, X7 M, XM' },
-];
-
 const POR_CHAVE: Record<string, number> = {
   S1: 125, S2: 125, X1: 125, X2: 125,
   S3: 175, S4: 175, M1: 175,
