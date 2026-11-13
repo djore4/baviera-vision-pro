@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -17,12 +16,12 @@ import {
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
-  AREAS_SEGURO, COBERTURAS, ESTADOS_SEGURO, MOTIVOS_ARQUIVO,
+  AREAS_SEGURO, COBERTURAS, MOTIVOS_ARQUIVO,
   alertas, areaLabel, arquivarSeguro, coberturaLabel, createSeguro, custoPorArea, deleteSeguro, diasParaFim,
   copiarTexto, dadosEmFalta, emptyForm, historicoLabel, listHistoricoSeguro, marcarCancelamentoPedido, mensagemCancelamento,
   upgradeDanosProprios, validarUpgrade, estadoDef, estadoSeguro, filtrar, fmtDia, fmtEuro, formFromSeguro, hojeIso, kpis, listParque,
   listSeguros, listVendidas, motivoLabel, normMatricula, parqueSemMatricula, parqueSemSeguro, textoVenda, vendaDe, ORIGENS_PARQUE, reativarSeguro, updateSeguro, validarForm,
-  type Area, type Cobertura, type HistoricoSeguro, type UpgradeValues, type EstadoSeguro, type MotivoArquivo, type Seguro, type SeguroFormValues,
+  type Area, type Cobertura, type HistoricoSeguro, type UpgradeValues, type MotivoArquivo, type Seguro, type SeguroFormValues,
   type ViaturaParque, type ViaturaVendida,
 } from '@/lib/seguros';
 
@@ -368,36 +367,6 @@ export default function SegurosPage() {
 }
 
 /* ── Componentes auxiliares ──────────────────────────────────────────────────── */
-
-function Kpi({ label, value, hint, tone }: { label: string; value: number | string; hint?: string; tone?: 'warn' | 'bad' }) {
-  return (
-    <div className={cn('rounded-lg border bg-card p-3',
-      tone === 'bad' && 'border-red-300 bg-red-50 dark:border-red-500/40 dark:bg-red-500/10',
-      tone === 'warn' && 'border-amber-300 bg-amber-50 dark:border-amber-500/40 dark:bg-amber-500/10')}>
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-xl font-semibold">{value}</div>
-      {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
-    </div>
-  );
-}
-
-function AlertaLinha({ titulo, seguros, render, onOpen }: {
-  titulo: string; seguros: Seguro[]; render: (s: Seguro) => string; onOpen: (s: Seguro) => void;
-}) {
-  return (
-    <div>
-      <p className="font-medium">{titulo} ({seguros.length})</p>
-      <div className="mt-1 flex flex-wrap gap-1.5">
-        {seguros.map(s => (
-          <button key={s.id} type="button" onClick={() => onOpen(s)}
-            className="rounded border border-red-300 bg-background px-2 py-0.5 text-xs hover:bg-red-100 dark:border-red-500/40">
-            {render(s)}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function FiltroSelect({ label, value, onChange, options }: {
   label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[];

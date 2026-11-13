@@ -1,6 +1,5 @@
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
 import { pill } from './pill';
 import { seriesPresentes, type Modelo } from '@/lib/produto';
 

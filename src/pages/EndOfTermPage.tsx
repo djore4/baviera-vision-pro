@@ -23,7 +23,7 @@ import { EmptyState, relativeLabel } from '@/components/prospecao/ui';
 import {
   listEotContracts, listEotVendedores, listAgenda, listEotOwners, listEotVendedorMap,
   FASES, TEMPERATURAS, tempDef, updateEotContract, faseLabel, faseCls, actTipoLabel, daysToEnd, eur, isOverdue, isFechada, contractLocal, localPorOmissao,
-  type EotContract, type AgendaItem, type EotOwner, type EotVendedorMapRow, type Fase, type Temperatura,
+  type EotContract, type AgendaItem, type EotOwner, type EotVendedorMapRow, type Temperatura,
 } from '@/lib/eot';
 
 type UntilKey = 'all' | '30' | '60' | '90';

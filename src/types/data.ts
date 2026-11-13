@@ -50,8 +50,6 @@ export interface AppData {
   lastUpdated: string;
 }
 
-export type PageType = 'retails' | 'producao' | 'carteira' | 'pendentes';
-
 export interface PeriodFilter {
   years: number[];
   quarters: number[];

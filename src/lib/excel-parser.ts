@@ -187,22 +187,6 @@ export function isRetailDelivery(r: ControlRecord): boolean {
   return r.status === 'Retail' && isRetailType(r.type);
 }
 
-export function isPipeline(r: ControlRecord): boolean {
-  return ['Quente', 'Morno', 'Frio', 'Adiado', 'Carteira', 'Matricula'].includes(r.status);
-}
-
-export function isPortfolio(r: ControlRecord): boolean {
-  return ['Carteira', 'Matricula'].includes(r.status);
-}
-
-export function hasRetoma(r: ControlRecord): boolean {
-  return r.ret === 1;
-}
-
-export function isMissingBizagi(r: ControlRecord): boolean {
-  return !r.biz && r.status !== 'Perdido';
-}
-
 export function getCurrentWeek(): number {
   const now = new Date();
   const start = new Date(now.getFullYear(), 0, 1);

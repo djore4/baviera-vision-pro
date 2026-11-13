@@ -7,12 +7,12 @@ import { canonicalLocal, locaisDoPerfil, locaisDoGrupo } from '@/lib/locations';
 import {
   Search, X, MapPin, Gauge, Calendar, ExternalLink, Share2, Copy,
   ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, ImageOff,
-  Camera, Trash2, Loader2, Pencil, Plus, Archive, Lock, LayoutGrid, Table2, SlidersHorizontal,
+  Camera, Trash2, Loader2, Plus, Archive, Lock, LayoutGrid, Table2, SlidersHorizontal,
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { client } from '@/clients';
-import { chassisCurto, formatMatricula, matriculaCompacta, parseNum, pesquisaCorresponde } from '@/lib/viaturaFormat';
+import { chassisCurto, formatMatricula, matriculaCompacta, pesquisaCorresponde } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 import PrecosDialog from '@/components/demos/PrecosDialog';
 import { comissaoTotalFixa } from '@/lib/demo-comissao';
@@ -116,9 +116,6 @@ const eur0 = (n: number | null | undefined) =>
   (n || 0).toLocaleString('pt-PT', { maximumFractionDigits: 0 }) + ' €';
 const perc = (n: number | null | undefined) =>
   ((n || 0) * 100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %';
-const perc1 = (n: number | null | undefined) =>
-  ((n || 0) * 100).toLocaleString('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
-
 interface Row extends Viatura {
   _inps: PricingInputs; _p: Pricing; _idade: number;
   _local: string; _tipologia: string[]; _tipo: Tipo;

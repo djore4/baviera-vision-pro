@@ -33,9 +33,6 @@ export const AREAS: AreaDef[] = [
   { key: 'admin', label: 'Administração', style: 'admin' },
 ];
 
-export const AREA_BY_KEY: Record<AreaKey, AreaDef> =
-  AREAS.reduce((acc, a) => { acc[a.key] = a; return acc; }, {} as Record<AreaKey, AreaDef>);
-
 export interface TabDef {
   key: string;
   label: string;
