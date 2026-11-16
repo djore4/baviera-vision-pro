@@ -22,6 +22,8 @@ interface PermissionsValue {
   managed: boolean;              // o email consta da tabela utilizadores
   roleName: string | null;
   me: AppUser | null;
+  /** O utilizador com a sessão iniciada (≠ `me` em "ver como"). */
+  realMe: AppUser | null;
   /** Capacidades da base de dados (migrações já aplicadas). */
   capabilities: AppCapabilities;
   /** Tabs abertos fora de Aveiro, limitados ao local da pessoa (app_tabs_por_local). */
@@ -43,7 +45,7 @@ interface PermissionsValue {
 }
 
 const PermissionsContext = createContext<PermissionsValue>({
-  loading: true, isAdmin: false, managed: false, roleName: null, me: null,
+  loading: true, isAdmin: false, managed: false, roleName: null, me: null, realMe: null,
   capabilities: NO_CAPABILITIES, tabsPorLocal: [],
   access: () => 'none', canView: () => false, canEdit: () => false, reload: () => {},
   realIsAdmin: false, viewingAs: null, setViewAs: () => {}, allUsers: [], effectiveEmail: null,
@@ -167,6 +169,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       loading, isAdmin, managed,
       roleName: role?.name ?? effMe?.perfil ?? null,
       me: effMe,
+      realMe: me ?? null,
       capabilities, tabsPorLocal,
       access,
       canView: (t) => access(t) !== 'none',
