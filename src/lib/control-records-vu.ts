@@ -2,10 +2,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { toLocalIsoDay } from '@/lib/utils';
 
 /* ── Registos de control das Viaturas Usadas ───────────────────────────────────
- * Layout próprio (diferente do VN): STATUS = FATURA | CARTEIRA (WIP) ou
+ * Layout próprio (diferente do VN): STATUS = RETAIL/FATURA | CARTEIRA (WIP) ou
  * FRIO | MORNO | QUENTE (funil de vendas), e campos PROV / 360º / RECOND /
  * DGARANT / GARANT 3S específicos dos usados.
- * Guardado na tabela control_records_vu; alimenta a WIP (só FATURA/CARTEIRA) e o
+ * Guardado na tabela control_records_vu; alimenta a WIP (só RETAIL/FATURA/CARTEIRA) e o
  * Funil (só FRIO/MORNO/QUENTE) da secção VU. NÃO se mistura com os dados VN.
  * Gerido diretamente na plataforma (ver "Gestão direta" mais abaixo).
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -13,16 +13,21 @@ import { toLocalIsoDay } from '@/lib/utils';
 const TABLE = 'control_records_vu';
 
 /** Status que entram na WIP VU. */
-export const VU_WIP_STATUSES = ['FATURA', 'CARTEIRA'] as const;
+export const VU_WIP_STATUSES = ['RETAIL', 'FATURA', 'CARTEIRA'] as const;
+/** Negócios já faturados. No VU o retail coincide com a fatura: RETAIL é o estado que a
+ *  plataforma atribui assim que há data de fatura; FATURA é o estado antigo (dados importados
+ *  do Excel) e conta exatamente da mesma forma. */
+export const VU_FATURADO_STATUSES = ['RETAIL', 'FATURA'] as const;
 /** Status do funil de vendas VU (negócios ainda não fechados). */
 export const VU_FUNIL_STATUSES = ['FRIO', 'MORNO', 'QUENTE'] as const;
 
+export const isVuFaturado = (s: string) => (VU_FATURADO_STATUSES as readonly string[]).includes(s);
 export const isVuWipStatus = (s: string) => (VU_WIP_STATUSES as readonly string[]).includes(s);
 export const isVuFunilStatus = (s: string) => (VU_FUNIL_STATUSES as readonly string[]).includes(s);
 
 export interface VuRecord {
   id?: string;
-  status: string;      // FATURA | CARTEIRA | FRIO | MORNO | QUENTE
+  status: string;      // RETAIL | FATURA | CARTEIRA | FRIO | MORNO | QUENTE
   dtFecho: Date | null;
   mes1: string;
   resp: string;
@@ -100,7 +105,9 @@ export async function loadControlVuFromDb(): Promise<VuRecord[]> {
 /** Evento global emitido após criar/editar/eliminar um negócio VU (as vistas recarregam). */
 export const VU_RECORDS_CHANGED_EVENT = 'control-records-vu-changed';
 
-export const VU_STATUS_OPTS = [...VU_FUNIL_STATUSES, ...VU_WIP_STATUSES] as const;
+/** Estados que se podem escolher no formulário (FATURA, o estado antigo, só aparece num negócio que já o tenha). */
+export const VU_STATUS_OPTS = [...VU_FUNIL_STATUSES, 'CARTEIRA', 'RETAIL'] as const;
+const VU_STATUS_VALIDOS: readonly string[] = [...VU_STATUS_OPTS, 'FATURA'];
 export const VU_TYPE_OPTS = ['VU', 'VD'];
 export const VU_GAR_OPTS = ['GAR', 'nGAR'];
 export const VU_PROV_OPTS = ['REMARK', 'RETOMA', 'CONSIGN', 'LEILÃO'];
@@ -123,25 +130,43 @@ export const EMPTY_VU_FORM: VuForm = {
 const dia = (d: Date) => toLocalIsoDay(d);
 
 /** Reage a uma mudança de estado no formulário, como no VN: ao fechar um negócio do
- *  funil, a data de fecho fica a de hoje; ao passar a FATURA, a data de fatura fica a
- *  de hoje (sem ela a fatura não aparece em nenhum mês da WIP). Só preenche o que
- *  está vazio — nunca sobrescreve uma data já escolhida. */
+ *  funil, a data de fecho fica a de hoje; ao passar a RETAIL, a data de fatura fica a
+ *  de hoje (sem ela não aparece em nenhum mês da WIP). Só preenche o que está vazio —
+ *  nunca sobrescreve uma data já escolhida. */
 export function applyVuStatusChange(form: VuForm, status: string, hoje: Date = new Date()): VuForm {
   const prev = form.status;
   const next: VuForm = { ...form, status };
   const fechou = isVuWipStatus(status) && !isVuWipStatus(prev);
   if (fechou && !next.dt_fecho) next.dt_fecho = dia(hoje);
-  if (status === 'FATURA' && prev !== 'FATURA' && !next.dfat) next.dfat = dia(hoje);
+  if (isVuFaturado(status) && !isVuFaturado(prev) && !next.dfat) next.dfat = dia(hoje);
+  return next;
+}
+
+/** Reage a uma mudança da data de fatura. No VU o retail coincide com a fatura:
+ *  - ao associar uma data de fatura o negócio passa automaticamente a RETAIL (e, se vinha
+ *    do funil, regista também a data de fecho);
+ *  - ao limpar a data de um negócio faturado ele volta à CARTEIRA (já não está faturado). */
+export function applyVuDfatChange(form: VuForm, dfat: string, hoje: Date = new Date()): VuForm {
+  const next: VuForm = { ...form, dfat };
+  if (dfat) {
+    if (!isVuFaturado(next.status)) {
+      next.status = 'RETAIL';
+      if (!next.dt_fecho) next.dt_fecho = dia(hoje);
+    }
+  } else if (isVuFaturado(next.status)) {
+    next.status = 'CARTEIRA';
+  }
   return next;
 }
 
 /** Valida o formulário. Sem estado o negócio não apareceria em nenhuma vista. */
 export function validateVuForm(f: VuForm): string | null {
-  if (!VU_STATUS_OPTS.includes(f.status.trim().toUpperCase() as typeof VU_STATUS_OPTS[number])) {
-    return 'Escolhe o estado do negócio (Frio, Morno, Quente, Carteira ou Fatura).';
+  const status = f.status.trim().toUpperCase();
+  if (!VU_STATUS_VALIDOS.includes(status)) {
+    return 'Escolhe o estado do negócio (Frio, Morno, Quente, Carteira ou Retail).';
   }
-  if (f.status.trim().toUpperCase() === 'FATURA' && !f.dfat) {
-    return 'Uma fatura precisa da data de fatura (DFAT).';
+  if (isVuFaturado(status) && !f.dfat) {
+    return 'Um retail precisa da data de fatura (DFAT).';
   }
   return null;
 }

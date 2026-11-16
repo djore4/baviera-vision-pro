@@ -75,14 +75,25 @@ describe('Editor de negócios VU', () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
-  it('passar a Fatura preenche DFAT e grava', async () => {
+  it('associar a DFAT passa automaticamente a Retail e grava', async () => {
     render(<VuRecordEditorProvider><Opener /></VuRecordEditorProvider>);
     fireEvent.click(screen.getByText('novo'));
-    fireEvent.change(screen.getByLabelText('STATUS'), { target: { value: 'FATURA' } });
+    fireEvent.change(screen.getByLabelText('DFAT — Data da fatura'), { target: { value: '2026-11-10' } });
+    expect(screen.getByLabelText('STATUS')).toHaveValue('RETAIL');
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(insert).toHaveBeenCalledTimes(1));
+    expect(insert.mock.calls[0][0]).toMatchObject({ status: 'RETAIL', dfat: '2026-11-10' });
+    expect(insert.mock.calls[0][0].dt_fecho).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('escolher Retail preenche DFAT e grava', async () => {
+    render(<VuRecordEditorProvider><Opener /></VuRecordEditorProvider>);
+    fireEvent.click(screen.getByText('novo'));
+    fireEvent.change(screen.getByLabelText('STATUS'), { target: { value: 'RETAIL' } });
     expect((screen.getByLabelText('DFAT — Data da fatura') as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(insert).toHaveBeenCalledTimes(1));
-    expect(insert.mock.calls[0][0]).toMatchObject({ status: 'FATURA' });
+    expect(insert.mock.calls[0][0]).toMatchObject({ status: 'RETAIL' });
     expect(insert.mock.calls[0][0].dfat).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
@@ -141,14 +152,18 @@ describe('WIP VU', () => {
   });
 
   it('com registos: eliminar pela tabela chama a base de dados; clicar na linha abre o editor', async () => {
-    rows = [{ ...wipRow, dfat: null }];
+    rows = [{ ...wipRow, dfat: null }, { ...wipRow, id: 'c', status: 'RETAIL', cliente: 'Zé', dfat: new Date().toISOString().slice(0, 10) }];
     render(<VuRecordEditorProvider><WipPage /></VuRecordEditorProvider>);
     const celula = await screen.findByText('Rui');
     fireEvent.click(celula);
     expect(await screen.findByRole('dialog', { name: 'Editar negócio VU' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
+    // o retail aparece na WIP como faturado
+    expect(screen.getByText('Zé')).toBeInTheDocument();
+    expect(screen.getByText('Retail')).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Sim' }));
     await waitFor(() => expect(del).toHaveBeenCalledWith('id', 'b'));
   });

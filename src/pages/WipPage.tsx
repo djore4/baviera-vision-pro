@@ -10,13 +10,13 @@ import { RowDeleteButton } from '@/components/RowDeleteButton';
 import { useVuRecordEditor } from '@/components/VuRecordEditor';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import {
-  loadControlVuFromDb, listVuObjetivos, isVuWipStatus, VU_RECORDS_CHANGED_EVENT, type VuRecord, type VuObjetivo,
+  loadControlVuFromDb, listVuObjetivos, isVuWipStatus, isVuFaturado, VU_RECORDS_CHANGED_EVENT, type VuRecord, type VuObjetivo,
 } from '@/lib/control-records-vu';
 import { toLocalIsoDay } from '@/lib/utils';
 
 /* ── WIP · Viaturas Usadas ─────────────────────────────────────────────────────
  * Dashboard da secção VU, alimentado pela tabela control_records_vu. Registos com
- * STATUS = FATURA | CARTEIRA. Os negócios criam-se, editam-se e eliminam-se aqui
+ * STATUS = RETAIL (ou FATURA, o estado antigo) | CARTEIRA. Os negócios criam-se, editam-se e eliminam-se aqui
  * mesmo (botão "Novo negócio", clique na linha) por quem tem edição em Dados. Os gauges de
  * Realização vs Objetivo são na ótica das FATURAS e comparam-nas com dois valores
  * definidos no tab Objetivos: objetivo BMW e orçamento Caetano. Filtros à esquerda
@@ -218,7 +218,7 @@ export default function WipPage() {
   const filteredSemResp = useMemo(() => {
     let result = records ?? [];
     result = result.filter(inPeriod);
-    if (selectedStatus) result = result.filter(r => r.status === selectedStatus);
+    if (selectedStatus) result = result.filter(r => (selectedStatus === 'FATURA') === isVuFaturado(r.status));
     if (selectedRet !== null) result = result.filter(r => (r.ret > 0) === selectedRet);
     if (selectedFin) result = result.filter(r => selectedFin === 'N/A' ? !r.fin : (r.fin || '').trim().toUpperCase() === selectedFin);
     return result;
@@ -259,7 +259,7 @@ export default function WipPage() {
     filteredSemResp.forEach(r => {
       const resp = r.resp || '—';
       if (!map[resp]) map[resp] = { resp, Fatura: 0, Carteira: 0, total: 0 };
-      if (r.status === 'FATURA') { map[resp].Fatura++; map[resp].total++; }
+      if (isVuFaturado(r.status)) { map[resp].Fatura++; map[resp].total++; }
       else if (r.status === 'CARTEIRA') { map[resp].Carteira++; map[resp].total++; }
     });
     return Object.values(map).sort((a, b) => b.total - a.total);
@@ -268,7 +268,7 @@ export default function WipPage() {
   const kpis = useMemo(() => {
     let faturas = 0, carteira = 0, retails = 0;
     for (const r of filtered) {
-      if (r.status === 'FATURA') faturas++;
+      if (isVuFaturado(r.status)) faturas++;
       else if (r.status === 'CARTEIRA') carteira++;
       if (r.ret > 0) retails++;
     }
@@ -297,7 +297,7 @@ export default function WipPage() {
   // status…), que só fariam sentido contra um objetivo por vendedor.
   const gauge = useMemo(() => {
     const noPeriodo = (records ?? []).filter(inPeriod);
-    const atual = noPeriodo.filter(r => r.status === 'FATURA').length;
+    const atual = noPeriodo.filter(r => isVuFaturado(r.status)).length;
     const previsao = noPeriodo.length;
     const keys = selectedMonthKeys.size === 0 ? Object.keys(objMap) : [...selectedMonthKeys];
     const alvo = (campo: 'bmw' | 'caetano') => keys.reduce((s, k) => s + (objMap[k]?.[campo] ?? 0), 0);
@@ -637,7 +637,7 @@ export default function WipPage() {
                   <tr><td colSpan={canEditRecords ? 15 : 14} className="py-8 text-center text-muted-foreground">Sem registos no período.</td></tr>
                 )}
                 {sorted.map((r, i) => {
-                  const isFatura = r.status === 'FATURA';
+                  const isFatura = isVuFaturado(r.status);
                   const prov = (r.prov || '').trim().toUpperCase();
                   return (
                     <tr key={r.id ?? `${r.chassis}-${i}`}
@@ -647,7 +647,7 @@ export default function WipPage() {
                       <td className="px-2.5 py-1.5">
                         <span className="inline-flex items-center gap-1">
                           <span className="h-1.5 w-1.5 rounded-full" style={{ background: isFatura ? FATURA_COLOR : CARTEIRA_COLOR }} />
-                          {isFatura ? 'Fatura' : 'Carteira'}
+                          {isFatura ? (r.status === 'RETAIL' ? 'Retail' : 'Fatura') : 'Carteira'}
                         </span>
                       </td>
                       <td className="px-2.5 py-1.5 text-muted-foreground">{r.type || '—'}</td>
