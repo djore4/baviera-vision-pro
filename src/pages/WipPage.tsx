@@ -1,18 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Database, Filter, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Loader2, Database, Filter, ArrowUp, ArrowDown, ArrowUpDown, Plus } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
   PieChart, Pie, Cell,
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { RetomaFilter } from '@/components/RetomaFilter';
+import { RowDeleteButton } from '@/components/RowDeleteButton';
+import { useVuRecordEditor } from '@/components/VuRecordEditor';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import {
-  loadControlVuFromDb, listVuObjetivos, isVuWipStatus, type VuRecord, type VuObjetivo,
+  loadControlVuFromDb, listVuObjetivos, isVuWipStatus, VU_RECORDS_CHANGED_EVENT, type VuRecord, type VuObjetivo,
 } from '@/lib/control-records-vu';
+import { toLocalIsoDay } from '@/lib/utils';
 
 /* ── WIP · Viaturas Usadas ─────────────────────────────────────────────────────
- * Dashboard da secção VU, alimentado pela tabela control_records_vu (ficheiro VU
- * carregado em Dados). Registos com STATUS = FATURA | CARTEIRA. Os gauges de
+ * Dashboard da secção VU, alimentado pela tabela control_records_vu. Registos com
+ * STATUS = FATURA | CARTEIRA. Os negócios criam-se, editam-se e eliminam-se aqui
+ * mesmo (botão "Novo negócio", clique na linha) por quem tem edição em Dados. Os gauges de
  * Realização vs Objetivo são na ótica das FATURAS e comparam-nas com dois valores
  * definidos no tab Objetivos: objetivo BMW e orçamento Caetano. Filtros à esquerda
  * (mesma organização da WIP VN): período (pelo mês da fatura, DFAT; a carteira está sempre no mês presente), responsável,
@@ -142,7 +147,12 @@ export default function WipPage() {
   const [selectedFin, setSelectedFin] = useState<string | null>(null); // método de pagamento (PP | FS | EXT | N/A)
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
 
-  useEffect(() => {
+  const { openEditor, openNew, deleteRecord } = useVuRecordEditor();
+  // Espelha a política RLS de control_records_vu: escreve quem edita Dados.
+  const { canEdit } = usePermissions();
+  const canEditRecords = canEdit('dados');
+
+  const load = useCallback(() => {
     let alive = true;
     Promise.all([loadControlVuFromDb(), listVuObjetivos().catch((): VuObjetivo[] => [])])
       .then(([recs, objs]) => {
@@ -154,6 +164,25 @@ export default function WipPage() {
       .catch(() => { if (alive) setRecords([]); });
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    let cancel = load();
+    const onChanged = () => { cancel(); cancel = load(); };
+    window.addEventListener(VU_RECORDS_CHANGED_EVENT, onChanged);
+    return () => { cancel(); window.removeEventListener(VU_RECORDS_CHANGED_EVENT, onChanged); };
+  }, [load]);
+
+  // Negócio novo: entra na carteira (ainda por faturar), do responsável filtrado se houver só um.
+  const novoNegocio = () => openNew({
+    status: 'CARTEIRA', type: 'VU', dt_fecho: toLocalIsoDay(new Date()),
+    ...(selectedResps.size === 1 ? { resp: [...selectedResps][0] === '—' ? '' : [...selectedResps][0] } : {}),
+  });
+  const novoNegocioBtn = canEditRecords && (
+    <button type="button" onClick={novoNegocio}
+      className="flex w-full sm:w-auto items-center justify-center gap-1.5 px-4 py-2.5 sm:py-1.5 text-sm sm:text-xs bg-amber-500 text-black font-semibold rounded-md hover:bg-amber-400 transition-colors">
+      <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />Novo negócio
+    </button>
+  );
 
   const periods = useMemo(() => {
     const years = new Set<number>();
@@ -328,8 +357,11 @@ export default function WipPage() {
         <Database className="h-10 w-10 mx-auto text-muted-foreground" />
         <h1 className="text-lg font-bold">WIP · Viaturas Usadas</h1>
         <p className="text-sm text-muted-foreground">
-          Ainda não há registos VU. Carrega o ficheiro de Viaturas Usadas na secção <strong>Dados</strong> (painel “Gestão de Dados VU”).
+          {canEditRecords
+            ? 'Ainda não há faturas nem carteira VU. Adiciona o primeiro negócio.'
+            : 'Ainda não há faturas nem carteira VU.'}
         </p>
+        {novoNegocioBtn && <div className="flex justify-center">{novoNegocioBtn}</div>}
       </div>
     );
   }
@@ -437,6 +469,7 @@ export default function WipPage() {
 
         {/* Conteúdo principal */}
         <div className="flex-1 min-w-0 space-y-3">
+          {novoNegocioBtn && <div className="flex justify-end">{novoNegocioBtn}</div>}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
             {/* KPIs + status por responsável */}
             <div className="lg:col-span-2 space-y-3">
@@ -596,17 +629,20 @@ export default function WipPage() {
                       </th>
                     );
                   })}
+                  {canEditRecords && <th className="w-8" aria-label="Ações" />}
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && (
-                  <tr><td colSpan={14} className="py-8 text-center text-muted-foreground">Sem registos no período.</td></tr>
+                  <tr><td colSpan={canEditRecords ? 15 : 14} className="py-8 text-center text-muted-foreground">Sem registos no período.</td></tr>
                 )}
                 {sorted.map((r, i) => {
                   const isFatura = r.status === 'FATURA';
                   const prov = (r.prov || '').trim().toUpperCase();
                   return (
-                    <tr key={r.id ?? `${r.chassis}-${i}`} className="border-t border-border/70 hover:bg-primary/[0.03]">
+                    <tr key={r.id ?? `${r.chassis}-${i}`}
+                      onClick={() => canEditRecords && r.id && openEditor(r.id)} title={canEditRecords ? 'Clicar para editar' : undefined}
+                      className={`border-t border-border/70 hover:bg-primary/[0.03]${canEditRecords ? ' cursor-pointer' : ''}`}>
                       <td className="px-2.5 py-1.5 font-semibold">{r.resp || '—'}</td>
                       <td className="px-2.5 py-1.5">
                         <span className="inline-flex items-center gap-1">
@@ -634,6 +670,7 @@ export default function WipPage() {
                       <td className="px-2.5 py-1.5 text-center tabular-nums">{fmtD(r.dfat)}</td>
                       <td className="px-2.5 py-1.5 text-center tabular-nums">{fmtGarantia(r.dgarant)}</td>
                       <td className="px-2.5 py-1.5 text-center tabular-nums">{fmtGarantia(r.garant3s)}</td>
+                      {canEditRecords && <td className="px-2 py-1 text-right">{r.id && <RowDeleteButton onDelete={() => deleteRecord(r.id!)} />}</td>}
                     </tr>
                   );
                 })}

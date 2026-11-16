@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { ControlRecord } from '@/types/data';
+import type { VuRecord } from '@/lib/control-records-vu';
 
 /* Exportação dos registos VN (control_records) para Excel — só para consulta e
  * trabalho de dados na fase de transição. Não é feita para voltar a ser importada:
@@ -61,5 +62,59 @@ export function buildControlWorkbook(records: ControlRecord[]): XLSX.WorkBook {
 export function exportControlExcel(records: ControlRecord[], now = new Date()): number {
   const day = now.toISOString().slice(0, 10);
   XLSX.writeFile(buildControlWorkbook(records), `control_vn_${day}.xlsx`, { cellDates: true });
+  return records.length;
+}
+
+/* ── VU (control_records_vu): mesmo formato, só para consulta ── */
+
+type VuCol = { header: string; width: number; date?: boolean; value: (r: VuRecord) => string | number | Date | null };
+
+const VU_COLS: VuCol[] = [
+  { header: 'STATUS', width: 11, value: r => r.status },
+  { header: 'DT FECHO', width: 11, date: true, value: r => r.dtFecho },
+  { header: 'MÊS', width: 9, value: r => r.mes1 },
+  { header: 'RESP', width: 7, value: r => r.resp },
+  { header: 'CLIENTE', width: 28, value: r => r.cliente },
+  { header: 'TYPE', width: 7, value: r => r.type },
+  { header: 'BIZ', width: 12, value: r => r.biz },
+  { header: 'CHASSIS', width: 20, value: r => r.chassis },
+  { header: 'MAT', width: 11, value: r => r.mat },
+  { header: 'MODEL', width: 16, value: r => r.model },
+  { header: 'VERSION', width: 22, value: r => r.version },
+  { header: 'GAR', width: 7, value: r => r.gar },
+  { header: 'PROV', width: 10, value: r => r.prov },
+  { header: 'RET', width: 6, value: r => r.ret },
+  { header: 'FIN', width: 8, value: r => r.fin },
+  { header: '360º', width: 6, value: r => r.a360 },
+  { header: 'RECOND', width: 8, value: r => r.recond },
+  { header: 'DFAT', width: 11, date: true, value: r => r.dfat },
+  { header: 'DGARANT', width: 12, value: r => r.dgarant },
+  { header: 'GARANT 3S', width: 12, value: r => r.garant3s },
+  { header: 'OBS', width: 40, value: r => r.obs },
+];
+
+export function buildControlVuWorkbook(records: VuRecord[]): XLSX.WorkBook {
+  const aoa: (string | number | Date | null)[][] = [
+    VU_COLS.map(c => c.header),
+    ...records.map(r => VU_COLS.map(c => c.value(r))),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true });
+  VU_COLS.forEach((c, ci) => {
+    if (!c.date) return;
+    for (let ri = 1; ri < aoa.length; ri++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: ri, c: ci })];
+      if (cell && cell.t === 'd') cell.z = DATE_FMT;
+    }
+  });
+  ws['!cols'] = VU_COLS.map(c => ({ wch: c.width }));
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(aoa.length - 1, 0), c: VU_COLS.length - 1 } }) };
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'CONTROL');
+  return wb;
+}
+
+export function exportControlVuExcel(records: VuRecord[], now = new Date()): number {
+  const day = now.toISOString().slice(0, 10);
+  XLSX.writeFile(buildControlVuWorkbook(records), `control_vu_${day}.xlsx`, { cellDates: true });
   return records.length;
 }
