@@ -15,7 +15,7 @@ import { client } from '@/clients';
 import { chassisCurto, formatMatricula, matriculaCompacta, pesquisaCorresponde } from '@/lib/viaturaFormat';
 import { calcPricing, tipoFlags, type Pricing, type PricingInputs, type Tipo } from '@/lib/demoPricing';
 import PrecosDialog from '@/components/demos/PrecosDialog';
-import { comissaoTotalFixa } from '@/lib/demo-comissao';
+import { comissaoTotalFixa, COMISSAO_BEV_EXTRA } from '@/lib/demo-comissao';
 import VendidasPanel from '@/components/demos/VendidasPanel';
 import CartaoViatura, { type CartaoVM } from '@/components/demos/CartaoViatura';
 import { chip, btnPrimary, btnSecondary, btnGhost } from '@/lib/chip';
@@ -251,7 +251,10 @@ const COLS: Col[] = [
           <span className="text-[9px] font-semibold text-muted-foreground">{r._comissao ? `${eur0(r._comissao)} + ` : ''}{eur0(r._premio)} prémio</span>
         </span>
       ) : (
-        <span className="inline-block rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-sm font-black text-emerald-700 dark:text-emerald-400">{eur0(total)}</span>
+        <span className="inline-flex flex-col items-end leading-tight rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1">
+          <span className="text-sm font-black text-emerald-700 dark:text-emerald-400">{eur0(total)}</span>
+          {r._tipo.bev && r._comissao ? <span className="text-[9px] font-semibold text-muted-foreground">inclui +{eur0(COMISSAO_BEV_EXTRA)} BEV</span> : null}
+        </span>
       );
     },
   },
