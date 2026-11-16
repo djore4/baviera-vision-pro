@@ -29,6 +29,12 @@ const listaDe = (v: unknown): string[] =>
     .map(x => (typeof x === 'string' ? x.trim() : ''))
     .filter(Boolean);
 
+/* Acesso por tipo de viatura: só há VN (novos; guardado como VD nalgumas contas) e VU. */
+const acessoDe = (v: unknown): string[] => {
+  const tipos = listaDe(v).map(t => t.toUpperCase()).map(t => (t === 'VD' ? 'VN' : t));
+  return ['VN', 'VU'].filter(t => tipos.includes(t));
+};
+
 function PerfilLinha({ label, itens, destaque }: { label: string; itens: string[]; destaque?: boolean }) {
   if (itens.length === 0) return null;
   return (
@@ -73,7 +79,7 @@ export function UserMenu() {
   const funcao = realIsAdmin ? 'Administrador' : roleName;
   // Perfil de acesso: sempre o de quem tem a sessão, mesmo em "ver como".
   const perfilLocais = locaisDoPerfil(realMe?.local);
-  const perfilNegocio = listaDe(realMe?.negocio);
+  const perfilNegocio = acessoDe(realMe?.negocio);
   const perfilMarca = listaDe(realMe?.marca);
   const temPerfil = !!funcao || perfilLocais.length + perfilNegocio.length + perfilMarca.length > 0;
   const modo = modoInstalar();
@@ -115,7 +121,7 @@ export function UserMenu() {
               <div className={SECTION_TITLE}>Perfil de acesso</div>
               <PerfilLinha label="Perfil" itens={funcao ? [funcao] : []} destaque />
               <PerfilLinha label="Concessões" itens={perfilLocais} />
-              <PerfilLinha label="Tipo de viatura" itens={perfilNegocio} />
+              <PerfilLinha label="Acesso" itens={perfilNegocio} />
               <PerfilLinha label="Marca" itens={perfilMarca} />
             </div>
           )}
