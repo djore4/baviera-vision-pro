@@ -42,7 +42,7 @@ export function hojeIso(d: Date = new Date()): string {
 export const RECORDS_CHANGED_EVENT = 'control-records-changed';
 
 /* ── Month picker (mês e ano independentemente opcionais) ── */
-function MonthPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function MonthPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const now = new Date();
   const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 1 + i);
   let curYear = '', curMonth = '';

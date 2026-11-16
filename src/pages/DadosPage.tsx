@@ -1,23 +1,26 @@
 import { useRef, useState } from 'react';
-import { Upload, Loader2, FileSpreadsheet, Database, AlertTriangle } from 'lucide-react';
+import { Upload, Download, Loader2, FileSpreadsheet, Database, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/contexts/DataContext';
 import { QualityManager } from '@/components/QualityManager';
 import { FaturasControl } from '@/components/FaturasControl';
-import { parseVuControl, replaceControlRecordsVu } from '@/lib/control-records-vu';
+import { loadControlVuFromDb } from '@/lib/control-records-vu';
+import { exportControlVuExcel } from '@/lib/control-export';
 import { parseVuAngariacao, replaceAngariacoesVu } from '@/lib/angariacao-vu';
 import { parseEotFile, importEotContracts } from '@/lib/eot';
 
 export default function DadosPage() {
   const { loading } = useData();
 
-  // Importação do Excel VU -> tabela control_records_vu (sheet CONTROL)
+  // Importação do Excel de angariações VU -> tabela angariacoes_vu (sheet ANGARIAÇÃO).
+  // Os negócios VU (control_records_vu) já não vêm do Excel: gerem-se na WIP e no Funil VU.
   const inputRefVu = useRef<HTMLInputElement>(null);
   const [pendingFileVu, setPendingFileVu] = useState<File | null>(null);
   const [importingVu, setImportingVu] = useState(false);
   const [importErrorVu, setImportErrorVu] = useState<string | null>(null);
-  const [importCountVu, setImportCountVu] = useState<number | null>(null);
-  const [importCountAng, setImportCountAng] = useState<number | null>(null); // null = ficheiro sem sheet ANGARIAÇÃO
+  const [importCountAng, setImportCountAng] = useState<number | null>(null);
+  const [exportingVu, setExportingVu] = useState(false);
+  const [exportErrorVu, setExportErrorVu] = useState<string | null>(null);
 
   // Importação do mapa de terminações -> tabela eot_contracts (tab End-of-Term)
   const inputRefEot = useRef<HTMLInputElement>(null);
@@ -58,7 +61,7 @@ export default function DadosPage() {
     if (inputRefVu.current) inputRefVu.current.value = '';
     if (!file) return;
     setImportErrorVu(null);
-    setImportCountVu(null);
+    setImportCountAng(null);
     setPendingFileVu(file);
   };
 
@@ -68,20 +71,29 @@ export default function DadosPage() {
     setPendingFileVu(null);
     setImportingVu(true);
     setImportErrorVu(null);
-    setImportCountVu(null);
     setImportCountAng(null);
     try {
-      const buffer = await file.arrayBuffer();
-      const records = parseVuControl(buffer);
-      // Lê as duas sheets antes de gravar, para um erro numa não deixar a outra a meio.
-      const angariacoes = parseVuAngariacao(buffer);
-      const n = await replaceControlRecordsVu(records);
-      if (angariacoes) setImportCountAng(await replaceAngariacoesVu(angariacoes));
-      setImportCountVu(n);
+      const angariacoes = parseVuAngariacao(await file.arrayBuffer());
+      if (!angariacoes) throw new Error('O ficheiro não tem a sheet ANGARIAÇÃO — importação cancelada.');
+      setImportCountAng(await replaceAngariacoesVu(angariacoes));
     } catch (err) {
-      setImportErrorVu(err instanceof Error ? err.message : 'Erro ao importar dados VU');
+      setImportErrorVu(err instanceof Error ? err.message : 'Erro ao importar angariações VU');
     } finally {
       setImportingVu(false);
+    }
+  };
+
+  const exportVu = async () => {
+    setExportingVu(true);
+    setExportErrorVu(null);
+    try {
+      const recs = await loadControlVuFromDb();
+      if (recs.length === 0) throw new Error('Ainda não há negócios VU para descarregar.');
+      exportControlVuExcel(recs);
+    } catch (err) {
+      setExportErrorVu(err instanceof Error ? err.message : 'Erro ao descarregar o Excel VU');
+    } finally {
+      setExportingVu(false);
     }
   };
 
@@ -93,7 +105,7 @@ export default function DadosPage() {
         <p className="text-sm text-muted-foreground">Carregue e mantenha os dados que alimentam o dashboard.</p>
       </div>
 
-      {/* Controlo de faturas (VN) e upload de dados VU e mapa de terminações (End-of-Term) */}
+      {/* Controlo de faturas (VN), angariações VU e mapa de terminações (End-of-Term) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <FaturasControl />
 
@@ -101,34 +113,32 @@ export default function DadosPage() {
         <div className="bg-card border border-border rounded-lg p-6 space-y-4">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Gestão de Dados VU</h2>
           <p className="text-xs text-muted-foreground">
-            Carrega o ficheiro de <strong>Viaturas Usadas</strong>. Importa as sheets <strong>CONTROL</strong> e <strong>ANGARIAÇÃO</strong>,
-            gravando por cima dos dados VU atuais. Alimenta o <strong>WIP</strong> (FATURA/CARTEIRA), o <strong>Funil</strong> (FRIO/MORNO/QUENTE)
-            e a <strong>Angariação</strong> da secção VU.
+            Os <strong>negócios VU</strong> já não vêm do Excel: criam-se, alteram-se e eliminam-se diretamente na <strong>WIP</strong> e
+            no <strong>Funil</strong> da secção VU. Aqui carrega-se apenas a sheet <strong>ANGARIAÇÃO</strong> do ficheiro de Viaturas Usadas,
+            gravando por cima das angariações atuais — alimenta o tab <strong>Angariação</strong>.
           </p>
           <Button size="lg" className="w-full gap-2" onClick={() => inputRefVu.current?.click()} disabled={loading || importingVu}>
             {importingVu ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
-            {importingVu ? 'A importar...' : 'Carregar Excel VU'}
+            {importingVu ? 'A importar...' : 'Carregar angariações VU'}
           </Button>
           <input ref={inputRefVu} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleChangeVu} />
+          <Button variant="outline" size="lg" className="w-full gap-2" onClick={exportVu} disabled={loading || exportingVu}>
+            {exportingVu ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+            Descarregar Excel VU
+          </Button>
+          <p className="text-[11px] text-muted-foreground">Cópia dos negócios VU atuais, só para consulta.</p>
 
-          {importErrorVu && (
+          {(importErrorVu || exportErrorVu) && (
             <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-              <p className="text-xs text-destructive">{importErrorVu}</p>
+              <p className="text-xs text-destructive">{importErrorVu ?? exportErrorVu}</p>
             </div>
           )}
-          {importCountVu !== null && (
+          {importCountAng !== null && (
             <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
               <Database className="h-5 w-5 text-primary flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-foreground">
-                  {importCountVu} registos VU importados
-                  {importCountAng !== null && <> · {importCountAng} angariações</>}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {importCountAng !== null
-                    ? 'Já podes consultar o WIP, o Funil e a Angariação da secção VU.'
-                    : 'Já podes consultar o WIP e o Funil. O ficheiro não tem a sheet ANGARIAÇÃO — as angariações não foram alteradas.'}
-                </p>
+                <p className="text-sm font-medium text-foreground">{importCountAng} angariações importadas</p>
+                <p className="text-xs text-muted-foreground">Já podes consultar o tab Angariação da secção VU.</p>
               </div>
             </div>
           )}
@@ -176,10 +186,10 @@ export default function DadosPage() {
             <div className="flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="text-sm font-semibold text-foreground">Importar dados VU?</p>
+                <p className="text-sm font-semibold text-foreground">Importar angariações VU?</p>
                 <p className="text-xs text-muted-foreground">
-                  Vais importar de <span className="font-medium">{pendingFileVu.name}</span> as sheets <strong>CONTROL</strong> e <strong>ANGARIAÇÃO</strong>, que
-                  <strong> grava por cima</strong> dos dados VU atuais. Não afeta os dados VN. Esta ação não pode ser anulada.
+                  Vais importar de <span className="font-medium">{pendingFileVu.name}</span> a sheet <strong>ANGARIAÇÃO</strong>, que
+                  <strong> grava por cima</strong> das angariações atuais. Não afeta os negócios VU (WIP e Funil) nem os dados VN. Esta ação não pode ser anulada.
                 </p>
               </div>
             </div>

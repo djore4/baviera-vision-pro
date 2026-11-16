@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DataProvider } from "@/contexts/DataContext";
 import { RecordEditorProvider } from "@/components/RecordEditor";
+import { VuRecordEditorProvider } from "@/components/VuRecordEditor";
 import { AppLayout } from "@/components/AppLayout";
 import Index from "./pages/Index";
 import RetailsPage from "./pages/RetailsPage";
@@ -94,6 +95,7 @@ const App = () => (
       <AuthGate>
         <DataProvider>
           <RecordEditorProvider>
+          <VuRecordEditorProvider>
           <PermissionsProvider>
           <ProspecProvider>
           <EasterEggs />
@@ -142,6 +144,7 @@ const App = () => (
           </HashRouter>
           </ProspecProvider>
           </PermissionsProvider>
+          </VuRecordEditorProvider>
           </RecordEditorProvider>
         </DataProvider>
       </AuthGate>
