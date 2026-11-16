@@ -6,7 +6,7 @@ import { vendedorInitials } from '@/lib/team';
 import { modelOptions, versionOptions } from '@/lib/vehicle-options';
 import {
   EMPTY_VU_FORM, VU_FIN_OPTS, VU_GAR_OPTS, VU_PROV_OPTS, VU_RECORDS_CHANGED_EVENT, VU_STATUS_OPTS, VU_TYPE_OPTS,
-  applyVuStatusChange, deleteControlVu, getControlVuForm, loadControlVuFromDb, saveControlVu, validateVuForm,
+  applyVuDfatChange, applyVuStatusChange, deleteControlVu, getControlVuForm, isVuFaturado, loadControlVuFromDb, saveControlVu, validateVuForm,
   type VuForm, type VuRecord,
 } from '@/lib/control-records-vu';
 
@@ -18,7 +18,7 @@ const FIELD_CLS = 'w-full px-2.5 py-1.5 text-xs bg-background border border-bord
 const LABEL_CLS = 'block text-[10px] font-medium text-muted-foreground mb-1';
 const H3_CLS = 'text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3';
 const STATUS_LABEL: Record<string, string> = {
-  FRIO: 'Frio', MORNO: 'Morno', QUENTE: 'Quente', CARTEIRA: 'Carteira', FATURA: 'Fatura',
+  FRIO: 'Frio', MORNO: 'Morno', QUENTE: 'Quente', CARTEIRA: 'Carteira', RETAIL: 'Retail', FATURA: 'Fatura (antigo)',
 };
 
 interface VuEditorValue {
@@ -163,7 +163,7 @@ export function VuRecordEditorProvider({ children }: { children: React.ReactNode
                     <label className={LABEL_CLS} htmlFor="vu-status">STATUS</label>
                     <select id="vu-status" value={form.status} onChange={e => setForm(f => applyVuStatusChange(f, e.target.value, new Date()))} className={FIELD_CLS}>
                       <option value="">— seleccionar —</option>
-                      {VU_STATUS_OPTS.map(o => <option key={o} value={o}>{STATUS_LABEL[o]}</option>)}
+                      {(form.status === 'FATURA' ? [...VU_STATUS_OPTS, 'FATURA'] : [...VU_STATUS_OPTS]).map(o => <option key={o} value={o}>{STATUS_LABEL[o]}</option>)}
                     </select>
                   </div>
                   {text('dt_fecho', 'DT FECHO — Data de fecho', 'date')}
@@ -212,16 +212,19 @@ export function VuRecordEditorProvider({ children }: { children: React.ReactNode
               <div>
                 <h3 className={H3_CLS}>Datas</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  {text('dfat', 'DFAT — Data da fatura', 'date')}
+                  <div>
+                    <label className={LABEL_CLS} htmlFor="vu-dfat">DFAT — Data da fatura</label>
+                    <input id="vu-dfat" type="date" value={form.dfat} onChange={e => setForm(f => applyVuDfatChange(f, e.target.value))} className={FIELD_CLS} />
+                  </div>
                   {garantia('dgarant', 'DGARANT — Data de garantia')}
                   {garantia('garant3s', 'GARANT 3S — Garantia 3 anos')}
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1.5">
-                  Ao passar o estado para Carteira ou Fatura, a data de fecho fica a de hoje; ao passar a Fatura, a DFAT também (podes alterá-las).
-                  Uma fatura precisa de DFAT para contar no mês certo da WIP.
+                  No VU o retail coincide com a fatura: ao preencher a DFAT o estado passa automaticamente a Retail (e a data de fecho fica a de hoje, se vazia);
+                  ao escolher Retail sem DFAT, esta fica a de hoje. Se apagares a DFAT de um retail, volta à Carteira.
                 </p>
-                {form.status === 'FATURA' && !form.dfat && (
-                  <button type="button" onClick={() => setField('dfat', hojeIso())} className="mt-1.5 text-[11px] text-primary hover:underline">Usar a data de hoje</button>
+                {form.status === 'RETAIL' && !form.dfat && (
+                  <button type="button" onClick={() => setForm(f => applyVuDfatChange(f, hojeIso()))} className="mt-1.5 text-[11px] text-primary hover:underline">Usar a data de hoje</button>
                 )}
               </div>
 
