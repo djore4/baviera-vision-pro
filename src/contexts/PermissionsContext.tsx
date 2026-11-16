@@ -7,6 +7,7 @@ import {
   type AccessLevel, type AppCapabilities, type AppRole, type AppUser,
 } from '@/lib/permissions';
 import { client } from '@/clients';
+import { supabase } from '@/integrations/supabase/client';
 import { eotAccountBlocked } from '@/lib/eot-access';
 import { locaisDoPerfil } from '@/lib/locations';
 
@@ -83,6 +84,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const [exceptions, setExceptions] = useState<Record<string, AccessLevel>>({});
   const [capabilities, setCapabilities] = useState<AppCapabilities>(NO_CAPABILITIES);
   const [tabsPorLocal, setTabsPorLocal] = useState<string[]>([]);
+  // Perfil na tabela partilhada `utilizadores` (Sales Force): só lê quem for admin/Sales Force.
+  const [shared, setShared] = useState<Pick<AppUser, 'local' | 'negocio' | 'marca'> | null>(null);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [viewAsEmail, setViewAsEmail] = useState<string | null>(() => readViewAs(email));
   const [tick, setTick] = useState(0);
@@ -110,6 +113,12 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         setTabsPorLocal(tpl);
         setRoles(rs);
         setAllUsers(us);
+        if (email) {
+          try {
+            const { data } = await supabase.from('utilizadores').select('local, negocio, marca').ilike('email', email).maybeSingle();
+            if (alive) setShared((data as typeof shared) ?? null);
+          } catch { /* sem acesso à tabela partilhada: fica o perfil da app_users */ }
+        }
         setMe(us.find(u => (u.email ?? '').toLowerCase() === email) ?? null);
       } catch (e) {
         if (!alive) return;
@@ -169,7 +178,13 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       loading, isAdmin, managed,
       roleName: role?.name ?? effMe?.perfil ?? null,
       me: effMe,
-      realMe: me ?? null,
+      // Campos vazios na app_users completam-se com os da tabela partilhada.
+      realMe: me || shared
+        ? { ...(me ?? { id: '', nome: null, email, perfil: null }), ...Object.fromEntries((['local', 'negocio', 'marca'] as const).map(k => {
+            const v = me?.[k];
+            return [k, Array.isArray(v) ? (v.length ? v : shared?.[k]) : (v ?? shared?.[k])];
+          })) } as AppUser
+        : null,
       capabilities, tabsPorLocal,
       access,
       canView: (t) => access(t) !== 'none',
@@ -181,7 +196,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       allUsers: realIsAdmin ? allUsers : [],
       effectiveEmail: viewing ? (target.email ?? '').toLowerCase() || null : email,
     };
-  }, [roles, me, platformAdmin, exceptions, capabilities, tabsPorLocal, reload, allUsers, viewAsEmail, setViewAs, email]);
+  }, [roles, me, shared, platformAdmin, exceptions, capabilities, tabsPorLocal, reload, allUsers, viewAsEmail, setViewAs, email]);
 
   if (value.loading) return null;
 
