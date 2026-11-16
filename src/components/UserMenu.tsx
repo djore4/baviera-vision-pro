@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { InstallDialog } from '@/components/InstallDialog';
 import { SugestaoDialog } from '@/components/SugestaoDialog';
 import { instalar, modoInstalar, subscrever } from '@/lib/install-prompt';
+import { locaisDoPerfil } from '@/lib/locations';
 import { cn } from '@/lib/utils';
 
 const initialsOf = (base: string) => {
@@ -22,6 +23,34 @@ const THEME_OPTIONS = [
   { value: 'system', label: 'Sistema', icon: Monitor },
 ] as const;
 
+/* Valor jsonb de app_users (array, texto ou nulo) → lista de textos. */
+const listaDe = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : typeof v === 'string' ? v.split(/[,;]/) : [])
+    .map(x => (typeof x === 'string' ? x.trim() : ''))
+    .filter(Boolean);
+
+function PerfilLinha({ label, itens, destaque }: { label: string; itens: string[]; destaque?: boolean }) {
+  if (itens.length === 0) return null;
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">{label}</span>
+      <div className="flex flex-wrap justify-end gap-1">
+        {itens.map(i => (
+          <span
+            key={i}
+            className={cn(
+              'rounded-md border px-2 py-0.5 text-[11px] font-semibold',
+              destaque ? 'border-primary bg-primary text-primary-foreground' : 'border-primary/30 bg-primary/10 text-primary',
+            )}
+          >
+            {i}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const SECTION = 'px-4 py-3';
 const SECTION_TITLE = 'mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground';
 const ROW = 'flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm outline-none transition-colors hover:bg-muted focus-visible:bg-muted';
@@ -31,7 +60,7 @@ const ROW = 'flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left tex
  * Mostra sempre a identidade REAL de quem tem a sessão, mesmo em "ver como". */
 export function UserMenu() {
   const { session } = useAuth();
-  const { me, viewingAs, realIsAdmin, roleName } = usePermissions();
+  const { me, realMe, viewingAs, realIsAdmin, roleName } = usePermissions();
   const { theme, setTheme } = useTheme();
   const [aberto, setAberto] = useState(false);
   const [instalarAberto, setInstalarAberto] = useState(false);
@@ -42,6 +71,11 @@ export function UserMenu() {
   const email = session?.user.email ?? '';
   const nome = viewingAs ? null : me?.nome ?? null;
   const funcao = realIsAdmin ? 'Administrador' : roleName;
+  // Perfil de acesso: sempre o de quem tem a sessão, mesmo em "ver como".
+  const perfilLocais = locaisDoPerfil(realMe?.local);
+  const perfilNegocio = listaDe(realMe?.negocio);
+  const perfilMarca = listaDe(realMe?.marca);
+  const temPerfil = !!funcao || perfilLocais.length + perfilNegocio.length + perfilMarca.length > 0;
   const modo = modoInstalar();
   const temaAtual = theme ?? 'system';
 
@@ -72,9 +106,19 @@ export function UserMenu() {
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold">{nome || email || '—'}</div>
               {nome && <div className="truncate text-xs text-muted-foreground">{email}</div>}
-              {funcao && <div className="mt-0.5 text-[11px] text-muted-foreground">{funcao}</div>}
             </div>
           </div>
+
+          {/* Perfil de acesso */}
+          {temPerfil && (
+            <div className={cn(SECTION, 'space-y-2 border-t border-border')}>
+              <div className={SECTION_TITLE}>Perfil de acesso</div>
+              <PerfilLinha label="Perfil" itens={funcao ? [funcao] : []} destaque />
+              <PerfilLinha label="Concessões" itens={perfilLocais} />
+              <PerfilLinha label="Tipo de viatura" itens={perfilNegocio} />
+              <PerfilLinha label="Marca" itens={perfilMarca} />
+            </div>
+          )}
 
           {/* Aparência */}
           <div className={cn(SECTION, 'border-t border-border')}>
