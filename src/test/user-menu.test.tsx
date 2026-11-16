@@ -44,7 +44,7 @@ describe('Menu do utilizador', () => {
     expect(signOut).toHaveBeenCalled();
   });
 
-  it('mostra o perfil de acesso: função, concessões, tipo de viatura e marca', async () => {
+  it('mostra o perfil de acesso: função, concessões, acesso (VN/VU) e marca', async () => {
     PERMS = {
       me: { nome: 'Ana Silva' }, viewingAs: null, realIsAdmin: false, roleName: 'Comercial',
       realMe: { local: ['Aveiro'], negocio: ['VD', 'VU'], marca: ['BMW', 'BMW Motorrad'] },
@@ -52,8 +52,8 @@ describe('Menu do utilizador', () => {
     abrir();
     expect(await screen.findByText('Perfil de acesso')).toBeTruthy();
     expect(screen.getByText('Comercial')).toBeTruthy();
-    expect(screen.getByText('Tipo de viatura')).toBeTruthy();
-    expect(screen.getByText('VD')).toBeTruthy();
+    expect(screen.getByText('Acesso')).toBeTruthy();
+    expect(screen.getByText('VN')).toBeTruthy();
     expect(screen.getByText('VU')).toBeTruthy();
     expect(screen.getByText('BMW Motorrad')).toBeTruthy();
   });
