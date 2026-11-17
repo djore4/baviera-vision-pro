@@ -351,15 +351,27 @@ export interface ResumoDia {
   carteira: number;
 }
 
-export function calcResumoDia(control: ControlRecord[], hoje: Date, resp: string | null): ResumoDia {
-  const mine = resp ? control.filter(r => r.resp === resp) : control;
-  const veic = mine.filter(r => isRetailType(r.type));
+export type TileKey = 'negocios' | 'matriculas' | 'entregas' | 'parque' | 'carteira';
+
+/** As viaturas por trás de cada número do resumo do dia (a mesma regra dos totais). */
+export function calcDetalheDia(control: ControlRecord[], hoje: Date, resp: string | null): Record<TileKey, ControlRecord[]> {
+  const veic = (resp ? control.filter(r => r.resp === resp) : control).filter(r => isRetailType(r.type));
+  const porData = (campo: 'neg' | 'date298' | 'dmat') => (a: ControlRecord, b: ControlRecord) =>
+    (b[campo]?.getTime() ?? 0) - (a[campo]?.getTime() ?? 0);
   return {
-    negociosHoje: veic.filter(r => FECHADO.has(r.status) && mesmoDia(r.neg, hoje)).length,
-    entregasHoje: veic.filter(r => r.status === 'Retail' && mesmoDia(r.date298, hoje)).length,
-    matriculasHoje: veic.filter(r => mesmoDia(r.dmat, hoje)).length,
-    emParque: veic.filter(emParque).length,
-    carteira: veic.filter(r => ABERTO.has(r.status)).length,
+    negocios: veic.filter(r => FECHADO.has(r.status) && mesmoDia(r.neg, hoje)),
+    entregas: veic.filter(r => r.status === 'Retail' && mesmoDia(r.date298, hoje)),
+    matriculas: veic.filter(r => mesmoDia(r.dmat, hoje)),
+    parque: veic.filter(emParque),
+    carteira: veic.filter(r => ABERTO.has(r.status)).sort((a, b) => a.mes1.localeCompare(b.mes1) || porData('neg')(a, b)),
+  };
+}
+
+export function calcResumoDia(control: ControlRecord[], hoje: Date, resp: string | null): ResumoDia {
+  const d = calcDetalheDia(control, hoje, resp);
+  return {
+    negociosHoje: d.negocios.length, entregasHoje: d.entregas.length, matriculasHoje: d.matriculas.length,
+    emParque: d.parque.length, carteira: d.carteira.length,
   };
 }
 

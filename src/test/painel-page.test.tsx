@@ -86,12 +86,22 @@ describe('Painel', () => {
     expect(screen.getByTestId('alerta-sem-bizagi')).toHaveTextContent('Série 5');
   });
 
-  it('os quadrados do resumo levam ao tab respetivo', async () => {
+  it('os quadrados do resumo deslocam a página, no próprio Painel, para a lista respetiva', async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
     montar();
     await screen.findByTestId('painel');
-    expect(screen.getByTestId('tile-Em parque')).toHaveAttribute('href', '/producao?parque=1');
-    expect(screen.getByTestId('tile-Entregas hoje')).toHaveAttribute('href', '/retails');
-    expect(screen.getByTestId('tile-Carteira')).toHaveAttribute('href', '/carteira');
+    expect(screen.queryByTestId('painel-detalhe')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('tile-parque'));
+    const det = await screen.findByTestId('painel-detalhe');
+    expect(det).toHaveTextContent('Viaturas em parque');
+    expect(det).toHaveTextContent('iX1');                        // a viatura em parque do AC
+    await waitFor(() => expect(scroll).toHaveBeenCalled());
+    // Outro quadrado troca a lista; o mesmo quadrado fecha-a.
+    fireEvent.click(screen.getByTestId('tile-carteira'));
+    expect(screen.getByTestId('painel-detalhe')).toHaveTextContent('Carteira por entregar');
+    fireEvent.click(screen.getByTestId('tile-carteira'));
+    expect(screen.queryByTestId('painel-detalhe')).not.toBeInTheDocument();
   });
 
   it('numa viatura em parque sem matrícula, o passo seguinte é pedi-la por email (sem precisar do editor)', async () => {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { ControlRecord } from '@/types/data';
 import type { Notification } from '@/lib/notifications';
 import {
-  calcAlertas, calcResumoDia, chaveBaixa, diasDesde, mensagensDoPainel, meuResp, nomeCurto, principaisTarefas, PRAZOS,
+  calcAlertas, calcDetalheDia, calcResumoDia, chaveBaixa, diasDesde, mensagensDoPainel, meuResp, nomeCurto, principaisTarefas, PRAZOS,
   type AlertaGrupo, type EventoPainel, type RegraId,
 } from '@/lib/painel';
 
@@ -278,5 +278,17 @@ describe('entregas por confirmar (mês previsto)', () => {
     const h = { hoje: new Date(2026, 10, 27) };
     const g = grupo(calc([rec({ mes1: '2026/11' }), rec({ mes1: '2026/11', cliente: 'B' })], h), 'entrega-fim-mes');
     expect(g.itens.map(i => i.restam)).toEqual([3, 3]);
+  });
+});
+
+describe('detalhe do dia', () => {
+  it('as listas por trás dos quadrados batem com os totais', () => {
+    const control = [rec({ neg: HOJE }), rec({ neg: dia(3), dmat: HOJE, status: 'Matricula' }), rec({ week198: 'P' }), rec({ type: 'VP', neg: HOJE })];
+    const d = calcDetalheDia(control, HOJE, null);
+    const r = calcResumoDia(control, HOJE, null);
+    expect(d.negocios).toHaveLength(r.negociosHoje);
+    expect(d.parque).toHaveLength(r.emParque);
+    expect(d.carteira).toHaveLength(r.carteira);
+    expect(d.negocios.every(x => x.type !== 'VP')).toBe(true);
   });
 });
