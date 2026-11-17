@@ -429,16 +429,7 @@ export async function carregarEventosPainel(): Promise<EventoPainel[]> {
 
 /* ── Nome ──────────────────────────────────────────────────────────────────── */
 
-const cap = (w: string) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w);
-
-/** "Primeiro Último" a partir do nome completo; sem nome, deduz-se do email (joao.duarte@x.pt → Joao Duarte). */
-export function nomeCurto(nome: string | null | undefined, email: string | null | undefined): string {
-  const partes = (nome ?? '').trim().split(/\s+/).filter(Boolean);
-  if (partes.length > 0) return partes.length === 1 ? partes[0] : `${partes[0]} ${partes[partes.length - 1]}`;
-  const local = (email ?? '').split('@')[0].split(/[._-]+/).filter(w => /^\p{L}+$/u.test(w));
-  if (local.length === 0) return '';
-  return local.length === 1 ? cap(local[0]) : `${cap(local[0])} ${cap(local[local.length - 1])}`;
-}
+export { nomeCurto } from '@/lib/nome';
 
 /* ── Baixas e ações do vendedor ────────────────────────────────────────────── */
 

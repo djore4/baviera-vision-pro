@@ -229,6 +229,12 @@ describe('nomeCurto', () => {
     expect(nomeCurto(null, 'joao.duarte@caetano.pt')).toBe('Joao Duarte');
     expect(nomeCurto('  ', 'maria@caetano.pt')).toBe('Maria');
     expect(nomeCurto(null, null)).toBe('');
+    // Ficha com o email no campo nome (conta criada só com o email): nunca se mostra o email.
+    expect(nomeCurto('joao.duarte@caetano.pt', null)).toBe('Joao Duarte');
+    expect(nomeCurto('joao.duarte@caetano.pt', 'outro@x.pt')).toBe('Joao Duarte');
+    // Só o primeiro nome na ficha: completa com o apelido do email se começar pelo mesmo nome.
+    expect(nomeCurto('João', 'joao.duarte@caetano.pt')).toBe('João Duarte');
+    expect(nomeCurto('João', 'jd@caetano.pt')).toBe('João');
   });
 });
 
