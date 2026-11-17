@@ -92,10 +92,10 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthGate>
+        <PermissionsProvider>
         <DataProvider>
           <RecordEditorProvider>
           <VuRecordEditorProvider>
-          <PermissionsProvider>
           <ProspecProvider>
           <EasterEggs />
           <HashRouter>
@@ -141,10 +141,10 @@ const App = () => (
             </Routes>
           </HashRouter>
           </ProspecProvider>
-          </PermissionsProvider>
           </VuRecordEditorProvider>
           </RecordEditorProvider>
         </DataProvider>
+        </PermissionsProvider>
       </AuthGate>
     </TooltipProvider>
   </QueryClientProvider>

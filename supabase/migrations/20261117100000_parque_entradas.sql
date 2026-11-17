@@ -68,10 +68,18 @@ drop policy if exists parque_entradas_select on public.parque_entradas;
 create policy parque_entradas_select on public.parque_entradas for select to authenticated
   using (true);
 
--- Só o trigger (security definer) escreve; ninguém edita datas pela API.
+-- O trigger (security definer) regista a entrada; só os administradores a podem
+-- corrigir (editor da viatura). Ninguém apaga.
+drop policy if exists parque_entradas_insert on public.parque_entradas;
+drop policy if exists parque_entradas_update on public.parque_entradas;
+create policy parque_entradas_insert on public.parque_entradas for insert to authenticated
+  with check ((select public.is_app_admin()));
+create policy parque_entradas_update on public.parque_entradas for update to authenticated
+  using ((select public.is_app_admin())) with check ((select public.is_app_admin()));
+
 revoke all on public.parque_entradas from anon;
-revoke insert, update, delete on public.parque_entradas from authenticated;
-grant select on public.parque_entradas to authenticated;
+revoke delete on public.parque_entradas from authenticated;
+grant select, insert, update on public.parque_entradas to authenticated;
 
 -- O Excel deixou de ser usado para carregar dados: remove a RPC de importação.
 drop function if exists public.import_control_excel(jsonb, jsonb, jsonb);

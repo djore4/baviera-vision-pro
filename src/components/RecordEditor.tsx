@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useData } from '@/contexts/DataContext';
+import { usePermissions } from '@/contexts/PermissionsContext';
+import { chassisKey } from '@/lib/lead-time-entrega';
 import { X, Check, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { vendedorInitials } from '@/lib/team';
@@ -182,6 +184,10 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
   const [saving, setSaving] = useState(false);
   const [loadingRow, setLoadingRow] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Entrada em parque (lead time de entrega): só o administrador a vê e corrige.
+  const { isAdmin } = usePermissions();
+  const [entradaParque, setEntradaParque] = useState('');
+  const [entradaOriginal, setEntradaOriginal] = useState('');
   // Viaturas demo para pré-preencher um VD (carregam-se na primeira vez que o tipo é VD).
   const [demos, setDemos] = useState<DemoVehicle[] | null>(null);
   const [demosError, setDemosError] = useState<string | null>(null);
@@ -216,6 +222,7 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
   const openEditor = useCallback(async (id: string) => {
     onCreatedRef.current = undefined;
     setEditId(id); setForm(EMPTY); setConfirmDelete(false); setDemoChassis(''); setOpen(true); setLoadingRow(true);
+    setEntradaParque(''); setEntradaOriginal('');
     const { data } = await supabase.from('control_records').select('*').eq('id', id).single();
     if (data) {
       const row = data as Record<string, unknown>;
@@ -224,6 +231,12 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
         if (row[k] !== undefined && row[k] !== null) next[k] = row[k];
       }
       setForm(next as unknown as RecordForm);
+      const k = chassisKey(row.chas as string | null);
+      if (k) {
+        const { data: ent } = await supabase.from('parque_entradas').select('entrada_em').eq('chassis', k).maybeSingle();
+        const v = ent?.entrada_em ?? '';
+        setEntradaParque(v); setEntradaOriginal(v);
+      }
     }
     setLoadingRow(false);
   }, []);
@@ -255,6 +268,12 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
     const { error } = editId
       ? await supabase.from('control_records').update(payload).eq('id', editId)
       : await supabase.from('control_records').insert(payload);
+    if (!error && isAdmin && entradaParque && entradaParque !== entradaOriginal && chassisKey(form.chas)) {
+      // Corrige a data de entrada em parque (o trigger só regista a 1.ª, com a data da alteração).
+      const { error: e2 } = await supabase.from('parque_entradas')
+        .upsert({ chassis: chassisKey(form.chas), entrada_em: entradaParque }, { onConflict: 'chassis' });
+      if (e2) toast.error(`Registo gravado, mas a data de entrada em parque não: ${e2.message}`);
+    }
     setSaving(false);
     if (error) { toast.error(`Não foi possível gravar o registo: ${error.message}`); return; }
     setOpen(false);
@@ -377,6 +396,12 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
                   <TextField k="dmat" label="DMAT — Data da matrícula" type="date" />
                   <TextField k="date298" label="298 — Retail / Entrega cliente" type="date" />
                   <TextField k="dfat" label="DFAT — Data da fatura" type="date" />
+                  {isAdmin && editId && String(form.week198 ?? '').toUpperCase().includes('P') && chassisKey(form.chas) && (
+                    <div>
+                      <label className={LABEL_CLS}>Entrada em parque (lead time)</label>
+                      <input type="date" value={entradaParque} onChange={e => setEntradaParque(e.target.value)} className={FIELD_CLS} />
+                    </div>
+                  )}
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1.5">Ao passar o estado para Retail, a data 298 fica preenchida com a data de hoje; ao passar de Carteira para Matricula, a DMAT (podes alterá-las).</p>
               </div>
