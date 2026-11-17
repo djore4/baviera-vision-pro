@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { InstallDialog } from '@/components/InstallDialog';
 import { SugestaoDialog } from '@/components/SugestaoDialog';
 import { instalar, modoInstalar, subscrever } from '@/lib/install-prompt';
-import { locaisDoPerfil } from '@/lib/locations';
+import { locaisDoGrupo, locaisDoPerfil } from '@/lib/locations';
 import { cn } from '@/lib/utils';
 
 const initialsOf = (base: string) => {
@@ -32,8 +32,10 @@ const listaDe = (v: unknown): string[] =>
 /* Acesso por tipo de viatura: só há VN (novos; guardado como VD nalgumas contas) e VU. */
 const acessoDe = (v: unknown): string[] => {
   const tipos = listaDe(v).map(t => t.toUpperCase()).map(t => (t === 'VD' ? 'VN' : t));
-  return ['VN', 'VU'].filter(t => tipos.includes(t));
+  return ['VN', 'VU'].filter(t => tipos.includes(t) || tipos.includes('TODAS'));
 };
+
+const temTodas = (v: unknown) => listaDe(v).some(x => x.toLowerCase() === 'todas');
 
 function PerfilLinha({ label, itens, destaque }: { label: string; itens: string[]; destaque?: boolean }) {
   if (itens.length === 0) return null;
@@ -78,8 +80,9 @@ export function UserMenu() {
   const nome = viewingAs ? null : me?.nome ?? null;
   const funcao = realIsAdmin ? 'Administrador' : roleName;
   // Perfil de acesso: sempre o de quem tem a sessão, mesmo em "ver como".
-  const perfilLocais = locaisDoPerfil(realMe?.local);
-  const perfilNegocio = acessoDe(realMe?.negocio);
+  // O administrador (ou quem tem "Todas") tem acesso a tudo, como na Sales Force.
+  const perfilLocais = realIsAdmin || temTodas(realMe?.local) ? locaisDoGrupo() : locaisDoPerfil(realMe?.local);
+  const perfilNegocio = realIsAdmin ? ['VN', 'VU'] : acessoDe(realMe?.negocio);
   const perfilMarca = listaDe(realMe?.marca);
   const temPerfil = !!funcao || perfilLocais.length + perfilNegocio.length + perfilMarca.length > 0;
   const modo = modoInstalar();
