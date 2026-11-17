@@ -25,6 +25,10 @@ export const PRAZOS = {
   premioDias: 7,
   /** Em parque sem matrícula pedida: a partir daqui é urgente. */
   parqueUrgenteDias: 3,
+  /** Entrega prevista este mês: avisa quando faltam N dias (ou menos) para o fim do mês. */
+  fimMesDias: 7,
+  /** Entrega em atraso há mais de N dias (desde o fim do mês previsto) é urgente. */
+  atrasoUrgenteDias: 30,
 } as const;
 
 /** Mesmos critérios do tab Pendentes (BIZAGI): só negócios de 2026 em diante e sem o resp 'JD'. */
@@ -37,6 +41,8 @@ export type RegraId =
   | 'financiamento-bmw'
   | 'sem-bizagi'
   | 'bev-lead-cme'
+  | 'entrega-atrasada'
+  | 'entrega-fim-mes'
   | 'reducao-preco'
   | 'premio-venda';
 
@@ -78,6 +84,16 @@ export const REGRAS: Record<RegraId, RegraDef> = {
     titulo: 'BEV sem chassis: abrir Lead CME?',
     acao: `Fechado há ${PRAZOS.bevCmeDias} dias ou mais e ainda sem chassis: sugerir a abertura de uma Lead CME.`,
   },
+  'entrega-atrasada': {
+    id: 'entrega-atrasada', base: 'media', para: 'Vendedor',
+    titulo: 'Entrega prevista em atraso',
+    acao: 'O mês previsto de entrega já passou e a viatura ainda não foi entregue: entregar ou reagendar.',
+  },
+  'entrega-fim-mes': {
+    id: 'entrega-fim-mes', base: 'media', para: 'Vendedor',
+    titulo: 'Entrega este mês sem matrícula pedida',
+    acao: `Entrega prevista para este mês, faltam ${PRAZOS.fimMesDias} dias ou menos e a matrícula ainda não foi pedida.`,
+  },
   'reducao-preco': {
     id: 'reducao-preco', base: 'info', para: 'Todos',
     titulo: 'Redução de PVP (Demos e Stock)',
@@ -93,6 +109,7 @@ export const REGRAS: Record<RegraId, RegraDef> = {
 /** Ordem de apresentação dos grupos (o que exige ação primeiro, as notas informativas no fim). */
 export const ORDEM_REGRAS: RegraId[] = [
   'parque-sem-matricula', 'matriculado-sem-certificado', 'sem-bizagi', 'bev-lead-cme',
+  'entrega-atrasada', 'entrega-fim-mes',
   'financiamento-bmw', 'reducao-preco', 'premio-venda',
 ];
 
@@ -108,6 +125,12 @@ export interface AlertaItem {
   dias: number | null;
   /** Para abrir o registo (control_records.id), quando há. */
   recordId?: string;
+  /** O registo de origem (para as ações do vendedor). */
+  registo?: ControlRecord;
+  /** Substitui o contador de dias (p. ex. "faltam 3 d"). */
+  chip?: string;
+  /** Dias que FALTAM (regras com prazo a contar para o fim); ordena do mais perto para o mais longe. */
+  restam?: number;
   /** Rótulo livre à direita (p. ex. "−1.500 €"). */
   nota?: string;
 }
@@ -157,8 +180,19 @@ export interface ContextoPainel {
   entradas: EntradasParque | null;
   /** Eventos de preço/prémio; vazio se a migração ainda não foi aplicada. */
   eventos: EventoPainel[];
+  /** Avisos a que já se deu baixa: `${regra}:${id do registo}` (ver chaveBaixa). */
+  baixas?: Set<string>;
   /** Só os negócios deste comercial (iniciais); null = todos. Os eventos de Demos/Stock não têm dono. */
   resp: string | null;
+}
+
+/** Chave de uma baixa: a regra e o registo (control_records.id). */
+export const chaveBaixa = (regra: RegraId | string, recordId: string | undefined) => `${regra}:${recordId ?? ''}`;
+
+/** Último dia do mês previsto ('AAAA/MM'), ou null se o mês não estiver definido. */
+function fimDoMes(mes1: string): Date | null {
+  const m = mes1.trim().match(/^(\d{4})\/(\d{1,2})$/);
+  return m ? new Date(Number(m[1]), Number(m[2]), 0) : null;
 }
 
 export function calcAlertas(control: ControlRecord[], ctx: ContextoPainel): AlertaGrupo[] {
@@ -166,16 +200,18 @@ export function calcAlertas(control: ControlRecord[], ctx: ContextoPainel): Aler
   const meus = ctx.resp ? control.filter(r => r.resp === ctx.resp) : control;
   const out: Record<RegraId, AlertaItem[]> = {
     'parque-sem-matricula': [], 'matriculado-sem-certificado': [], 'financiamento-bmw': [],
-    'sem-bizagi': [], 'bev-lead-cme': [], 'reducao-preco': [], 'premio-venda': [],
+    'sem-bizagi': [], 'bev-lead-cme': [], 'entrega-atrasada': [], 'entrega-fim-mes': [],
+    'reducao-preco': [], 'premio-venda': [],
   };
+  const baixado = (regra: RegraId, r: ControlRecord) => !!r.id && !!ctx.baixas?.has(chaveBaixa(regra, r.id));
   const entradaDe = (r: ControlRecord) => entradas?.get(chassisKey(r.chas)) ?? null;
 
   for (const r of meus) {
     const resp = r.resp || null;
-    const base = { resp, recordId: r.id };
+    const base = { resp, recordId: r.id, registo: r };
 
     // 1. Em parque, sem matrícula pedida (nem matriculada, nem email "matrícula pedida" recebido).
-    if (emParque(r) && !r.mat.trim() && !r.matPedidaEm) {
+    if (emParque(r) && !r.mat.trim() && !r.matPedidaEm && !baixado('parque-sem-matricula', r)) {
       const dias = diasDesde(entradaDe(r), hoje);
       out['parque-sem-matricula'].push({
         ...base, id: `parque:${r.id ?? r.chas}`, regra: 'parque-sem-matricula',
@@ -202,7 +238,7 @@ export function calcAlertas(control: ControlRecord[], ctx: ContextoPainel): Aler
     // 3. Carteira com pagamento PP ou sem informação → financiamento BMW.
     if (ABERTO.has(r.status) && isRetailType(r.type)) {
       const fin = r.fin.trim().toUpperCase();
-      if (fin === '' || fin === 'PP') {
+      if ((fin === '' || fin === 'PP') && !baixado('financiamento-bmw', r)) {
         out['financiamento-bmw'].push({
           ...base, id: `fin:${r.id ?? r.chas}`, regra: 'financiamento-bmw', severidade: 'info',
           titulo: descVeiculo(r), detalhe: descCliente(r), dias: diasDesde(r.neg, hoje),
@@ -225,11 +261,38 @@ export function calcAlertas(control: ControlRecord[], ctx: ContextoPainel): Aler
     }
 
     // 5. BEV fechado há 30+ dias, ainda sem chassis → sugerir Lead CME.
-    if (r.bev === 1 && ABERTO.has(r.status) && !r.chas.trim() && diasNeg !== null && diasNeg >= PRAZOS.bevCmeDias) {
+    if (r.bev === 1 && ABERTO.has(r.status) && !r.chas.trim() && diasNeg !== null && diasNeg >= PRAZOS.bevCmeDias && !baixado('bev-lead-cme', r)) {
       out['bev-lead-cme'].push({
         ...base, id: `cme:${r.id ?? r.enc}`, regra: 'bev-lead-cme', severidade: 'media',
         titulo: descVeiculo(r), detalhe: `${descCliente(r)}${r.enc.trim() ? ` · enc. ${r.enc.trim()}` : ''}`, dias: diasNeg,
       });
+    }
+
+    // 8/9. Entregas por confirmar (o mês previsto, MÊS1, só tem precisão de mês).
+    if (ABERTO.has(r.status) && isRetailType(r.type)) {
+      const fim = fimDoMes(r.mes1);
+      if (fim) {
+        const hojeIni = inicioDoDia(hoje);
+        if (fim < hojeIni) {
+          const atraso = diasDesde(fim, hoje) ?? 0;
+          if (!baixado('entrega-atrasada', r)) out['entrega-atrasada'].push({
+            ...base, id: `atraso:${r.id ?? r.chas}`, regra: 'entrega-atrasada',
+            severidade: atraso >= PRAZOS.atrasoUrgenteDias ? 'alta' : 'media',
+            titulo: descVeiculo(r), detalhe: `${descCliente(r)} · previsto ${r.mes1.trim()}`, dias: atraso,
+          });
+        } else if (
+          fim.getTime() - hojeIni.getTime() <= PRAZOS.fimMesDias * DAY &&
+          !r.mat.trim() && !r.matPedidaEm && !emParque(r) && !baixado('entrega-fim-mes', r)
+        ) {
+          const restam = Math.round((fim.getTime() - hojeIni.getTime()) / DAY);
+          out['entrega-fim-mes'].push({
+            ...base, id: `fimmes:${r.id ?? r.chas}`, regra: 'entrega-fim-mes',
+            severidade: restam <= 2 ? 'alta' : 'media',
+            titulo: descVeiculo(r), detalhe: `${descCliente(r)} · previsto ${r.mes1.trim()}`, dias: null,
+            restam, chip: restam === 0 ? 'último dia' : `faltam ${restam} d`,
+          });
+        }
+      }
     }
   }
 
@@ -258,8 +321,9 @@ export function calcAlertas(control: ControlRecord[], ctx: ContextoPainel): Aler
   }
 
   return ORDEM_REGRAS.map(id => {
-    const itens = out[id].sort(id === 'reducao-preco' || id === 'premio-venda'
-      ? (a, b) => (a.dias ?? 0) - (b.dias ?? 0)       // eventos: o mais recente primeiro
+    const itens = out[id].sort(
+      id === 'reducao-preco' || id === 'premio-venda' ? (a, b) => (a.dias ?? 0) - (b.dias ?? 0)   // eventos: o mais recente primeiro
+      : id === 'entrega-fim-mes' ? (a, b) => (a.restam ?? 0) - (b.restam ?? 0)                    // o prazo mais curto primeiro
       : maisAntigoPrimeiro);
     return { regra: REGRAS[id], itens, urgentes: itens.filter(i => i.severidade === 'alta').length };
   });
@@ -350,3 +414,83 @@ export async function carregarEventosPainel(): Promise<EventoPainel[]> {
   }
   return (data ?? []) as EventoPainel[];
 }
+
+/* ── Nome ──────────────────────────────────────────────────────────────────── */
+
+const cap = (w: string) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w);
+
+/** "Primeiro Último" a partir do nome completo; sem nome, deduz-se do email (joao.duarte@x.pt → Joao Duarte). */
+export function nomeCurto(nome: string | null | undefined, email: string | null | undefined): string {
+  const partes = (nome ?? '').trim().split(/\s+/).filter(Boolean);
+  if (partes.length > 0) return partes.length === 1 ? partes[0] : `${partes[0]} ${partes[partes.length - 1]}`;
+  const local = (email ?? '').split('@')[0].split(/[._-]+/).filter(w => /^\p{L}+$/u.test(w));
+  if (local.length === 0) return '';
+  return local.length === 1 ? cap(local[0]) : `${cap(local[0])} ${cap(local[local.length - 1])}`;
+}
+
+/* ── Baixas e ações do vendedor ────────────────────────────────────────────── */
+
+export interface Baixa {
+  id: number;
+  regra: string;
+  chave: string;
+  motivo: string;
+  nota: string | null;
+  descricao: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+const tabelaEmFalta = (e: { code?: string }) => e.code === '42P01' || e.code === 'PGRST205';
+const funcaoEmFalta = (e: { code?: string }) => e.code === 'PGRST202' || e.code === '42883';
+const MIGRACAO = 'Falta aplicar a migração do Painel na base de dados.';
+
+/** Baixas dos últimos 60 dias. Vazio se a tabela não existir. */
+export async function carregarBaixas(): Promise<Baixa[]> {
+  const desde = new Date(Date.now() - 60 * DAY).toISOString();
+  const { data, error } = await supabase.from('painel_baixas').select('*').gte('created_at', desde).order('created_at', { ascending: false });
+  if (error) {
+    if (tabelaEmFalta(error)) return [];
+    throw new Error(error.message);
+  }
+  return (data ?? []) as Baixa[];
+}
+
+/** Dá baixa a um aviso: sai da lista de toda a equipa e fica registado quem e porquê. */
+export async function darBaixa(input: {
+  regra: RegraId; recordId: string; motivo: string; nota?: string; descricao?: string; email: string;
+}): Promise<void> {
+  const { error } = await supabase.from('painel_baixas').insert({
+    regra: input.regra, chave: input.recordId, motivo: input.motivo,
+    nota: input.nota?.trim() || null, descricao: input.descricao ?? null, created_by: input.email.toLowerCase(),
+  });
+  if (error) {
+    if (error.code === '23505') return;                       // já tinha baixa: o objetivo está cumprido
+    throw new Error(tabelaEmFalta(error) ? MIGRACAO : error.message);
+  }
+}
+
+export async function reporBaixa(id: number): Promise<void> {
+  const { error } = await supabase.from('painel_baixas').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+const MSG_RPC: Record<string, string> = {
+  sem_acesso: 'Sem acesso ao Painel.',
+  biz_invalido: 'Número Bizagi inválido.',
+  data_invalida: 'Data inválida (até 30 dias atrás, não no futuro).',
+  mes_invalido: 'Mês inválido.',
+  registo_invalido: 'O registo mudou entretanto (já tem Bizagi, já foi entregue, ou não está matriculado). Atualiza a página.',
+};
+
+async function rpc(fn: string, args: Record<string, unknown>): Promise<void> {
+  const { error } = await supabase.rpc(fn as never, args as never);
+  if (!error) return;
+  if (funcaoEmFalta(error)) throw new Error(MIGRACAO);
+  const chave = Object.keys(MSG_RPC).find(k => error.message.includes(k));
+  throw new Error(chave ? MSG_RPC[chave] : error.message);
+}
+
+export const registarBizagi = (id: string, biz: string) => rpc('painel_registar_biz', { p_id: id, p_biz: biz });
+export const registarEntrega = (id: string, dataIso: string) => rpc('painel_registar_entrega', { p_id: id, p_data: dataIso });
+export const reagendarEntrega = (id: string, mes: string) => rpc('painel_reagendar', { p_id: id, p_mes: mes });

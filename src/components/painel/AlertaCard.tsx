@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Award, BatteryCharging, ChevronRight, FileCheck2, FileWarning, Landmark, ParkingSquare, TrendingDown,
+  Award, BatteryCharging, CalendarClock, CalendarX2, ChevronRight, FileCheck2, FileWarning, Landmark, ParkingSquare, TrendingDown,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,8 @@ export const REGRA_ICONS: Record<RegraId, LucideIcon> = {
   'financiamento-bmw': Landmark,
   'sem-bizagi': FileWarning,
   'bev-lead-cme': BatteryCharging,
+  'entrega-atrasada': CalendarX2,
+  'entrega-fim-mes': CalendarClock,
   'reducao-preco': TrendingDown,
   'premio-venda': Award,
 };
@@ -26,6 +28,9 @@ export const SEV_STYLE: Record<Severidade, { barra: string; icone: string; chip:
 
 /** O contador de dias de uma linha: o que se quer ver de relance. */
 export function DiasChip({ item }: { item: AlertaItem }) {
+  if (item.chip) {
+    return <span className={cn('whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-semibold', SEV_STYLE[item.severidade].chip)}>{item.chip}</span>;
+  }
   if (item.dias === null) {
     return <span title="Sem data de entrada registada (a viatura já estava em parque antes do registo)"
       className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">s/ data</span>;
@@ -43,8 +48,8 @@ const VISIVEIS = 5;
 
 interface Props {
   grupo: AlertaGrupo;
-  /** Abre o registo (quando a pessoa o pode editar). */
-  onAbrir?: (recordId: string) => void;
+  /** Abre as ações do aviso (só nas linhas com registo). */
+  onAbrir?: (item: AlertaItem) => void;
   /** Para onde "Abrir ›" leva (só se a pessoa tem acesso). */
   destino?: { path: string; label: string } | null;
   mostrarResp: boolean;
@@ -78,7 +83,7 @@ export function AlertaCard({ grupo, onAbrir, destino, mostrarResp }: Props) {
 
       <ul className="divide-y divide-border/60 px-2 pb-2">
         {lista.map(item => {
-          const interativo = !!(item.recordId && onAbrir);
+          const interativo = !!(item.registo && onAbrir);
           const corpo = (
             <>
               <div className="min-w-0 flex-1 text-left">
@@ -96,7 +101,7 @@ export function AlertaCard({ grupo, onAbrir, destino, mostrarResp }: Props) {
           return (
             <li key={item.id}>
               {interativo ? (
-                <button type="button" onClick={() => onAbrir!(item.recordId!)}
+                <button type="button" onClick={() => onAbrir!(item)}
                   className="flex w-full items-center gap-2 rounded-md px-2 py-2 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   {corpo}
                 </button>

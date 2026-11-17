@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, CalendarCheck, FileSignature, Handshake, ParkingSquare, Briefcase, Sparkles, Flame } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { CheckCircle2, CalendarCheck, FileSignature, Handshake, ParkingSquare, Briefcase, Sparkles, Flame, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/App';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { useRecordEditor } from '@/components/RecordEditor';
 import { AlertaCard, DiasChip, REGRA_ICONS, SEV_STYLE } from '@/components/painel/AlertaCard';
 import { ComporMensagem, MensagensLista } from '@/components/painel/MensagensPainel';
+import { AcaoSheet } from '@/components/painel/AcaoSheet';
+import { BaixasRecentes } from '@/components/painel/BaixasRecentes';
 import { carregarEntradasParque, type EntradasParque } from '@/lib/lead-time-entrega';
 import { listNotifications, type Notification } from '@/lib/notifications';
 import { isRetailType } from '@/lib/viaturas';
 import { isRetiredMember } from '@/lib/team';
 import { cn } from '@/lib/utils';
 import {
-  calcAlertas, calcResumoDia, carregarEventosPainel, mensagensDoPainel, meuResp, principaisTarefas,
-  REGRAS, type EventoPainel, type RegraId,
+  calcAlertas, calcResumoDia, carregarBaixas, carregarEventosPainel, chaveBaixa, mensagensDoPainel, meuResp, nomeCurto,
+  principaisTarefas, REGRAS, type AlertaItem, type Baixa, type EventoPainel, type RegraId,
 } from '@/lib/painel';
 
 /* ── Painel ──────────────────────────────────────────────────────────────────
@@ -33,12 +36,13 @@ const DESTINO: Record<RegraId, { tab: string; path: string; label: string }> = {
   'financiamento-bmw': { tab: 'carteira', path: '/carteira', label: 'Carteira' },
   'sem-bizagi': { tab: 'carteira', path: '/carteira', label: 'Carteira' },
   'bev-lead-cme': { tab: 'carteira', path: '/carteira', label: 'Carteira' },
+  'entrega-atrasada': { tab: 'carteira', path: '/carteira', label: 'Carteira' },
+  'entrega-fim-mes': { tab: 'carteira', path: '/carteira', label: 'Carteira' },
   'reducao-preco': { tab: 'demos', path: '/demos', label: 'Demos' },
   'premio-venda': { tab: 'demos', path: '/demos', label: 'Demos' },
 };
 
 const saudacao = (h: number) => (h < 12 ? 'Bom dia' : h < 20 ? 'Boa tarde' : 'Boa noite');
-const primeiroNome = (n: string | null | undefined) => (n ?? '').trim().split(/\s+/)[0] || '';
 
 function lerDispensadas(): Set<string> {
   try { return new Set(JSON.parse(localStorage.getItem(DISPENSADAS_KEY) ?? '[]') as string[]); }
@@ -49,27 +53,30 @@ type Escopo = 'equipa' | 'meus' | string;
 
 export default function PainelPage() {
   const { session } = useAuth();
-  const { data } = useData();
+  const { data, refresh } = useData();
   const { isAdmin, canView, canEdit, me, effectiveEmail } = usePermissions();
   const { openEditor } = useRecordEditor();
   const email = effectiveEmail ?? session?.user.email ?? null;
   const nome = me?.nome ?? email;
   const podeAbrirRegistos = canEdit('dados') || canEdit('database');
+  const [acao, setAcao] = useState<AlertaItem | null>(null);
 
   const [entradas, setEntradas] = useState<EntradasParque | null>(null);
   const [eventos, setEventos] = useState<EventoPainel[]>([]);
+  const [baixas, setBaixas] = useState<Baixa[]>([]);
   const [notificacoes, setNotificacoes] = useState<Notification[]>([]);
   const [dispensadas, setDispensadas] = useState<Set<string>>(lerDispensadas);
   // "Hoje" refresca com os dados (a página pode ficar aberta de um dia para o outro).
   const [hoje, setHoje] = useState(() => new Date());
 
   const carregar = useCallback(async () => {
-    const [ent, ev, notif] = await Promise.all([
+    const [ent, ev, notif, bx] = await Promise.all([
       carregarEntradasParque().catch(() => null),
       carregarEventosPainel().catch(() => [] as EventoPainel[]),
       listNotifications(60).catch(() => [] as Notification[]),
+      carregarBaixas().catch(() => [] as Baixa[]),
     ]);
-    setEntradas(ent); setEventos(ev); setNotificacoes(notif); setHoje(new Date());
+    setEntradas(ent); setEventos(ev); setNotificacoes(notif); setBaixas(bx); setHoje(new Date());
   }, []);
 
   useEffect(() => {
@@ -92,9 +99,10 @@ export default function PainelPage() {
   const escopoAtual: Escopo = escopo ?? (eu ? 'meus' : 'equipa');
   const respFiltro = escopoAtual === 'equipa' ? null : escopoAtual === 'meus' ? eu : escopoAtual;
 
+  const chavesBaixa = useMemo(() => new Set(baixas.map(b => chaveBaixa(b.regra, b.chave))), [baixas]);
   const grupos = useMemo(
-    () => calcAlertas(control, { hoje, entradas, eventos, resp: respFiltro }),
-    [control, hoje, entradas, eventos, respFiltro]);
+    () => calcAlertas(control, { hoje, entradas, eventos, baixas: chavesBaixa, resp: respFiltro }),
+    [control, hoje, entradas, eventos, chavesBaixa, respFiltro]);
   const resumo = useMemo(() => calcResumoDia(control, hoje, respFiltro), [control, hoje, respFiltro]);
   const principais = useMemo(() => principaisTarefas(grupos), [grupos]);
   const mensagens = useMemo(() => mensagensDoPainel(notificacoes, email, canView), [notificacoes, email, canView]);
@@ -118,12 +126,13 @@ export default function PainelPage() {
   }
 
   const dataLonga = hoje.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
+  // Cada quadrado leva ao tab onde se vê o detalhe (se a pessoa tiver acesso).
   const tiles = [
-    { label: 'Negócios hoje', valor: resumo.negociosHoje, icon: Handshake },
-    { label: 'Matrículas hoje', valor: resumo.matriculasHoje, icon: FileSignature },
-    { label: 'Entregas hoje', valor: resumo.entregasHoje, icon: CalendarCheck },
-    { label: 'Em parque', valor: resumo.emParque, icon: ParkingSquare },
-    { label: 'Carteira', valor: resumo.carteira, icon: Briefcase },
+    { label: 'Negócios hoje', valor: resumo.negociosHoje, icon: Handshake, tab: 'carteira', to: '/carteira' },
+    { label: 'Matrículas hoje', valor: resumo.matriculasHoje, icon: FileSignature, tab: 'producao', to: '/producao' },
+    { label: 'Entregas hoje', valor: resumo.entregasHoje, icon: CalendarCheck, tab: 'retails', to: '/retails' },
+    { label: 'Em parque', valor: resumo.emParque, icon: ParkingSquare, tab: 'producao', to: '/producao?parque=1' },
+    { label: 'Carteira', valor: resumo.carteira, icon: Briefcase, tab: 'carteira', to: '/carteira' },
   ];
 
   return (
@@ -136,7 +145,7 @@ export default function PainelPage() {
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-wider text-white/60">{dataLonga}</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
-              {saudacao(hoje.getHours())}{primeiroNome(nome) ? `, ${primeiroNome(nome)}` : ''}
+              {saudacao(hoje.getHours())}{nomeCurto(me?.nome, email) ? `, ${nomeCurto(me?.nome, email)}` : ''}
             </h1>
             <p className="mt-1.5 text-sm text-white/75" data-testid="painel-resumo">
               {acionaveis === 0 && avisos === 0
@@ -161,12 +170,20 @@ export default function PainelPage() {
         </div>
 
         <dl className="relative mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {tiles.map(t => (
-            <div key={t.label} className="rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2.5 backdrop-blur-sm">
-              <dt className="flex items-center gap-1.5 text-[11px] font-medium text-white/60"><t.icon className="h-3.5 w-3.5" />{t.label}</dt>
-              <dd className="mt-0.5 text-2xl font-bold tabular-nums">{t.valor}</dd>
-            </div>
-          ))}
+          {tiles.map(t => {
+            const corpo = (
+              <>
+                <dt className="flex items-center gap-1.5 text-[11px] font-medium text-white/60"><t.icon className="h-3.5 w-3.5" />{t.label}
+                  {canView(t.tab) && <ChevronRight className="ml-auto h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />}
+                </dt>
+                <dd className="mt-0.5 text-2xl font-bold tabular-nums">{t.valor}</dd>
+              </>
+            );
+            const cls = 'group block rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2.5 backdrop-blur-sm';
+            return canView(t.tab)
+              ? <Link key={t.label} to={t.to} data-testid={`tile-${t.label}`} className={cn(cls, 'transition-colors hover:border-white/30 hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50')}>{corpo}</Link>
+              : <div key={t.label} className={cls}>{corpo}</div>;
+          })}
         </dl>
       </section>
 
@@ -182,7 +199,7 @@ export default function PainelPage() {
             {principais.map((t, i) => {
               const Icon = REGRA_ICONS[t.regra];
               const st = SEV_STYLE[t.severidade];
-              const abre = !!(t.recordId && podeAbrirRegistos);
+              const abre = !!t.registo;
               const corpo = (
                 <>
                   <span className="w-4 shrink-0 text-center text-xs font-bold tabular-nums text-muted-foreground">{i + 1}</span>
@@ -198,7 +215,7 @@ export default function PainelPage() {
               return (
                 <li key={t.id}>
                   {abre ? (
-                    <button type="button" onClick={() => openEditor(t.recordId!)}
+                    <button type="button" onClick={() => setAcao(t)}
                       className="flex w-full items-center gap-2.5 rounded-md px-1 py-2 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{corpo}</button>
                   ) : <div className="flex items-center gap-2.5 px-1 py-2">{corpo}</div>}
                 </li>
@@ -215,7 +232,7 @@ export default function PainelPage() {
             const d = DESTINO[g.regra.id];
             return (
               <AlertaCard key={g.regra.id} grupo={g} mostrarResp={!respFiltro}
-                onAbrir={podeAbrirRegistos ? openEditor : undefined}
+                onAbrir={setAcao}
                 destino={canView(d.tab) ? { path: d.path, label: d.label } : null} />
             );
           })}
@@ -229,6 +246,11 @@ export default function PainelPage() {
           <p className="text-sm text-muted-foreground">Nenhuma das regras de acompanhamento tem nada a assinalar.</p>
         </section>
       )}
+
+      <BaixasRecentes baixas={baixas} email={email} isAdmin={isAdmin} onMudou={carregar} />
+
+      <AcaoSheet item={acao} email={email} podeEditor={podeAbrirRegistos} onAbrirFicha={openEditor}
+        onClose={() => setAcao(null)} onFeito={async () => { await Promise.all([refresh(), carregar()]); }} />
 
       {/* Regras sem nada a assinalar: uma linha, para não ocupar espaço. */}
       {comItens.length > 0 && emDia.length > 0 && (

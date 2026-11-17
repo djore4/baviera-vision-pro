@@ -18,13 +18,15 @@ let NOTIFS: Notification[] = [];
 let ADMIN = false;
 const openEditor = vi.fn();
 const createNotification = vi.fn(async () => ({}));
+const darBaixa = vi.fn(async () => {});
+const registarBizagi = vi.fn(async () => {});
 
 vi.mock('@/App', () => ({ useAuth: () => ({ session: { user: { email: 'ana@x.pt' } } }) }));
-vi.mock('@/contexts/DataContext', () => ({ useData: () => ({ data: { control: CONTROL } }) }));
+vi.mock('@/contexts/DataContext', () => ({ useData: () => ({ data: { control: CONTROL }, refresh: async () => {} }) }));
 vi.mock('@/contexts/PermissionsContext', () => ({
   usePermissions: () => ({
     isAdmin: ADMIN, canView: () => true, canEdit: () => true,
-    me: { nome: 'Ana Costa' }, effectiveEmail: 'ana@x.pt',
+    me: { nome: 'Ana Maria Costa' }, effectiveEmail: 'ana@x.pt',
   }),
 }));
 vi.mock('@/components/RecordEditor', () => ({ useRecordEditor: () => ({ openEditor }) }));
@@ -35,6 +37,9 @@ vi.mock('@/lib/lead-time-entrega', async (orig) => ({
 vi.mock('@/lib/painel', async (orig) => ({
   ...(await orig<typeof import('@/lib/painel')>()),
   carregarEventosPainel: vi.fn(async () => []),
+  carregarBaixas: vi.fn(async () => []),
+  darBaixa: (...a: unknown[]) => darBaixa(...(a as [])),
+  registarBizagi: (...a: unknown[]) => registarBizagi(...(a as [])),
 }));
 vi.mock('@/lib/notifications', async (orig) => ({
   ...(await orig<typeof import('@/lib/notifications')>()),
@@ -49,39 +54,75 @@ import PainelPage from '@/pages/PainelPage';
 const montar = () => render(<MemoryRouter><PainelPage /></MemoryRouter>);
 
 beforeEach(() => {
-  openEditor.mockReset(); createNotification.mockClear();
+  openEditor.mockReset(); createNotification.mockClear(); darBaixa.mockClear(); registarBizagi.mockClear();
   ADMIN = false; NOTIFS = [];
   localStorage.clear();
   CONTROL = [
     rec({ resp: 'AC', week198: '12P', model: 'iX1', cliente: 'Maria', chas: 'PARK1' }),       // parque sem matrícula
     rec({ resp: 'AC', fin: 'PP', model: 'X3' }),                                              // financiamento
     rec({ resp: 'ZZ', biz: '', neg: dia(30), model: 'Série 5' }),                             // bizagi (de outro comercial)
+    rec({ resp: 'AC', bev: 1, chas: '', neg: dia(40), model: 'iX3', cliente: 'Luís' }),       // BEV sem chassis
+    rec({ resp: 'AC', biz: '', neg: dia(20), model: 'X7', cliente: 'Rui' }),                  // bizagi (meu)
   ];
 });
 
 describe('Painel', () => {
   it('cumprimenta, resume e mostra por omissão só os negócios do próprio comercial (iniciais AC)', async () => {
     montar();
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(/Ana/);
+    // Primeiro e último nome (não o email nem o nome do meio).
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(/Ana Costa$/);
     // "Os meus (AC)": parque + financiamento; o Bizagi é do ZZ e não aparece.
     expect(screen.getByTestId('alerta-parque-sem-matricula')).toBeInTheDocument();
     expect(screen.getByTestId('alerta-financiamento-bmw')).toBeInTheDocument();
-    expect(screen.queryByTestId('alerta-sem-bizagi')).not.toBeInTheDocument();
-    expect(screen.getByTestId('painel-em-dia')).toHaveTextContent(/Negócio fechado sem Bizagi/);
+    // O Bizagi do ZZ (Série 5) não aparece; só o meu (X7).
+    expect(screen.getByTestId('alerta-sem-bizagi')).toHaveTextContent('X7');
+    expect(screen.getByTestId('alerta-sem-bizagi')).not.toHaveTextContent('Série 5');
   });
 
   it('"Toda a equipa" mostra também os de outros comerciais', async () => {
     montar();
     await screen.findByTestId('painel');
     fireEvent.change(screen.getByLabelText('Ver'), { target: { value: 'equipa' } });
-    expect(screen.getByTestId('alerta-sem-bizagi')).toBeInTheDocument();
+    expect(screen.getByTestId('alerta-sem-bizagi')).toHaveTextContent('Série 5');
   });
 
-  it('clicar numa linha abre o registo', async () => {
+  it('os quadrados do resumo levam ao tab respetivo', async () => {
+    montar();
+    await screen.findByTestId('painel');
+    expect(screen.getByTestId('tile-Em parque')).toHaveAttribute('href', '/producao?parque=1');
+    expect(screen.getByTestId('tile-Entregas hoje')).toHaveAttribute('href', '/retails');
+    expect(screen.getByTestId('tile-Carteira')).toHaveAttribute('href', '/carteira');
+  });
+
+  it('numa viatura em parque sem matrícula, o passo seguinte é pedi-la por email (sem precisar do editor)', async () => {
     montar();
     const cartao = await screen.findByTestId('alerta-parque-sem-matricula');
     fireEvent.click(within(cartao).getByRole('button', { name: /iX1/ }));
-    expect(openEditor).toHaveBeenCalledWith(CONTROL[0].id);
+    const link = await screen.findByRole('link', { name: /Pedir matrícula por email/ });
+    expect(link.getAttribute('href')).toMatch(/^mailto:.+subject=Pedido%20de%20matr/);
+    expect(openEditor).not.toHaveBeenCalled();
+    // Depois de enviar, pode dar baixa do aviso.
+    fireEvent.click(link);
+    fireEvent.click(await screen.findByRole('button', { name: /dar baixa do aviso/ }));
+    await waitFor(() => expect(darBaixa).toHaveBeenCalledWith(expect.objectContaining({ regra: 'parque-sem-matricula', motivo: 'pedido-enviado', email: 'ana@x.pt' })));
+  });
+
+  it('BEV sem chassis: dar baixa da Lead CME aberta', async () => {
+    montar();
+    const cartao = await screen.findByTestId('alerta-bev-lead-cme');
+    fireEvent.click(within(cartao).getByRole('button', { name: /iX3/ }));
+    fireEvent.change(await screen.findByLabelText('Nota (opcional)'), { target: { value: 'Lead 123' } });
+    fireEvent.click(screen.getByRole('button', { name: /Lead CME aberta — dar baixa/ }));
+    await waitFor(() => expect(darBaixa).toHaveBeenCalledWith(expect.objectContaining({ regra: 'bev-lead-cme', motivo: 'lead-aberta', nota: 'Lead 123' })));
+  });
+
+  it('sem Bizagi: regista o número no próprio painel', async () => {
+    montar();
+    const cartao = await screen.findByTestId('alerta-sem-bizagi');
+    fireEvent.click(within(cartao).getByRole('button', { name: /X7/ }));
+    fireEvent.change(await screen.findByLabelText('Nº Bizagi'), { target: { value: 'BZ-77' } });
+    fireEvent.click(screen.getByRole('button', { name: /Guardar nº Bizagi/ }));
+    await waitFor(() => expect(registarBizagi).toHaveBeenCalledWith(CONTROL.find(r => r.model === 'X7')!.id, 'BZ-77'));
   });
 
   it('mostra as mensagens da administração marcadas para o Painel e permite dispensá-las', async () => {

@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { fireConfetti } from '@/lib/confetti';
@@ -47,7 +48,9 @@ export default function ProducaoPage() {
   const [selectedRet, setSelectedRet] = useState<boolean | null>(null);
   const [selectedGar, setSelectedGar] = useState<Garantia>(null);
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
-  const [selectedPark, setSelectedPark] = useState(false);
+  // `?parque=1` (atalho do Painel) abre já filtrado pelas viaturas em parque.
+  const [searchParams] = useSearchParams();
+  const [selectedPark, setSelectedPark] = useState(() => searchParams.get('parque') === '1');
   const [sortKey, setSortKey] = useState<SortKey>('neg');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchTerm, setSearchTerm] = useState('');
