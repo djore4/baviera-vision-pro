@@ -9,6 +9,7 @@ import { RecordEditorProvider } from "@/components/RecordEditor";
 import { VuRecordEditorProvider } from "@/components/VuRecordEditor";
 import { AppLayout } from "@/components/AppLayout";
 import Index from "./pages/Index";
+import PainelPage from "./pages/PainelPage";
 import RetailsPage from "./pages/RetailsPage";
 import ProducaoPage from "./pages/ProducaoPage";
 import CarteiraPage from "./pages/CarteiraPage";
@@ -102,6 +103,7 @@ const App = () => (
             <ActivityTracker />
             <Routes>
               <Route path="/" element={<Index />} />
+              <Route path="/painel" element={tab('painel', <PainelPage />)} />
               <Route path="/retails" element={tab('retails', <RetailsPage />)} />
               <Route path="/producao" element={tab('producao', <ProducaoPage />)} />
               <Route path="/carteira" element={tab('carteira', <CarteiraPage />)} />
