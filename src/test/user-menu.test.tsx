@@ -58,6 +58,15 @@ describe('Menu do utilizador', () => {
     expect(screen.getByText('BMW Motorrad')).toBeTruthy();
   });
 
+  it('administrador vê todas as concessões e VN/VU, mesmo sem locais guardados', async () => {
+    PERMS = { me: { nome: 'Ana Silva' }, viewingAs: null, realIsAdmin: true, roleName: null, realMe: { local: [], negocio: [], marca: ['BMW'] } };
+    abrir();
+    expect(await screen.findByText('Administrador')).toBeTruthy();
+    expect(screen.getByText('VN')).toBeTruthy();
+    expect(screen.getByText('VU')).toBeTruthy();
+    expect(screen.getByText('Concessões').nextElementSibling?.children.length).toBeGreaterThan(0);
+  });
+
   it('escolher um tema aplica-o e marca a opção ativa', async () => {
     THEME = 'dark';
     abrir();
