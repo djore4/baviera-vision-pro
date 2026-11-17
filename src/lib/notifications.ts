@@ -23,6 +23,10 @@ export interface Notification {
   recipient_email?: string | null;
   /** Caminho interno para abrir ao clicar. Ausente em bases ainda não migradas. */
   link?: string | null;
+  /** Mensagem fixada no Painel (além do sino). Ausente em bases ainda não migradas. */
+  painel?: boolean;
+  /** A partir daqui deixa de aparecer no Painel (continua no sino). */
+  expira_em?: string | null;
 }
 
 /** Audiência reservada aos administradores (avisos automáticos, ex.: um vendedor registou uma tarefa). */
@@ -66,6 +70,10 @@ export interface NewNotification {
   audience?: string;
   created_by?: string | null;
   created_by_nome?: string | null;
+  /** Mostrar também no Painel (ecrã inicial). */
+  painel?: boolean;
+  /** Fim da exibição no Painel (ISO). */
+  expira_em?: string | null;
 }
 
 /** Notificações dos últimos `sinceDays` dias (mais recentes primeiro). */
@@ -99,19 +107,21 @@ export async function markRead(ids: string[], email: string): Promise<void> {
 
 /** Envia uma notificação (apenas admin, gating na UI). */
 export async function createNotification(input: NewNotification): Promise<Notification> {
-  const { data, error } = await supabase
-    .from('notifications')
-    .insert({
-      title: input.title,
-      body: input.body ?? null,
-      audience: input.audience ?? 'all',
-      created_by: input.created_by ?? null,
-      created_by_nome: input.created_by_nome ?? null,
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return data as Notification;
+  const base = {
+    title: input.title,
+    body: input.body ?? null,
+    audience: input.audience ?? 'all',
+    created_by: input.created_by ?? null,
+    created_by_nome: input.created_by_nome ?? null,
+  };
+  const comPainel = input.painel ? { ...base, painel: true, expira_em: input.expira_em ?? null } : base;
+  let res = await supabase.from('notifications').insert(comPainel).select().single();
+  // Base ainda sem as colunas do Painel (migração por aplicar): a mensagem segue só para o sino.
+  if (res.error && input.painel && (res.error.code === '42703' || res.error.code === 'PGRST204')) {
+    res = await supabase.from('notifications').insert(base).select().single();
+  }
+  if (res.error) throw res.error;
+  return res.data as Notification;
 }
 
 export async function deleteNotification(id: string): Promise<void> {

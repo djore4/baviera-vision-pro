@@ -1709,8 +1709,10 @@ export type Database = {
           created_at: string
           created_by: string | null
           created_by_nome: string | null
+          expira_em: string | null
           id: string
           link: string | null
+          painel: boolean
           recipient_email: string | null
           title: string
         }
@@ -1721,8 +1723,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           created_by_nome?: string | null
+          expira_em?: string | null
           id?: string
           link?: string | null
+          painel?: boolean
           recipient_email?: string | null
           title: string
         }
@@ -1732,8 +1736,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           created_by_nome?: string | null
+          expira_em?: string | null
           id?: string
           link?: string | null
+          painel?: boolean
           recipient_email?: string | null
           title?: string
         }
@@ -1798,6 +1804,43 @@ export type Database = {
           objetivo?: number
           responsavel?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      painel_eventos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          chave: string
+          descricao: string | null
+          id: number
+          origem: string
+          tipo: string
+          valor_antes: number | null
+          valor_depois: number | null
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          chave: string
+          descricao?: string | null
+          id?: number
+          origem: string
+          tipo: string
+          valor_antes?: number | null
+          valor_depois?: number | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          chave?: string
+          descricao?: string | null
+          id?: number
+          origem?: string
+          tipo?: string
+          valor_antes?: number | null
+          valor_depois?: number | null
         }
         Relationships: []
       }

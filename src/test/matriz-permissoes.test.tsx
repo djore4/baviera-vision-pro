@@ -22,7 +22,7 @@ import { AREAS, TABS, PERMISSION_TABS } from '@/lib/permissions';
 const FORA_DA_MATRIZ_DE_PROPOSITO = ['database', 'emprestimos', 'escala-repsol', 'logs', 'pendentes', 'prospecao', 'utilizadores'];
 
 /* Tabs que TÊM de ser atribuíveis (pedido explícito do negócio): não podem sair da matriz. */
-const OBRIGATORIOS_NA_MATRIZ = ['multas', 'marketing', 'objetivos', 'end-of-term', 'demos', 'lavagem'];
+const OBRIGATORIOS_NA_MATRIZ = ['painel', 'multas', 'marketing', 'objetivos', 'end-of-term', 'demos', 'lavagem'];
 
 const roles: AppRole[] = [{ name: 'Comercial', is_admin: false, permissions: {} }];
 

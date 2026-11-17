@@ -17,7 +17,7 @@ export type AccessLevel = 'none' | 'view' | 'edit';
  * deva ser visível a VN e VU é-o simplesmente porque as funções de VN e VU têm
  * `lavagem` a view/edit — não por pertencer a várias áreas.
  * ──────────────────────────────────────────────────────────────────────────── */
-export type AreaKey = 'vn' | 'vu' | 'apv' | 'admin';
+export type AreaKey = 'inicio' | 'vn' | 'vu' | 'apv' | 'admin';
 
 export interface AreaDef {
   key: AreaKey;
@@ -27,6 +27,7 @@ export interface AreaDef {
 
 /* Ordem de apresentação das áreas na navegação e na matriz. */
 export const AREAS: AreaDef[] = [
+  { key: 'inicio', label: 'Início', style: 'normal' },
   { key: 'vn', label: 'Vendas VN', style: 'normal' },
   { key: 'vu', label: 'Vendas VU', style: 'normal' },
   { key: 'apv', label: 'Transversal', style: 'normal' },
@@ -46,6 +47,10 @@ export interface TabDef {
 /* Registo único de todos os tabs (fonte de verdade para nav e matriz).
  * A ordem dentro de cada área define a ordem dos itens na sidebar. */
 const ALL_TABS: TabDef[] = [
+  // ── Início ─────────────────────────────────────────────────────────────────
+  // Ecrã de abertura de quem tem acesso: resumo do dia, pendências/alertas do vendedor e
+  // mensagens da administração. 'view': consulta e abre os registos; a administração publica.
+  { key: 'painel', label: 'Painel', path: '/painel', area: 'inicio' },
   // ── Vendas VN ──────────────────────────────────────────────────────────────
   { key: 'retails', label: 'WIP', path: '/retails', area: 'vn' },
   { key: 'funil', label: 'Funil', path: '/funil', area: 'vn' },
