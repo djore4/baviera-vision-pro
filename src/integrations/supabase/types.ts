@@ -389,25 +389,6 @@ export type Database = {
         }
         Relationships: []
       }
-      parque_entradas: {
-        Row: {
-          chassis: string
-          created_at: string
-          entrada_em: string | null
-        }
-        ComputedFields: never
-        Insert: {
-          chassis: string
-          created_at?: string
-          entrada_em?: string | null
-        }
-        Update: {
-          chassis?: string
-          created_at?: string
-          entrada_em?: string | null
-        }
-        Relationships: []
-      }
       cartao_go_registos: {
         Row: {
           created_at: string
@@ -1820,6 +1801,25 @@ export type Database = {
         }
         Relationships: []
       }
+      parque_entradas: {
+        Row: {
+          chassis: string
+          created_at: string
+          entrada_em: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          chassis: string
+          created_at?: string
+          entrada_em?: string | null
+        }
+        Update: {
+          chassis?: string
+          created_at?: string
+          entrada_em?: string | null
+        }
+        Relationships: []
+      }
       penalties: {
         Row: {
           created_at: string | null
@@ -2730,10 +2730,6 @@ export type Database = {
       has_access: { Args: { p_level?: string; p_tab: string }; Returns: boolean }
       has_any_access: { Args: { p_level?: string; p_tabs: string[] }; Returns: boolean }
       has_any_tab: { Args: Record<PropertyKey, never>; Returns: boolean }
-      import_control_excel: {
-        Args: { p_control: Json; p_orcamento?: Json; p_resp?: Json }
-        Returns: number
-      }
       is_app_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
       is_platform_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
       is_platform_user: { Args: Record<PropertyKey, never>; Returns: boolean }
