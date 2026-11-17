@@ -6,7 +6,7 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { formatDate, isRetailType } from '@/lib/excel-parser';
+import { formatDate, isRetailType } from '@/lib/viaturas';
 
 interface Infraction {
   id: string;

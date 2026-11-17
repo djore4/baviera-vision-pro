@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/App';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { isRetailType } from '@/lib/excel-parser';
+import { isRetailType } from '@/lib/viaturas';
 import {
   QUALITY_METRICS, QUALITY_MIN, QUALITY_MAX, type QualityMetricKey, type QualityScores,
   type QualityRow, getMonthScores, saveVendedorScores, deleteVendedorScores, averageScores, emptyScores,

@@ -10,7 +10,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 import { replaceTableRows } from '@/lib/replace-rows';
-import { replaceControlRecords, importControlExcel, controlRecordToRow } from '@/lib/control-records';
+import { replaceControlRecords, controlRecordToRow } from '@/lib/control-records';
 import { replaceAngariacoesVu } from '@/lib/angariacao-vu';
 import type { AppData, ControlRecord } from '@/types/data';
 
@@ -80,7 +80,7 @@ describe('importadores', () => {
   const rec = { status: 'ok', neg: new Date('2026-09-30T00:00:00Z'), resp: 'R', cliente: 'C' } as unknown as ControlRecord;
 
   it('control: ficheiro vazio nem chega à BD', async () => {
-    await expect(replaceControlRecords([])).rejects.toThrow(/importação cancelada/);
+    await expect(replaceControlRecords([])).rejects.toThrow(/restauro cancelado/);
     expect(rpc).not.toHaveBeenCalled();
   });
 
@@ -97,52 +97,5 @@ describe('importadores', () => {
     rpc.mockResolvedValue({ data: 0, error: null });
     expect(await replaceAngariacoesVu([])).toBe(0);
     expect(rpc).toHaveBeenCalledWith('replace_rows', { p_table: 'angariacoes_vu', p_rows: [], p_allow_empty: true });
-  });
-});
-
-describe('importControlExcel (registos + objetivos de ponta a ponta)', () => {
-  const parsed = {
-    control: [{ status: 'ok', neg: new Date('2026-09-30T00:00:00Z'), resp: 'R', cliente: 'C' } as unknown as ControlRecord],
-    objetivosTotal: [{ mes: '2026/09', orcado: 100, range2: 200, range3: 220, real: 0 }],
-    objetivosResp: [{ mes: '2026/09', resp: 'Rui', objetivo: 7 }, { mes: 'inválido', resp: 'X', objetivo: 1 }],
-    lastUpdated: '',
-  } as unknown as AppData;
-
-  it('uma só chamada RPC com registos, orçamentos GSC/BMW e objetivos por vendedor', async () => {
-    rpc.mockResolvedValue({ data: 1, error: null });
-    expect(await importControlExcel(parsed)).toBe(1);
-    expect(rpc).toHaveBeenCalledTimes(1);
-    const [name, args] = rpc.mock.calls[0];
-    expect(name).toBe('import_control_excel');
-    expect(args.p_control).toEqual([controlRecordToRow(parsed.control[0])]);
-    expect(args.p_orcamento).toEqual([
-      { ano: 2026, mes: 9, tipo: 'GSC', orcamento: 100 },
-      { ano: 2026, mes: 9, tipo: 'BMW', orcamento: 200 },
-    ]);
-    expect(args.p_resp).toEqual([{ ano: 2026, mes: 9, responsavel: 'Rui', objetivo: 7 }]);  // mês inválido descartado
-    expect(from).not.toHaveBeenCalled();
-  });
-
-  it('sem registos de control nem chega à BD', async () => {
-    await expect(importControlExcel({ ...parsed, control: [] })).rejects.toThrow(/importação cancelada/);
-    expect(rpc).not.toHaveBeenCalled();
-  });
-
-  it('erro da BD → exceção a dizer que nada foi alterado (sem passos parciais)', async () => {
-    rpc.mockResolvedValue({ data: null, error: { message: 'objetivo inválido' } });
-    await expect(importControlExcel(parsed)).rejects.toThrow(/nada foi alterado\): objetivo inválido/);
-    expect(del).not.toHaveBeenCalled();
-    expect(ups).not.toHaveBeenCalled();
-  });
-
-  it('função em falta → caminho antigo: registos e depois objetivos, com aviso', async () => {
-    rpc.mockResolvedValue({ data: null, error: MISSING });
-    expect(await importControlExcel(parsed)).toBe(1);
-    expect(del).toHaveBeenCalledTimes(1);
-    expect(ins).toHaveBeenCalledTimes(1);
-    expect(from).toHaveBeenCalledWith('objetivos_orcamento');
-    expect(from).toHaveBeenCalledWith('objetivos_resp');
-    expect(ups).toHaveBeenCalledTimes(2);
-    expect(console.warn).toHaveBeenCalled();
   });
 });

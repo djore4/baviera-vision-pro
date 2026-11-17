@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { AppData, ObjetivoTotal, ObjetivoResp } from '@/types/data';
+import type { ObjetivoTotal, ObjetivoResp } from '@/types/data';
 
 const pad = (m: number) => String(m).padStart(2, '0');
 
@@ -40,44 +40,4 @@ export async function loadObjetivos(): Promise<{ objetivosTotal: ObjetivoTotal[]
   }));
 
   return { objetivosTotal, objetivosResp };
-}
-
-/** Linhas de orçamento (GSC/BMW por mês) e de objetivos por vendedor de um Excel. */
-export function objetivosRowsFromExcel(parsed: AppData): { orcRows: OrcamentoRow[]; respRows: RespRow[] } {
-  // Orçamentos: GSC (orcado) e BMW (range2) por mês.
-  const orcRows: OrcamentoRow[] = [];
-  parsed.objetivosTotal.forEach(o => {
-    const [y, m] = o.mes.split('/').map(Number);
-    if (!y || !m) return;
-    orcRows.push({ ano: y, mes: m, tipo: 'GSC', orcamento: o.orcado });
-    orcRows.push({ ano: y, mes: m, tipo: 'BMW', orcamento: o.range2 });
-  });
-
-  // Objetivos por vendedor.
-  const respRows: RespRow[] = [];
-  parsed.objetivosResp.forEach(o => {
-    const [y, m] = o.mes.split('/').map(Number);
-    if (!y || !m || !o.resp) return;
-    respRows.push({ ano: y, mes: m, responsavel: o.resp, objetivo: o.objetivo });
-  });
-  return { orcRows, respRows };
-}
-
-/**
- * Grava "por cima" os objetivos de um Excel nas tabelas Supabase. Faz upsert por
- * (ano,mes,tipo) e (ano,mes,responsavel), mantendo os meses que não vêm no
- * ficheiro. Só para o caminho de recurso de `importControlExcel` (migração
- * `import_control_excel` por aplicar); o caminho normal grava tudo numa
- * transação, junto com os registos.
- */
-export async function replaceObjetivosFromExcel(parsed: AppData): Promise<void> {
-  const { orcRows, respRows } = objetivosRowsFromExcel(parsed);
-  if (orcRows.length > 0) {
-    const { error } = await supabase.from('objetivos_orcamento').upsert(orcRows, { onConflict: 'ano,mes,tipo' });
-    if (error) throw new Error(`Erro ao gravar orçamentos: ${error.message}`);
-  }
-  if (respRows.length > 0) {
-    const { error } = await supabase.from('objetivos_resp').upsert(respRows, { onConflict: 'ano,mes,responsavel' });
-    if (error) throw new Error(`Erro ao gravar objetivos por vendedor: ${error.message}`);
-  }
 }

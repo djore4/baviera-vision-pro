@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { AppData, PeriodFilter, ControlRecord } from '@/types/data';
-import { parseExcel, getDeliveryMonth } from '@/lib/excel-parser';
+import { getDeliveryMonth } from '@/lib/viaturas';
 import { supabase } from '@/integrations/supabase/client';
 import { loadObjetivos } from '@/lib/objetivos';
 
@@ -16,9 +16,6 @@ interface DataContextValue {
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
-
-const BUCKET = 'excel-files';
-const FILE_PATH = 'bmw-business-control.xlsx';
 
 /** Linha da tabela control_records (tab "database"). */
 interface DbControlRow {
@@ -77,18 +74,6 @@ async function loadControlFromDb(): Promise<ControlRecord[]> {
   return (rows as unknown as DbControlRow[]).map(mapDbRow);
 }
 
-/** Fallback: lê o último Excel carregado no storage (usado enquanto o Supabase
- *  ainda não tem dados, para não deixar a app vazia durante a transição). */
-async function loadExcelBackup(): Promise<AppData | null> {
-  try {
-    const { data: fileData, error } = await supabase.storage.from(BUCKET).download(FILE_PATH);
-    if (error || !fileData) return null;
-    return parseExcel(await fileData.arrayBuffer());
-  } catch {
-    return null;
-  }
-}
-
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -101,8 +86,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   });
 
   // Recarrega tudo do Supabase (control_records + tabelas de objetivos).
-  // Enquanto essas tabelas estiverem vazias, recorre ao último Excel carregado,
-  // para a app nunca ficar sem dados durante a transição.
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -111,20 +94,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         loadObjetivos(),
       ]);
 
-      let control = dbControl;
-      let objetivosTotal = dbObjetivos.objetivosTotal;
-      let objetivosResp = dbObjetivos.objetivosResp;
-
-      // Fallback para o Excel se o Supabase ainda não tiver dados.
-      const needControl = control.length === 0;
-      const needObjetivos = objetivosTotal.length === 0 && objetivosResp.length === 0;
-      if (needControl || needObjetivos) {
-        const excel = await loadExcelBackup();
-        if (excel) {
-          if (needControl) control = excel.control;
-          if (needObjetivos) { objetivosTotal = excel.objetivosTotal; objetivosResp = excel.objetivosResp; }
-        }
-      }
+      const control = dbControl;
+      const { objetivosTotal, objetivosResp } = dbObjetivos;
 
       if (control.length > 0 || objetivosTotal.length > 0 || objetivosResp.length > 0) {
         setData({
@@ -135,7 +106,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch {
-      // Sem dados ainda — o utilizador tem de importar/inserir primeiro.
+      // Sem dados ainda — o utilizador tem de inserir primeiro.
     } finally {
       setLoading(false);
     }

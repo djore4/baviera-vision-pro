@@ -59,7 +59,6 @@ const ALL_TABS: TabDef[] = [
   { key: 'vendedores', label: 'Performance', path: '/vendedores', area: 'vn' },
   // Visão do vendedor face aos colegas, em todos os KPIs. Só administradores "para já":
   // fora da matriz de funções até se decidir quem o pode ver (ver TabDef.adminOnly).
-  { key: 'comparativo', label: 'Comparativo', path: '/comparativo', area: 'vn', adminOnly: true },
   // Parque de demonstradores (tabela `viaturas`, ainda partilhada com a plataforma Caetano).
   // Acesso pela matriz de funções; quem gere os preços do seu local atribui-se aí
   // ('demos:precos': janela de preço da viatura).

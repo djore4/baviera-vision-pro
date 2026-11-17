@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useData } from '@/contexts/DataContext';
-import { formatDate } from '@/lib/excel-parser';
+import { formatDate } from '@/lib/viaturas';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
