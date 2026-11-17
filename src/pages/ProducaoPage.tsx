@@ -7,7 +7,7 @@ import { useRecordEditor } from '@/components/RecordEditor';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { ExtraFilters, ExtraFilterChips, isParked, type ExtraFiltersState, type Garantia } from '@/components/ExtraFilters';
-import { formatDate } from '@/lib/excel-parser';
+import { formatDate } from '@/lib/viaturas';
 import { toLocalIsoDay } from '@/lib/utils';
 import { RowDeleteButton } from '@/components/RowDeleteButton';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download, Plus } from 'lucide-react';

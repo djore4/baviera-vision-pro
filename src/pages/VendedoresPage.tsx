@@ -1,9 +1,11 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Trophy, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
-import { isRetailType } from '@/lib/excel-parser';
+import { isRetailType, formatDate } from '@/lib/viaturas';
+import { isParked } from '@/components/ExtraFilters';
 import { QualityRadarCard } from '@/components/QualityRadarCard';
+import { calcLeadTimeEntrega, carregarEntradasParque, chassisKey, type EntradasParque } from '@/lib/lead-time-entrega';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList, Legend,
   ComposedChart, Line, Cell, Tooltip, ReferenceLine, Customized,
@@ -15,6 +17,8 @@ import {
  *          R>1 → carteira a crescer (angariar); R<1 → carteira a queimar.
  *  - Desempenho por comercial: R + mix (%BEV, %QoR) + estado da carteira.
  *  - Lead time Negócio→Retail: dias entre data de negócio e data de retail.
+ *  - Lead time de entrega Parque→Certificado: dias entre a entrada em parque
+ *    (198 = P) e a data do certificado de entrega (298), por comercial.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const isVehicle = isRetailType;
@@ -220,6 +224,39 @@ export default function VendedoresPage() {
     const mean = days.length ? Math.round(days.reduce((s, d) => s + d, 0) / days.length) : null;
     return { n: days.length, median: median(days), mean, buckets };
   }, [retails]);
+
+  // Lead time de entrega (Parque → Certificado de entrega). A data de entrada em
+  // parque vem da tabela parque_entradas (registada por trigger quando a 198 passa
+  // a P); recarrega sempre que os dados de control mudam (importação / edição).
+  // undefined = a carregar · null = migração por aplicar · Map = pronto.
+  const [entradas, setEntradas] = useState<EntradasParque | null | undefined>(undefined);
+  useEffect(() => {
+    let vivo = true;
+    carregarEntradasParque()
+      .then(m => { if (vivo) setEntradas(m); })
+      .catch(() => { if (vivo) setEntradas(null); });
+    return () => { vivo = false; };
+  }, [data]);
+  const leadEntrega = useMemo(
+    () => calcLeadTimeEntrega(
+      retails,
+      control.filter(r => isVehicle(r.type) && respOk(r.resp)),
+      entradas ?? new Map(),
+    ),
+    [retails, control, entradas, selectedResps]);
+
+  // Contador "a correr": viaturas em parque sem certificado de entrega, com os dias
+  // desde a entrada (recalculados a cada render; só mudam de dia para dia).
+  const emParqueLista = useMemo(() => {
+    const hoje = Date.now();
+    return control
+      .filter(r => isVehicle(r.type) && isParked(r) && respOk(r.resp))
+      .map(r => {
+        const e = entradas?.get(chassisKey(r.chas)) ?? null;
+        return { r, entrada: e, dias: e ? Math.max(0, Math.round((hoje - e.getTime()) / DAY)) : null };
+      })
+      .sort((a, b) => (b.dias ?? -1) - (a.dias ?? -1));
+  }, [control, entradas, selectedResps]);
 
   // Pódios de retail (top 3 por comercial) — total, BEV e QoR.
   const podiums = useMemo(() => {
@@ -554,6 +591,94 @@ export default function VendedoresPage() {
             <QualityRadarCard />
           </div>
           </div>
+
+          {/* Lead time de entrega: Parque → Certificado de entrega, por comercial */}
+          <div className="bg-card border border-border rounded-lg overflow-x-auto">
+            <div className="flex items-center justify-between px-2 py-1.5 border-b border-border">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Lead time de entrega — Parque → Certificado</h3>
+              <span className="text-[10px] text-muted-foreground">por data de entrega no período</span>
+            </div>
+            {entradas === null ? (
+              <p className="px-2 py-4 text-[11px] text-muted-foreground">
+                Ainda não disponível: falta aplicar a migração <code>20261117100000_parque_entradas</code> na base de dados.
+              </p>
+            ) : (
+              <>
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="text-[10px] text-muted-foreground bg-muted/40">
+                      <th className="px-2 py-1.5 font-medium text-left">Comercial</th>
+                      <th className="px-2 py-1.5 font-medium text-right" title="Entregues no período com data de entrada em parque">Entregues</th>
+                      <th className="px-2 py-1.5 font-medium text-right" title="Mediana de dias entre a entrada em parque e o certificado de entrega">Mediana</th>
+                      <th className="px-2 py-1.5 font-medium text-right" title="Média de dias entre a entrada em parque e o certificado de entrega">Média</th>
+                      <th className="px-2 py-1.5 font-medium text-right" title="Entregues no período sem data de entrada em parque (não entram na mediana/média)">Sem data</th>
+                      <th className="px-2 py-1.5 font-medium text-right" title="Viaturas em parque agora, ainda não entregues">Em parque</th>
+                      <th className="px-2 py-1.5 font-medium text-right" title="Idade média em parque das viaturas ainda por entregar (dias desde a entrada)">Idade</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {[{ resp: 'Equipa', ...leadEntrega.equipa }, ...leadEntrega.porResp].map((row, i) => (
+                      <tr key={row.resp} className={i === 0 ? 'bg-muted/30 font-semibold' : 'hover:bg-muted/40'}>
+                        <td className="px-2 py-1 whitespace-nowrap">{row.resp}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{row.n}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{row.median === null ? '—' : `${row.median} d`}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{row.mean === null ? '—' : `${row.mean} d`}</td>
+                        <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{row.semData}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{row.emParque}</td>
+                        <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{row.idadeParque === null ? '—' : `${row.idadeParque} d`}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="text-[10px] text-muted-foreground px-2 py-1.5 border-t border-border">
+                  Dias entre a entrada em parque (198 = P) e a data do certificado de entrega (298), sobre entregas do período.
+                  O registo da entrada em parque começou agora: viaturas que já estavam em parque, ou entregues sem esse registo,
+                  ficam em «Sem data» e não entram na mediana/média. «Em parque» / «Idade» = viaturas ainda por entregar
+                  {leadEntrega.incoerentes > 0 && ` · ${leadEntrega.incoerentes} excluída(s) por entrega anterior à entrada`}.
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Em parque agora: contador de dias até haver certificado de entrega */}
+          {entradas !== null && emParqueLista.length > 0 && (
+            <div className="bg-card border border-border rounded-lg overflow-x-auto">
+              <div className="flex items-center justify-between px-2 py-1.5 border-b border-border">
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Em parque agora — contador de dias</h3>
+                <span className="text-[10px] text-muted-foreground">{emParqueLista.length} viaturas · sem certificado de entrega</span>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                <table className="w-full text-[11px]">
+                  <thead className="sticky top-0 bg-card">
+                    <tr className="text-[10px] text-muted-foreground bg-muted/40">
+                      <th className="px-2 py-1.5 font-medium text-left">Comercial</th>
+                      <th className="px-2 py-1.5 font-medium text-left">Viatura</th>
+                      <th className="px-2 py-1.5 font-medium text-left">Chassis</th>
+                      <th className="px-2 py-1.5 font-medium text-right">Entrada</th>
+                      <th className="px-2 py-1.5 font-medium text-right">Dias</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {emParqueLista.map(({ r, entrada, dias }, i) => (
+                      <tr key={r.id ?? i} className="hover:bg-muted/40">
+                        <td className="px-2 py-1 whitespace-nowrap">{r.resp || '—'}</td>
+                        <td className="px-2 py-1">{[r.model, r.version].filter(Boolean).join(' ') || '—'}</td>
+                        <td className="px-2 py-1 font-mono text-muted-foreground">{r.chas ? r.chas.slice(-7) : '—'}</td>
+                        <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{entrada ? formatDate(entrada) : 'sem data'}</td>
+                        <td className={`px-2 py-1 text-right tabular-nums font-semibold ${dias !== null && dias >= 30 ? 'text-red-600 dark:text-red-400' : dias !== null && dias >= 15 ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                          {dias === null ? '—' : `${dias} d`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-muted-foreground px-2 py-1.5 border-t border-border">
+                Os dias contam desde a entrada em parque até ser registada a data do certificado de entrega (298).
+                A data pode ser corrigida pelo administrador no editor da viatura.
+              </p>
+            </div>
+          )}
 
           {/* Retomas por comercial — absoluto + taxa (retomas ÷ retails feitos) */}
           <div className="bg-card border border-border rounded-lg p-2">

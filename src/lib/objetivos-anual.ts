@@ -1,5 +1,5 @@
 import type { ControlRecord, ObjetivoResp, ObjetivoTotal } from '@/types/data';
-import { getDeliveryMonth, isRetailType } from '@/lib/excel-parser';
+import { getDeliveryMonth, isRetailType } from '@/lib/viaturas';
 
 /* Perspetiva anual dos objetivos VN: por mês, os objetivos (GSC/Caetano, BMW e a soma
  * dos vendedores) e os retails reais. Os retails contam como no gauge da WIP VN:

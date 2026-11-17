@@ -1,8 +1,5 @@
-import { supabase } from '@/integrations/supabase/client';
-import type { Json } from '@/integrations/supabase/types';
-import { replaceTableRows, isMissingRpc } from '@/lib/replace-rows';
-import { objetivosRowsFromExcel, replaceObjetivosFromExcel } from '@/lib/objetivos';
-import type { AppData, ControlRecord } from '@/types/data';
+import { replaceTableRows } from '@/lib/replace-rows';
+import type { ControlRecord } from '@/types/data';
 import { toLocalIsoDay } from '@/lib/utils';
 
 /** Data (Date) -> string 'AAAA-MM-DD' para colunas `date`, ou null. */
@@ -12,7 +9,7 @@ function isoDate(d: Date | null): string | null {
 }
 
 /** Mapeia um registo da sheet CONTROL para uma linha da tabela control_records.
- *  (mesma semântica do excel-parser: cliente -> id_cliente, M -> m, datas em ISO) */
+ *  (cliente -> id_cliente, M -> m, datas em ISO) */
 export function controlRecordToRow(r: ControlRecord) {
   return {
     status: r.status || null,
@@ -47,42 +44,16 @@ export function controlRecordToRow(r: ControlRecord) {
 
 /**
  * Substitui todos os registos da tabela control_records pelos registos
- * fornecidos (importação de um snapshot completo da sheet CONTROL).
+ * fornecidos (restauro de uma cópia de segurança).
  * Devolve o número de registos importados.
  */
 export async function replaceControlRecords(records: ControlRecord[]): Promise<number> {
   // Proteção: nunca esvaziar a tabela a partir de um ficheiro sem registos.
   if (records.length === 0) {
-    throw new Error('A sheet CONTROL não tem registos — importação cancelada para não apagar os dados existentes.');
+    throw new Error('Sem registos — restauro cancelado para não apagar os dados existentes.');
   }
 
   // Uma só transação na BD (apagar + inserir): se algo falhar, os dados
   // anteriores ficam intactos.
   return replaceTableRows('control_records', records.map(controlRecordToRow), { label: 'registos' });
-}
-
-/**
- * Importa um Excel de control inteiro — registos de control e objetivos — numa
- * única transação na base de dados (RPC `import_control_excel`): ou entra tudo,
- * ou fica tudo como estava. Devolve o número de registos de control importados.
- */
-export async function importControlExcel(parsed: AppData): Promise<number> {
-  if (parsed.control.length === 0) {
-    throw new Error('A sheet CONTROL não tem registos — importação cancelada para não apagar os dados existentes.');
-  }
-  const { orcRows, respRows } = objetivosRowsFromExcel(parsed);
-  const { data, error } = await supabase.rpc('import_control_excel', {
-    p_control: parsed.control.map(controlRecordToRow) as Json,
-    p_orcamento: orcRows as unknown as Json,
-    p_resp: respRows as unknown as Json,
-  });
-  if (isMissingRpc(error)) {
-    // Migração por aplicar: caminho antigo, em dois passos (sem atomicidade).
-    console.warn('import_control_excel em falta na base de dados: importação SEM atomicidade. Aplicar a migração 20261003150000.');
-    const count = await replaceControlRecords(parsed.control);
-    await replaceObjetivosFromExcel(parsed);
-    return count;
-  }
-  if (error) throw new Error(`Erro ao importar o Excel (nada foi alterado): ${error.message}`);
-  return Number(data ?? 0);
 }

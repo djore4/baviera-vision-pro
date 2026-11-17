@@ -4,7 +4,7 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 import { useRecordEditor } from '@/components/RecordEditor';
 import { RowDeleteButton } from '@/components/RowDeleteButton';
 import { toLocalIsoDay } from '@/lib/utils';
-import { formatDate, isRetailType } from '@/lib/excel-parser';
+import { formatDate, isRetailType } from '@/lib/viaturas';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download, Plus } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,

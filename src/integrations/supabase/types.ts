@@ -389,6 +389,25 @@ export type Database = {
         }
         Relationships: []
       }
+      parque_entradas: {
+        Row: {
+          chassis: string
+          created_at: string
+          entrada_em: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          chassis: string
+          created_at?: string
+          entrada_em?: string | null
+        }
+        Update: {
+          chassis?: string
+          created_at?: string
+          entrada_em?: string | null
+        }
+        Relationships: []
+      }
       cartao_go_registos: {
         Row: {
           created_at: string

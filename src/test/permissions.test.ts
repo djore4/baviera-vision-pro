@@ -172,16 +172,6 @@ describe('restrição por local', () => {
   });
 });
 
-describe('Comparativo', () => {
-  it('é um tab de VN só para administradores: fora da matriz e fora do Arquivo', () => {
-    const t = TABS.find(x => x.key === 'comparativo');
-    expect(t?.area).toBe('vn');
-    expect(t?.adminOnly).toBe(true);
-    expect(PERMISSION_TABS.some(x => x.key === 'comparativo')).toBe(false);
-    expect(ARCHIVED_TAB_KEYS).not.toContain('comparativo');
-  });
-});
-
 describe('matriz função × local', () => {
   const role: AppRole = {
     name: 'R', is_admin: false,

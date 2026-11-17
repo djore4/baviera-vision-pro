@@ -7,7 +7,7 @@ import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
 import { RetomaFilter, FlagsFilter, GarantiaFilter, TipoFilter, StatusFilter } from '@/components/RetomaFilter';
 import { ParkFilter } from '@/components/ExtraFilters';
-import { formatDate, getCurrentWeek, getDeliveryMonth, isRetailType } from '@/lib/excel-parser';
+import { formatDate, getCurrentWeek, getDeliveryMonth, isRetailType } from '@/lib/viaturas';
 import { seasonalFlags } from '@/lib/seasonal';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download } from 'lucide-react';
 import {
