@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { ControlRecord } from '@/types/data';
 import type { Notification } from '@/lib/notifications';
 import {
-  calcAlertas, calcResumoDia, diasDesde, mensagensDoPainel, meuResp, principaisTarefas, PRAZOS,
+  calcAlertas, calcResumoDia, chaveBaixa, diasDesde, mensagensDoPainel, meuResp, nomeCurto, principaisTarefas, PRAZOS,
   type AlertaGrupo, type EventoPainel, type RegraId,
 } from '@/lib/painel';
 
@@ -219,5 +219,64 @@ describe('mensagensDoPainel', () => {
     ];
     expect(mensagensDoPainel(lista, 'x@y.pt', todas, HOJE).map(m => m.id)).toEqual(['a', 'd', 'e']);
     expect(mensagensDoPainel(lista, 'x@y.pt', t => t !== 'demos', HOJE).map(m => m.id)).toEqual(['a', 'd']);
+  });
+});
+
+describe('nomeCurto', () => {
+  it('primeiro e último nome; sem nome deduz-se do email', () => {
+    expect(nomeCurto('João Manuel Duarte', 'x@y.pt')).toBe('João Duarte');
+    expect(nomeCurto('Ana', null)).toBe('Ana');
+    expect(nomeCurto(null, 'joao.duarte@caetano.pt')).toBe('Joao Duarte');
+    expect(nomeCurto('  ', 'maria@caetano.pt')).toBe('Maria');
+    expect(nomeCurto(null, null)).toBe('');
+  });
+});
+
+describe('baixas', () => {
+  it('um aviso com baixa sai da lista (por regra e registo); outras regras do mesmo registo mantêm-se', () => {
+    const r = rec({ bev: 1, chas: '', neg: dia(40), fin: 'PP' });
+    const sem = calc([r]);
+    expect(grupo(sem, 'bev-lead-cme').itens).toHaveLength(1);
+    const com = calc([r], { baixas: new Set([chaveBaixa('bev-lead-cme', r.id)]) });
+    expect(grupo(com, 'bev-lead-cme').itens).toHaveLength(0);
+    expect(grupo(com, 'financiamento-bmw').itens).toHaveLength(1);
+  });
+});
+
+describe('entregas por confirmar (mês previsto)', () => {
+  it('em atraso: mês previsto já passou e ainda não foi entregue', () => {
+    const control = [
+      rec({ mes1: '2026/10' }), rec({ mes1: '2026/11' }), rec({ mes1: '2026/10', status: 'Retail', date298: dia(5) }),
+      rec({ mes1: '' }),
+    ];
+    const g = grupo(calc(control), 'entrega-atrasada');
+    expect(g.itens).toHaveLength(1);
+    expect(g.itens[0].dias).toBe(17);            // desde 31/10
+    expect(g.itens[0].severidade).toBe('media');
+  });
+  it('mais de 30 dias de atraso é urgente', () => {
+    const g = grupo(calc([rec({ mes1: '2026/09' })]), 'entrega-atrasada');
+    expect(g.itens[0].severidade).toBe('alta');
+  });
+  it('este mês, a 7 dias ou menos do fim, sem matrícula pedida', () => {
+    // 17/11: faltam 13 dias para 30/11 → ainda não; com HOJE a 25/11 faltam 5.
+    const r = rec({ mes1: '2026/11' });
+    expect(grupo(calc([r]), 'entrega-fim-mes').itens).toHaveLength(0);
+    const g = grupo(calc([r], { hoje: new Date(2026, 10, 25) }), 'entrega-fim-mes');
+    expect(g.itens).toHaveLength(1);
+    expect(g.itens[0].restam).toBe(5);
+    expect(g.itens[0].chip).toBe('faltam 5 d');
+  });
+  it('não repete o que já está noutra regra nem o que já tem matrícula pedida', () => {
+    const h = { hoje: new Date(2026, 10, 28) };
+    const emParque = rec({ mes1: '2026/11', week198: 'P' });
+    const pedida = rec({ mes1: '2026/11', matPedidaEm: dia(1) });
+    const matriculada = rec({ mes1: '2026/11', mat: '12-AB-34' });
+    expect(grupo(calc([emParque, pedida, matriculada], h), 'entrega-fim-mes').itens).toHaveLength(0);
+  });
+  it('ordena pelo prazo mais curto', () => {
+    const h = { hoje: new Date(2026, 10, 27) };
+    const g = grupo(calc([rec({ mes1: '2026/11' }), rec({ mes1: '2026/11', cliente: 'B' })], h), 'entrega-fim-mes');
+    expect(g.itens.map(i => i.restam)).toEqual([3, 3]);
   });
 });

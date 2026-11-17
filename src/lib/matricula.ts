@@ -55,3 +55,11 @@ export function buildMatriculaRequest(f: MatriculaFields, now: Date = new Date()
     `Retoma: ${f.ret === 1 ? 'S' : 'N'}`,
   ].join('\n');
 }
+
+/** Link `mailto:` do pedido de matrícula (destinatários e CC da configuração, corpo já preenchido). */
+export function buildMatriculaMailto(f: MatriculaFields, now: Date = new Date()): string {
+  const corpo = buildMatriculaRequest(f, now).split('\n').slice(4).join('\r\n');
+  const assunto = `Pedido de matrícula | ${String(f.cliente ?? '').trim()}`;
+  return `mailto:${DESTINATARIOS.join(',')}?cc=${encodeURIComponent(CC.join(','))}`
+    + `&subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+}

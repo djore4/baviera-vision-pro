@@ -1807,6 +1807,40 @@ export type Database = {
         }
         Relationships: []
       }
+      painel_baixas: {
+        Row: {
+          chave: string
+          created_at: string
+          created_by: string
+          descricao: string | null
+          id: number
+          motivo: string
+          nota: string | null
+          regra: string
+        }
+        ComputedFields: never
+        Insert: {
+          chave: string
+          created_at?: string
+          created_by: string
+          descricao?: string | null
+          id?: number
+          motivo: string
+          nota?: string | null
+          regra: string
+        }
+        Update: {
+          chave?: string
+          created_at?: string
+          created_by?: string
+          descricao?: string | null
+          id?: number
+          motivo?: string
+          nota?: string | null
+          regra?: string
+        }
+        Relationships: []
+      }
       painel_eventos: {
         Row: {
           created_at: string
@@ -2806,6 +2840,9 @@ export type Database = {
         }
         Returns: string
       }
+      painel_reagendar: { Args: { p_id: string; p_mes: string }; Returns: undefined }
+      painel_registar_biz: { Args: { p_biz: string; p_id: string }; Returns: undefined }
+      painel_registar_entrega: { Args: { p_data: string; p_id: string }; Returns: undefined }
       seguros_avisar_venda: { Args: { p_matricula: string; p_origem: string }; Returns: undefined }
       seguros_parque: {
         Args: Record<PropertyKey, never>
