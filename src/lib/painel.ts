@@ -455,7 +455,7 @@ export interface Baixa {
 
 const tabelaEmFalta = (e: { code?: string }) => e.code === '42P01' || e.code === 'PGRST205';
 const funcaoEmFalta = (e: { code?: string }) => e.code === 'PGRST202' || e.code === '42883';
-const MIGRACAO = 'Falta aplicar a migração do Painel na base de dados.';
+const MIGRACAO = 'Falta aplicar a migração do Diário na base de dados.';
 
 /** Baixas dos últimos 60 dias. Vazio se a tabela não existir. */
 export async function carregarBaixas(): Promise<Baixa[]> {
@@ -488,7 +488,7 @@ export async function reporBaixa(id: number): Promise<void> {
 }
 
 const MSG_RPC: Record<string, string> = {
-  sem_acesso: 'Sem acesso ao Painel.',
+  sem_acesso: 'Sem acesso ao Diário.',
   biz_invalido: 'Número Bizagi inválido.',
   data_invalida: 'Data inválida (até 30 dias atrás, não no futuro).',
   mes_invalido: 'Mês inválido.',

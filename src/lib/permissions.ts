@@ -48,9 +48,9 @@ export interface TabDef {
  * A ordem dentro de cada área define a ordem dos itens na sidebar. */
 const ALL_TABS: TabDef[] = [
   // ── Início ─────────────────────────────────────────────────────────────────
-  // Ecrã de abertura de quem tem acesso: resumo do dia, pendências/alertas do vendedor e
+  // Ecrã de abertura de quem tem acesso (chave interna 'painel': é a que as funções guardam): resumo do dia, pendências/alertas do vendedor e
   // mensagens da administração. 'view': consulta e abre os registos; a administração publica.
-  { key: 'painel', label: 'Painel', path: '/painel', area: 'inicio' },
+  { key: 'painel', label: 'Diário', path: '/painel', area: 'inicio' },
   // ── Vendas VN ──────────────────────────────────────────────────────────────
   { key: 'retails', label: 'WIP', path: '/retails', area: 'vn' },
   { key: 'funil', label: 'Funil', path: '/funil', area: 'vn' },
@@ -105,7 +105,7 @@ const ALL_TABS: TabDef[] = [
   { key: 'database', label: 'Database', path: '/database', area: 'admin' },
   // Diário arquivado "para já": só o admin acede, mesmo que a função ainda tenha a
   // chave 'prospecao'. Para o reativar, voltar a pô-lo na área 'vn' sem adminOnly.
-  { key: 'prospecao', label: 'Diário', path: '/prospecao', area: 'admin', adminOnly: true },
+  { key: 'prospecao', label: 'Diário de Bordo', path: '/prospecao', area: 'admin', adminOnly: true },
 ];
 
 /* Tabs desta instalação: os desativados na configuração do cliente não existem. */

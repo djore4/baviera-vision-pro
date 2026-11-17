@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, Save, Trash2, ShieldCheck, Undo2, Copy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
-import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, permissoesDoLocal, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
+import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, permissoesDoLocal, LOCAL_ACESSO_COMPLETO, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
 import { locaisDoGrupo } from '@/lib/locations';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -86,7 +86,8 @@ export function RolesPanel({
   const adminRoles = useMemo(() => roles.filter(r => r.is_admin), [roles]);
 
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const [scope, setScope] = useState<string>(LOCAIS[0] ?? BASE);
+  // Abre em Aveiro (o local com acesso completo): abrir no 1.º da lista (Maia) levava a editar o local errado.
+  const [scope, setScope] = useState<string>(LOCAIS.includes(LOCAL_ACESSO_COMPLETO) ? LOCAL_ACESSO_COMPLETO : (LOCAIS[0] ?? BASE));
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);

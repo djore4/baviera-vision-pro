@@ -131,7 +131,7 @@ export default function PainelPage() {
   };
 
   if (!data) {
-    return <div className="grid h-96 place-items-center text-sm text-muted-foreground">A carregar o painel…</div>;
+    return <div className="grid h-96 place-items-center text-sm text-muted-foreground">A carregar o diário…</div>;
   }
 
   const dataLonga = hoje.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
