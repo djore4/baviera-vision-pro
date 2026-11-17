@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { CheckCircle2, CalendarCheck, FileSignature, Handshake, ParkingSquare, Briefcase, Sparkles, Flame, ChevronRight } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, CalendarCheck, FileSignature, Handshake, ParkingSquare, Briefcase, Sparkles, Flame, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/App';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -9,14 +8,15 @@ import { AlertaCard, DiasChip, REGRA_ICONS, SEV_STYLE } from '@/components/paine
 import { ComporMensagem, MensagensLista } from '@/components/painel/MensagensPainel';
 import { AcaoSheet } from '@/components/painel/AcaoSheet';
 import { BaixasRecentes } from '@/components/painel/BaixasRecentes';
+import { DetalheDia } from '@/components/painel/DetalheDia';
 import { carregarEntradasParque, type EntradasParque } from '@/lib/lead-time-entrega';
 import { listNotifications, type Notification } from '@/lib/notifications';
 import { isRetailType } from '@/lib/viaturas';
 import { isRetiredMember } from '@/lib/team';
 import { cn } from '@/lib/utils';
 import {
-  calcAlertas, calcResumoDia, carregarBaixas, carregarEventosPainel, chaveBaixa, mensagensDoPainel, meuResp, nomeCurto,
-  principaisTarefas, REGRAS, type AlertaItem, type Baixa, type EventoPainel, type RegraId,
+  calcAlertas, calcDetalheDia, calcResumoDia, carregarBaixas, carregarEventosPainel, chaveBaixa, mensagensDoPainel, meuResp, nomeCurto,
+  principaisTarefas, REGRAS, type AlertaItem, type Baixa, type EventoPainel, type RegraId, type TileKey,
 } from '@/lib/painel';
 
 /* ── Painel ──────────────────────────────────────────────────────────────────
@@ -60,6 +60,14 @@ export default function PainelPage() {
   const nome = me?.nome ?? email;
   const podeAbrirRegistos = canEdit('dados') || canEdit('database');
   const [acao, setAcao] = useState<AlertaItem | null>(null);
+  // Quadrado do resumo selecionado: abre a lista por baixo e desloca a página até lá.
+  const [tile, setTile] = useState<TileKey | null>(null);
+  const detalheRef = useRef<HTMLElement>(null);
+  const escolherTile = (k: TileKey) => {
+    const fechar = tile === k;
+    setTile(fechar ? null : k);
+    if (!fechar) requestAnimationFrame(() => detalheRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
+  };
 
   const [entradas, setEntradas] = useState<EntradasParque | null>(null);
   const [eventos, setEventos] = useState<EventoPainel[]>([]);
@@ -104,6 +112,7 @@ export default function PainelPage() {
     () => calcAlertas(control, { hoje, entradas, eventos, baixas: chavesBaixa, resp: respFiltro }),
     [control, hoje, entradas, eventos, chavesBaixa, respFiltro]);
   const resumo = useMemo(() => calcResumoDia(control, hoje, respFiltro), [control, hoje, respFiltro]);
+  const detalheDia = useMemo(() => calcDetalheDia(control, hoje, respFiltro), [control, hoje, respFiltro]);
   const principais = useMemo(() => principaisTarefas(grupos), [grupos]);
   const mensagens = useMemo(() => mensagensDoPainel(notificacoes, email, canView), [notificacoes, email, canView]);
 
@@ -126,14 +135,15 @@ export default function PainelPage() {
   }
 
   const dataLonga = hoje.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
-  // Cada quadrado leva ao tab onde se vê o detalhe (se a pessoa tiver acesso).
-  const tiles = [
-    { label: 'Negócios hoje', valor: resumo.negociosHoje, icon: Handshake, tab: 'carteira', to: '/carteira' },
-    { label: 'Matrículas hoje', valor: resumo.matriculasHoje, icon: FileSignature, tab: 'producao', to: '/producao' },
-    { label: 'Entregas hoje', valor: resumo.entregasHoje, icon: CalendarCheck, tab: 'retails', to: '/retails' },
-    { label: 'Em parque', valor: resumo.emParque, icon: ParkingSquare, tab: 'producao', to: '/producao?parque=1' },
-    { label: 'Carteira', valor: resumo.carteira, icon: Briefcase, tab: 'carteira', to: '/carteira' },
+  // Cada quadrado desloca a página para a lista que está por trás do número.
+  const tiles: { key: TileKey; label: string; valor: number; icon: typeof Handshake; titulo: string; descricao: string }[] = [
+    { key: 'negocios', label: 'Negócios hoje', valor: resumo.negociosHoje, icon: Handshake, titulo: 'Negócios fechados hoje', descricao: 'Negócios que entraram em carteira hoje.' },
+    { key: 'matriculas', label: 'Matrículas hoje', valor: resumo.matriculasHoje, icon: FileSignature, titulo: 'Matrículas de hoje', descricao: 'Viaturas cuja matrícula tem data de hoje.' },
+    { key: 'entregas', label: 'Entregas hoje', valor: resumo.entregasHoje, icon: CalendarCheck, titulo: 'Entregas de hoje', descricao: 'Viaturas com certificado de entrega (retail) de hoje.' },
+    { key: 'parque', label: 'Em parque', valor: resumo.emParque, icon: ParkingSquare, titulo: 'Viaturas em parque', descricao: 'Em parque e ainda por entregar.' },
+    { key: 'carteira', label: 'Carteira', valor: resumo.carteira, icon: Briefcase, titulo: 'Carteira por entregar', descricao: 'Negócios fechados ainda por entregar, por mês previsto.' },
   ];
+  const tileAtivo = tiles.find(t => t.key === tile) ?? null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 animate-fade-in" data-testid="painel">
@@ -169,23 +179,29 @@ export default function PainelPage() {
           </div>
         </div>
 
-        <dl className="relative mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="relative mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
           {tiles.map(t => {
-            const corpo = (
-              <>
-                <dt className="flex items-center gap-1.5 text-[11px] font-medium text-white/60"><t.icon className="h-3.5 w-3.5" />{t.label}
-                  {canView(t.tab) && <ChevronRight className="ml-auto h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />}
-                </dt>
-                <dd className="mt-0.5 text-2xl font-bold tabular-nums">{t.valor}</dd>
-              </>
+            const ativo = tile === t.key;
+            return (
+              <button key={t.key} type="button" onClick={() => escolherTile(t.key)} aria-pressed={ativo} aria-controls="painel-detalhe"
+                data-testid={`tile-${t.key}`} title={ativo ? 'Fechar a lista' : 'Ver a lista'}
+                className={cn(
+                  'group rounded-xl border px-3 py-2.5 text-left backdrop-blur-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50',
+                  ativo ? 'border-white/50 bg-white/20' : 'border-white/10 bg-white/[0.07] hover:border-white/30 hover:bg-white/[0.14]')}>
+                <span className="flex items-center gap-1.5 text-[11px] font-medium text-white/60"><t.icon className="h-3.5 w-3.5" />{t.label}
+                  <ChevronDown className={cn('ml-auto h-3.5 w-3.5 transition-transform', ativo ? 'rotate-180 opacity-100' : 'opacity-0 group-hover:opacity-100')} />
+                </span>
+                <span className="mt-0.5 block text-2xl font-bold tabular-nums">{t.valor}</span>
+              </button>
             );
-            const cls = 'group block rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2.5 backdrop-blur-sm';
-            return canView(t.tab)
-              ? <Link key={t.label} to={t.to} data-testid={`tile-${t.label}`} className={cn(cls, 'transition-colors hover:border-white/30 hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50')}>{corpo}</Link>
-              : <div key={t.label} className={cls}>{corpo}</div>;
           })}
-        </dl>
+        </div>
       </section>
+
+      {tileAtivo && (
+        <DetalheDia ref={detalheRef} titulo={tileAtivo.titulo} descricao={tileAtivo.descricao} registos={detalheDia[tileAtivo.key]}
+          mostrarResp={!respFiltro} onAbrir={podeAbrirRegistos ? openEditor : undefined} onFechar={() => setTile(null)} />
+      )}
 
       {/* Mensagens da administração */}
       <MensagensLista mensagens={mensagens} isAdmin={isAdmin} dispensadas={dispensadas}
