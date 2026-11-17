@@ -11,6 +11,7 @@ import { SugestaoDialog } from '@/components/SugestaoDialog';
 import { instalar, modoInstalar, subscrever } from '@/lib/install-prompt';
 import { locaisDoGrupo, locaisDoPerfil } from '@/lib/locations';
 import { cn } from '@/lib/utils';
+import { nomeCurto } from '@/lib/nome';
 
 const initialsOf = (base: string) => {
   const parts = base.trim().split(/[\s@.]+/).filter(Boolean);
@@ -77,7 +78,7 @@ export function UserMenu() {
   useEffect(() => subscrever(() => forcar(n => n + 1)), []);
 
   const email = session?.user.email ?? '';
-  const nome = viewingAs ? null : me?.nome ?? null;
+  const nome = viewingAs ? null : nomeCurto(me?.nome, email) || null;
   const funcao = realIsAdmin ? 'Administrador' : roleName;
   // Perfil de acesso: sempre o de quem tem a sessão, mesmo em "ver como".
   // O administrador (ou quem tem "Todas") tem acesso a tudo, como na Sales Force.

@@ -429,16 +429,7 @@ export async function carregarEventosPainel(): Promise<EventoPainel[]> {
 
 /* ── Nome ──────────────────────────────────────────────────────────────────── */
 
-const cap = (w: string) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w);
-
-/** "Primeiro Último" a partir do nome completo; sem nome, deduz-se do email (joao.duarte@x.pt → Joao Duarte). */
-export function nomeCurto(nome: string | null | undefined, email: string | null | undefined): string {
-  const partes = (nome ?? '').trim().split(/\s+/).filter(Boolean);
-  if (partes.length > 0) return partes.length === 1 ? partes[0] : `${partes[0]} ${partes[partes.length - 1]}`;
-  const local = (email ?? '').split('@')[0].split(/[._-]+/).filter(w => /^\p{L}+$/u.test(w));
-  if (local.length === 0) return '';
-  return local.length === 1 ? cap(local[0]) : `${cap(local[0])} ${cap(local[local.length - 1])}`;
-}
+export { nomeCurto } from '@/lib/nome';
 
 /* ── Baixas e ações do vendedor ────────────────────────────────────────────── */
 
@@ -455,7 +446,7 @@ export interface Baixa {
 
 const tabelaEmFalta = (e: { code?: string }) => e.code === '42P01' || e.code === 'PGRST205';
 const funcaoEmFalta = (e: { code?: string }) => e.code === 'PGRST202' || e.code === '42883';
-const MIGRACAO = 'Falta aplicar a migração do Painel na base de dados.';
+const MIGRACAO = 'Falta aplicar a migração do Diário na base de dados.';
 
 /** Baixas dos últimos 60 dias. Vazio se a tabela não existir. */
 export async function carregarBaixas(): Promise<Baixa[]> {
@@ -488,7 +479,7 @@ export async function reporBaixa(id: number): Promise<void> {
 }
 
 const MSG_RPC: Record<string, string> = {
-  sem_acesso: 'Sem acesso ao Painel.',
+  sem_acesso: 'Sem acesso ao Diário.',
   biz_invalido: 'Número Bizagi inválido.',
   data_invalida: 'Data inválida (até 30 dias atrás, não no futuro).',
   mes_invalido: 'Mês inválido.',

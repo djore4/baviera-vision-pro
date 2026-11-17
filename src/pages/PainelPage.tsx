@@ -57,7 +57,7 @@ export default function PainelPage() {
   const { isAdmin, canView, canEdit, me, effectiveEmail } = usePermissions();
   const { openEditor } = useRecordEditor();
   const email = effectiveEmail ?? session?.user.email ?? null;
-  const nome = me?.nome ?? email;
+  const nome = nomeCurto(me?.nome, email) || email;
   const podeAbrirRegistos = canEdit('dados') || canEdit('database');
   const [acao, setAcao] = useState<AlertaItem | null>(null);
   // Quadrado do resumo selecionado: abre a lista por baixo e desloca a página até lá.
@@ -131,7 +131,7 @@ export default function PainelPage() {
   };
 
   if (!data) {
-    return <div className="grid h-96 place-items-center text-sm text-muted-foreground">A carregar o painel…</div>;
+    return <div className="grid h-96 place-items-center text-sm text-muted-foreground">A carregar o diário…</div>;
   }
 
   const dataLonga = hoje.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });

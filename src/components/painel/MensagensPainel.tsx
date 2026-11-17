@@ -10,7 +10,7 @@ import {
 import { TABS } from '@/lib/permissions';
 import { createNotification, deleteNotification, ADMIN_AUDIENCE, type Notification } from '@/lib/notifications';
 
-/* Mensagens da administração no Painel. A mesma mensagem aparece também no sino
+/* Mensagens da administração no Diário. A mesma mensagem aparece também no sino
  * (é uma notificação marcada `painel`). Quem recebe pode dispensá-la só para si
  * (localStorage); a administração apaga-a para todos. */
 
@@ -119,7 +119,7 @@ export function ComporMensagem({ autorEmail, autorNome, onEnviada }: ComporProps
         created_by: autorEmail, created_by_nome: autorNome,
         painel: true, expira_em: expiraEmDias(duracao),
       });
-      toast.success('Mensagem publicada no Painel e no centro de notificações.');
+      toast.success('Mensagem publicada no Diário e no centro de notificações.');
       setTitle(''); setBody(''); setAudience('all'); setDuracao(7); setOpen(false);
       onEnviada();
     } catch (e) {
@@ -140,7 +140,7 @@ export function ComporMensagem({ autorEmail, autorNome, onEnviada }: ComporProps
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Megaphone className="h-4 w-4 text-primary" /> Nova mensagem</DialogTitle>
-            <DialogDescription>Aparece no topo do Painel e também no centro de notificações (sino).</DialogDescription>
+            <DialogDescription>Aparece no topo do Diário e também no centro de notificações (sino).</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Título" maxLength={120} aria-label="Título" />
@@ -152,14 +152,14 @@ export function ComporMensagem({ autorEmail, autorNome, onEnviada }: ComporProps
                   {TABS.map(t => <option key={t.key} value={t.key}>Só: {t.label}</option>)}
                 </select>
               </label>
-              <label className="space-y-1 text-xs text-muted-foreground">No Painel durante
+              <label className="space-y-1 text-xs text-muted-foreground">No Diário durante
                 <select value={duracao} onChange={e => setDuracao(Number(e.target.value))} className={selectCls}>
                   {DURACOES.map(d => <option key={d.dias} value={d.dias}>{d.label}</option>)}
                 </select>
               </label>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Dirigida a uma área, só quem tem acesso a essa área a vê. Depois do prazo sai do Painel e fica no sino.
+              Dirigida a uma área, só quem tem acesso a essa área a vê. Depois do prazo sai do Diário e fica no sino.
             </p>
           </div>
           <DialogFooter>

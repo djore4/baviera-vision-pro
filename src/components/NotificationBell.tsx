@@ -21,6 +21,7 @@ import {
   listTaskAlerts, listRecentAccounts, type Account, type TaskAlerts,
 } from '@/lib/prospec';
 import { client } from '@/clients';
+import { nomeCurto } from '@/lib/nome';
 
 /* ── Centro de notificações global (todas as áreas) ───────────────────────────
  * Sino no topo, visível em todos os perfis. Mostra as notificações destinadas a
@@ -66,7 +67,7 @@ export function NotificationBell() {
   const { canView, isAdmin, me } = usePermissions();
   const { scope } = useProspecScope();
   const email = session?.user.email ?? null;
-  const myNome = me?.nome ?? email ?? null;
+  const myNome = nomeCurto(me?.nome, email) || email || null;
   // Os alertas do Diário de Bordo (Prospeção) surgem também aqui, no centro de
   // notificações, para quem tem acesso a essa área (mesmo gating por permissões).
   const hasProspec = canView('prospecao');

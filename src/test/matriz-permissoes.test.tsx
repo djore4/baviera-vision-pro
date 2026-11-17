@@ -53,4 +53,10 @@ describe('matriz de permissões', () => {
     const vn = screen.getByRole('heading', { name: 'Vendas VN', level: 4 }).closest('div.rounded-xl') as HTMLElement;
     expect(within(vn).getByText('Multas')).toBeTruthy();
   });
+
+  it('abre no local Aveiro (e não no 1.º da lista), para não gravar a matriz do local errado', () => {
+    render(<RolesPanel roles={roles} users={[]} loading={false} onSaved={async () => {}} />);
+    fireEvent.click(screen.getAllByText('Comercial')[0]);
+    expect(screen.getByRole('radio', { name: 'Aveiro' })).toHaveAttribute('data-state', 'on');
+  });
 });

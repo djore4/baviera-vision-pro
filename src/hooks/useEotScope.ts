@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { nomeCurto } from '@/lib/nome';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { eotIsDirector, eotIsLocalLead, eotCanSeeUsersTab } from '@/lib/eot-access';
@@ -16,7 +17,7 @@ export function useEotScope() {
 
   // Em "ver como", o escopo é o do utilizador simulado (a interface filtra pelo email dele).
   const email = effectiveEmail ?? session?.user.email ?? null;
-  const nome = me?.nome ?? email;
+  const nome = nomeCurto(me?.nome, email) || email;
 
   const isDirector = eotIsDirector({ isAdmin, roleName, capabilities, canView });
 

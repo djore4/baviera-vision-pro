@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { nomeCurto } from '@/lib/nome';
 import { useAuth } from '@/App';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import type { Scope } from '@/lib/prospec';
@@ -12,7 +13,7 @@ export function useProspecScope() {
   const { isAdmin, me, effectiveEmail } = usePermissions();
 
   const email = effectiveEmail ?? session?.user.email ?? null;
-  const nome = me?.nome ?? email;
+  const nome = nomeCurto(me?.nome, email) || email;
 
   const scope = useMemo<Scope>(() => ({ isDirector: isAdmin, email }), [isAdmin, email]);
 
