@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { generatePassword } from '@/lib/password';
 import { locaisDoGrupo, locaisDoPerfil } from '@/lib/locations';
 import { LocaisPicker } from '@/components/users/LocaisPicker';
+import { EQUIPAS, equipaDe, equipaDeduzida, isEquipa } from '@/lib/cartao-go';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -110,6 +111,17 @@ export function UsersPanel({
     } finally { setBusyId(null); }
   };
 
+  const handleEquipaChange = async (u: AppUser, v: string) => {
+    setBusyId(u.id);
+    try {
+      await updateUser(u.id, { equipa: isEquipa(v) ? v : null });
+      toast.success(`${u.nome || u.email} → ${isEquipa(v) ? v : 'sem equipa definida'}`);
+      await onChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível atualizar.');
+    } finally { setBusyId(null); }
+  };
+
   const handleLocaisChange = async (u: AppUser, locais: string[]) => {
     // Toda a conta tem de ter pelo menos um local (só se aplica a instalações com locais configurados).
     if (comLocais && locais.length === 0) { toast.error('Cada conta precisa de pelo menos um local.'); return; }
@@ -193,12 +205,13 @@ export function UsersPanel({
                   <SortTh label="Utilizador" k="nome" sort={sort} onSort={toggleSort} />
                   <SortTh label="Função" k="perfil" sort={sort} onSort={toggleSort} />
                   {comLocais && <th className="px-3 py-2 font-medium">Locais</th>}
+                  <th className="px-3 py-2 font-medium">Equipa</th>
                   <th className="px-3 py-2 text-right font-medium">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {visible.length === 0 && (
-                  <tr><td colSpan={comLocais ? 4 : 3} className="py-10 text-center text-sm text-muted-foreground">Nenhum utilizador corresponde à pesquisa.</td></tr>
+                  <tr><td colSpan={comLocais ? 5 : 4} className="py-10 text-center text-sm text-muted-foreground">Nenhum utilizador corresponde à pesquisa.</td></tr>
                 )}
                 {visible.map(u => {
                   const isMe = !!me?.email && u.email?.toLowerCase() === me.email.toLowerCase();
@@ -230,6 +243,17 @@ export function UsersPanel({
                             className={cn('w-[170px]', semLocal(u) && 'border-amber-500/60')} emptyLabel="Definir local" />
                         </td>
                       )}
+                      <td className="px-3 py-2">
+                        <Select value={isEquipa(u.equipa) ? u.equipa : '__auto'} onValueChange={v => handleEquipaChange(u, v === '__auto' ? '' : v)} disabled={busyId === u.id}>
+                          <SelectTrigger className={cn('h-8 w-[140px]', !equipaDe(u) && 'border-amber-500/60')}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__auto">{equipaDeduzida(u) ? `${equipaDeduzida(u)} (deduzida)` : 'Por definir'}</SelectItem>
+                            {EQUIPAS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Ver como este utilizador"
@@ -328,11 +352,12 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
   const [password, setPassword] = useState('');
   const [perfil, setPerfil] = useState('');
   const [locais, setLocais] = useState<string[]>([]);
+  const [equipa, setEquipa] = useState('');
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState<{ email: string; password: string; existing: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const reset = () => { setNome(''); setEmail(''); setPassword(''); setPerfil(''); setLocais([]); setCreated(null); setCopied(false); };
+  const reset = () => { setNome(''); setEmail(''); setPassword(''); setPerfil(''); setLocais([]); setEquipa(''); setCreated(null); setCopied(false); };
   const close = (v: boolean) => { onOpenChange(v); if (!v) reset(); };
 
   const submit = async (e: React.FormEvent) => {
@@ -344,7 +369,7 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
     setSaving(true);
     try {
       const mail = email.trim().toLowerCase();
-      const u = await createUser({ nome: nome.trim(), email: mail, password, perfil, local: locais.length ? locais : null });
+      const u = await createUser({ nome: nome.trim(), email: mail, password, perfil, local: locais.length ? locais : null, equipa: isEquipa(equipa) ? equipa : null });
       setCreated({ email: mail, password, existing: !!u?.existing_login });
       await onCreated();
     } catch (err) {
@@ -408,6 +433,16 @@ function CreateUserDialog({ open, onOpenChange, roleNames, onCreated }: {
                 <LocaisPicker value={locais} onChange={setLocais} className="h-10" emptyLabel="Escolher local…" />
               </div>
             )}
+            <div className="space-y-1.5">
+              <Label>Equipa (Cartão Caetano Go)</Label>
+              <Select value={equipa || '__auto'} onValueChange={v => setEquipa(v === '__auto' ? '' : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__auto">Por definir</SelectItem>
+                  {EQUIPAS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="u-pass">Password</Label>
               <PasswordField id="u-pass" value={password} onChange={setPassword} />
