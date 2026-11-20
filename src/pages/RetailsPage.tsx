@@ -5,6 +5,7 @@ import { useRecordEditor } from '@/components/RecordEditor';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import PedirMatriculaButton from '@/components/PedirMatriculaButton';
 import { PeriodFilter } from '@/components/PeriodFilter';
+import { FiltrosToggle } from '@/components/FiltrosToggle';
 import { RetomaFilter, FlagsFilter, GarantiaFilter, TipoFilter, StatusFilter } from '@/components/RetomaFilter';
 import { ParkFilter } from '@/components/ExtraFilters';
 import { formatDate, getCurrentWeek, getDeliveryMonth, isRetailType } from '@/lib/viaturas';
@@ -35,6 +36,7 @@ export default function RetailsPage() {
   const { canEdit } = usePermissions();
   const canEditRecords = canEdit('dados') || canEdit('database');
   const isMobile = useIsMobile();
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [selectedResps, setSelectedResps] = useState<Set<string>>(new Set());
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -335,10 +337,11 @@ export default function RetailsPage() {
 
   return (
     <div className="space-y-3 animate-fade-in">
+      <FiltrosToggle open={filtrosAbertos} onToggle={() => setFiltrosAbertos(o => !o)} count={activeFilters.length} />
       <div className="flex flex-col lg:flex-row gap-3">
 
-        {/* Left column */}
-        <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
+        {/* Left column (filtros escondidos por omissão) */}
+        {filtrosAbertos && <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
           <PeriodFilter>
             <div className="space-y-2 border-t border-border pt-3">
               <StatusFilter value={selectedStatus} onChange={setSelectedStatus} />
@@ -374,7 +377,7 @@ export default function RetailsPage() {
               {selectedStatus.size > 0 && <Badge variant="secondary" className="text-[10px] cursor-pointer justify-between" onClick={() => clearFilter('status')}>Estado: {Array.from(selectedStatus).map(s => STATUS_LABELS[s] ?? s).join(', ')} x</Badge>}
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Main content */}
         <div className="flex-1 min-w-0 space-y-2">
