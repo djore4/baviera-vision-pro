@@ -364,12 +364,12 @@ export async function getAppCapabilities(): Promise<AppCapabilities> {
 
 export async function listUsers(): Promise<AppUser[]> {
   // Tabela dedicada a esta plataforma (separada da partilhada `utilizadores`).
-  const { data, error } = await supabase
-    .from('app_users')
-    .select('id, nome, email, perfil, local, negocio, marca, equipa')
-    .order('nome', { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as AppUser[];
+  const q = (cols: string) => supabase.from('app_users').select(cols).order('nome', { ascending: true });
+  let res = await q('id, nome, email, perfil, local, negocio, marca, equipa');
+  // Coluna `equipa` em falta (migração ccgo por aplicar): lê-se sem ela, para ninguém perder o acesso.
+  if (res.error && (res.error as { code?: string }).code === '42703') res = await q('id, nome, email, perfil, local, negocio, marca');
+  if (res.error) throw res.error;
+  return (res.data ?? []) as unknown as AppUser[];
 }
 
 /* ── Escrita (admin, via edge function) ───────────────────────────────────── */
