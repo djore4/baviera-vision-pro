@@ -27,7 +27,7 @@ const cors = {
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const USER_COLS = "id, nome, email, perfil, local, negocio, marca";
+const USER_COLS = "id, nome, email, perfil, local, negocio, marca, equipa";
 
 async function findAuthUserByEmail(admin: SupabaseClient, email: string) {
   for (let page = 1; page <= 20; page++) {
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create") {
-      const { nome, email, password, perfil, local, negocio, marca } = body;
+      const { nome, email, password, perfil, local, negocio, marca, equipa } = body;
       if (!email || !password) return json({ error: "Email e password são obrigatórios." }, 400);
 
       // Se o email já tem login (p.ex. criado pela Sales Force) reutiliza-se: a password
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
       }
 
       const { data: row, error: iErr } = await admin.from("app_users")
-        .insert({ nome: nome ?? null, email, perfil: perfil ?? null, local: local ?? null, negocio: negocio ?? null, marca: marca ?? null })
+        .insert({ nome: nome ?? null, email, perfil: perfil ?? null, local: local ?? null, negocio: negocio ?? null, marca: marca ?? null, equipa: equipa ?? null })
         .select(USER_COLS).single();
       if (iErr) {
         if (authUserId) await admin.auth.admin.deleteUser(authUserId); // rollback (só do login criado agora)

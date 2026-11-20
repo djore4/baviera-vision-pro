@@ -76,6 +76,41 @@ select t.check('administrador: não altera (sem update)',
 select t.back();
 commit;
 
+
+-- ── CCGo (migração 20261121100000): permissão do tab `ccgo` ─────────────────────
+insert into public.app_roles (name, is_admin, permissions) values
+  ('CCGo Gestor', false, '{"ccgo": "edit"}'), ('CCGo Leitor', false, '{"ccgo": "view"}')
+  on conflict (name) do update set permissions = excluded.permissions;
+insert into public.app_users (nome, email, perfil) values
+  ('Gestor', 'cg_gestor@x.pt', 'CCGo Gestor'), ('Leitor', 'cg_leitor@x.pt', 'CCGo Leitor')
+  on conflict (email) do update set perfil = excluded.perfil;
+
+begin;
+select t.as_user('cg_gestor@x.pt');
+select t.check('gestor (edit no tab): regista e apaga cartões',
+  t.dml($q$ insert into public.cartao_go_registos (vendedor_email) values ('cg_rui@x.pt') $q$) = 1
+  and t.dml($q$ delete from public.cartao_go_registos where vendedor_email = 'cg_rui@x.pt' and registado_por = 'cg_gestor@x.pt' $q$) = 1);
+select t.check('gestor: define objetivo por equipa',
+  t.dml($q$ insert into public.ccgo_objetivos (equipa, objetivo) values ('APV', 4)
+            on conflict (equipa) do update set objetivo = excluded.objetivo $q$) = 1);
+select t.back();
+commit;
+
+begin;
+select t.as_user('cg_leitor@x.pt');
+select t.check('leitor (view no tab): vê os cartões de todos mas não regista nem apaga',
+  t.n('cartao_go_registos') >= 2
+  and not t.can_insert('cartao_go_registos')
+  and t.dml($q$ delete from public.cartao_go_registos $q$) <= 0);
+select t.check('leitor: lê objetivos mas não os altera',
+  t.n('ccgo_objetivos') = 1
+  and t.state($q$ update public.ccgo_objetivos set objetivo = 9 $q$) <> 'ok' or t.dml($q$ update public.ccgo_objetivos set objetivo = 9 $q$) <= 0);
+select t.back();
+commit;
+
+select t.check('equipa só aceita as 4 unidades',
+  t.state($q$ update public.app_users set equipa = 'Outra' where email = 'cg_ana@x.pt' $q$) <> 'ok');
+
 do $$
 declare
   total int := (select count(*) from t.results);

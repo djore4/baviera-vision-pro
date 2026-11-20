@@ -89,6 +89,9 @@ const ALL_TABS: TabDef[] = [
   // Seguros das viaturas a serviço de colaboradores/clientes (todas as áreas). 'view': consulta;
   // 'edit': regista, altera e arquiva. Apagar é só do administrador (RLS: migração seguros).
   { key: 'seguros', label: 'Seguros', path: '/seguros', area: 'apv' },
+  // Cartão Caetano Go: cartões feitos por responsável e equipa. 'view': consulta; 'edit': regista,
+  // apaga e define objetivos (RLS: migração ccgo). Gerir contas/equipas é só do administrador.
+  { key: 'ccgo', label: 'Cartão Caetano Go', path: '/ccgo', area: 'apv' },
   // ── Administração ───────────────────────────────────────────────────────────
   { key: 'dados', label: 'Dados', path: '/dados', area: 'admin' },
   { key: 'arquivo', label: 'Arquivo', path: '/arquivo', area: 'admin' },
@@ -282,6 +285,8 @@ export interface AppUser {
   local: unknown;
   negocio: unknown;
   marca: unknown;
+  /** Equipa/unidade de negócio (CCGo); nulo = por tipificar (ver equipaDe). */
+  equipa?: string | null;
   /** Só na resposta de createUser: o email já tinha login (p.ex. da Sales Force) e foi reutilizado. */
   existing_login?: boolean;
 }
@@ -361,7 +366,7 @@ export async function listUsers(): Promise<AppUser[]> {
   // Tabela dedicada a esta plataforma (separada da partilhada `utilizadores`).
   const { data, error } = await supabase
     .from('app_users')
-    .select('id, nome, email, perfil, local, negocio, marca')
+    .select('id, nome, email, perfil, local, negocio, marca, equipa')
     .order('nome', { ascending: true });
   if (error) throw error;
   return (data ?? []) as AppUser[];
@@ -416,6 +421,7 @@ export interface NewUser {
   local?: unknown;
   negocio?: unknown;
   marca?: unknown;
+  equipa?: string | null;
 }
 
 export async function createUser(input: NewUser): Promise<AppUser> {
@@ -425,7 +431,7 @@ export async function createUser(input: NewUser): Promise<AppUser> {
 
 export async function updateUser(
   id: number | string,
-  patch: Partial<Pick<AppUser, 'nome' | 'perfil' | 'local' | 'negocio' | 'marca'>>,
+  patch: Partial<Pick<AppUser, 'nome' | 'perfil' | 'local' | 'negocio' | 'marca' | 'equipa'>>,
   password?: string,
   /** Confirma repor a password de um login partilhado com a Sales Force (muda o acesso às duas apps). */
   allowShared = false,

@@ -32,6 +32,7 @@ import InstalacoesPage from "./pages/InstalacoesPage";
 import ProdutoPage from "./pages/ProdutoPage";
 import MarketingPage from "./pages/MarketingPage";
 import SegurosPage from "./pages/SegurosPage";
+import CcgoPage from "./pages/CcgoPage";
 import SugestoesPage from "./pages/SugestoesPage";
 import LogsPage from "./pages/LogsPage";
 import { ActivityTracker } from "@/components/ActivityTracker";
@@ -126,6 +127,7 @@ const App = () => (
               <Route path="/produto" element={tab('produto', <ProdutoPage />)} />
               <Route path="/marketing" element={tab('marketing', <MarketingPage />)} />
               <Route path="/seguros" element={tab('seguros', <SegurosPage />)} />
+              <Route path="/ccgo" element={tab('ccgo', <CcgoPage />)} />
               <Route path="/wip" element={tab('wip', <WipPage />)} />
               <Route path="/objetivos-vu" element={<Navigate to="/objetivos" replace />} />
               <Route path="/funil-vu" element={tab('funil-vu', <FunilVuPage />)} />

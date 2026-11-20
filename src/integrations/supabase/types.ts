@@ -121,6 +121,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string | null
+          equipa: string | null
           id: string
           local: Json | null
           marca: Json | null
@@ -133,6 +134,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
+          equipa?: string | null
           id?: string
           local?: Json | null
           marca?: Json | null
@@ -144,6 +146,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
+          equipa?: string | null
           id?: string
           local?: Json | null
           marca?: Json | null
@@ -411,6 +414,25 @@ export type Database = {
           id?: string
           registado_por?: string
           vendedor_email?: string
+        }
+        Relationships: []
+      }
+      ccgo_objetivos: {
+        Row: {
+          equipa: string
+          objetivo: number
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          equipa: string
+          objetivo: number
+          updated_at?: string
+        }
+        Update: {
+          equipa?: string
+          objetivo?: number
+          updated_at?: string
         }
         Relationships: []
       }

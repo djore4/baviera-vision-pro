@@ -8,7 +8,41 @@ import { locaisDoPerfil } from '@/lib/locations';
  * (e apagam) cartões — o vendedor só lê os seus (RLS: migração 20261102120000_cartao_go).
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export const OBJETIVO_MENSAL = 2;
+export const OBJETIVO_MENSAL = 2;   // objetivo por omissão (equipa sem objetivo definido)
+
+/* ── Equipas / unidades de negócio ────────────────────────────────────────────
+ * Tipificação dos colaboradores (app_users.equipa). Enquanto vazia, deduz-se de
+ * negocio/marca (campos partilhados com a Sales Force): marca Motorrad → Motorrad,
+ * VU → BMW VU, VD/VN → BMW VN. O APV não se deduz: define-se à mão. */
+export const EQUIPAS = ['BMW VN', 'BMW VU', 'Motorrad', 'APV'] as const;
+export type Equipa = (typeof EQUIPAS)[number];
+export const isEquipa = (v: unknown): v is Equipa => (EQUIPAS as readonly string[]).includes(v as string);
+
+const lista = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : typeof v === 'string' ? v.split(/[,;|]/) : [])
+    .map(x => String(x).trim().toLowerCase()).filter(Boolean);
+
+export function equipaDeduzida(u: { negocio?: unknown; marca?: unknown } | null | undefined): Equipa | null {
+  if (!u) return null;
+  if (lista(u.marca).some(m => m.includes('motorrad'))) return 'Motorrad';
+  const n = lista(u.negocio);
+  if (n.includes('vu')) return 'BMW VU';
+  if (n.includes('vd') || n.includes('vn')) return 'BMW VN';
+  return null;
+}
+
+/** Equipa do colaborador: a definida; senão a deduzida; senão null (por tipificar). */
+export const equipaDe = (u: { equipa?: string | null; negocio?: unknown; marca?: unknown } | null | undefined): Equipa | null =>
+  isEquipa(u?.equipa) ? u!.equipa : equipaDeduzida(u);
+
+export type Objetivos = Partial<Record<Equipa, number>>;
+export const objetivoDe = (equipa: Equipa | null, objetivos: Objetivos): number =>
+  (equipa && objetivos[equipa]) ?? OBJETIVO_MENSAL;
+
+/** Estado de um colaborador no mês. Puro e testável. */
+export const progresso = (feitos: number, objetivo: number) => ({
+  feitos, objetivo, cumprido: feitos >= objetivo, falta: Math.max(0, objetivo - feitos),
+});
 
 /* Limite de insistência: no máximo MAX_ALERTAS_HORA pop-ups por janela de uma hora. */
 export const MAX_ALERTAS_HORA = 3;
@@ -95,5 +129,20 @@ export async function registarCartao(email: string, data?: string): Promise<void
 
 export async function apagarRegisto(id: string): Promise<void> {
   const { error } = await supabase.from('cartao_go_registos').delete().eq('id', id);
+  if (error) throw traduzir(error);
+}
+
+/** Objetivos mensais definidos por equipa (as que não aparecem usam OBJETIVO_MENSAL). */
+export async function listarObjetivos(): Promise<Objetivos> {
+  const { data, error } = await supabase.from('ccgo_objetivos').select('equipa, objetivo');
+  if (error) throw traduzir(error);
+  const out: Objetivos = {};
+  for (const r of (data ?? []) as { equipa: string; objetivo: number }[]) if (isEquipa(r.equipa)) out[r.equipa] = r.objetivo;
+  return out;
+}
+
+export async function definirObjetivo(equipa: Equipa, objetivo: number): Promise<void> {
+  const { error } = await supabase.from('ccgo_objetivos')
+    .upsert({ equipa, objetivo, updated_at: new Date().toISOString() });
   if (error) throw traduzir(error);
 }
