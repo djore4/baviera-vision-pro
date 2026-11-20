@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import ImportarButton from '@/components/ImportarButton';
+import { FiltrosToggle } from '@/components/FiltrosToggle';
 
 const COLORS = ['#1C69D4', '#16A34A', '#DC2626', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#6366F1'];
 const FIN_COLORS: Record<string, string> = { PP: '#1C69D4', FS: '#16A34A', Fext: '#F59E0B', Fint: '#8B5CF6' };
@@ -188,6 +189,8 @@ export default function CarteiraPage() {
     ['week198', '198'],
   ];
 
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const nFiltros = (selectedResps.size > 0 ? 1 : 0) + (selectedFin ? 1 : 0) + (selectedModel ? 1 : 0) + (selectedQor !== null ? 1 : 0) + (selectedBev !== null ? 1 : 0);
   const hasFilters = selectedResps.size > 0 || !!selectedFin || !!selectedModel || selectedQor !== null || selectedBev !== null;
 
   const clearFilter = (type: string) => {
@@ -238,8 +241,10 @@ export default function CarteiraPage() {
   return (
     <div className="space-y-3 animate-fade-in">
 
-      {/* Filtros ativos (escolhidos nos gráficos) */}
-      {hasFilters && (
+      <FiltrosToggle open={filtrosAbertos} onToggle={() => setFiltrosAbertos(o => !o)} count={nFiltros} />
+
+      {/* Filtros ativos (escolhidos nos gráficos); escondidos por omissão */}
+      {filtrosAbertos && hasFilters && (
         <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
           <div className="flex items-center gap-2 flex-wrap pb-1">
             <span className="text-[10px] text-muted-foreground font-medium">Filtros ativos:</span>

@@ -6,6 +6,7 @@ import { useData } from '@/contexts/DataContext';
 import { useRecordEditor } from '@/components/RecordEditor';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { PeriodFilter } from '@/components/PeriodFilter';
+import { FiltrosToggle } from '@/components/FiltrosToggle';
 import { ExtraFilters, ExtraFilterChips, isParked, type ExtraFiltersState, type Garantia } from '@/components/ExtraFilters';
 import { formatDate } from '@/lib/viaturas';
 import { toLocalIsoDay } from '@/lib/utils';
@@ -38,6 +39,7 @@ export default function ProducaoPage() {
     openNew({ status: 'Carteira', type: 'VN', neg: toLocalIsoDay(new Date(h.getFullYear(), h.getMonth(), h.getDate())) });
   };
   const isMobile = useIsMobile();
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [selectedResp, setSelectedResp] = useState<string | null>(null);
   const [selectedFin, setSelectedFin] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -315,10 +317,11 @@ export default function ProducaoPage() {
 
   return (
     <div className="space-y-3 animate-fade-in">
+      <FiltrosToggle open={filtrosAbertos} onToggle={() => setFiltrosAbertos(o => !o)} count={activeFilters.length} />
       <div className="flex flex-col lg:flex-row gap-3">
 
-        {/* Left column */}
-        <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
+        {/* Left column (filtros escondidos por omissão) */}
+        {filtrosAbertos && <div className="w-full lg:w-44 flex-shrink-0 space-y-2">
           <PeriodFilter>
             <div className="border-t border-border pt-3">
               <ExtraFilters s={extra} parkCount={parkCount} />
@@ -333,7 +336,7 @@ export default function ProducaoPage() {
               <ExtraFilterChips s={extra} />
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Main content */}
         <div className="flex-1 min-w-0 space-y-2">
