@@ -8,6 +8,7 @@
 // Acesso: quem tem o tab Ficha de Margem. Precisa do segredo ANTHROPIC_API_KEY.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -20,7 +21,12 @@ const json = (obj: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 
-const MODEL = "claude-sonnet-5-5";
+// Modelo mais barato: a tarefa é extração estruturada com esquema fixo. Para voltar a um modelo
+// mais forte (se a leitura falhar valores), basta trocar esta constante.
+const MODEL = "claude-haiku-5-5";
+// Os valores económicos estão sempre na página 2 do contrato; só essa página vai ao modelo
+// (as restantes — condições gerais, anexos — só gastavam créditos).
+const PAGINA_UTIL = 2;
 const MAX_BASE64 = 8 * 1024 * 1024; // ~6 MB de ficheiro
 const TIPOS = ["application/pdf", "image/png", "image/jpeg"];
 
@@ -77,6 +83,21 @@ Regras:
 - NÃO preenchas apoios adicionais nem descontos: esses campos não existem na ferramenta e ficam em branco na ficha.
 - Se um campo for ambíguo (vários valores possíveis, texto cortado, ilegível), devolve o melhor palpite E acrescenta o nome do campo a "incerto".`;
 
+// Devolve só a página útil de um PDF (em base64). Se o PDF tiver menos páginas, estiver
+// protegido ou não se conseguir abrir, devolve-o inteiro: pior em custo, mas nunca falha a leitura.
+async function soPaginaUtil(base64: string): Promise<string> {
+  try {
+    const origem = await PDFDocument.load(base64, { ignoreEncryption: true });
+    if (origem.getPageCount() < PAGINA_UTIL) return base64;
+    const destino = await PDFDocument.create();
+    const [pagina] = await destino.copyPages(origem, [PAGINA_UTIL - 1]);
+    destino.addPage(pagina);
+    return await destino.saveAsBase64();
+  } catch (_e) {
+    return base64;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Método não suportado." }, 405);
@@ -108,7 +129,7 @@ Deno.serve(async (req) => {
     if (data.length > MAX_BASE64) return json({ error: "Ficheiro demasiado grande (máx. ~6 MB)." }, 413);
 
     const fileBlock = mediaType === "application/pdf"
-      ? { type: "document", source: { type: "base64", media_type: mediaType, data } }
+      ? { type: "document", source: { type: "base64", media_type: mediaType, data: await soPaginaUtil(data) } }
       : { type: "image", source: { type: "base64", media_type: mediaType, data } };
 
     const resp = await fetch("https://api.anthropic.com/v1/messages", {

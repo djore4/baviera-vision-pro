@@ -2,7 +2,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 /* ── Ficha de Margem: preencher a partir de um contrato (PDF) ou imagem ───────
  * O ficheiro vai à edge function `ficha-extrair`, que o lê e devolve só valores
- * económicos e o número do contrato (nunca dados pessoais; nada fica guardado).
+ * económicos e o número do contrato (nunca dados pessoais; o servidor não guarda nada).
+ * Cada leitura custa créditos, por isso o resultado fica em cache NO BROWSER de quem a fez
+ * (chave = hash do ficheiro, só valores económicos, 7 dias): reabrir o mesmo contrato não
+ * volta a gastar nada, e um duplo clique reaproveita o pedido em curso.
  * A página NUNCA aplica sem mostrar: cada campo preenchido fica destacado, e os
  * que o modelo marcou como incertos ficam a laranja para revisão.
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -93,11 +96,71 @@ const paraBase64 = (f: Blob) => new Promise<string>((resolve, reject) => {
   r.readAsDataURL(f);
 });
 
+/* ── Cache local (poupa créditos) ─────────────────────────────────────────── */
+
+const CACHE_PREFIX = 'ficha-extrair:';
+export const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const CACHE_MAX = 20;
+
+/** SHA-256 em hexadecimal; null se o browser não tiver `crypto.subtle` (então não há cache). */
+export async function hashTexto(texto: string): Promise<string | null> {
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return null;
+    const buf = await subtle.digest('SHA-256', new TextEncoder().encode(texto));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch { return null; }
+}
+
+export function lerCache(hash: string, agora = Date.now()): CamposExtraidos | null {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + hash);
+    if (!raw) return null;
+    const { t, campos } = JSON.parse(raw) as { t: number; campos: CamposExtraidos };
+    if (typeof t !== 'number' || agora - t > CACHE_TTL_MS || !campos || typeof campos !== 'object') {
+      localStorage.removeItem(CACHE_PREFIX + hash);
+      return null;
+    }
+    return campos;
+  } catch { return null; }
+}
+
+export function gravarCache(hash: string, campos: CamposExtraidos, agora = Date.now()): void {
+  try {
+    localStorage.setItem(CACHE_PREFIX + hash, JSON.stringify({ t: agora, campos }));
+    // Mantém só as CACHE_MAX leituras mais recentes.
+    const todas: { k: string; t: number }[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k?.startsWith(CACHE_PREFIX)) continue;
+      try { todas.push({ k, t: (JSON.parse(localStorage.getItem(k) ?? '{}') as { t?: number }).t ?? 0 }); } catch { todas.push({ k, t: 0 }); }
+    }
+    todas.sort((a, b) => b.t - a.t).slice(CACHE_MAX).forEach(e => localStorage.removeItem(e.k));
+  } catch { /* sem localStorage: segue sem cache */ }
+}
+
+const emCurso = new Map<string, Promise<CamposExtraidos>>();
+
 export async function extrairFicha(file: File): Promise<CamposExtraidos> {
   const erro = validarFicheiro(file);
   if (erro) throw new Error(erro);
   const data = await paraBase64(file);
 
+  const hash = await hashTexto(`${file.type}:${data}`);
+  if (!hash) return lerNoServidor(file, data);
+  const guardado = lerCache(hash);
+  if (guardado) return guardado;
+  let pedido = emCurso.get(hash);
+  if (!pedido) {
+    pedido = lerNoServidor(file, data)
+      .then(campos => { gravarCache(hash, campos); return campos; })
+      .finally(() => emCurso.delete(hash));
+    emCurso.set(hash, pedido);
+  }
+  return pedido;
+}
+
+async function lerNoServidor(file: File, data: string): Promise<CamposExtraidos> {
   const { data: res, error } = await supabase.functions.invoke('ficha-extrair', { body: { media_type: file.type, data } });
   if (error) {
     let corpo: { error?: string; message?: string; detalhe?: string } | null = null;
