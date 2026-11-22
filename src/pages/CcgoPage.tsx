@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, CreditCard, Loader2, Minus, Plus, Search, Settings2, Users as UsersIcon } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Loader2, Minus, Plus, Search, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { type AppRole, type AppUser, listRoles, listUsers } from '@/lib/permissions';
+import { type AppUser, listUsers } from '@/lib/permissions';
 import {
   apagarRegisto, definirObjetivo, EQUIPAS, equipaDe, listarObjetivos, listarRegistosDoMes, objetivoDe, progresso,
   registarCartao, type CartaoGoRegisto, type Equipa, type Objetivos,
@@ -11,13 +11,11 @@ import { locaisDoPerfil } from '@/lib/locations';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { UsersPanel } from '@/components/users/UsersPanel';
 
-/* ── Tab Cartão Caetano Go (CCGo) ─────────────────────────────────────────────
+/* ── Tab Caetano Go (CCGo) ─────────────────────────────────────────────
  * Cartões feitos por responsável e por equipa (BMW VN, BMW VU, Motorrad, APV), mês a mês.
  * 'view': consulta; 'edit': regista/desfaz cartões (só no mês corrente) e define os objetivos
- * por equipa. A tipificação dos colaboradores (Equipa) e as contas são do administrador.
+ * por equipa. A tipificação dos colaboradores (Equipa) e as contas gerem-se no tab Utilizadores (só administrador).
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const SEM_EQUIPA = 'Por tipificar';
@@ -31,7 +29,6 @@ export default function CcgoPage() {
   const [off, setOff] = useState(0);              // 0 = mês corrente, -1 = anterior…
   const ref = useMemo(() => mesRef(off), [off]);
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [roles, setRoles] = useState<AppRole[]>([]);
   const [registos, setRegistos] = useState<CartaoGoRegisto[]>([]);
   const [objetivos, setObjetivos] = useState<Objetivos>({});
   const [loading, setLoading] = useState(true);
@@ -43,10 +40,9 @@ export default function CcgoPage() {
 
   const carregarUsers = useCallback(async () => {
     try {
-      const [us, rs] = await Promise.all([listUsers(), isAdmin ? listRoles() : Promise.resolve([] as AppRole[])]);
-      setUsers(us); setRoles(rs);
+      setUsers(await listUsers());
     } catch (e) { console.error(e); toast.error('Não foi possível carregar os colaboradores.'); }
-  }, [isAdmin]);
+  }, []);
 
   const carregarCartoes = useCallback(async () => {
     try {
@@ -87,7 +83,10 @@ export default function CcgoPage() {
 
   const grupos: (Equipa | typeof SEM_EQUIPA)[] = [...EQUIPAS, SEM_EQUIPA];
 
-  const vista = (
+  return (
+    <div className="mx-auto max-w-5xl space-y-3 animate-fade-in">
+      <Titulo />
+
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
@@ -139,7 +138,7 @@ export default function CcgoPage() {
 
       {gere && nSem > 0 && (
         <div className="rounded border border-amber-500/40 bg-amber-100 px-3 py-2 text-xs text-amber-950 dark:bg-amber-500/15 dark:text-amber-100">
-          {nSem} {nSem === 1 ? 'colaborador sem equipa' : 'colaboradores sem equipa'} (não entram nos totais). {isAdmin ? 'Define a equipa no separador Colaboradores.' : 'Pede ao administrador para os tipificar.'}
+          {nSem} {nSem === 1 ? 'colaborador sem equipa' : 'colaboradores sem equipa'} (não entram nos totais). {isAdmin ? 'Define a equipa no tab Utilizadores.' : 'Pede ao administrador para os tipificar.'}
         </div>
       )}
       {erro && <div className="rounded border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">{erro}</div>}
@@ -193,31 +192,13 @@ export default function CcgoPage() {
         );
       })}
     </div>
-  );
-
-  // Contas (criar/editar/eliminar) só passam pela edge function de administração: só o administrador.
-  if (!isAdmin) return <div className="mx-auto max-w-5xl space-y-3 animate-fade-in"><Titulo />{vista}</div>;
-
-  return (
-    <div className="mx-auto max-w-5xl space-y-3 animate-fade-in">
-      <Titulo />
-      <Tabs defaultValue="cartoes">
-        <TabsList className="h-10 bg-muted/60 p-1">
-          <TabsTrigger value="cartoes" className="gap-1.5"><CreditCard className="h-4 w-4" />Cartões</TabsTrigger>
-          <TabsTrigger value="colaboradores" className="gap-1.5"><UsersIcon className="h-4 w-4" />Colaboradores<span className="text-xs font-normal text-muted-foreground">{users.length}</span></TabsTrigger>
-        </TabsList>
-        <TabsContent value="cartoes" className="mt-4">{vista}</TabsContent>
-        <TabsContent value="colaboradores" className="mt-4">
-          <UsersPanel users={users} loading={loading} roleNames={roles.map(r => r.name)} roles={roles} onChanged={carregarUsers} />
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }
 
 const Titulo = () => (
   <div>
-    <h1 className="text-base font-semibold">Cartão Caetano Go</h1>
+    <h1 className="text-base font-semibold">Caetano Go</h1>
     <p className="text-xs text-muted-foreground">Cartões feitos por responsável e por equipa.</p>
   </div>
 );

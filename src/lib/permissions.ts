@@ -91,7 +91,7 @@ const ALL_TABS: TabDef[] = [
   { key: 'seguros', label: 'Seguros', path: '/seguros', area: 'apv' },
   // Cartão Caetano Go: cartões feitos por responsável e equipa. 'view': consulta; 'edit': regista,
   // apaga e define objetivos (RLS: migração ccgo). Gerir contas/equipas é só do administrador.
-  { key: 'ccgo', label: 'Cartão Caetano Go', path: '/ccgo', area: 'apv' },
+  { key: 'ccgo', label: 'Caetano Go', path: '/ccgo', area: 'apv' },
   // ── Administração ───────────────────────────────────────────────────────────
   { key: 'dados', label: 'Dados', path: '/dados', area: 'admin' },
   { key: 'arquivo', label: 'Arquivo', path: '/arquivo', area: 'admin' },
