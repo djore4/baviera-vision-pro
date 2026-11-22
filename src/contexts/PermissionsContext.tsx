@@ -153,7 +153,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       // o acesso total de admin). Só eleva o acesso, nunca o reduz.
       const exception = accessExceptions[tab];
       // A função dá o nível do(s) local(is) da pessoa (matriz função × local); sem local, o da matriz base.
-      const roleAccess = nivelDaFuncao(role, locaisDoPerfil(effMe?.local), tab, { tabsPorLocal, comExcecao: !!exception });
+      const roleAccess = nivelDaFuncao(role, locaisDoPerfil(effMe?.local), tab, { tabsPorLocal, comExcecao: !!exception, equipa: effMe?.equipa });
       if (exception) {
         const rank: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
         return rank[exception] >= rank[roleAccess] ? exception : roleAccess;

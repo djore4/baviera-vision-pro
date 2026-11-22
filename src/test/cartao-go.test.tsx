@@ -173,6 +173,13 @@ describe('Cartão Caetano Go — regras', () => {
     expect(aplicaCartaoGo(null)).toBe(false);
   });
 
+  it('função única "Vendedor": só a equipa BMW VN (e no local certo)', () => {
+    expect(aplicaCartaoGo({ perfil: 'Vendedor', equipa: 'BMW VN', local: ['Aveiro'] })).toBe(true);
+    expect(aplicaCartaoGo({ perfil: 'Vendedor', equipa: 'BMW VU', local: ['Aveiro'] })).toBe(false);
+    expect(aplicaCartaoGo({ perfil: 'Vendedor', equipa: null, local: ['Aveiro'] })).toBe(false);
+    expect(aplicaCartaoGo({ perfil: 'Vendedor', equipa: 'BMW VN', local: ['Porto'] })).toBe(false);
+  });
+
   it('o mês conta de 1 a 1 (fronteiras certas, incluindo dezembro)', () => {
     expect(intervaloDoMes(new Date(2026, 10, 15))).toEqual({ de: '2026-11-01', ate: '2026-12-01' });
     expect(intervaloDoMes(new Date(2026, 11, 31))).toEqual({ de: '2026-12-01', ate: '2027-01-01' });

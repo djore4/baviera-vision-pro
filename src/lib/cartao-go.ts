@@ -83,10 +83,14 @@ export const LOCAL_CARTAO_GO = 'Aveiro';
 export const isVendedorVN = (perfil: string | null | undefined) =>
   (perfil ?? '').trim().toLowerCase() === PERFIL_CARTAO_GO.toLowerCase();
 
-/** O aviso e o acompanhamento são só dos 'Vendedor VN' do local LOCAL_CARTAO_GO.
+/** Vendedor de BMW VN: a função antiga 'Vendedor VN', ou a função única 'Vendedor' com a equipa 'BMW VN'. */
+export const isVendedorBmwVN = (u: { perfil?: string | null; equipa?: string | null } | null | undefined) =>
+  !!u && (isVendedorVN(u.perfil) || ((u.perfil ?? '').trim().toLowerCase() === 'vendedor' && u.equipa === 'BMW VN'));
+
+/** O aviso e o acompanhamento são só dos vendedores de BMW VN do local LOCAL_CARTAO_GO.
  *  Quem não tem local definido (ou tem outro) fica de fora — o local define-se em Utilizadores. */
-export const aplicaCartaoGo = (u: { perfil?: string | null; local?: unknown } | null | undefined) =>
-  !!u && isVendedorVN(u.perfil) && locaisDoPerfil(u.local).includes(LOCAL_CARTAO_GO);
+export const aplicaCartaoGo = (u: { perfil?: string | null; equipa?: string | null; local?: unknown } | null | undefined) =>
+  !!u && isVendedorBmwVN(u) && locaisDoPerfil(u.local).includes(LOCAL_CARTAO_GO);
 
 export interface CartaoGoRegisto {
   id: string;

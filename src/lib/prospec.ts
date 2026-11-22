@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { funcaoDaEquipa, type AppRole } from '@/lib/permissions';
 
 /* ── Prospeção Comercial (CRM) — camada de acesso a dados ─────────────────────
  * CRUD para prospec_accounts / prospec_contacts / prospec_interactions /
@@ -388,19 +389,19 @@ export interface ProspecOwner { email: string; nome: string; perfil: string | nu
 
 export async function listProspecOwners(): Promise<ProspecOwner[]> {
   const [rolesRes, usersRes] = await Promise.all([
-    supabase.from('app_roles').select('name, permissions'),
-    supabase.from('app_users').select('nome, email, perfil'),
+    supabase.from('app_roles').select('name, permissions, permissions_equipa'),
+    supabase.from('app_users').select('nome, email, perfil, equipa'),
   ]);
   if (rolesRes.error) throw rolesRes.error;
   if (usersRes.error) throw usersRes.error;
-  const okRoles = new Set(
-    (rolesRes.data ?? [])
-      .filter(r => r.permissions && typeof r.permissions === 'object' && !Array.isArray(r.permissions)
-        && Object.prototype.hasOwnProperty.call(r.permissions, 'prospecao'))
-      .map(r => r.name),
-  );
+  const roles = new Map((rolesRes.data ?? []).map(r => [r.name as string, r as unknown as AppRole]));
+  // Tem a chave 'prospecao' na função (mesmo 'none'), já com a camada da equipa do utilizador.
+  const tem = (perfil: string, equipa: string | null) => {
+    const p = funcaoDaEquipa(roles.get(perfil), equipa)?.permissions;
+    return !!p && typeof p === 'object' && !Array.isArray(p) && Object.prototype.hasOwnProperty.call(p, 'prospecao');
+  };
   return (usersRes.data ?? [])
-    .filter((u: { email: string | null; perfil: string | null }) => u.email && u.perfil && okRoles.has(u.perfil))
+    .filter((u: { email: string | null; perfil: string | null; equipa: string | null }) => u.email && u.perfil && tem(u.perfil, u.equipa))
     .map((u: { email: string; nome: string | null; perfil: string | null }) => ({
       email: u.email, nome: u.nome || u.email, perfil: u.perfil,
     }))
