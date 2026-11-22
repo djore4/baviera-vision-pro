@@ -1,7 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-import { SeasonProvider } from "@/components/season/SeasonProvider";
-import { XmasGreeting } from "@/components/season/XmasGreeting";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -91,7 +89,6 @@ const tab = (key: string, node: React.ReactNode) => (
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-  <SeasonProvider>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -103,7 +100,6 @@ const App = () => (
           <VuRecordEditorProvider>
           <ProspecProvider>
           <EasterEggs />
-          <XmasGreeting />
           <HashRouter>
             <ActivityTracker />
             <Routes>
@@ -156,7 +152,6 @@ const App = () => (
       </AuthGate>
     </TooltipProvider>
   </QueryClientProvider>
-  </SeasonProvider>
   </ThemeProvider>
 );
 
