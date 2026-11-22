@@ -31,6 +31,8 @@ export interface ClientConfig {
   theme: { primary: string; dark: string };
   /** Tipo de letra próprio; sem ele usa-se Inter. */
   font?: { family: string; faces: FontFace[] };
+  /** Decoração sazonal (Natal). Ativa por omissão; `false` desliga-a nesta instalação. */
+  seasonal?: boolean;
   /** Tabs que não existem nesta instalação (nem para administradores). */
   disabledTabs: string[];
   /** Plantas das instalações (tab Instalações): uma imagem por piso, em
