@@ -10,7 +10,7 @@ import { InstallBanner } from '@/components/InstallBanner';
 import { ViewAsBanner } from '@/components/ViewAsBanner';
 import { UserMenu } from '@/components/UserMenu';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useSeason } from '@/components/season/SeasonProvider';
+import { seasonalFlags } from '@/lib/seasonal';
 import { NotificationBell } from '@/components/NotificationBell';
 import { CartaoGoReminder } from '@/components/CartaoGoReminder';
 import { client } from '@/clients';
@@ -63,7 +63,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { overdue: prospecOverdue } = useProspec();
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
-  const season = useSeason();
+  const season = seasonalFlags();
 
   // Navegação agrupada por área macro. Exclui os tabs arrumados no Arquivo e os
   // que o utilizador não pode ver; áreas sem tabs visíveis não são mostradas.
@@ -132,7 +132,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           bg-brand-dark flex-shrink-0 flex flex-col transition-all duration-200
         `}
       >
-        <div className={`px-4 py-5 border-b border-white/10 flex items-center justify-between relative ${season.xmas ? 'xmas-lights' : ''}`}>
+        <div className="px-4 py-5 border-b border-white/10 flex items-center justify-between">
           <h1 className="text-lg font-bold tracking-tight text-white whitespace-nowrap flex items-center">
             {client.name}
             <img src={client.logo.src} alt={client.logo.alt} className="h-5 w-5 ml-1.5" />

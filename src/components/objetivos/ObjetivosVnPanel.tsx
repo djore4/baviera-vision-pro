@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import { useData } from '@/contexts/DataContext';
 import { isRetiredMember } from '@/lib/team';
 import ObjetivosVnAnual from '@/components/objetivos/ObjetivosVnAnual';
-import { FechoAnoCard } from '@/components/FechoAnoCard';
 import { Save, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -209,8 +208,6 @@ export default function ObjetivosVnPanel({ editable }: { editable: boolean }) {
           </div>}
         </div>
       </div>
-
-      <FechoAnoCard ano={ano} />
 
       <ObjetivosVnAnual ano={ano} mes={mes} onSelectMes={setMes} />
 

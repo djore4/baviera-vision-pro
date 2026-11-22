@@ -9,8 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { useSeason } from '@/components/season/SeasonProvider';
 import { MinhasSugestoes } from '@/components/MinhasSugestoes';
 
 /* ── Tab Definições ────────────────────────────────────────────────────────────
@@ -32,7 +30,6 @@ export default function DefinicoesPage() {
   const { session } = useAuth();
   const { roleName, isAdmin } = usePermissions();
   const { theme, setTheme } = useTheme();
-  const season = useSeason();
 
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
@@ -176,15 +173,6 @@ export default function DefinicoesPage() {
           <p className="mt-2 text-[11px] text-muted-foreground">
             "Sistema" segue o modo diurno/nocturno do dispositivo.
           </p>
-          {season.xmasWindow && (
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3">
-              <div>
-                <Label htmlFor="efeitos-sazonais" className="text-xs">Efeitos de Natal</Label>
-                <p className="text-[11px] text-muted-foreground">Neve no ecrã de entrada, luzes na barra lateral e saudação diária.</p>
-              </div>
-              <Switch id="efeitos-sazonais" checked={season.enabled} onCheckedChange={season.setEnabled} />
-            </div>
-          )}
         </CardContent>
       </Card>
 

@@ -9,7 +9,6 @@ import { ComporMensagem, MensagensLista } from '@/components/painel/MensagensPai
 import { AcaoSheet } from '@/components/painel/AcaoSheet';
 import { BaixasRecentes } from '@/components/painel/BaixasRecentes';
 import { DetalheDia } from '@/components/painel/DetalheDia';
-import { FechoAnoCard } from '@/components/FechoAnoCard';
 import { carregarEntradasParque, type EntradasParque } from '@/lib/lead-time-entrega';
 import { listNotifications, type Notification } from '@/lib/notifications';
 import { isRetailType } from '@/lib/viaturas';
@@ -198,8 +197,6 @@ export default function PainelPage() {
           })}
         </div>
       </section>
-
-      <FechoAnoCard hoje={hoje} />
 
       {tileAtivo && (
         <DetalheDia ref={detalheRef} titulo={tileAtivo.titulo} descricao={tileAtivo.descricao} registos={detalheDia[tileAtivo.key]}
