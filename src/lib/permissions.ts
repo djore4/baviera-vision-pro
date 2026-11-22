@@ -193,6 +193,21 @@ export interface AppRole {
   /** Matriz por local: { Aveiro: { retails: 'edit', … }, Porto: { … } }. Um local sem entrada
    *  segue a regra anterior (ver permissoesDoLocal). */
   permissions_local?: Record<string, Record<string, AccessLevel>>;
+  /** Camada por equipa: { 'BMW VN': { funil: 'view', … } }. Por cima da matriz base e das de local; uma
+   *  chave presente substitui a da matriz (incluindo 'none'). Sem equipa na conta, não se aplica. */
+  permissions_equipa?: Record<string, Record<string, AccessLevel>>;
+}
+
+/** A função com a camada da equipa aplicada (espelha access_rank, SQL). Sem equipa ou sem camada
+ *  para ela devolve a própria função. */
+export function funcaoDaEquipa(role: AppRole | null | undefined, equipa: string | null | undefined): AppRole | null | undefined {
+  const camada = role && equipa ? role.permissions_equipa?.[equipa] : undefined;
+  if (!role || !camada || typeof camada !== 'object' || Array.isArray(camada) || Object.keys(camada).length === 0) return role;
+  const locais: Record<string, Record<string, AccessLevel>> = {};
+  Object.entries(role.permissions_local ?? {}).forEach(([l, m]) => {
+    locais[l] = m && typeof m === 'object' ? { ...m, ...camada } : m;
+  });
+  return { ...role, permissions: { ...(role.permissions ?? {}), ...camada }, permissions_local: locais };
 }
 
 /* ── Restrição por local ─────────────────────────────────────────────────────
@@ -261,8 +276,9 @@ export function permissoesDoLocal(role: AppRole | null | undefined, local: strin
 /** Nível que a função dá a quem opera nestes locais (canónicos) neste tab/permissão. */
 export function nivelDaFuncao(
   role: AppRole | null | undefined, locais: readonly string[], tab: string,
-  opts: { tabsPorLocal?: readonly string[]; comExcecao?: boolean } = {},
+  opts: { tabsPorLocal?: readonly string[]; comExcecao?: boolean; equipa?: string | null } = {},
 ): AccessLevel {
+  role = funcaoDaEquipa(role, opts.equipa);
   if (!role) return 'none';
   if (locais.length === 0) return nivel(role.permissions?.[tab]);
   let best: AccessLevel = 'none';
@@ -296,7 +312,7 @@ export interface AppUser {
 export async function listRoles(): Promise<AppRole[]> {
   const { data, error } = await supabase
     .from('app_roles')
-    .select('name, is_admin, permissions, permissions_local')
+    .select('name, is_admin, permissions, permissions_local, permissions_equipa')
     .order('name', { ascending: true });
   if (error) {
     // Coluna em falta (migração permissoes_por_local por aplicar): lê-se a matriz base, como antes.

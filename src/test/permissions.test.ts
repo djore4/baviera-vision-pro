@@ -5,7 +5,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: (...a: unkno
 
 import {
   getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS, ARCHIVED_TAB_KEYS, restritoPeloLocal, tabLivreForaDoLocal,
-  nivelDaFuncao, permissoesDoLocal, type AppRole,
+  nivelDaFuncao, permissoesDoLocal, funcaoDaEquipa, type AppRole,
 } from '@/lib/permissions';
 
 beforeEach(() => { rpc.mockReset(); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
@@ -208,5 +208,46 @@ describe('matriz função × local', () => {
     expect(permissoesDoLocal(role, 'Aveiro')).toEqual(role.permissions);
     expect(permissoesDoLocal(role, 'Feira')).toEqual({ 'end-of-term': 'view' });
     expect(permissoesDoLocal(null, 'Feira')).toEqual({});
+  });
+});
+
+describe('função única "Vendedor" (camada por equipa) = funções antigas', () => {
+  const VN = { demos: 'view', funil: 'view', escala: 'edit', multas: 'edit', lavagem: 'view', produto: 'view', retails: 'view', carteira: 'view',
+    producao: 'view', marketing: 'view', prospecao: 'edit', vendedores: 'view', 'campanha-i3': 'edit', 'end-of-term': 'edit', instalacoes: 'view',
+    'ficha-margem': 'edit' } as const;
+  const VU = { wip: 'view', demos: 'view', stock: 'view', lavagem: 'view', produto: 'view', 'funil-vu': 'view', 'escala-vu': 'view', prospecao: 'none',
+    angariacao: 'view', 'end-of-term': 'edit', instalacoes: 'view', 'ficha-margem': 'edit' } as const;
+  const velho = (n: string, p: Record<string, string>): AppRole => ({ name: n, is_admin: false, permissions: p as AppRole['permissions'], permissions_local: {} });
+  const unico: AppRole = {
+    name: 'Vendedor', is_admin: false,
+    permissions: { demos: 'view', lavagem: 'view', produto: 'view', instalacoes: 'view', 'end-of-term': 'edit', 'ficha-margem': 'edit' },
+    permissions_local: {},
+    permissions_equipa: {
+      'BMW VN': { funil: 'view', retails: 'view', carteira: 'view', producao: 'view', marketing: 'view', vendedores: 'view', escala: 'edit', multas: 'edit', prospecao: 'edit', 'campanha-i3': 'edit' },
+      'BMW VU': { wip: 'view', stock: 'view', 'funil-vu': 'view', 'escala-vu': 'view', angariacao: 'view', prospecao: 'none' },
+    },
+  };
+  const tabs = [...new Set([...Object.keys(VN), ...Object.keys(VU)])];
+  const locais = [[], ['Aveiro'], ['Porto'], ['Porto', 'Gaia'], ['Feira']];
+
+  it.each([['BMW VN', VN], ['BMW VU', VU]] as const)('equipa %s: mesmo nível que a função antiga em todos os tabs e locais', (eq, antigo) => {
+    for (const l of locais) for (const t of tabs) {
+      expect(nivelDaFuncao(unico, l, t, { equipa: eq }), `${eq} ${l.join('+') || 'sem local'} ${t}`)
+        .toBe(nivelDaFuncao(velho('x', antigo), l, t));
+    }
+  });
+
+  it('sem equipa (ou equipa sem camada): só a matriz base', () => {
+    expect(nivelDaFuncao(unico, [], 'funil', { equipa: null })).toBe('none');
+    expect(nivelDaFuncao(unico, [], 'wip')).toBe('none');
+    expect(nivelDaFuncao(unico, [], 'demos', { equipa: 'Motorrad' })).toBe('view');
+    expect(nivelDaFuncao(unico, [], 'funil', { equipa: 'Motorrad' })).toBe('none');
+    expect(funcaoDaEquipa(unico, null)).toBe(unico);
+  });
+
+  it('a camada também se aplica às matrizes por local', () => {
+    const r: AppRole = { ...unico, permissions_local: { Porto: { demos: 'view' } } };
+    expect(nivelDaFuncao(r, ['Porto'], 'funil', { equipa: 'BMW VN' })).toBe('view');
+    expect(nivelDaFuncao(r, ['Porto'], 'funil', { equipa: 'BMW VU' })).toBe('none');
   });
 });
