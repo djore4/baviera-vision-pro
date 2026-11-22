@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 import { client } from '@/clients';
+import { Snowfall } from '@/components/season/Snowfall';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,8 +20,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-sm space-y-6 p-8 bg-card border border-border rounded-xl shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-background relative">
+      <Snowfall />
+      <div className="relative z-10 w-full max-w-sm space-y-6 p-8 bg-card border border-border rounded-xl shadow-lg">
         <div className="flex flex-col items-center gap-3">
           <img src={client.logo.src} alt={client.logo.alt} className="h-12 w-12" />
           <div className="text-center">

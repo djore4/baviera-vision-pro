@@ -133,3 +133,31 @@ html, body {
   display: none;
 }
 
+
+/* ── Época de Natal ───────────────────────────────────────────────────────────
+ * Só decoração e só sob [data-season="xmas"] (ver SeasonProvider). Não toca nas cores
+ * da marca nem nas semânticas. Escondida na impressão. */
+.xmas-lights::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 4px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 6px 2px, #ef4444 0 2px, transparent 2.5px) 0 0 / 24px 4px repeat-x,
+    radial-gradient(circle at 12px 2px, #f59e0b 0 2px, transparent 2.5px) 0 0 / 24px 4px repeat-x,
+    radial-gradient(circle at 18px 2px, #22c55e 0 2px, transparent 2.5px) 0 0 / 24px 4px repeat-x;
+  animation: xmas-twinkle 2.4s ease-in-out infinite;
+}
+@keyframes xmas-twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xmas-lights::after { animation: none; }
+}
+@media print {
+  .xmas-lights::after { display: none; }
+}
