@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   UserPlus, Loader2, Trash2, KeyRound, Search, Copy, Check, Eye, EyeOff, Wand2,
-  ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle,
+  ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle, ShieldCheck,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { generatePassword } from '@/lib/password';
 import { locaisDoGrupo, locaisDoPerfil } from '@/lib/locations';
 import { LocaisPicker } from '@/components/users/LocaisPicker';
+import { UserAccessDialog } from '@/components/users/UserAccessDialog';
 import { EQUIPAS, equipaDe, equipaDeduzida, isEquipa } from '@/lib/cartao-go';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +55,7 @@ export function UsersPanel({
   const [createOpen, setCreateOpen] = useState(false);
   const [pwTarget, setPwTarget] = useState<AppUser | null>(null);
   const [delTarget, setDelTarget] = useState<AppUser | null>(null);
+  const [accessTarget, setAccessTarget] = useState<AppUser | null>(null);
 
   // Quem tem local e, nesse(s) local(is), a função só abre o End-of-Term (nenhum outro tab da matriz).
   const soEot = (u: AppUser) => {
@@ -256,6 +258,10 @@ export function UsersPanel({
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Ver acesso efetivo" title="Ver acesso efetivo (função + local + equipa)"
+                            onClick={() => setAccessTarget(u)} disabled={busyId === u.id}>
+                            <ShieldCheck className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Ver como este utilizador"
                             title={isMe ? 'Já és tu' : 'Ver como este utilizador'}
                             onClick={() => { setViewAs(u.email); navigate('/'); }} disabled={busyId === u.id || isMe || !u.email}>
@@ -284,6 +290,7 @@ export function UsersPanel({
 
       <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} roleNames={roleNames} onCreated={onChanged} />
       <ResetPasswordDialog target={pwTarget} onClose={() => setPwTarget(null)} />
+      <UserAccessDialog user={accessTarget} roles={roles} onClose={() => setAccessTarget(null)} />
 
       <AlertDialog open={!!delTarget} onOpenChange={o => !o && setDelTarget(null)}>
         <AlertDialogContent>

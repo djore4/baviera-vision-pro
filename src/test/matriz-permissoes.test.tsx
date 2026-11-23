@@ -44,19 +44,21 @@ describe('matriz de permissões', () => {
     for (const area of AREAS) {
       const tabs = PERMISSION_TABS.filter(t => t.area === area.key);
       if (tabs.length === 0) continue;
-      const bloco = screen.getByRole('heading', { name: area.label, level: 4 }).closest('div.rounded-xl') as HTMLElement;
+      const bloco = screen.getByRole('heading', { name: area.label, level: 4 }).closest('tbody') as HTMLElement;
       expect(bloco, `área ${area.label}`).toBeTruthy();
       for (const t of tabs) {
         expect(within(bloco).getAllByText(t.label).length, `${t.label} em ${area.label}`).toBeGreaterThan(0);
       }
     }
-    const vn = screen.getByRole('heading', { name: 'Vendas VN', level: 4 }).closest('div.rounded-xl') as HTMLElement;
+    const vn = screen.getByRole('heading', { name: 'Vendas VN', level: 4 }).closest('tbody') as HTMLElement;
     expect(within(vn).getByText('Multas')).toBeTruthy();
   });
 
-  it('abre no local Aveiro (e não no 1.º da lista), para não gravar a matriz do local errado', () => {
+  it('mostra todos os locais, "sem local" e as equipas lado a lado', () => {
     render(<RolesPanel roles={roles} users={[]} loading={false} onSaved={async () => {}} />);
     fireEvent.click(screen.getAllByText('Comercial')[0]);
-    expect(screen.getByRole('radio', { name: 'Aveiro' })).toHaveAttribute('data-state', 'on');
+    for (const c of ['Maia', 'Porto', 'Gaia', 'Feira', 'Aveiro', 'Sem local', 'BMW VN', 'BMW VU']) {
+      expect(screen.getByRole('columnheader', { name: c }), c).toBeTruthy();
+    }
   });
 });
