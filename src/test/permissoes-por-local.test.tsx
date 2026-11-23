@@ -1,8 +1,7 @@
-/* Painel Funções: matriz com todos os locais e equipas lado a lado. Cada célula edita um local/equipa;
- * só se envia permissions_local quando algo mudou nos locais (ou nas equipas) e permissions_equipa
- * quando mudou a camada das equipas. */
+/* Painel Funções com a matriz por local: o seletor de local edita a matriz desse local
+ * e só envia permissions_local quando algo mudou nos locais. */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { AppRole } from '@/lib/permissions';
 
 const ctx = { capabilities: { lavagemGranular: true, eotGranular: true, eotResponsaveis: true, viaturasLocal: true, demosPrecos: true, demosGestao: true, demosReservas: true }, tabsPorLocal: ['demos'] };
@@ -17,73 +16,51 @@ const roles: AppRole[] = [{
   name: 'Comercial', is_admin: false,
   permissions: { retails: 'view', 'end-of-term': 'view' },
   permissions_local: { Porto: { lavagem: 'view' } },
-  permissions_equipa: { 'BMW VN': { funil: 'view' } },
 }];
 
-const cel = (tab: string, col: string) => screen.getAllByRole('button', { name: new RegExp(`^${tab} · ${col}:`) })[0];
+const linha = (label: string) => screen.getAllByText(label)[0].closest('li') as HTMLElement;
 
 beforeEach(() => saveRole.mockClear());
 
-describe('Funções: matriz por local e equipa', () => {
-  it('cada célula mostra o nível do seu local (Porto: guardado; Aveiro: regra anterior = base) e a equipa herda ou sobrepõe', () => {
+describe('Funções: matriz por local', () => {
+  it('mostra um seletor com os locais e "Sem local"', () => {
     render(<RolesPanel roles={roles} users={[]} loading={false} onSaved={async () => {}} />);
-    expect(cel('Lavagem', 'Porto')).toHaveAccessibleName(/Consulta/);
-    expect(cel('WIP', 'Porto')).toHaveAccessibleName(/Sem acesso/);
-    expect(cel('WIP', 'Aveiro')).toHaveAccessibleName(/Consulta/); // regra anterior = base
-    expect(cel('Funil', 'BMW VN')).toHaveAccessibleName(/Consulta/);
-    expect(cel('Funil', 'BMW VU')).toHaveAccessibleName(/herda do local/);
+    for (const l of ['Maia', 'Porto', 'Gaia', 'Feira', 'Aveiro', 'Sem local']) {
+      expect(screen.getByRole('radio', { name: l })).toBeTruthy();
+    }
   });
 
-  it('o clique percorre sem acesso → consulta → edição; na equipa, herda → sem acesso → consulta → edição → herda', () => {
+  it('cada local mostra a sua matriz (Porto: guardada; Aveiro: regra anterior = matriz base)', () => {
     render(<RolesPanel roles={roles} users={[]} loading={false} onSaved={async () => {}} />);
-    fireEvent.click(cel('Lavagem', 'Gaia'));
-    expect(cel('Lavagem', 'Gaia')).toHaveAccessibleName(/Consulta/);
-    fireEvent.click(cel('Lavagem', 'Gaia'));
-    expect(cel('Lavagem', 'Gaia')).toHaveAccessibleName(/Edição/);
-    const passos = ['Sem acesso', 'Consulta', 'Edição', 'herda do local'];
-    for (const p of passos) { fireEvent.click(cel('Produto', 'BMW VU')); expect(cel('Produto', 'BMW VU')).toHaveAccessibleName(new RegExp(p)); }
+    fireEvent.click(screen.getByRole('radio', { name: 'Porto' }));
+    expect(within(linha('Lavagem')).getByRole('radio', { name: 'Consulta', checked: true })).toBeTruthy();
+    expect(within(linha('WIP')).getByRole('radio', { name: 'Sem acesso', checked: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', { name: 'Aveiro' }));
+    expect(within(linha('WIP')).getByRole('radio', { name: 'Consulta', checked: true })).toBeTruthy();
   });
 
-  it('editar um local grava a matriz de todos os locais e NÃO envia a camada de equipas', async () => {
+  it('editar um local grava a matriz de todos os locais; editar só "Sem local" não envia permissions_local', async () => {
     render(<RolesPanel roles={roles} users={[]} loading={false} onSaved={async () => {}} />);
-    fireEvent.click(cel('WIP', 'Porto')); fireEvent.click(cel('WIP', 'Porto')); // WIP VN = retails: sem acesso → consulta → edição
+    fireEvent.click(screen.getByRole('radio', { name: 'Porto' }));
+    fireEvent.click(within(linha('WIP')).getByRole('radio', { name: 'Edição' }));
     fireEvent.click(screen.getByRole('button', { name: /Guardar/ }));
     await waitFor(() => expect(saveRole).toHaveBeenCalledTimes(1));
-    const [nome, base, admin, locais, equipas] = saveRole.mock.calls[0];
+    const [nome, base, admin, locais] = saveRole.mock.calls[0];
     expect(nome).toBe('Comercial'); expect(admin).toBe(false);
     expect(base).toEqual({ retails: 'view', 'end-of-term': 'view' });
     expect(Object.keys(locais).sort()).toEqual(['Aveiro', 'Feira', 'Gaia', 'Maia', 'Porto']);
     expect(locais.Porto).toEqual({ lavagem: 'view', retails: 'edit' });
     expect(locais.Aveiro).toEqual({ retails: 'view', 'end-of-term': 'view' });
-    expect(equipas).toBeUndefined();
+    expect(locais.Feira).toEqual({ 'end-of-term': 'view' });
   });
 
-  it('só a coluna "Sem local" alterada: nem locais nem equipas são enviados', async () => {
+  it('só a matriz base alterada: permissions_local não é enviado', async () => {
     render(<RolesPanel roles={roles} users={[]} loading={false} onSaved={async () => {}} />);
-    fireEvent.click(cel('WIP', 'Sem local')); // WIP VN = retails: consulta → edição
+    fireEvent.click(screen.getByRole('radio', { name: 'Sem local' }));
+    fireEvent.click(within(linha('WIP')).getByRole('radio', { name: 'Edição' }));
     fireEvent.click(screen.getByRole('button', { name: /Guardar/ }));
     await waitFor(() => expect(saveRole).toHaveBeenCalledTimes(1));
     expect(saveRole.mock.calls[0][3]).toBeUndefined();
-    expect(saveRole.mock.calls[0][4]).toBeUndefined();
     expect(saveRole.mock.calls[0][1]).toEqual({ retails: 'edit', 'end-of-term': 'view' });
-  });
-
-  it('alterar a equipa envia a camada (com "sem acesso" explícito) e congela os locais', async () => {
-    render(<RolesPanel roles={roles} users={[]} loading={false} onSaved={async () => {}} />);
-    fireEvent.click(cel('Funil', 'BMW VN'));                                          // consulta → edição
-    fireEvent.click(cel('Stock', 'BMW VN'));                                          // herda → sem acesso (explícito)
-    fireEvent.click(screen.getByRole('button', { name: /Guardar/ }));
-    await waitFor(() => expect(saveRole).toHaveBeenCalledTimes(1));
-    const [, , , locais, equipas] = saveRole.mock.calls[0];
-    expect(equipas).toEqual({ 'BMW VN': { funil: 'edit', stock: 'none' } });
-    expect(Object.keys(locais).sort()).toEqual(['Aveiro', 'Feira', 'Gaia', 'Maia', 'Porto']);
-  });
-
-  it('"Só linhas com diferenças" esconde os tabs iguais em todos os locais e sem equipas', () => {
-    render(<RolesPanel roles={roles} users={[]} loading={false} onSaved={async () => {}} />);
-    expect(screen.getAllByText('Produto').length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('checkbox', { name: /Só linhas com diferenças/ }));
-    expect(screen.queryByText('Produto')).toBeNull();     // igual em todos os locais
-    expect(screen.getAllByText('Funil').length).toBeGreaterThan(0); // tem equipa a sobrepor-se
   });
 });

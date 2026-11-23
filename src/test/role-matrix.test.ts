@@ -1,18 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { nivelDaFuncao, type AppRole, type AccessLevel } from '@/lib/permissions';
-import { acessoEfetivo, diferentesDoMaioritario, proximoNivel, proximoNivelEquipa, nivelMaioritario } from '@/lib/role-matrix';
-
-describe('ciclos de nível', () => {
-  it('local: sem acesso → consulta → edição → sem acesso; permissão fina alterna', () => {
-    expect(proximoNivel('none')).toBe('view'); expect(proximoNivel('view')).toBe('edit'); expect(proximoNivel('edit')).toBe('none');
-    expect(proximoNivel('none', true)).toBe('edit'); expect(proximoNivel('edit', true)).toBe('none');
-  });
-  it('equipa: herda (undefined) → sem acesso → consulta → edição → herda', () => {
-    expect(proximoNivelEquipa(undefined)).toBe('none'); expect(proximoNivelEquipa('none')).toBe('view');
-    expect(proximoNivelEquipa('view')).toBe('edit'); expect(proximoNivelEquipa('edit')).toBeUndefined();
-    expect(proximoNivelEquipa(undefined, true)).toBe('none'); expect(proximoNivelEquipa('none', true)).toBe('edit'); expect(proximoNivelEquipa('edit', true)).toBeUndefined();
-  });
-});
+import { acessoEfetivo, diferentesDoMaioritario, nivelMaioritario } from '@/lib/role-matrix';
 
 describe('diferenças', () => {
   it('maioritário (empate: o mais alto) e destaque dos que divergem', () => {
