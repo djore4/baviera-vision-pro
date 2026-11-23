@@ -55,6 +55,20 @@ describe('Funil — novo e eliminar', () => {
     await waitFor(() => expect(onDelete).toHaveBeenCalledWith('b'));
   });
 
+  it('canWriteRow: o vendedor só edita e elimina as linhas que são suas', async () => {
+    const onEdit = vi.fn();
+    const onDelete = vi.fn().mockResolvedValue(true);
+    render(<FunilBoard records={rows} onEdit={onEdit} onDelete={onDelete} canWriteRow={r => r.resp === 'JD'} />);
+    expect(screen.getAllByRole('button', { name: 'Eliminar' })).toHaveLength(1);
+    fireEvent.click(screen.getByText('C2'));
+    expect(onEdit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('C1'));
+    expect(onEdit).toHaveBeenCalledWith('a');
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sim' }));
+    await waitFor(() => expect(onDelete).toHaveBeenCalledWith('a'));
+  });
+
   it('sem permissões não há botões', () => {
     render(<FunilBoard records={rows} />);
     expect(screen.queryByRole('button', { name: /Novo negócio/ })).toBeNull();

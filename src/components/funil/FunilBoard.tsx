@@ -25,8 +25,10 @@ export interface FunilRow {
   obs: string;
 }
 
-export function FunilBoard({ records, onEdit, onNew, onDelete }: {
+export function FunilBoard({ records, onEdit, onNew, onDelete, canWriteRow }: {
   records: FunilRow[];
+  /** Quando existe, só as linhas para as quais devolve true se editam/eliminam (vendedor: as suas). */
+  canWriteRow?: (r: FunilRow) => boolean;
   onEdit?: (id: string) => void;
   /** Recebe o responsável filtrado (se houver) para pré-preencher o negócio novo. */
   onNew?: (resp: string | null) => void;
@@ -139,12 +141,14 @@ export function FunilBoard({ records, onEdit, onNew, onDelete }: {
                         </td>
                       </tr>
                     ) : (
-                      rows.map((r, i) => (
+                      rows.map((r, i) => {
+                        const escreve = !!r.id && (!canWriteRow || canWriteRow(r));
+                        return (
                         <tr
                           key={r.id ?? i}
-                          onClick={() => r.id && onEdit?.(r.id)}
-                          title={onEdit && r.id ? 'Clicar para editar' : undefined}
-                          className={`border-b border-border/50 hover:bg-muted/30 transition-colors${onEdit && r.id ? ' cursor-pointer' : ''}`}
+                          onClick={() => escreve && onEdit?.(r.id!)}
+                          title={onEdit && escreve ? 'Clicar para editar' : undefined}
+                          className={`border-b border-border/50 hover:bg-muted/30 transition-colors${onEdit && escreve ? ' cursor-pointer' : ''}`}
                         >
                           <td className="px-2 py-1.5 font-semibold">{r.resp}</td>
                           <td className="px-2 py-1.5 whitespace-nowrap">{r.version}</td>
@@ -152,11 +156,12 @@ export function FunilBoard({ records, onEdit, onNew, onDelete }: {
                           <td className="px-2 py-1.5 max-w-[140px] truncate text-muted-foreground">{r.obs}</td>
                           {onDelete && (
                             <td className="px-1 py-1.5 text-right">
-                              {r.id && <RowDeleteButton onDelete={() => onDelete(r.id!)} />}
+                              {escreve && <RowDeleteButton onDelete={() => onDelete(r.id!)} />}
                             </td>
                           )}
                         </tr>
-                      ))
+                        );
+                      })
                     )}
                   </tbody>
                 </table>

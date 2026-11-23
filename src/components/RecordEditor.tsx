@@ -7,6 +7,7 @@ import { X, Check, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { vendedorInitials } from '@/lib/team';
 import { modelOptions, versionOptions } from '@/lib/vehicle-options';
+import { FUNIL_ESTADOS, getMinhasIniciais } from '@/lib/funil-escopo';
 import { fetchDemoVehicles, demoLabel, demoToRecordPatch, type DemoVehicle } from '@/lib/demo-vehicles';
 
 /* ── Form shape (colunas de control_records) ── */
@@ -185,7 +186,17 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
   const [loadingRow, setLoadingRow] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Entrada em parque (lead time de entrega): só o administrador a vê e corrige.
-  const { isAdmin } = usePermissions();
+  const { isAdmin, canEdit } = usePermissions();
+  // Vendedor que só edita o Funil: escreve apenas negócios seus (RESP = as suas iniciais) e do funil
+  // (Frio/Morno/Quente). Espelha a RLS de control_records (migração funil_vendedor_escrita).
+  const soOsSeus = !(canEdit('dados') || canEdit('database')) && canEdit('funil');
+  const [minhas, setMinhas] = useState<string[]>([]);
+  useEffect(() => {
+    if (!soOsSeus) return;
+    let alive = true;
+    getMinhasIniciais().then(i => { if (alive) setMinhas(i); }).catch(() => { /* sem iniciais: não grava */ });
+    return () => { alive = false; };
+  }, [soOsSeus]);
   const [entradaParque, setEntradaParque] = useState('');
   const [entradaOriginal, setEntradaOriginal] = useState('');
   // Viaturas demo para pré-preencher um VD (carregam-se na primeira vez que o tipo é VD).
@@ -258,9 +269,12 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
   };
 
   async function save() {
+    if (soOsSeus && minhas.length === 0) { toast.error('Não foi possível identificar o teu responsável (iniciais). Contacta a administração.'); return; }
+    if (soOsSeus && !(FUNIL_ESTADOS as readonly string[]).includes(form.status)) { toast.error('Só podes gravar negócios do funil (Frio, Morno ou Quente).'); return; }
     setSaving(true);
     const payload = {
       ...form,
+      ...(soOsSeus ? { resp: minhas.includes(form.resp.trim().toUpperCase()) ? form.resp.trim().toUpperCase() : minhas[0] } : {}),
       qor: form.qor ? 1 : 0, xev: form.xev ? 1 : 0, bev: form.bev ? 1 : 0,
       m: form.m ? 1 : 0, mpa: form.mpa ? 1 : 0, gkl: form.gkl ? 1 : 0, csc: form.csc ? 1 : 0, ret: form.ret ? 1 : 0,
       neg: form.neg || null, dmat: form.dmat || null, date298: form.date298 || null, dfat: form.dfat || null,
@@ -316,9 +330,16 @@ export function RecordEditorProvider({ children }: { children: React.ReactNode }
               <div>
                 <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Geral</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <SelectField k="status" label="STATUS" opts={STATUS_OPTS} />
+                  <SelectField k="status" label="STATUS" opts={soOsSeus ? [...FUNIL_ESTADOS] : STATUS_OPTS} />
                   <TextField k="neg" label="NEG — Data de negócio" type="date" />
-                  <ResponsavelField key={editId ?? 'novo'} value={form.resp} options={vendedorInitials(data?.control ?? [], form.resp)} onChange={v => setField('resp', v)} />
+                  {soOsSeus ? (
+                    <div>
+                      <label className={LABEL_CLS}>RESP — Vendedor</label>
+                      <input value={form.resp || minhas[0] || ''} readOnly aria-label="Vendedor responsável" className={`${FIELD_CLS} opacity-70`} />
+                    </div>
+                  ) : (
+                    <ResponsavelField key={editId ?? 'novo'} value={form.resp} options={vendedorInitials(data?.control ?? [], form.resp)} onChange={v => setField('resp', v)} />
+                  )}
                   <TextField k="id_cliente" label="ID — Cliente" />
                   <TextField k="biz" label="BIZ — Bizagi" />
                   <div className="col-span-2">
