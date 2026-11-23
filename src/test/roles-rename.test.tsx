@@ -33,8 +33,7 @@ describe('Renomear função', () => {
     renameRole.mockResolvedValue({ name: 'Vendas', permissions: {}, is_admin: false });
     const onSaved = vi.fn(async () => {});
     mount(onSaved);
-    fireEvent.click(screen.getAllByText('Comercial')[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Renomear função' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Renomear a função Comercial' }));
     expect(screen.getByText(/Os 2 utilizadores com esta função passam/)).toBeTruthy();
     const input = screen.getByLabelText('Novo nome') as HTMLInputElement;
     expect(input.value).toBe('Comercial');
@@ -47,8 +46,7 @@ describe('Renomear função', () => {
 
   it('recusa um nome que já existe (sem distinguir maiúsculas)', async () => {
     mount();
-    fireEvent.click(screen.getAllByText('Comercial')[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Renomear função' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Renomear a função Comercial' }));
     fireEvent.change(screen.getByLabelText('Novo nome'), { target: { value: 'lavador' } });
     fireEvent.click(screen.getByRole('button', { name: /^Renomear$/ }));
     expect(renameRole).not.toHaveBeenCalled();
@@ -57,16 +55,14 @@ describe('Renomear função', () => {
 
   it('avisa quando o nome tem uma regra antiga ligada', () => {
     mount();
-    fireEvent.click(screen.getAllByText('Lavador')[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Renomear função' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Renomear a função Lavador' }));
     expect(screen.getByText(/ainda tem uma regra antiga ligada ao nome/)).toBeTruthy();
   });
 
   it('mostra o erro do servidor', async () => {
     renameRole.mockRejectedValue(new Error('Falta publicar a versão nova da função admin-users'));
     mount();
-    fireEvent.click(screen.getAllByText('Comercial')[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Renomear função' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Renomear a função Comercial' }));
     fireEvent.change(screen.getByLabelText('Novo nome'), { target: { value: 'Vendas' } });
     fireEvent.click(screen.getByRole('button', { name: /^Renomear$/ }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Falta publicar a versão nova da função admin-users'));

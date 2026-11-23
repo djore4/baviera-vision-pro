@@ -58,3 +58,16 @@ export function acessoEfetivo(
   }
   return best as AcessoEfetivo;
 }
+
+/** Próximo nível ao clicar numa célula de local/base: sem acesso → consulta → edição → sem acesso.
+ *  Uma permissão fina (só 'sim'/'não') alterna entre sem acesso e edição. */
+export const proximoNivel = (v: AccessLevel, fina = false): AccessLevel =>
+  fina ? (v === 'none' ? 'edit' : 'none') : v === 'none' ? 'view' : v === 'view' ? 'edit' : 'none';
+
+/** Próximo valor numa célula de equipa (camada por cima do local):
+ *  herda (undefined) → sem acesso → consulta → edição → herda. */
+export const proximoNivelEquipa = (v: AccessLevel | undefined, fina = false): AccessLevel | undefined => {
+  if (v === undefined) return 'none';
+  if (fina) return v === 'none' ? 'edit' : undefined;
+  return v === 'none' ? 'view' : v === 'view' ? 'edit' : undefined;
+};

@@ -40,7 +40,6 @@ describe('matriz de permissões', () => {
 
   it('a matriz renderizada mostra cada tab na sua área (Multas em Vendas VN)', () => {
     render(<RolesPanel roles={roles} users={[]} loading={false} onSaved={async () => {}} />);
-    fireEvent.click(screen.getAllByText('Comercial')[0]);
     for (const area of AREAS) {
       const tabs = PERMISSION_TABS.filter(t => t.area === area.key);
       if (tabs.length === 0) continue;
@@ -54,9 +53,10 @@ describe('matriz de permissões', () => {
     expect(within(vn).getByText('Multas')).toBeTruthy();
   });
 
-  it('abre no local Aveiro (e não no 1.º da lista), para não gravar a matriz do local errado', () => {
+  it('mostra todos os locais, "sem local" e as equipas lado a lado', () => {
     render(<RolesPanel roles={roles} users={[]} loading={false} onSaved={async () => {}} />);
-    fireEvent.click(screen.getAllByText('Comercial')[0]);
-    expect(screen.getByRole('radio', { name: 'Aveiro' })).toHaveAttribute('data-state', 'on');
+    for (const c of ['Maia', 'Porto', 'Gaia', 'Feira', 'Aveiro', 'Sem local', 'BMW VN', 'BMW VU']) {
+      expect(screen.getAllByRole('columnheader', { name: c }).length, c).toBeGreaterThan(0);
+    }
   });
 });
