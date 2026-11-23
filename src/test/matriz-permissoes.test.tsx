@@ -24,7 +24,7 @@ const FORA_DA_MATRIZ_DE_PROPOSITO = ['database', 'emprestimos', 'escala-repsol',
 /* Tabs que TÊM de ser atribuíveis (pedido explícito do negócio): não podem sair da matriz. */
 const OBRIGATORIOS_NA_MATRIZ = ['painel', 'multas', 'marketing', 'objetivos', 'end-of-term', 'demos', 'lavagem'];
 
-const roles: AppRole[] = [{ name: 'Comercial', is_admin: false, permissions: {} }];
+const roles: AppRole[] = [{ name: 'Comercial', is_admin: false, modelo_simples: true, permissions: {}, permissions_outros: {} }];
 
 describe('matriz de permissões', () => {
   it('só ficam fora da matriz os tabs listados de propósito', () => {
@@ -53,10 +53,8 @@ describe('matriz de permissões', () => {
     expect(within(vn).getByText('Multas')).toBeTruthy();
   });
 
-  it('mostra todos os locais, "sem local" e as equipas lado a lado', () => {
+  it('mostra as duas colunas de cada perfil: Aveiro e Outros locais', () => {
     render(<RolesPanel roles={roles} users={[]} loading={false} onSaved={async () => {}} />);
-    for (const c of ['Maia', 'Porto', 'Gaia', 'Feira', 'Aveiro', 'Sem local', 'BMW VN', 'BMW VU']) {
-      expect(screen.getAllByRole('columnheader', { name: c }).length, c).toBeGreaterThan(0);
-    }
+    for (const c of ['Aveiro', 'Outros locais']) expect(screen.getAllByRole('columnheader', { name: c }).length, c).toBeGreaterThan(0);
   });
 });

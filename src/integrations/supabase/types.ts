@@ -2902,6 +2902,8 @@ export type Database = {
       sf_perfil_insercao: { Args: Record<PropertyKey, never>; Returns: Json }
       tabs_por_local: { Args: Record<PropertyKey, never>; Returns: string[] }
       minhas_iniciais: { Args: Record<PropertyKey, never>; Returns: string[] }
+      guardar_perfil: { Args: { p_nome: string; p_permissions: Json; p_outros: Json }; Returns: undefined }
+      renomear_perfil: { Args: { p_nome: string; p_novo: string }; Returns: undefined }
       url_encode: { Args: { p_text: string }; Returns: string }
       viatura_do_meu_local: { Args: { p_chassis: string }; Returns: boolean }
       viatura_do_meu_local_pasta: { Args: { p_pasta: string }; Returns: boolean }

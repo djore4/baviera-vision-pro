@@ -1,19 +1,16 @@
 import { Fragment, useMemo } from 'react';
 import { Pencil, Trash2, Copy } from 'lucide-react';
-import { PERMISSION_TABS, AREAS, SUB_PERMISSIONS, type AccessLevel, type AppCapabilities, type AppUser } from '@/lib/permissions';
-import { diferentesDoMaioritario, proximoNivel, proximoNivelEquipa } from '@/lib/role-matrix';
+import { PERMISSION_TABS, AREAS, SUB_PERMISSIONS, LOCAL_ACESSO_COMPLETO, type AccessLevel, type AppCapabilities, type AppUser } from '@/lib/permissions';
+import { proximoNivel } from '@/lib/role-matrix';
 import { locaisDoPerfil } from '@/lib/locations';
 import { cn } from '@/lib/utils';
 import { Select, SelectTrigger, SelectContent, SelectItem } from '@/components/ui/select';
 
-/* Matriz única de permissões: linhas = tabs; colunas = cada perfil com os seus locais, "sem local"
- * e equipas lado a lado. Clicar numa célula percorre sem acesso → consulta → edição.
- * Equipa = camada por cima do local: célula vazia herda; preenchida substitui (incl. "sem acesso"). */
+/* Matriz única de permissões: linhas = tabs; cada perfil tem duas colunas — "completo" (Aveiro e contas
+ * sem local) e "outros locais" (Maia, Porto, Gaia, Feira). Clicar numa célula percorre
+ * sem acesso → consulta → edição. */
 
-/** Colunas de um perfil: um local, 'base' (contas sem local) ou 'eq:<equipa>'. */
-export const BASE = '__base__';
-export const EQ = 'eq:';
-
+export type Coluna = 'completo' | 'outros';
 export interface PerfilColuna { name: string; dirty: boolean }
 
 const NIVEL_LABEL: Record<AccessLevel, string> = { none: 'Sem acesso', view: 'Consulta', edit: 'Edição' };
@@ -24,85 +21,56 @@ const COR: Record<AccessLevel, string> = {
   edit: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200',
 };
 const LEVELS: AccessLevel[] = ['none', 'view', 'edit'];
+const COLUNAS: { id: Coluna; label: string; ajuda: string }[] = [
+  { id: 'completo', label: LOCAL_ACESSO_COMPLETO, ajuda: `${LOCAL_ACESSO_COMPLETO} e contas sem local` },
+  { id: 'outros', label: 'Outros locais', ajuda: 'Maia, Porto, Gaia e Feira' },
+];
 
 const nomes = (us: AppUser[]) => us.map(u => u.nome || u.email).join(', ');
 
 export function PermissionsMatrix({
-  perfis, locais, mostrarBase, equipas, users, allPerfis, capabilities, soDiferencas,
-  getCell, setCells, onRename, onDelete, onCopyFrom,
+  perfis, users, allPerfis, capabilities, soDiferencas, getCell, setCells, onRename, onDelete, onCopyFrom,
 }: {
   perfis: PerfilColuna[];
-  /** Locais visíveis, por ordem. */
-  locais: string[];
-  mostrarBase: boolean;
-  /** Equipas visíveis (colunas-camada). */
-  equipas: string[];
   users: AppUser[];
   allPerfis: string[];
   capabilities: AppCapabilities;
   soDiferencas: boolean;
-  /** Local/base: sempre um nível. Equipa: undefined = herda do local. */
-  getCell: (perfil: string, col: string, key: string) => AccessLevel | undefined;
-  setCells: (perfil: string, cols: string[], keys: string[], value: AccessLevel | undefined) => void;
+  getCell: (perfil: string, col: Coluna, key: string) => AccessLevel;
+  setCells: (perfil: string, cols: Coluna[], keys: string[], value: AccessLevel) => void;
   onRename: (perfil: string) => void;
   onDelete: (perfil: string) => void;
   onCopyFrom: (perfil: string, origem: string) => void;
 }) {
-  const colunas = useMemo(() => [
-    ...locais.map(id => ({ id, label: id, tipo: 'local' as const })),
-    ...(mostrarBase ? [{ id: BASE, label: 'Sem local', tipo: 'base' as const }] : []),
-    ...equipas.map(e => ({ id: EQ + e, label: e, tipo: 'equipa' as const })),
-  ], [locais, mostrarBase, equipas]);
-  const nCols = colunas.length;
-  const colsDeNivel = colunas.filter(c => c.tipo !== 'equipa').map(c => c.id);
+  const noCompleto = (u: AppUser) => { const l = locaisDoPerfil(u.local); return l.length === 0 || l.includes(LOCAL_ACESSO_COMPLETO); };
+  const noutros = (u: AppUser) => locaisDoPerfil(u.local).some(l => l !== LOCAL_ACESSO_COMPLETO);
+  const utilizadoresDe = (perfil: string, col: Coluna) => users.filter(u => u.perfil === perfil && (col === 'completo' ? noCompleto(u) : noutros(u)));
 
-  const utilizadoresDe = (perfil: string, col: { id: string; tipo: string }) =>
-    users.filter(u => u.perfil === perfil && (
-      col.tipo === 'local' ? locaisDoPerfil(u.local).includes(col.id)
-      : col.tipo === 'base' ? locaisDoPerfil(u.local).length === 0
-      : u.equipa === col.id.slice(EQ.length)));
-
-  const nivelDe = (p: string, c: string, k: string): AccessLevel => getCell(p, c, k) ?? 'none';
-  const variaEm = (p: string, k: string) => {
-    const l = colunas.filter(c => c.tipo === 'local').map(c => nivelDe(p, c.id, k));
-    return l.some(v => v !== l[0]) || colunas.some(c => c.tipo === 'equipa' && getCell(p, c.id, k) !== undefined);
-  };
-  const temDiferencas = (k: string) => perfis.some(p => variaEm(p.name, k));
+  const varia = (p: string, k: string) => getCell(p, 'completo', k) !== getCell(p, 'outros', k);
+  const temDiferencas = (k: string) => perfis.some(p => varia(p.name, k));
 
   const areas = useMemo(() => AREAS.map(area => ({ area, tabs: PERMISSION_TABS.filter(t => t.area === area.key) })).filter(a => a.tabs.length > 0), []);
   const finasDe = (tab: string) => SUB_PERMISSIONS.filter(sp => sp.parent === tab && capabilities[sp.capability]);
 
-  const celula = (perfil: string, col: (typeof colunas)[number], key: string, fina: boolean, destaque: boolean, rotulo: string, primeira: boolean) => {
-    const v = getCell(perfil, col.id, key);
-    const equipa = col.tipo === 'equipa';
-    const herda = equipa && v === undefined;
-    const nv: AccessLevel = v ?? 'none';
-    const proximo = equipa ? proximoNivelEquipa(v, fina) : proximoNivel(nv, fina);
-    const texto = herda ? 'herda' : fina ? (nv === 'none' ? 'Não' : 'Sim') : CURTO[nv];
-    const desc = herda ? 'herda do local' : fina ? (nv === 'none' ? 'Não' : 'Sim') : NIVEL_LABEL[nv];
+  const celula = (perfil: string, col: Coluna, key: string, fina: boolean, rotulo: string, primeira: boolean) => {
+    const nv = getCell(perfil, col, key);
+    const texto = fina ? (nv === 'none' ? 'Não' : 'Sim') : CURTO[nv];
+    const desc = fina ? (nv === 'none' ? 'Não' : 'Sim') : NIVEL_LABEL[nv];
+    const destaque = col === 'outros' && varia(perfil, key);
+    const nomeCol = COLUNAS.find(c => c.id === col)!.label;
     return (
-      <td key={col.id} className={cn('px-0.5 py-0.5 text-center', primeira && 'border-l-2 border-border')}>
+      <td key={perfil + col} className={cn('px-0.5 py-0.5 text-center', primeira && 'border-l-2 border-border')}>
         <button
           type="button"
-          aria-label={`${rotulo} · ${perfil} · ${col.label}: ${desc}`}
-          title={`${rotulo} · ${perfil} · ${col.label}: ${desc}. Clicar para alterar.`}
-          onClick={() => setCells(perfil, [col.id], [key], proximo)}
-          className={cn(
-            'w-full min-w-[3.1rem] rounded px-1 py-0.5 text-[11px] font-medium leading-tight transition-colors hover:brightness-95',
-            herda ? 'border border-dashed border-border text-muted-foreground/60 bg-transparent' : COR[nv],
-            equipa && !herda && 'ring-1 ring-violet-500/60',
-            destaque && 'outline outline-2 outline-amber-500',
-          )}
+          aria-label={`${rotulo} · ${perfil} · ${nomeCol}: ${desc}`}
+          title={`${rotulo} · ${perfil} · ${nomeCol}: ${desc}. Clicar para alterar.`}
+          onClick={() => setCells(perfil, [col], [key], proximoNivel(nv, fina))}
+          className={cn('w-full min-w-[3.6rem] rounded px-1.5 py-0.5 text-[11px] font-medium leading-tight transition-colors hover:brightness-95', COR[nv], destaque && 'outline outline-2 outline-amber-500')}
         >
           {texto}
         </button>
       </td>
     );
-  };
-
-  const destaques = (perfil: string, key: string) => {
-    const ls = colunas.filter(c => c.tipo === 'local');
-    return diferentesDoMaioritario(ls.map(c => nivelDe(perfil, c.id, key)));
   };
 
   if (perfis.length === 0) {
@@ -113,13 +81,12 @@ export function PermissionsMatrix({
     <div className="rounded-xl border border-border bg-card overflow-auto max-h-[78vh]">
       <table className="border-separate border-spacing-0 text-sm">
         <thead className="sticky top-0 z-30">
-          {/* Perfil */}
           <tr>
             <th rowSpan={3} className="sticky left-0 z-40 bg-muted px-3 py-2 text-left text-[11px] font-semibold align-bottom min-w-[11rem]">Tab</th>
             {perfis.map(p => {
               const membros = users.filter(u => u.perfil === p.name);
               return (
-                <th key={p.name} colSpan={nCols} className="bg-muted px-2 py-1.5 border-l-2 border-border text-left">
+                <th key={p.name} colSpan={2} className="bg-muted px-2 py-1.5 border-l-2 border-border text-left">
                   <div className="flex items-center justify-between gap-2">
                     <span className="min-w-0">
                       <span className="text-sm font-bold">{p.name}</span>
@@ -143,19 +110,16 @@ export function PermissionsMatrix({
               );
             })}
           </tr>
-          {/* Local / equipa */}
           <tr className="text-[11px] font-semibold">
-            {perfis.map(p => colunas.map((c, i) => (
-              <th key={p.name + c.id} className={cn('px-1 py-1 text-center', i === 0 && 'border-l-2 border-border', c.tipo === 'equipa' ? 'bg-violet-100 dark:bg-violet-950' : 'bg-muted')}
-                title={c.tipo === 'equipa' ? 'Equipa: sobrepõe-se ao local (vazio = herda)' : undefined}>{c.label}</th>
+            {perfis.map(p => COLUNAS.map((c, i) => (
+              <th key={p.name + c.id} title={c.ajuda} className={cn('bg-muted px-1 py-1 text-center', i === 0 && 'border-l-2 border-border')}>{c.label}</th>
             )))}
           </tr>
-          {/* Utilizadores afetados */}
           <tr className="text-[10px] text-muted-foreground">
-            {perfis.map(p => colunas.map((c, i) => {
-              const us = utilizadoresDe(p.name, c);
+            {perfis.map(p => COLUNAS.map((c, i) => {
+              const us = utilizadoresDe(p.name, c.id);
               return (
-                <th key={p.name + c.id} className={cn('px-1 pb-1 text-center font-normal bg-muted', i === 0 && 'border-l-2 border-border')} title={us.length ? nomes(us) : 'Sem utilizadores'}>
+                <th key={p.name + c.id} className={cn('bg-muted px-1 pb-1 text-center font-normal', i === 0 && 'border-l-2 border-border')} title={us.length ? nomes(us) : 'Sem utilizadores'}>
                   {us.length} 👤
                 </th>
               );
@@ -173,10 +137,10 @@ export function PermissionsMatrix({
                   <h4 className={cn('text-xs font-bold uppercase tracking-wide', area.style === 'admin' ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>{area.label}</h4>
                 </td>
                 {perfis.map(p => (
-                  <td key={p.name} colSpan={nCols} className="bg-muted/40 px-2 py-1 border-l-2 border-border text-[11px]">
-                    <span className="text-muted-foreground mr-1">Área toda ({p.name}):</span>
+                  <td key={p.name} colSpan={2} className="bg-muted/40 px-2 py-1 border-l-2 border-border text-[11px] whitespace-nowrap">
+                    <span className="text-muted-foreground mr-1">Área toda:</span>
                     {LEVELS.map(l => (
-                      <button key={l} type="button" aria-label={`${area.label} · ${p.name}: ${NIVEL_LABEL[l]} em todos os locais`} onClick={() => setCells(p.name, colsDeNivel, keys, l)}
+                      <button key={l} type="button" aria-label={`${area.label} · ${p.name}: ${NIVEL_LABEL[l]} nas duas colunas`} onClick={() => setCells(p.name, ['completo', 'outros'], keys, l)}
                         className="mr-1 rounded border border-border bg-background px-1 py-0.5 hover:bg-accent">{CURTO[l]}</button>
                     ))}
                   </td>
@@ -186,34 +150,12 @@ export function PermissionsMatrix({
                 <Fragment key={t.key}>
                   <tr className="hover:bg-muted/20">
                     <td className="sticky left-0 z-10 bg-card px-3 py-0.5 text-sm font-medium whitespace-nowrap">{t.label}</td>
-                    {perfis.map(p => {
-                      const dest = destaques(p.name, t.key);
-                      let li = -1;
-                      return colunas.map((c, i) => {
-                        if (c.tipo === 'local') li += 1;
-                        return (
-                          <Fragment key={p.name + c.id}>
-                            {celula(p.name, c, t.key, false, c.tipo === 'local' && dest[li], t.label, i === 0)}
-                          </Fragment>
-                        );
-                      });
-                    })}
+                    {perfis.map(p => COLUNAS.map((c, i) => celula(p.name, c.id, t.key, false, t.label, i === 0)))}
                   </tr>
                   {finasDe(t.key).map(sp => (
                     <tr key={sp.key} className="hover:bg-muted/20">
                       <td className="sticky left-0 z-10 bg-card py-0.5 pl-7 pr-3 text-xs text-muted-foreground whitespace-nowrap" title={sp.hint}>↳ {sp.label}</td>
-                      {perfis.map(p => {
-                        const dest = destaques(p.name, sp.key);
-                        let li = -1;
-                        return colunas.map((c, i) => {
-                          if (c.tipo === 'local') li += 1;
-                          return (
-                            <Fragment key={p.name + c.id}>
-                              {celula(p.name, c, sp.key, true, c.tipo === 'local' && dest[li], sp.label, i === 0)}
-                            </Fragment>
-                          );
-                        });
-                      })}
+                      {perfis.map(p => COLUNAS.map((c, i) => celula(p.name, c.id, sp.key, true, sp.label, i === 0)))}
                     </tr>
                   ))}
                 </Fragment>

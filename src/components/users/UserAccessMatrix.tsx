@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
+import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, LOCAL_ACESSO_COMPLETO, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
 import { acessoEfetivo, diferentesDoMaioritario } from '@/lib/role-matrix';
 import { locaisDoGrupo, locaisDoPerfil } from '@/lib/locations';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -27,10 +27,17 @@ export function UserAccessMatrix({ user, roles }: { user: AppUser; roles: AppRol
   const minhas = locaisDoPerfil(user.local);
   const todosLocais = locaisDoGrupo();
   const equipa = user.equipa ?? null;
-  // Sem locais configurados nesta instalação (ou conta sem local): uma só coluna, "sem local".
-  const colunas: { id: string; label: string; locais: string[] }[] = todosLocais.length > 0
-    ? todosLocais.map(l => ({ id: l, label: l, locais: [l] }))
-    : [{ id: '', label: 'Sem local', locais: [] }];
+  // Modelo simples: duas colunas (Aveiro e contas sem local / outros locais). Modelo antigo: uma por local.
+  // Sem locais configurados nesta instalação: uma só coluna, "sem local".
+  const outros = todosLocais.filter(l => l !== LOCAL_ACESSO_COMPLETO);
+  const colunas: { id: string; label: string; locais: string[]; daConta: boolean }[] = role?.modelo_simples && outros.length > 0
+    ? [
+        { id: 'completo', label: LOCAL_ACESSO_COMPLETO, locais: [LOCAL_ACESSO_COMPLETO], daConta: minhas.length === 0 || minhas.includes(LOCAL_ACESSO_COMPLETO) },
+        { id: 'outros', label: 'Outros locais', locais: [outros[0]], daConta: minhas.some(l => l !== LOCAL_ACESSO_COMPLETO) },
+      ]
+    : todosLocais.length > 0
+      ? todosLocais.map(l => ({ id: l, label: l, locais: [l], daConta: minhas.includes(l) }))
+      : [{ id: '', label: 'Sem local', locais: [], daConta: true }];
 
   const linhasPorArea = useMemo(() => {
     if (!role || role.is_admin) return [];
@@ -84,7 +91,7 @@ export function UserAccessMatrix({ user, roles }: { user: AppUser; roles: AppRol
             <tr className="bg-muted text-[11px] font-semibold">
               <th className="sticky left-0 z-20 bg-muted px-3 py-2 text-left">Tab</th>
               {colunas.map(c => {
-                const daConta = c.locais.length > 0 && minhas.includes(c.locais[0]);
+                const daConta = c.daConta;
                 return (
                   <th key={c.id} className={cn('px-2 py-2 text-center border-l border-border', daConta && 'bg-primary/10 text-primary')}>
                     {c.label}{daConta && <span className="block text-[9px] font-medium uppercase tracking-wide">conta</span>}

@@ -33,6 +33,18 @@ export function acessoEfetivo(
   opts: { tabsPorLocal?: readonly string[]; comExcecao?: boolean; equipa?: string | null } = {},
 ): AcessoEfetivo {
   if (!role) return { nivel: 'none', origem: 'Sem função' };
+  if (role.modelo_simples) {
+    if (locais.length === 0) return { nivel: nivel(role.permissions?.[tab]), origem: 'Perfil · sem local' };
+    let melhor: AcessoEfetivo | null = null;
+    for (const l of locais) {
+      const completo = l === LOCAL_ACESSO_COMPLETO || !!opts.comExcecao;
+      const r: AcessoEfetivo = completo
+        ? { nivel: nivel(role.permissions?.[tab]), origem: `Perfil · ${l === LOCAL_ACESSO_COMPLETO ? l : 'exceção por email'}` }
+        : { nivel: nivel(role.permissions_outros?.[tab]), origem: `Perfil · outros locais (${l})` };
+      if (!melhor || RANK[r.nivel] > RANK[melhor.nivel]) melhor = r;
+    }
+    return melhor as AcessoEfetivo;
+  }
   const eq = opts.equipa ?? null;
   const camadaBruta = eq ? role.permissions_equipa?.[eq] : undefined;
   const efetiva = funcaoDaEquipa(role, eq);
