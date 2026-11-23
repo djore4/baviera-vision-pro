@@ -465,12 +465,9 @@ export async function saveRole(
   permissions: Record<string, AccessLevel>,
   is_admin: boolean,
   permissions_local?: Record<string, Record<string, AccessLevel>>,
-  permissions_equipa?: Record<string, Record<string, AccessLevel>>,
 ): Promise<AppRole> {
   const res = await invokeAdmin<{ role: AppRole }>({
-    action: 'save_role', name, permissions, is_admin,
-    ...(permissions_local ? { permissions_local } : {}),
-    ...(permissions_equipa ? { permissions_equipa } : {}),
+    action: 'save_role', name, permissions, is_admin, ...(permissions_local ? { permissions_local } : {}),
   });
   return res.role;
 }

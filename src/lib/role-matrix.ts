@@ -3,27 +3,12 @@ import {
   type AccessLevel, type AppRole,
 } from '@/lib/permissions';
 
-/* ── Matriz de permissões: lógica pura (tab Utilizadores) ──────────────────────
- * Cada célula é (tab × coluna). Colunas: um local, "sem local" (matriz base) ou uma
- * equipa. Local e base têm sempre um nível; a equipa é uma CAMADA por cima: uma
- * célula vazia (`undefined`) herda do local, uma preenchida (incluindo 'none')
- * substitui-o. Espelha access_rank / nivelDaFuncao.
+/* ── Acesso de uma conta por local: lógica pura (tab Utilizadores → Contas) ────
+ * Espelha access_rank / nivelDaFuncao: matriz do local, camada da equipa por cima.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
 const nivel = (v: unknown): AccessLevel => (v === 'view' || v === 'edit' ? v : 'none');
-
-/** Próximo nível ao clicar numa célula de local/base: sem acesso → consulta → edição → sem acesso.
- *  Uma permissão fina (só 'sim'/'não') alterna entre sem acesso e edição. */
-export const proximoNivel = (v: AccessLevel, fina = false): AccessLevel =>
-  fina ? (v === 'none' ? 'edit' : 'none') : v === 'none' ? 'view' : v === 'view' ? 'edit' : 'none';
-
-/** Próximo valor numa célula de equipa: herda → sem acesso → consulta → edição → herda. */
-export const proximoNivelEquipa = (v: AccessLevel | undefined, fina = false): AccessLevel | undefined => {
-  if (v === undefined) return 'none';
-  if (fina) return v === 'none' ? 'edit' : undefined;
-  return v === 'none' ? 'view' : v === 'view' ? 'edit' : undefined;
-};
 
 /** O nível mais frequente (em empate, o mais alto). */
 export function nivelMaioritario(valores: readonly AccessLevel[]): AccessLevel {

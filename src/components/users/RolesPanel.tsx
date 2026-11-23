@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Plus, Save, Trash2, ShieldCheck, Undo2, Copy, Pencil, ArrowRight } from 'lucide-react';
+import { Loader2, Plus, Save, Trash2, ShieldCheck, Undo2, Copy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
-import { PERMISSION_TABS, SUB_PERMISSIONS, permissoesDoLocal, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
-import { EQUIPAS } from '@/lib/cartao-go';
-import { RoleMatrix, type Coluna } from '@/components/users/RoleMatrix';
+import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, permissoesDoLocal, LOCAL_ACESSO_COMPLETO, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
 import { locaisDoGrupo } from '@/lib/locations';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select';
@@ -24,25 +23,17 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 
 type Perms = Record<string, AccessLevel>;
 
-/* Rascunho de uma função: a matriz base (contas sem local), uma matriz por local e a camada de cada
- * equipa (só as chaves que a equipa sobrepõe: chave ausente = herda do local). */
-interface Draft { base: Perms; locais: Record<string, Perms>; equipas: Record<string, Perms> }
+/* Rascunho de uma função: a matriz base (contas sem local) e uma matriz por local. */
+interface Draft { base: Perms; locais: Record<string, Perms> }
 
-/* Colunas da matriz: 'base' (contas sem local), um local, ou 'eq:<equipa>'. */
+/* Âmbito em edição: 'base' (contas sem local) ou o nome de um local. */
 const BASE = '__base__';
-const EQ = 'eq:';
 const LOCAIS = locaisDoGrupo();
-const COLUNAS: Coluna[] = [
-  ...LOCAIS.map(l => ({ id: l, label: l, tipo: 'local' as const })),
-  { id: BASE, label: 'Sem local', tipo: 'base' as const },
-  ...EQUIPAS.map(e => ({ id: EQ + e, label: e, tipo: 'equipa' as const })),
-];
 
 /* Matrizes guardadas de uma função; um local sem entrada mostra o que a regra anterior lhe dava. */
 const draftOf = (r: AppRole, tabsPorLocal: readonly string[]): Draft => ({
   base: { ...(r.permissions ?? {}) },
   locais: Object.fromEntries(LOCAIS.map(l => [l, { ...permissoesDoLocal(r, l, tabsPorLocal) }])),
-  equipas: Object.fromEntries(EQUIPAS.map(e => [e, { ...(r.permissions_equipa?.[e] ?? {}) }])),
 });
 
 const LEVELS: { value: AccessLevel; label: string; on: string }[] = [
@@ -77,21 +68,7 @@ const samePerms = (a: Perms | undefined, b: Perms | undefined) => {
 };
 const sameLocais = (a: Draft | undefined, b: Draft | undefined) =>
   LOCAIS.every(l => samePerms(a?.locais[l], b?.locais[l]));
-/* Camada de equipa: ausente ≠ 'none' (ausente herda, 'none' retira o acesso), por isso compara-se o valor cru. */
-const sameLayer = (a: Perms | undefined, b: Perms | undefined) => MATRIX_KEYS.every(k => a?.[k] === b?.[k]);
-const sameEquipas = (a: Draft | undefined, b: Draft | undefined) => EQUIPAS.every(e => sameLayer(a?.equipas[e], b?.equipas[e]));
-const sameDraft = (a: Draft | undefined, b: Draft | undefined) => samePerms(a?.base, b?.base) && sameLocais(a, b) && sameEquipas(a, b);
-/* Camadas a gravar: as editadas aqui (só chaves da matriz) mais as chaves fora da matriz e as equipas que a
- * matriz não conhece, tal como estavam. Camadas vazias não se gravam. */
-const equipasForSave = (d: Draft | undefined, r: AppRole): Record<string, Perms> => {
-  const out: Record<string, Perms> = { ...(r.permissions_equipa ?? {}) };
-  EQUIPAS.forEach(e => {
-    const layer = d?.equipas[e] ?? {};
-    out[e] = { ...hiddenKeys(r.permissions_equipa?.[e]), ...Object.fromEntries(MATRIX_KEYS.filter(k => layer[k] !== undefined).map(k => [k, layer[k]])) };
-  });
-  Object.keys(out).forEach(e => { if (Object.keys(out[e] ?? {}).length === 0) delete out[e]; });
-  return out;
-};
+const sameDraft = (a: Draft | undefined, b: Draft | undefined) => samePerms(a?.base, b?.base) && sameLocais(a, b);
 const locaisForSave = (d: Draft | undefined): Record<string, Perms> =>
   Object.fromEntries(LOCAIS.map(l => [l, forSave(d?.locais[l])]));
 
@@ -109,9 +86,8 @@ export function RolesPanel({
   const adminRoles = useMemo(() => roles.filter(r => r.is_admin), [roles]);
 
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const [soDiferencas, setSoDiferencas] = useState(false);
-  const [copiarDe, setCopiarDe] = useState('');
-  const [copiarPara, setCopiarPara] = useState('');
+  // Abre em Aveiro (o local com acesso completo): abrir no 1.º da lista (Maia) levava a editar o local errado.
+  const [scope, setScope] = useState<string>(LOCAIS.includes(LOCAL_ACESSO_COMPLETO) ? LOCAL_ACESSO_COMPLETO : (LOCAIS[0] ?? BASE));
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -149,33 +125,25 @@ export function RolesPanel({
 
   const savedOf = (name: string): Draft => {
     const r = roles.find(x => x.name === name);
-    return r ? draftOf(r, tabsPorLocal) : { base: {}, locais: {}, equipas: {} };
+    return r ? draftOf(r, tabsPorLocal) : { base: {}, locais: {} };
   };
   const isDirty = (name: string) => !sameDraft(drafts[name], savedOf(name));
   const dirtyRoles = editableRoles.filter(r => isDirty(r.name));
 
   const role = editableRoles.find(r => r.name === selected) ?? null;
   const roleDraft = role ? drafts[role.name] : undefined;
+  // Âmbito efetivo: sem locais configurados (outra instalação) só existe a matriz base.
+  const scopeAtivo = LOCAIS.length === 0 || scope === BASE ? BASE : LOCAIS.includes(scope) ? scope : LOCAIS[0];
+  const draft: Perms = (scopeAtivo === BASE ? roleDraft?.base : roleDraft?.locais[scopeAtivo]) ?? {};
   const members = (role && userCount.get(role.name)) || [];
 
-  const getCell = (col: string, key: string): AccessLevel | undefined =>
-    col === BASE ? level(roleDraft?.base, key)
-    : col.startsWith(EQ) ? roleDraft?.equipas[col.slice(EQ.length)]?.[key]
-    : level(roleDraft?.locais[col], key);
-
-  /* Define o nível de várias células de uma vez. Nas equipas, `undefined` volta a herdar do local. */
-  const setCells = (cols: string[], keys: string[], value: AccessLevel | undefined) => {
+  const setLevel = (tabKeys: string[], value: AccessLevel) => {
     if (!role) return;
     setDrafts(prev => {
-      const cur = prev[role.name] ?? { base: {}, locais: {}, equipas: {} };
-      const next: Draft = { base: { ...cur.base }, locais: { ...cur.locais }, equipas: { ...cur.equipas } };
-      cols.forEach(col => {
-        const alvo: Perms = col === BASE ? next.base
-          : col.startsWith(EQ) ? (next.equipas[col.slice(EQ.length)] = { ...(next.equipas[col.slice(EQ.length)] ?? {}) })
-          : (next.locais[col] = { ...(next.locais[col] ?? {}) });
-        keys.forEach(k => { if (value === undefined) delete alvo[k]; else alvo[k] = value; });
-      });
-      return { ...prev, [role.name]: next };
+      const cur = prev[role.name] ?? { base: {}, locais: {} };
+      const next = { ...(scopeAtivo === BASE ? cur.base : cur.locais[scopeAtivo] ?? {}) };
+      tabKeys.forEach(k => { next[k] = value; });
+      return { ...prev, [role.name]: scopeAtivo === BASE ? { ...cur, base: next } : { ...cur, locais: { ...cur.locais, [scopeAtivo]: next } } };
     });
   };
 
@@ -184,18 +152,17 @@ export function RolesPanel({
     setDrafts(prev => ({ ...prev, [role.name]: savedOf(role.name) }));
   };
 
-  /* Copia a matriz de uma coluna (local ou "sem local") para outra. */
-  const copiarColuna = () => {
-    if (!role || !copiarDe || !copiarPara || copiarDe === copiarPara) return;
+  /* Copia a matriz de outro âmbito (outro local, ou a base) para o âmbito em edição. */
+  const copyScope = (from: string) => {
+    if (!role) return;
     setDrafts(prev => {
       const cur = prev[role.name]; if (!cur) return prev;
-      const src = copiarDe === BASE ? cur.base : cur.locais[copiarDe] ?? {};
-      const mine = copiarPara === BASE ? cur.base : cur.locais[copiarPara];
+      const src = from === BASE ? cur.base : cur.locais[from] ?? {};
+      const mine = scopeAtivo === BASE ? cur.base : cur.locais[scopeAtivo];
       const novo = { ...hiddenKeys(mine), ...normalize(src) };
-      return { ...prev, [role.name]: copiarPara === BASE ? { ...cur, base: novo } : { ...cur, locais: { ...cur.locais, [copiarPara]: novo } } };
+      return { ...prev, [role.name]: scopeAtivo === BASE ? { ...cur, base: novo } : { ...cur, locais: { ...cur.locais, [scopeAtivo]: novo } } };
     });
-    const nome = (c: string) => c === BASE ? 'sem local' : c;
-    toast.success(`Permissões de ${nome(copiarDe)} copiadas para ${nome(copiarPara)} (por guardar).`);
+    toast.success(`Permissões de ${from === BASE ? 'sem local' : from} copiadas para ${scopeAtivo === BASE ? 'sem local' : scopeAtivo} (por guardar).`);
   };
 
   const copyFrom = (source: string) => {
@@ -207,7 +174,6 @@ export function RolesPanel({
       return { ...prev, [role.name]: {
         base: merge(cur.base, src.base),
         locais: Object.fromEntries(LOCAIS.map(l => [l, merge(cur.locais[l], src.locais[l])])),
-        equipas: Object.fromEntries(EQUIPAS.map(e => [e, { ...(src.equipas[e] ?? {}) }])),
       } };
     });
     toast.success(`Permissões de "${source}" copiadas (por guardar).`);
@@ -218,14 +184,10 @@ export function RolesPanel({
     try {
       for (const r of dirtyRoles) {
         const d = drafts[r.name];
-        // Só se envia a matriz por local quando algo mudou nos locais ou nas equipas: editar só a matriz base
-        // não "congela" em entradas os locais que ainda seguem a regra anterior. Com equipas a mudar,
-        // congelam-se: um local sem matriz própria segue a regra anterior e a camada da equipa não o alcançaria.
-        const guardada = savedOf(r.name);
-        const equipasMudaram = !sameEquipas(d, guardada);
-        const locaisMudaram = LOCAIS.length > 0 && (!sameLocais(d, guardada) || equipasMudaram);
-        await saveRole(r.name, forSave(d?.base), false, locaisMudaram ? locaisForSave(d) : undefined,
-          equipasMudaram ? equipasForSave(d, r) : undefined);
+        // Só se envia a matriz por local quando algo mudou nos locais: assim editar só a matriz base
+        // não "congela" em entradas os locais que ainda seguem a regra anterior.
+        const locaisMudaram = !sameLocais(d, savedOf(r.name));
+        await saveRole(r.name, forSave(d?.base), false, locaisMudaram ? locaisForSave(d) : undefined);
       }
       toast.success(dirtyRoles.length === 1 ? `Permissões de "${dirtyRoles[0].name}" guardadas.` : `${dirtyRoles.length} funções guardadas.`);
       await onSaved();
@@ -328,40 +290,94 @@ export function RolesPanel({
               </div>
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0 max-w-xl">
-                  <h4 className="text-sm font-semibold leading-tight">Permissões por local e equipa</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Clica numa célula para mudar: sem acesso → consulta → edição. Quem opera em vários locais fica com o nível mais alto entre eles.
-                    As células de um local que <span className="rounded px-1 outline outline-2 outline-amber-500">diferem da maioria</span> da linha ficam destacadas.
-                    A <strong>equipa</strong> sobrepõe-se ao local: <em>herda</em> = segue o local; preenchida = vale em todos os locais (clica para percorrer herda → sem acesso → consulta → edição).
-                  </p>
+            {LOCAIS.length > 0 && (
+              <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-semibold leading-tight">Permissões por local</h4>
+                    <p className="text-xs text-muted-foreground">
+                      {scopeAtivo === BASE
+                        ? 'Vale para contas sem local definido. Quem tem local segue a matriz do(s) seu(s) local(is).'
+                        : `Vale para quem opera em ${scopeAtivo}. Quem opera em vários locais fica com o nível mais alto entre eles.`}
+                    </p>
+                  </div>
+                  <Select value="" onValueChange={copyScope}>
+                    <SelectTrigger className="h-8 w-[170px] text-xs gap-1"><Copy className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Copiar de…" /></SelectTrigger>
+                    <SelectContent>
+                      {[...LOCAIS, BASE].filter(x => x !== scopeAtivo).map(x => (
+                        <SelectItem key={x} value={x}>{x === BASE ? 'Sem local' : x}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-                  <input type="checkbox" checked={soDiferencas} onChange={e => setSoDiferencas(e.target.checked)} />
-                  Só linhas com diferenças
-                </label>
+                <ToggleGroup
+                  type="single" size="sm" variant="outline" value={scopeAtivo} aria-label="Local"
+                  onValueChange={v => v && setScope(v)} className="flex-wrap justify-start gap-1"
+                >
+                  {LOCAIS.map(l => <ToggleGroupItem key={l} value={l} className="h-8 px-3 text-xs">{l}</ToggleGroupItem>)}
+                  <ToggleGroupItem value={BASE} className="h-8 px-3 text-xs">Sem local</ToggleGroupItem>
+                </ToggleGroup>
               </div>
-              {LOCAIS.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-muted-foreground">Copiar coluna</span>
-                  <Select value={copiarDe} onValueChange={setCopiarDe}>
-                    <SelectTrigger className="h-7 w-[120px] text-xs" aria-label="Copiar de"><SelectValue placeholder="de…" /></SelectTrigger>
-                    <SelectContent>{[...LOCAIS, BASE].map(x => <SelectItem key={x} value={x}>{x === BASE ? 'Sem local' : x}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  <Select value={copiarPara} onValueChange={setCopiarPara}>
-                    <SelectTrigger className="h-7 w-[120px] text-xs" aria-label="Copiar para"><SelectValue placeholder="para…" /></SelectTrigger>
-                    <SelectContent>{[...LOCAIS, BASE].filter(x => x !== copiarDe).map(x => <SelectItem key={x} value={x}>{x === BASE ? 'Sem local' : x}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={!copiarDe || !copiarPara || copiarDe === copiarPara} onClick={copiarColuna}>Copiar</Button>
-                </div>
-              )}
-            </div>
+            )}
 
-            <RoleMatrix colunas={COLUNAS} getCell={getCell} setCells={setCells} capabilities={capabilities} soDiferencas={soDiferencas} />
+            {AREAS.map(area => {
+              const tabs = PERMISSION_TABS.filter(t => t.area === area.key);
+              if (tabs.length === 0) return null;
+              const withAccess = tabs.filter(t => level(draft, t.key) !== 'none').length;
+              const keys = tabs.map(t => t.key);
+              return (
+                <div key={area.key} className="rounded-xl border border-border bg-card overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <h4 className={cn('text-xs font-bold uppercase tracking-wide', area.style === 'admin' ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>{area.label}</h4>
+                      <span className="text-[11px] text-muted-foreground tabular-nums">{withAccess}/{tabs.length} com acesso</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px]">
+                      <span className="text-muted-foreground mr-0.5">Todos:</span>
+                      {LEVELS.map(l => (
+                        <button key={l.value} type="button" onClick={() => setLevel(keys, l.value)}
+                          className="rounded border border-border bg-background px-1.5 py-0.5 hover:bg-accent">{l.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <ul className="divide-y divide-border/60">
+                    {tabs.map(t => (
+                      <li key={t.key} className="px-3 py-1.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-sm font-medium">{t.label}</span>
+                          <ToggleGroup
+                            type="single" size="sm" variant="outline" value={level(draft, t.key)}
+                            onValueChange={v => v && setLevel([t.key], v as AccessLevel)}
+                            className="gap-0"
+                          >
+                            {LEVELS.map(l => (
+                              <ToggleGroupItem key={l.value} value={l.value} className={cn('h-7 px-2.5 text-xs rounded-none first:rounded-l-md last:rounded-r-md -ml-px first:ml-0', l.on)}>
+                                {l.label}
+                              </ToggleGroupItem>
+                            ))}
+                          </ToggleGroup>
+                        </div>
+                        {/* Permissões finas do tab (ex.: Lavagem): ações atribuídas por função. */}
+                        {SUB_PERMISSIONS.filter(sp => sp.parent === t.key && capabilities[sp.capability]).map(sp => (
+                          <div key={sp.key} className="mt-1 ml-3 flex flex-wrap items-center justify-between gap-2 border-l-2 border-border pl-3">
+                            <span className="text-xs text-muted-foreground" title={sp.hint}>{sp.label}</span>
+                            <ToggleGroup
+                              type="single" size="sm" variant="outline"
+                              value={level(draft, sp.key) === 'none' ? 'none' : 'edit'}
+                              onValueChange={v => v && setLevel([sp.key], v as AccessLevel)}
+                              className="gap-0"
+                            >
+                              <ToggleGroupItem value="none" className={cn('h-6 px-2 text-[11px] rounded-none first:rounded-l-md last:rounded-r-md', LEVELS[0].on)}>Não</ToggleGroupItem>
+                              <ToggleGroupItem value="edit" className={cn('h-6 px-2 text-[11px] rounded-none first:rounded-l-md last:rounded-r-md -ml-px', LEVELS[2].on)}>Sim</ToggleGroupItem>
+                            </ToggleGroup>
+                          </div>
+                        ))}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -435,8 +451,7 @@ function CreateRoleDialog({ open, onOpenChange, roles, allNames, tabsPorLocal, o
       const base = src ? normalize(src.permissions) : {};
       // Uma função nova guarda sempre a matriz de todos os locais (sem entrada, o local seguiria a regra anterior).
       const locais = Object.fromEntries(LOCAIS.map(l => [l, src ? normalize(permissoesDoLocal(src, l, tabsPorLocal)) : {}]));
-      const equipas = src?.permissions_equipa && Object.keys(src.permissions_equipa).length > 0 ? src.permissions_equipa : undefined;
-      await saveRole(n, base, false, LOCAIS.length > 0 ? locais : undefined, equipas);
+      await saveRole(n, base, false, LOCAIS.length > 0 ? locais : undefined);
       toast.success(`Função "${n}" criada.`);
       close(false);
       await onCreated(n);
