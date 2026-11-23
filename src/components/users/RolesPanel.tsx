@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Plus, Save, Trash2, ShieldCheck, Undo2, Copy, Pencil } from 'lucide-react';
+import { Loader2, Pencil, Plus, Save, ShieldCheck, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { AREAS, PERMISSION_TABS, SUB_PERMISSIONS, permissoesDoLocal, LOCAL_ACESSO_COMPLETO, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
+import { PERMISSION_TABS, SUB_PERMISSIONS, permissoesDoLocal, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
+import { EQUIPAS } from '@/lib/cartao-go';
+import { PermissionsMatrix, BASE, EQ, type PerfilColuna } from '@/components/users/PermissionsMatrix';
 import { locaisDoGrupo } from '@/lib/locations';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@/components/ui/select';
@@ -23,24 +24,18 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 
 type Perms = Record<string, AccessLevel>;
 
-/* Rascunho de uma função: a matriz base (contas sem local) e uma matriz por local. */
-interface Draft { base: Perms; locais: Record<string, Perms> }
+/* Rascunho de uma função: a matriz base (contas sem local), uma matriz por local e a camada de cada
+ * equipa (só as chaves que a equipa sobrepõe: chave ausente = herda do local). */
+interface Draft { base: Perms; locais: Record<string, Perms>; equipas: Record<string, Perms> }
 
-/* Âmbito em edição: 'base' (contas sem local) ou o nome de um local. */
-const BASE = '__base__';
 const LOCAIS = locaisDoGrupo();
 
 /* Matrizes guardadas de uma função; um local sem entrada mostra o que a regra anterior lhe dava. */
 const draftOf = (r: AppRole, tabsPorLocal: readonly string[]): Draft => ({
   base: { ...(r.permissions ?? {}) },
   locais: Object.fromEntries(LOCAIS.map(l => [l, { ...permissoesDoLocal(r, l, tabsPorLocal) }])),
+  equipas: Object.fromEntries(EQUIPAS.map(e => [e, { ...(r.permissions_equipa?.[e] ?? {}) }])),
 });
-
-const LEVELS: { value: AccessLevel; label: string; on: string }[] = [
-  { value: 'none', label: 'Sem acesso', on: 'data-[state=on]:bg-muted data-[state=on]:text-foreground' },
-  { value: 'view', label: 'Consulta', on: 'data-[state=on]:bg-sky-100 data-[state=on]:text-sky-800 dark:data-[state=on]:bg-sky-500/20 dark:data-[state=on]:text-sky-200' },
-  { value: 'edit', label: 'Edição', on: 'data-[state=on]:bg-emerald-100 data-[state=on]:text-emerald-800 dark:data-[state=on]:bg-emerald-500/20 dark:data-[state=on]:text-emerald-200' },
-];
 
 const level = (p: Perms | undefined, key: string): AccessLevel => p?.[key] ?? 'none';
 
@@ -68,7 +63,21 @@ const samePerms = (a: Perms | undefined, b: Perms | undefined) => {
 };
 const sameLocais = (a: Draft | undefined, b: Draft | undefined) =>
   LOCAIS.every(l => samePerms(a?.locais[l], b?.locais[l]));
-const sameDraft = (a: Draft | undefined, b: Draft | undefined) => samePerms(a?.base, b?.base) && sameLocais(a, b);
+/* Camada de equipa: ausente ≠ 'none' (ausente herda, 'none' retira o acesso), por isso compara-se o valor cru. */
+const sameLayer = (a: Perms | undefined, b: Perms | undefined) => MATRIX_KEYS.every(k => a?.[k] === b?.[k]);
+const sameEquipas = (a: Draft | undefined, b: Draft | undefined) => EQUIPAS.every(e => sameLayer(a?.equipas[e], b?.equipas[e]));
+const sameDraft = (a: Draft | undefined, b: Draft | undefined) => samePerms(a?.base, b?.base) && sameLocais(a, b) && sameEquipas(a, b);
+/* Camadas a gravar: as editadas aqui (só chaves da matriz) mais as chaves fora da matriz e as equipas que a
+ * matriz não conhece, tal como estavam. Camadas vazias não se gravam. */
+const equipasForSave = (d: Draft | undefined, r: AppRole): Record<string, Perms> => {
+  const out: Record<string, Perms> = { ...(r.permissions_equipa ?? {}) };
+  EQUIPAS.forEach(e => {
+    const layer = d?.equipas[e] ?? {};
+    out[e] = { ...hiddenKeys(r.permissions_equipa?.[e]), ...Object.fromEntries(MATRIX_KEYS.filter(k => layer[k] !== undefined).map(k => [k, layer[k]])) };
+  });
+  Object.keys(out).forEach(e => { if (Object.keys(out[e] ?? {}).length === 0) delete out[e]; });
+  return out;
+};
 const locaisForSave = (d: Draft | undefined): Record<string, Perms> =>
   Object.fromEntries(LOCAIS.map(l => [l, forSave(d?.locais[l])]));
 
@@ -78,26 +87,27 @@ export function RolesPanel({
   roles: AppRole[]; users: AppUser[]; loading: boolean; onSaved: () => Promise<void>;
 }) {
   // Funções de administrador têm acesso total e nada editável: ficam de fora.
-  // As permissões por ação (ex.: 'lavagem:iniciar') só se mostram quando a base de
-  // dados já as suporta: antes disso a interface usa as regras antigas por nome de
-  // função, e guardar uma chave nova numa função não faria o que o utilizador espera.
+  // As permissões por ação (ex.: 'lavagem:iniciar') só se mostram quando a base de dados já as suporta.
   const { capabilities, tabsPorLocal } = usePermissions();
   const editableRoles = useMemo(() => roles.filter(r => !r.is_admin), [roles]);
   const adminRoles = useMemo(() => roles.filter(r => r.is_admin), [roles]);
 
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  // Abre em Aveiro (o local com acesso completo): abrir no 1.º da lista (Maia) levava a editar o local errado.
-  const [scope, setScope] = useState<string>(LOCAIS.includes(LOCAL_ACESSO_COMPLETO) ? LOCAL_ACESSO_COMPLETO : (LOCAIS[0] ?? BASE));
-  const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [delOpen, setDelOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<string | null>(null);
+  const [delTarget, setDelTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Repõe os rascunhos quando os dados guardados mudam.
-  // Um recarregamento (ex.: mudar a função de alguém em Contas) não pode apagar alterações
-  // por guardar: só se repõe o rascunho das funções cujo rascunho coincide com o guardado antes.
+  // Filtros de visualização (não alteram nada, só o que se vê).
+  const [perfisOcultos, setPerfisOcultos] = useState<string[]>([]);
+  const [locaisOcultos, setLocaisOcultos] = useState<string[]>([]);
+  const [verBase, setVerBase] = useState(true);
+  const [equipasVisiveis, setEquipasVisiveis] = useState<string[]>([...EQUIPAS]);
+  const [soDiferencas, setSoDiferencas] = useState(false);
+
+  // Repõe os rascunhos quando os dados guardados mudam. Um recarregamento não pode apagar alterações por
+  // guardar: só se repõe o rascunho das funções cujo rascunho coincide com o guardado antes.
   const prevRoles = useRef<AppRole[]>([]);
   useEffect(() => {
     const antes = prevRoles.current;
@@ -113,81 +123,64 @@ export function RolesPanel({
     });
   }, [roles, tabsPorLocal]);
 
-  useEffect(() => {
-    if (!selected || !editableRoles.some(r => r.name === selected)) setSelected(editableRoles[0]?.name ?? null);
-  }, [editableRoles, selected]);
-
-  const userCount = useMemo(() => {
-    const m = new Map<string, AppUser[]>();
-    users.forEach(u => { if (u.perfil) (m.get(u.perfil) ?? m.set(u.perfil, []).get(u.perfil)!).push(u); });
-    return m;
-  }, [users]);
-
   const savedOf = (name: string): Draft => {
     const r = roles.find(x => x.name === name);
-    return r ? draftOf(r, tabsPorLocal) : { base: {}, locais: {} };
+    return r ? draftOf(r, tabsPorLocal) : { base: {}, locais: {}, equipas: {} };
   };
   const isDirty = (name: string) => !sameDraft(drafts[name], savedOf(name));
   const dirtyRoles = editableRoles.filter(r => isDirty(r.name));
 
-  const role = editableRoles.find(r => r.name === selected) ?? null;
-  const roleDraft = role ? drafts[role.name] : undefined;
-  // Âmbito efetivo: sem locais configurados (outra instalação) só existe a matriz base.
-  const scopeAtivo = LOCAIS.length === 0 || scope === BASE ? BASE : LOCAIS.includes(scope) ? scope : LOCAIS[0];
-  const draft: Perms = (scopeAtivo === BASE ? roleDraft?.base : roleDraft?.locais[scopeAtivo]) ?? {};
-  const members = (role && userCount.get(role.name)) || [];
+  const getCell = (perfil: string, col: string, key: string): AccessLevel | undefined => {
+    const d = drafts[perfil];
+    return col === BASE ? level(d?.base, key)
+      : col.startsWith(EQ) ? d?.equipas[col.slice(EQ.length)]?.[key]
+      : level(d?.locais[col], key);
+  };
 
-  const setLevel = (tabKeys: string[], value: AccessLevel) => {
-    if (!role) return;
+  /* Define o nível de várias células de um perfil. Nas equipas, `undefined` volta a herdar do local. */
+  const setCells = (perfil: string, cols: string[], keys: string[], value: AccessLevel | undefined) => {
     setDrafts(prev => {
-      const cur = prev[role.name] ?? { base: {}, locais: {} };
-      const next = { ...(scopeAtivo === BASE ? cur.base : cur.locais[scopeAtivo] ?? {}) };
-      tabKeys.forEach(k => { next[k] = value; });
-      return { ...prev, [role.name]: scopeAtivo === BASE ? { ...cur, base: next } : { ...cur, locais: { ...cur.locais, [scopeAtivo]: next } } };
+      const cur = prev[perfil] ?? { base: {}, locais: {}, equipas: {} };
+      const next: Draft = { base: { ...cur.base }, locais: { ...cur.locais }, equipas: { ...cur.equipas } };
+      cols.forEach(col => {
+        const alvo: Perms = col === BASE ? next.base
+          : col.startsWith(EQ) ? (next.equipas[col.slice(EQ.length)] = { ...(next.equipas[col.slice(EQ.length)] ?? {}) })
+          : (next.locais[col] = { ...(next.locais[col] ?? {}) });
+        keys.forEach(k => { if (value === undefined) delete alvo[k]; else alvo[k] = value; });
+      });
+      return { ...prev, [perfil]: next };
     });
   };
 
-  const discard = () => {
-    if (!role) return;
-    setDrafts(prev => ({ ...prev, [role.name]: savedOf(role.name) }));
-  };
-
-  /* Copia a matriz de outro âmbito (outro local, ou a base) para o âmbito em edição. */
-  const copyScope = (from: string) => {
-    if (!role) return;
+  const copyFrom = (target: string, source: string) => {
     setDrafts(prev => {
-      const cur = prev[role.name]; if (!cur) return prev;
-      const src = from === BASE ? cur.base : cur.locais[from] ?? {};
-      const mine = scopeAtivo === BASE ? cur.base : cur.locais[scopeAtivo];
-      const novo = { ...hiddenKeys(mine), ...normalize(src) };
-      return { ...prev, [role.name]: scopeAtivo === BASE ? { ...cur, base: novo } : { ...cur, locais: { ...cur.locais, [scopeAtivo]: novo } } };
-    });
-    toast.success(`Permissões de ${from === BASE ? 'sem local' : from} copiadas para ${scopeAtivo === BASE ? 'sem local' : scopeAtivo} (por guardar).`);
-  };
-
-  const copyFrom = (source: string) => {
-    if (!role) return;
-    setDrafts(prev => {
-      const src = prev[source]; const cur = prev[role.name];
+      const src = prev[source]; const cur = prev[target];
       if (!src || !cur) return prev;
       const merge = (mine: Perms | undefined, from: Perms | undefined): Perms => ({ ...hiddenKeys(mine), ...normalize(from) });
-      return { ...prev, [role.name]: {
+      return { ...prev, [target]: {
         base: merge(cur.base, src.base),
         locais: Object.fromEntries(LOCAIS.map(l => [l, merge(cur.locais[l], src.locais[l])])),
+        equipas: Object.fromEntries(EQUIPAS.map(e => [e, { ...(src.equipas[e] ?? {}) }])),
       } };
     });
-    toast.success(`Permissões de "${source}" copiadas (por guardar).`);
+    toast.success(`Permissões de "${source}" copiadas para "${target}" (por guardar).`);
   };
+
+  const discardAll = () => setDrafts(prev => ({ ...prev, ...Object.fromEntries(dirtyRoles.map(r => [r.name, savedOf(r.name)])) }));
 
   const saveAll = async () => {
     setSaving(true);
     try {
       for (const r of dirtyRoles) {
         const d = drafts[r.name];
-        // Só se envia a matriz por local quando algo mudou nos locais: assim editar só a matriz base
-        // não "congela" em entradas os locais que ainda seguem a regra anterior.
-        const locaisMudaram = !sameLocais(d, savedOf(r.name));
-        await saveRole(r.name, forSave(d?.base), false, locaisMudaram ? locaisForSave(d) : undefined);
+        // Só se envia a matriz por local quando algo mudou nos locais ou nas equipas: editar só a matriz base
+        // não "congela" em entradas os locais que ainda seguem a regra anterior. Com equipas a mudar,
+        // congelam-se: um local sem matriz própria segue a regra anterior e a camada da equipa não o alcançaria.
+        const guardada = savedOf(r.name);
+        const equipasMudaram = !sameEquipas(d, guardada);
+        const locaisMudaram = LOCAIS.length > 0 && (!sameLocais(d, guardada) || equipasMudaram);
+        await saveRole(r.name, forSave(d?.base), false, locaisMudaram ? locaisForSave(d) : undefined,
+          equipasMudaram ? equipasForSave(d, r) : undefined);
       }
       toast.success(dirtyRoles.length === 1 ? `Permissões de "${dirtyRoles[0].name}" guardadas.` : `${dirtyRoles.length} funções guardadas.`);
       await onSaved();
@@ -197,13 +190,12 @@ export function RolesPanel({
   };
 
   const confirmDelete = async () => {
-    if (!role) return;
+    if (!delTarget) return;
     setDeleting(true);
     try {
-      await deleteRole(role.name);
+      await deleteRole(delTarget);
       toast.success('Função eliminada.');
-      setDelOpen(false);
-      setSelected(null);
+      setDelTarget(null);
       await onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível eliminar a função.');
@@ -214,185 +206,67 @@ export function RolesPanel({
     return <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center"><Loader2 className="h-4 w-4 animate-spin" /> A carregar…</div>;
   }
 
+  const toggle = (lista: string[], set: (v: string[]) => void, v: string) => set(lista.includes(v) ? lista.filter(x => x !== v) : [...lista, v]);
+  const chip = (ativo: boolean) => cn('rounded-full border px-2.5 py-0.5 text-xs transition-colors',
+    ativo ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-muted-foreground hover:bg-accent');
+  const perfisVisiveis = editableRoles.filter(r => !perfisOcultos.includes(r.name));
+  const renameRole_ = roles.find(r => r.name === renameTarget) ?? null;
+  const renameMembers = renameTarget ? users.filter(u => u.perfil === renameTarget).length : 0;
+
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-[220px_1fr] items-start">
-        {/* Lista de funções */}
-        <div className="rounded-xl border border-border bg-card p-2 space-y-1 md:sticky md:top-2">
-          {editableRoles.map(r => {
-            const n = userCount.get(r.name)?.length ?? 0;
-            const active = r.name === selected;
-            return (
-              <button
-                key={r.name} type="button" onClick={() => setSelected(r.name)}
-                className={cn('w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors',
-                  active ? 'bg-primary text-primary-foreground' : 'hover:bg-muted')}
-              >
-                <span className="truncate font-medium">{r.name}</span>
-                <span className="flex items-center gap-1.5 shrink-0">
-                  {isDirty(r.name) && <span className={cn('h-2 w-2 rounded-full', active ? 'bg-primary-foreground' : 'bg-amber-500')} title="Alterações por guardar" />}
-                  <span className={cn('text-[11px] tabular-nums', active ? 'text-primary-foreground/80' : 'text-muted-foreground')}>{n}</span>
-                </span>
-              </button>
-            );
-          })}
-          <Button variant="outline" size="sm" className="w-full gap-1.5 mt-1" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-3.5 w-3.5" /> Nova função
-          </Button>
-          {adminRoles.length > 0 && (
-            <p className="px-2 pt-2 text-[11px] text-muted-foreground leading-snug">
-              <ShieldCheck className="h-3 w-3 inline mr-1" />
-              {adminRoles.map(r => r.name).join(', ')}: acesso total, não editável.
+      <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0 max-w-3xl">
+            <h3 className="text-sm font-semibold leading-tight">Matriz de permissões</h3>
+            <p className="text-xs text-muted-foreground">
+              Cada coluna é um <strong>perfil</strong> num <strong>local</strong>; as linhas são os tabs. Clica numa célula para percorrer
+              sem acesso → consulta → edição. Os números 👤 mostram quantos utilizadores são afetados (passa o rato para ver quem).
+              A <strong>equipa</strong> sobrepõe-se ao local: <em>herda</em> = segue o local; preenchida = vale em todos os locais.
+              O contorno <span className="rounded px-1 outline outline-2 outline-amber-500">âmbar</span> marca os locais que diferem da maioria do perfil.
             </p>
-          )}
-        </div>
-
-        {/* Detalhe da função */}
-        {!role ? (
-          <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">Cria ou escolhe uma função.</div>
-        ) : (
-          <div className="space-y-3">
-            <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <h3 className="text-base font-bold leading-tight truncate">{role.name}</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {members.length === 0 ? 'Nenhum utilizador com esta função.' : (
-                      <>
-                        {members.length} {members.length === 1 ? 'utilizador' : 'utilizadores'}:{' '}
-                        {members.slice(0, 5).map(u => u.nome || u.email).join(', ')}{members.length > 5 ? ` e mais ${members.length - 5}` : ''}
-                      </>
-                    )}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Select value="" onValueChange={copyFrom}>
-                    <SelectTrigger className="h-8 w-[170px] text-xs gap-1"><Copy className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Copiar de…" /></SelectTrigger>
-                    <SelectContent>
-                      {editableRoles.filter(r => r.name !== role.name).map(r => <SelectItem key={r.name} value={r.name}>{r.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="ghost" size="icon" className="h-8 w-8" aria-label="Renomear função"
-                    onClick={() => setRenameOpen(true)} disabled={isDirty(role.name)}
-                    title={isDirty(role.name) ? 'Guarda ou descarta as alterações antes de renomear' : 'Renomear função'}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost" size="icon" className="h-8 w-8 text-destructive"
-                    onClick={() => setDelOpen(true)} disabled={members.length > 0}
-                    title={members.length > 0 ? 'Muda primeiro a função destes utilizadores' : 'Eliminar função'}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {LOCAIS.length > 0 && (
-              <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-semibold leading-tight">Permissões por local</h4>
-                    <p className="text-xs text-muted-foreground">
-                      {scopeAtivo === BASE
-                        ? 'Vale para contas sem local definido. Quem tem local segue a matriz do(s) seu(s) local(is).'
-                        : `Vale para quem opera em ${scopeAtivo}. Quem opera em vários locais fica com o nível mais alto entre eles.`}
-                    </p>
-                  </div>
-                  <Select value="" onValueChange={copyScope}>
-                    <SelectTrigger className="h-8 w-[170px] text-xs gap-1"><Copy className="h-3.5 w-3.5 shrink-0" /><SelectValue placeholder="Copiar de…" /></SelectTrigger>
-                    <SelectContent>
-                      {[...LOCAIS, BASE].filter(x => x !== scopeAtivo).map(x => (
-                        <SelectItem key={x} value={x}>{x === BASE ? 'Sem local' : x}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <ToggleGroup
-                  type="single" size="sm" variant="outline" value={scopeAtivo} aria-label="Local"
-                  onValueChange={v => v && setScope(v)} className="flex-wrap justify-start gap-1"
-                >
-                  {LOCAIS.map(l => <ToggleGroupItem key={l} value={l} className="h-8 px-3 text-xs">{l}</ToggleGroupItem>)}
-                  <ToggleGroupItem value={BASE} className="h-8 px-3 text-xs">Sem local</ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-            )}
-
-            {AREAS.map(area => {
-              const tabs = PERMISSION_TABS.filter(t => t.area === area.key);
-              if (tabs.length === 0) return null;
-              const withAccess = tabs.filter(t => level(draft, t.key) !== 'none').length;
-              const keys = tabs.map(t => t.key);
-              return (
-                <div key={area.key} className="rounded-xl border border-border bg-card overflow-hidden">
-                  <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <h4 className={cn('text-xs font-bold uppercase tracking-wide', area.style === 'admin' ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>{area.label}</h4>
-                      <span className="text-[11px] text-muted-foreground tabular-nums">{withAccess}/{tabs.length} com acesso</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-[11px]">
-                      <span className="text-muted-foreground mr-0.5">Todos:</span>
-                      {LEVELS.map(l => (
-                        <button key={l.value} type="button" onClick={() => setLevel(keys, l.value)}
-                          className="rounded border border-border bg-background px-1.5 py-0.5 hover:bg-accent">{l.label}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <ul className="divide-y divide-border/60">
-                    {tabs.map(t => (
-                      <li key={t.key} className="px-3 py-1.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-sm font-medium">{t.label}</span>
-                          <ToggleGroup
-                            type="single" size="sm" variant="outline" value={level(draft, t.key)}
-                            onValueChange={v => v && setLevel([t.key], v as AccessLevel)}
-                            className="gap-0"
-                          >
-                            {LEVELS.map(l => (
-                              <ToggleGroupItem key={l.value} value={l.value} className={cn('h-7 px-2.5 text-xs rounded-none first:rounded-l-md last:rounded-r-md -ml-px first:ml-0', l.on)}>
-                                {l.label}
-                              </ToggleGroupItem>
-                            ))}
-                          </ToggleGroup>
-                        </div>
-                        {/* Permissões finas do tab (ex.: Lavagem): ações atribuídas por função. */}
-                        {SUB_PERMISSIONS.filter(sp => sp.parent === t.key && capabilities[sp.capability]).map(sp => (
-                          <div key={sp.key} className="mt-1 ml-3 flex flex-wrap items-center justify-between gap-2 border-l-2 border-border pl-3">
-                            <span className="text-xs text-muted-foreground" title={sp.hint}>{sp.label}</span>
-                            <ToggleGroup
-                              type="single" size="sm" variant="outline"
-                              value={level(draft, sp.key) === 'none' ? 'none' : 'edit'}
-                              onValueChange={v => v && setLevel([sp.key], v as AccessLevel)}
-                              className="gap-0"
-                            >
-                              <ToggleGroupItem value="none" className={cn('h-6 px-2 text-[11px] rounded-none first:rounded-l-md last:rounded-r-md', LEVELS[0].on)}>Não</ToggleGroupItem>
-                              <ToggleGroupItem value="edit" className={cn('h-6 px-2 text-[11px] rounded-none first:rounded-l-md last:rounded-r-md -ml-px', LEVELS[2].on)}>Sim</ToggleGroupItem>
-                            </ToggleGroup>
-                          </div>
-                        ))}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
           </div>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5" /> Novo perfil</Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+          <div className="flex flex-wrap items-center gap-1"><span className="text-muted-foreground mr-1">Perfis</span>
+            {editableRoles.map(r => <button key={r.name} type="button" aria-pressed={!perfisOcultos.includes(r.name)} onClick={() => toggle(perfisOcultos, setPerfisOcultos, r.name)} className={chip(!perfisOcultos.includes(r.name))}>{r.name}</button>)}
+          </div>
+          <div className="flex flex-wrap items-center gap-1"><span className="text-muted-foreground mr-1">Locais</span>
+            {LOCAIS.map(l => <button key={l} type="button" aria-pressed={!locaisOcultos.includes(l)} onClick={() => toggle(locaisOcultos, setLocaisOcultos, l)} className={chip(!locaisOcultos.includes(l))}>{l}</button>)}
+            <button type="button" aria-pressed={verBase} onClick={() => setVerBase(v => !v)} className={chip(verBase)}>Sem local</button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1"><span className="text-muted-foreground mr-1">Equipas</span>
+            {EQUIPAS.map(e => <button key={e} type="button" aria-pressed={equipasVisiveis.includes(e)} onClick={() => toggle(equipasVisiveis, setEquipasVisiveis, e)} className={chip(equipasVisiveis.includes(e))}>{e}</button>)}
+          </div>
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" checked={soDiferencas} onChange={e => setSoDiferencas(e.target.checked)} /> Só linhas com diferenças
+          </label>
+        </div>
+        {adminRoles.length > 0 && (
+          <p className="text-[11px] text-muted-foreground"><ShieldCheck className="h-3 w-3 inline mr-1" />{adminRoles.map(r => r.name).join(', ')}: acesso total, não editável.</p>
         )}
       </div>
 
+      <PermissionsMatrix
+        perfis={perfisVisiveis.map(r => ({ name: r.name, dirty: isDirty(r.name) }))}
+        locais={LOCAIS.filter(l => !locaisOcultos.includes(l))}
+        mostrarBase={verBase || LOCAIS.length === 0}
+        equipas={EQUIPAS.filter(e => equipasVisiveis.includes(e))}
+        users={users} allPerfis={editableRoles.map(r => r.name)} capabilities={capabilities} soDiferencas={soDiferencas}
+        getCell={getCell} setCells={setCells}
+        onRename={setRenameTarget} onDelete={setDelTarget} onCopyFrom={copyFrom}
+      />
+
       {/* Barra de guardar (fixa em baixo quando há alterações) */}
       {dirtyRoles.length > 0 && (
-        <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/50 bg-card/95 backdrop-blur px-3 py-2 shadow-lg">
+        <div className="sticky bottom-3 z-40 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/50 bg-card/95 backdrop-blur px-3 py-2 shadow-lg">
           <span className="text-sm">
             <strong>{dirtyRoles.length}</strong> {dirtyRoles.length === 1 ? 'função com alterações' : 'funções com alterações'} por guardar
             <span className="text-muted-foreground"> ({dirtyRoles.map(r => r.name).join(', ')})</span>
           </span>
           <div className="flex items-center gap-1.5">
-            {role && isDirty(role.name) && (
-              <Button variant="ghost" size="sm" className="gap-1.5" onClick={discard}><Undo2 className="h-3.5 w-3.5" /> Descartar {role.name}</Button>
-            )}
+            <Button variant="ghost" size="sm" className="gap-1.5" onClick={discardAll}><Undo2 className="h-3.5 w-3.5" /> Descartar tudo</Button>
             <Button size="sm" className="gap-1.5" onClick={saveAll} disabled={saving}>
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Guardar
             </Button>
@@ -402,19 +276,19 @@ export function RolesPanel({
 
       <CreateRoleDialog
         open={createOpen} onOpenChange={setCreateOpen} roles={editableRoles} allNames={roles.map(r => r.name)} tabsPorLocal={tabsPorLocal}
-        onCreated={async name => { await onSaved(); setSelected(name); }}
+        onCreated={async () => { await onSaved(); }}
       />
 
       <RenameRoleDialog
-        role={renameOpen ? role : null} allNames={roles.map(r => r.name)} memberCount={members.length}
-        onClose={() => setRenameOpen(false)}
-        onRenamed={async name => { await onSaved(); setSelected(name); }}
+        role={renameRole_} allNames={roles.map(r => r.name)} memberCount={renameMembers}
+        onClose={() => setRenameTarget(null)}
+        onRenamed={async () => { await onSaved(); }}
       />
 
-      <AlertDialog open={delOpen} onOpenChange={setDelOpen}>
+      <AlertDialog open={!!delTarget} onOpenChange={o => { if (!o) setDelTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar a função "{role?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar a função "{delTarget}"?</AlertDialogTitle>
             <AlertDialogDescription>Nenhum utilizador tem esta função. As permissões definidas perdem-se.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -451,7 +325,8 @@ function CreateRoleDialog({ open, onOpenChange, roles, allNames, tabsPorLocal, o
       const base = src ? normalize(src.permissions) : {};
       // Uma função nova guarda sempre a matriz de todos os locais (sem entrada, o local seguiria a regra anterior).
       const locais = Object.fromEntries(LOCAIS.map(l => [l, src ? normalize(permissoesDoLocal(src, l, tabsPorLocal)) : {}]));
-      await saveRole(n, base, false, LOCAIS.length > 0 ? locais : undefined);
+      const equipas = src?.permissions_equipa && Object.keys(src.permissions_equipa).length > 0 ? src.permissions_equipa : undefined;
+      await saveRole(n, base, false, LOCAIS.length > 0 ? locais : undefined, equipas);
       toast.success(`Função "${n}" criada.`);
       close(false);
       await onCreated(n);
