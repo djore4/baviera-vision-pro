@@ -12,9 +12,11 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { UsersPanel } from '@/components/users/UsersPanel';
 
 const roles: AppRole[] = [{
-  name: 'Vendedor', is_admin: false, modelo_simples: true,
-  permissions: { retails: 'edit', funil: 'view', 'end-of-term': 'edit' },
-  permissions_outros: { retails: 'view', 'end-of-term': 'edit' },
+  name: 'Vendedor', is_admin: false, modelo_matriz: true, permissions: {},
+  permissions_matriz: {
+    Aveiro: { _: { retails: 'edit', funil: 'view', 'end-of-term': 'edit' } },
+    Porto: { _: { retails: 'view', 'end-of-term': 'edit' } },
+  },
 }];
 const users: AppUser[] = [
   { id: 1, nome: 'Joana Lopes', email: 'jl@x.pt', perfil: 'Vendedor', local: ['Porto'], negocio: null, marca: null, equipa: null },
@@ -30,7 +32,7 @@ describe('Contas: o que cada conta pode fazer', () => {
     expect(screen.queryByText(/Mostrar também sem acesso/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /Ver os acessos de Joana Lopes/ }));
     expect(within(linha('WIP')).getByText('Consulta')).toBeTruthy();
-    expect(within(linha('WIP')).getByText(/outros locais \(Porto\)/)).toBeTruthy();
+    expect(within(linha('WIP')).getByText('Perfil · Porto · sem equipa')).toBeTruthy();
     expect(screen.queryByText('Funil')).toBeNull();                 // sem acesso fora de Aveiro e escondido por defeito
     fireEvent.click(screen.getByRole('checkbox', { name: /Mostrar também sem acesso/ }));
     expect(within(linha('Funil')).getByText('Sem acesso')).toBeTruthy();
@@ -41,6 +43,6 @@ describe('Contas: o que cada conta pode fazer', () => {
     fireEvent.click(screen.getByRole('button', { name: /Ver os acessos de Rui Duarte/ }));
     expect(within(linha('WIP')).getByText('Edição')).toBeTruthy();
     expect(within(linha('Funil')).getByText('Consulta')).toBeTruthy();
-    expect(within(linha('WIP')).getByText('Perfil · Aveiro')).toBeTruthy();
+    expect(within(linha('WIP')).getByText('Perfil · Aveiro · sem equipa')).toBeTruthy();
   });
 });

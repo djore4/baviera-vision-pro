@@ -1,5 +1,5 @@
 import {
-  LOCAL_ACESSO_COMPLETO, funcaoDaEquipa, tabLivreForaDoLocal,
+  LOCAL_ACESSO_COMPLETO, funcaoDaEquipa, tabLivreForaDoLocal, celulaMatriz, EQUIPAS_DA_MATRIZ, SEM_EQUIPA, SEM_LOCAL,
   type AccessLevel, type AppRole,
 } from '@/lib/permissions';
 
@@ -20,14 +20,13 @@ export function acessoEfetivo(
   opts: { tabsPorLocal?: readonly string[]; comExcecao?: boolean; equipa?: string | null } = {},
 ): AcessoEfetivo {
   if (!role) return { nivel: 'none', origem: 'Sem função' };
-  if (role.modelo_simples) {
-    if (locais.length === 0) return { nivel: nivel(role.permissions?.[tab]), origem: 'Perfil · sem local' };
+  if (role.modelo_matriz) {
+    const eq = opts.equipa ?? null;
+    const col = eq && (EQUIPAS_DA_MATRIZ as readonly string[]).includes(eq) ? eq : SEM_EQUIPA;
     let melhor: AcessoEfetivo | null = null;
-    for (const l of locais) {
-      const completo = l === LOCAL_ACESSO_COMPLETO || !!opts.comExcecao;
-      const r: AcessoEfetivo = completo
-        ? { nivel: nivel(role.permissions?.[tab]), origem: `Perfil · ${l === LOCAL_ACESSO_COMPLETO ? l : 'exceção por email'}` }
-        : { nivel: nivel(role.permissions_outros?.[tab]), origem: `Perfil · outros locais (${l})` };
+    for (const l of locais.length ? locais : [SEM_LOCAL]) {
+      const r: AcessoEfetivo = { nivel: celulaMatriz(role.permissions_matriz, l, col, tab),
+        origem: `Perfil · ${l === SEM_LOCAL ? 'sem local' : l} · ${col === SEM_EQUIPA ? 'sem equipa' : col}` };
       if (!melhor || RANK[r.nivel] > RANK[melhor.nivel]) melhor = r;
     }
     return melhor as AcessoEfetivo;

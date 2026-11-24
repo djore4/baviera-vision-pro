@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nivelDaFuncao, nivelSimples, type AppRole, type AccessLevel } from '@/lib/permissions';
+import { nivelDaFuncao, type AppRole, type AccessLevel } from '@/lib/permissions';
 import { acessoEfetivo } from '@/lib/role-matrix';
 
 describe('acessoEfetivo: igual a nivelDaFuncao, com a origem', () => {
@@ -31,26 +31,15 @@ describe('acessoEfetivo: igual a nivelDaFuncao, com a origem', () => {
   });
 });
 
-describe('modelo simples', () => {
-  const role: AppRole = { name: 'S', is_admin: false, modelo_simples: true,
-    permissions: { retails: 'edit', funil: 'view' }, permissions_outros: { retails: 'view', 'end-of-term': 'edit' },
-    // lixo do modelo antigo que já não conta
-    permissions_local: { Porto: { funil: 'edit' } }, permissions_equipa: { 'BMW VN': { stock: 'edit' } } };
-  it('Aveiro e sem local = completo; outros = "outros"; vários = o mais alto; exceção abre ao completo', () => {
-    expect(nivelSimples(role, ['Aveiro'], 'retails')).toBe('edit');
-    expect(nivelSimples(role, [], 'retails')).toBe('edit');
-    expect(nivelSimples(role, ['Porto'], 'retails')).toBe('view');
-    expect(nivelSimples(role, ['Porto'], 'funil')).toBe('none');
-    expect(nivelSimples(role, ['Porto', 'Aveiro'], 'funil')).toBe('view');
-    expect(nivelSimples(role, ['Porto'], 'funil', true)).toBe('view');
-  });
-  it('nivelDaFuncao e acessoEfetivo coincidem e ignoram matrizes por local/equipa antigas', () => {
-    for (const locais of [[], ['Aveiro'], ['Porto'], ['Porto', 'Aveiro'], ['Maia', 'Gaia']]) for (const tab of ['retails', 'funil', 'end-of-term', 'stock']) {
-      const a = acessoEfetivo(role, locais, tab, { equipa: 'BMW VN' });
-      expect(a.nivel).toBe(nivelDaFuncao(role, locais, tab, { equipa: 'BMW VN' }));
-      expect(a.nivel).toBe(nivelSimples(role, locais, tab));
+describe('matriz', () => {
+  const role: AppRole = { name: 'M', is_admin: false, modelo_matriz: true, permissions: {},
+    permissions_matriz: { Aveiro: { 'BMW VN': { retails: 'edit' }, _: { retails: 'view' } }, Porto: { 'BMW VN': { retails: 'view' } }, _: { _: { wip: 'view' } } } };
+  it('acessoEfetivo coincide com nivelDaFuncao e explica a célula', () => {
+    for (const locais of [[], ['Aveiro'], ['Porto'], ['Porto', 'Aveiro'], ['Maia']]) for (const equipa of ['BMW VN', 'BMW VU', null]) for (const tab of ['retails', 'wip']) {
+      expect(acessoEfetivo(role, locais, tab, { equipa }).nivel).toBe(nivelDaFuncao(role, locais, tab, { equipa }));
     }
-    expect(acessoEfetivo(role, ['Porto'], 'retails').origem).toMatch(/outros locais/);
-    expect(acessoEfetivo(role, ['Aveiro'], 'retails').origem).toBe('Perfil · Aveiro');
+    expect(acessoEfetivo(role, ['Aveiro'], 'retails', { equipa: 'BMW VN' })).toEqual({ nivel: 'edit', origem: 'Perfil · Aveiro · BMW VN' });
+    expect(acessoEfetivo(role, ['Porto'], 'retails', { equipa: null })).toEqual({ nivel: 'none', origem: 'Perfil · Porto · sem equipa' });
+    expect(acessoEfetivo(role, [], 'wip', {}).origem).toBe('Perfil · sem local · sem equipa');
   });
 });

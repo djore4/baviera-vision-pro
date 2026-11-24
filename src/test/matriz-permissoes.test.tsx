@@ -24,7 +24,7 @@ const FORA_DA_MATRIZ_DE_PROPOSITO = ['database', 'emprestimos', 'escala-repsol',
 /* Tabs que TÊM de ser atribuíveis (pedido explícito do negócio): não podem sair da matriz. */
 const OBRIGATORIOS_NA_MATRIZ = ['painel', 'multas', 'marketing', 'objetivos', 'end-of-term', 'demos', 'lavagem'];
 
-const roles: AppRole[] = [{ name: 'Comercial', is_admin: false, modelo_simples: true, permissions: {}, permissions_outros: {} }];
+const roles: AppRole[] = [{ name: 'Comercial', is_admin: false, modelo_matriz: true, permissions: {}, permissions_matriz: {} }];
 
 describe('matriz de permissões', () => {
   it('só ficam fora da matriz os tabs listados de propósito', () => {
@@ -43,13 +43,13 @@ describe('matriz de permissões', () => {
     for (const area of AREAS) {
       const tabs = PERMISSION_TABS.filter(t => t.area === area.key);
       if (tabs.length === 0) continue;
-      const bloco = screen.getAllByRole('heading', { level: 4 }).find(h => h.textContent?.startsWith(area.label))!.closest('section') as HTMLElement;
+      const bloco = screen.getAllByRole('heading', { level: 4 }).find(h => h.textContent?.startsWith(area.label))!.closest('tbody') as HTMLElement;
       expect(bloco, `área ${area.label}`).toBeTruthy();
       for (const t of tabs) {
         expect(within(bloco).getAllByText(t.label).length, `${t.label} em ${area.label}`).toBeGreaterThan(0);
       }
     }
-    const vn = screen.getAllByRole('heading', { level: 4 }).find(h => h.textContent?.startsWith('Vendas VN'))!.closest('section') as HTMLElement;
+    const vn = screen.getAllByRole('heading', { level: 4 }).find(h => h.textContent?.startsWith('Vendas VN'))!.closest('tbody') as HTMLElement;
     expect(within(vn).getByText('Multas')).toBeTruthy();
   });
 });

@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { locaisDoPerfil } from '@/lib/locations';
 import { client } from '@/clients';
 
@@ -196,17 +197,24 @@ export interface AppRole {
   /** Camada por equipa: { 'BMW VN': { funil: 'view', … } }. Por cima da matriz base e das de local; uma
    *  chave presente substitui a da matriz (incluindo 'none'). Sem equipa na conta, não se aplica. */
   permissions_equipa?: Record<string, Record<string, AccessLevel>>;
-  /** Modelo simples (migração permissoes_simples): `permissions` é a matriz "completa" (Aveiro e contas
-   *  sem local) e `permissions_outros` a dos restantes locais. Só vale com `modelo_simples` verdadeiro;
-   *  nesse caso as matrizes por local e a camada por equipa já não existem. */
-  permissions_outros?: Record<string, AccessLevel>;
-  modelo_simples?: boolean;
+  /** Matriz explícita Perfil → Local → Equipa → Tab (migração permissoes_matriz). Só vale com
+   *  `modelo_matriz` verdadeiro; nesse caso as outras matrizes e a camada por equipa já não existem. */
+  permissions_matriz?: Matriz;
+  modelo_matriz?: boolean;
 }
+
+/** { "<local>": { "<equipa>": { "<tab>": nível } } } com os locais do grupo mais SEM_LOCAL (conta sem local
+ *  reconhecido) e as equipas mais SEM_EQUIPA (conta sem equipa). Célula ausente = sem acesso. */
+export type Matriz = Record<string, Record<string, Record<string, AccessLevel>>>;
+export const SEM_LOCAL = '_';
+export const SEM_EQUIPA = '_';
 
 /** A função com a camada da equipa aplicada (espelha access_rank, SQL). Sem equipa ou sem camada
  *  para ela devolve a própria função. */
 export function funcaoDaEquipa(role: AppRole | null | undefined, equipa: string | null | undefined): AppRole | null | undefined {
-  if (role?.modelo_simples) return role;
+  // Matriz: `permissions` passa a ser o acesso da equipa em qualquer local (o mais alto), para quem só quer
+  // saber se a pessoa tem o tab.
+  if (role?.modelo_matriz) return { ...role, permissions: permissoesDaEquipa(role, equipa) };
   const camada = role && equipa ? role.permissions_equipa?.[equipa] : undefined;
   if (!role || !camada || typeof camada !== 'object' || Array.isArray(camada) || Object.keys(camada).length === 0) return role;
   const locais: Record<string, Record<string, AccessLevel>> = {};
@@ -279,17 +287,35 @@ export function permissoesDoLocal(role: AppRole | null | undefined, local: strin
   return guardada && typeof guardada === 'object' ? guardada : permissoesDoLocalLegado(role.permissions, local, tabsPorLocal);
 }
 
-/** Modelo simples (espelha role_tab_level_simples, SQL): Aveiro e contas sem local seguem a matriz
- *  completa, os restantes locais a de "outros"; vários locais = o nível mais alto; uma exceção por
- *  email abre o tab ao nível completo. */
-export function nivelSimples(role: AppRole, locais: readonly string[], tab: string, comExcecao = false): AccessLevel {
-  if (locais.length === 0) return nivel(role.permissions?.[tab]);
+/** Equipa conhecida? Senão vale a coluna "sem equipa" (espelha role_tab_level_matriz, SQL). */
+/** Manter sincronizada com EQUIPAS (cartao-go.ts) e app_equipas() (SQL). */
+export const EQUIPAS_DA_MATRIZ = ['BMW VN', 'BMW VU', 'Motorrad', 'APV'] as const;
+const colunaEquipa = (equipa: string | null | undefined) =>
+  equipa && (EQUIPAS_DA_MATRIZ as readonly string[]).includes(equipa) ? equipa : SEM_EQUIPA;
+
+/** Nível de uma célula da matriz (local, equipa, tab). */
+export const celulaMatriz = (m: Matriz | undefined, local: string, equipa: string, tab: string): AccessLevel =>
+  nivel(m?.[local]?.[equipa]?.[tab]);
+
+/** Matriz: o nível mais alto entre os locais da conta (ou "sem local"), na coluna da equipa da conta. */
+export function nivelMatriz(role: AppRole, locais: readonly string[], equipa: string | null | undefined, tab: string): AccessLevel {
+  const col = colunaEquipa(equipa);
   let best: AccessLevel = 'none';
-  for (const l of locais) {
-    const v = l === LOCAL_ACESSO_COMPLETO || comExcecao ? nivel(role.permissions?.[tab]) : nivel(role.permissions_outros?.[tab]);
+  for (const l of locais.length ? locais : [SEM_LOCAL]) {
+    const v = celulaMatriz(role.permissions_matriz, l, col, tab);
     if (RANK[v] > RANK[best]) best = v;
   }
   return best;
+}
+
+/** Os tabs a que a equipa dá acesso em algum local (o nível mais alto). */
+export function permissoesDaEquipa(role: AppRole, equipa: string | null | undefined): Record<string, AccessLevel> {
+  const col = colunaEquipa(equipa);
+  const out: Record<string, AccessLevel> = {};
+  Object.values(role.permissions_matriz ?? {}).forEach(porEquipa => {
+    Object.entries(porEquipa?.[col] ?? {}).forEach(([tab, v]) => { if (RANK[nivel(v)] > RANK[out[tab] ?? 'none']) out[tab] = nivel(v); });
+  });
+  return out;
 }
 
 /** Nível que a função dá a quem opera nestes locais (canónicos) neste tab/permissão. */
@@ -299,7 +325,7 @@ export function nivelDaFuncao(
 ): AccessLevel {
   role = funcaoDaEquipa(role, opts.equipa);
   if (!role) return 'none';
-  if (role.modelo_simples) return nivelSimples(role, locais, tab, !!opts.comExcecao);
+  if (role.modelo_matriz) return nivelMatriz(role, locais, opts.equipa, tab);
   if (locais.length === 0) return nivel(role.permissions?.[tab]);
   let best: AccessLevel = 'none';
   for (const l of locais) {
@@ -333,7 +359,7 @@ export async function listRoles(): Promise<AppRole[]> {
   // Das colunas mais recentes para as mais antigas: uma coluna em falta (42703) = migração por aplicar,
   // lê-se o que existe, como antes.
   const colunas = [
-    'name, is_admin, permissions, permissions_local, permissions_equipa, permissions_outros, modelo_simples',
+    'name, is_admin, permissions, permissions_local, permissions_equipa, permissions_matriz, modelo_matriz',
     'name, is_admin, permissions, permissions_local, permissions_equipa',
     'name, is_admin, permissions',
   ];
@@ -501,20 +527,22 @@ const ERROS_PERFIL: Record<string, string> = {
   nome_repetido: 'Já existe uma função com esse nome.',
   perfil_inexistente: 'Perfil não encontrado.',
   perfil_admin: 'Não é possível alterar um perfil de administrador.',
-  perfil_por_migrar: 'Este perfil ainda está no modelo antigo: aplica primeiro a migração 20261123120000 no Supabase.',
+  perfil_por_migrar: 'Este perfil ainda está no modelo antigo: aplica primeiro a migração 20261124100000 no Supabase.',
   matriz_invalida: 'Matriz de permissões inválida.',
   nivel_invalido: 'Nível de acesso inválido.',
 };
 const erroPerfil = (e: { message?: string }) => new Error(ERROS_PERFIL[e.message ?? ''] ?? e.message ?? 'Não foi possível guardar o perfil.');
 
-/* Modelo simples: grava as duas matrizes de um perfil (função guardar_perfil; só administradores). */
-export async function saveRoleSimples(
-  name: string, permissions: Record<string, AccessLevel>, permissions_outros: Record<string, AccessLevel>,
-): Promise<void> {
-  const limpa = (p: Record<string, AccessLevel>) => Object.fromEntries(Object.entries(p).filter(([, v]) => v === 'view' || v === 'edit'));
-  const { error } = await supabase.rpc('guardar_perfil', { p_nome: name, p_permissions: limpa(permissions), p_outros: limpa(permissions_outros) });
+/* Grava a matriz de um perfil (função guardar_perfil; só administradores). Níveis 'none' não se guardam. */
+export async function saveRoleMatriz(name: string, matriz: Matriz): Promise<void> {
+  const limpa: Matriz = {};
+  Object.entries(matriz).forEach(([l, porEquipa]) => Object.entries(porEquipa).forEach(([e, tabs]) => {
+    const t = Object.fromEntries(Object.entries(tabs).filter(([, v]) => v === 'view' || v === 'edit'));
+    if (Object.keys(t).length) ((limpa[l] ??= {})[e] = t);
+  }));
+  const { error } = await supabase.rpc('guardar_perfil', { p_nome: name, p_matriz: limpa as unknown as Json });
   if (error) {
-    if ((error as { code?: string }).code === 'PGRST202') throw new Error('Falta aplicar a migração 20261123120000 no Supabase.');
+    if ((error as { code?: string }).code === 'PGRST202') throw new Error('Falta aplicar a migração 20261124100000 no Supabase.');
     throw erroPerfil(error);
   }
 }

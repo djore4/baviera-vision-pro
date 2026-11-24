@@ -15,8 +15,8 @@ import { toast } from 'sonner';
 
 const roles: AppRole[] = [
   { name: 'Admin', is_admin: true, permissions: {} },
-  { name: 'Comercial', is_admin: false, modelo_simples: true, permissions: { retails: 'view' }, permissions_outros: {} },
-  { name: 'Lavador', is_admin: false, modelo_simples: true, permissions: { lavagem: 'view' }, permissions_outros: {} },
+  { name: 'Comercial', is_admin: false, modelo_matriz: true, permissions: {}, permissions_matriz: {} },
+  { name: 'Lavador', is_admin: false, modelo_matriz: true, permissions: {}, permissions_matriz: {} },
 ];
 const users: AppUser[] = [
   { id: '1', nome: 'Ana', email: 'ana@x.pt', perfil: 'Comercial', local: null, negocio: null, marca: null },
