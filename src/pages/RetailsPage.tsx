@@ -98,6 +98,16 @@ export default function RetailsPage() {
     return Object.values(map).sort((a, b) => b.total - a.total);
   }, [filteredSemResp]);
 
+  // Somatório por estado (respeita a seleção de responsáveis), mostrado na legenda.
+  const statusTotals = useMemo(() => {
+    const t: Record<string, number> = { Retail: 0, Matricula: 0, Carteira: 0 };
+    statusByResp.forEach(d => {
+      if (respDimmed(d.resp)) return;
+      t.Retail += d.Retail; t.Matricula += d.Matricula; t.Carteira += d.Carteira;
+    });
+    return t;
+  }, [statusByResp, selectedResps]);
+
 
   const selectedMonthKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -384,7 +394,7 @@ export default function RetailsPage() {
 
           {/* Row 1 */}
           <div className="grid grid-cols-1 xl:grid-cols-8 gap-2">
-            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2">
+            <div className="xl:col-span-4 bg-card border border-border rounded-lg p-2 flex flex-col">
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-[11px] font-semibold text-muted-foreground uppercase">Status por Responsável</h3>
                 {/* Atual / Previsão, mesmos valores e cores dos gauges de realização. */}
@@ -401,8 +411,9 @@ export default function RetailsPage() {
                   ))}
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={statusByResp} barSize={56}
+              <div className="flex-1 min-h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={statusByResp} maxBarSize={72} margin={{ top: 16, right: 8, left: -8, bottom: 0 }}
                   onClick={(chartData: any, event: any) => {
                     const resp = chartData?.activePayload?.[0]?.payload?.resp;
                     if (resp) handleRespClick(resp, event?.ctrlKey || event?.metaKey);
@@ -412,11 +423,13 @@ export default function RetailsPage() {
                     <text x={x} y={y + 12} textAnchor="middle" fontSize={10} cursor="pointer" fill="hsl(var(--foreground))"
                       opacity={respDimmed(payload.value) ? 0.35 : 1} fontWeight={selectedResps.has(payload.value) ? 'bold' : 'normal'}>{payload.value}</text>
                   )} />
-                  <YAxis tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                   <Tooltip cursor={false} contentStyle={{ fontSize: 11, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                  <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }} onClick={handleLegendClick}
+                  <Legend wrapperStyle={{ fontSize: 11, cursor: 'pointer' }} onClick={handleLegendClick}
                     formatter={(value: string) => (
-                      <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal' }}>{STATUS_LABELS[value] ?? value}</span>
+                      <span style={{ opacity: selectedResps.size > 0 && !selectedResps.has(value) ? 0.3 : 1, fontWeight: selectedResps.has(value) ? 'bold' : 'normal' }}>
+                        {STATUS_LABELS[value] ?? value} ({statusTotals[value] ?? 0})
+                      </span>
                     )} />
                   <Bar dataKey="Retail" stackId="a" fill={STATUS_COLORS.Retail} cursor="pointer" opacity={selectedStatus.size > 0 && !selectedStatus.has('Retail') ? 0.2 : 1}>
                     {statusByResp.map(d => <Cell key={d.resp} fill={STATUS_COLORS.Retail} opacity={respDimmed(d.resp) ? 0.2 : 1} />)}
@@ -430,6 +443,7 @@ export default function RetailsPage() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             </div>
 
             <div className="xl:col-span-4">
