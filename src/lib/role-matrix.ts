@@ -1,5 +1,5 @@
 import {
-  LOCAL_ACESSO_COMPLETO, funcaoDaEquipa, tabLivreForaDoLocal,
+  LOCAL_ACESSO_COMPLETO, funcaoDaEquipa, tabLivreForaDoLocal, celulaMatriz, EQUIPAS_DA_MATRIZ, SEM_EQUIPA, SEM_LOCAL,
   type AccessLevel, type AppRole,
 } from '@/lib/permissions';
 
@@ -9,19 +9,6 @@ import {
 
 const RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
 const nivel = (v: unknown): AccessLevel => (v === 'view' || v === 'edit' ? v : 'none');
-
-/** O nível mais frequente (em empate, o mais alto). */
-export function nivelMaioritario(valores: readonly AccessLevel[]): AccessLevel {
-  const n: Record<AccessLevel, number> = { none: 0, view: 0, edit: 0 };
-  valores.forEach(v => { n[v] += 1; });
-  return (['edit', 'view', 'none'] as AccessLevel[]).reduce((best, l) => (n[l] > n[best] ? l : best), 'edit' as AccessLevel);
-}
-
-/** Quais dos valores (por ordem) diferem do maioritário. Tudo igual → nenhum. */
-export function diferentesDoMaioritario(valores: readonly AccessLevel[]): boolean[] {
-  const m = nivelMaioritario(valores);
-  return valores.map(v => v !== m);
-}
 
 /* ── Acesso efetivo de uma pessoa, com a origem de cada nível ─────────────────── */
 
@@ -33,6 +20,17 @@ export function acessoEfetivo(
   opts: { tabsPorLocal?: readonly string[]; comExcecao?: boolean; equipa?: string | null } = {},
 ): AcessoEfetivo {
   if (!role) return { nivel: 'none', origem: 'Sem função' };
+  if (role.modelo_matriz) {
+    const eq = opts.equipa ?? null;
+    const col = eq && (EQUIPAS_DA_MATRIZ as readonly string[]).includes(eq) ? eq : SEM_EQUIPA;
+    let melhor: AcessoEfetivo | null = null;
+    for (const l of locais.length ? locais : [SEM_LOCAL]) {
+      const r: AcessoEfetivo = { nivel: celulaMatriz(role.permissions_matriz, l, col, tab),
+        origem: `Perfil · ${l === SEM_LOCAL ? 'sem local' : l} · ${col === SEM_EQUIPA ? 'sem equipa' : col}` };
+      if (!melhor || RANK[r.nivel] > RANK[melhor.nivel]) melhor = r;
+    }
+    return melhor as AcessoEfetivo;
+  }
   const eq = opts.equipa ?? null;
   const camadaBruta = eq ? role.permissions_equipa?.[eq] : undefined;
   const efetiva = funcaoDaEquipa(role, eq);
@@ -58,16 +56,3 @@ export function acessoEfetivo(
   }
   return best as AcessoEfetivo;
 }
-
-/** Próximo nível ao clicar numa célula de local/base: sem acesso → consulta → edição → sem acesso.
- *  Uma permissão fina (só 'sim'/'não') alterna entre sem acesso e edição. */
-export const proximoNivel = (v: AccessLevel, fina = false): AccessLevel =>
-  fina ? (v === 'none' ? 'edit' : 'none') : v === 'none' ? 'view' : v === 'view' ? 'edit' : 'none';
-
-/** Próximo valor numa célula de equipa (camada por cima do local):
- *  herda (undefined) → sem acesso → consulta → edição → herda. */
-export const proximoNivelEquipa = (v: AccessLevel | undefined, fina = false): AccessLevel | undefined => {
-  if (v === undefined) return 'none';
-  if (fina) return v === 'none' ? 'edit' : undefined;
-  return v === 'none' ? 'view' : v === 'view' ? 'edit' : undefined;
-};

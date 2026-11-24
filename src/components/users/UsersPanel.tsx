@@ -1,7 +1,7 @@
-import { Fragment, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   UserPlus, Loader2, Trash2, KeyRound, Search, Copy, Check, Eye, EyeOff, Wand2,
-  ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle, ChevronRight, ChevronDown,
+  ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle, ShieldCheck,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -55,7 +55,7 @@ export function UsersPanel({
   const [createOpen, setCreateOpen] = useState(false);
   const [pwTarget, setPwTarget] = useState<AppUser | null>(null);
   const [delTarget, setDelTarget] = useState<AppUser | null>(null);
-  const [aberta, setAberta] = useState<AppUser['id'] | null>(null);
+  const [aberta, setAberta] = useState<AppUser | null>(null);
 
   // Quem tem local e, nesse(s) local(is), a função só abre o End-of-Term (nenhum outro tab da matriz).
   const soEot = (u: AppUser) => {
@@ -218,16 +218,14 @@ export function UsersPanel({
                 {visible.map(u => {
                   const isMe = !!me?.email && u.email?.toLowerCase() === me.email.toLowerCase();
                   const noRole = roleOf(u) === SEM_FUNCAO;
-                  const expandida = aberta === u.id;
                   return (
-                    <Fragment key={u.id}>
-                    <tr className={cn('border-b border-border/60 last:border-0 hover:bg-muted/20', expandida && 'bg-muted/20')}>
+                    <tr key={u.id} className="border-b border-border/60 last:border-0 hover:bg-muted/20">
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <button type="button" onClick={() => setAberta(expandida ? null : u.id)} aria-expanded={expandida}
-                            aria-label={`${expandida ? 'Esconder' : 'Ver'} os acessos de ${u.nome || u.email}`} title="Ver os acessos desta conta, por local"
-                            className="grid place-items-center h-6 w-6 shrink-0 rounded hover:bg-accent text-muted-foreground">
-                            {expandida ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          <button type="button" onClick={() => setAberta(u)}
+                            aria-label={`Ver os acessos de ${u.nome || u.email}`} title="Ver o que esta conta pode fazer"
+                            className="grid place-items-center h-7 w-7 shrink-0 rounded hover:bg-accent text-muted-foreground">
+                            <ShieldCheck className="h-4 w-4" />
                           </button>
                           <span className="grid place-items-center h-8 w-8 rounded-full bg-primary/10 text-primary text-[11px] font-bold shrink-0">{initialsOf(u)}</span>
                           <div className="min-w-0">
@@ -282,12 +280,6 @@ export function UsersPanel({
                         </div>
                       </td>
                     </tr>
-                    {expandida && (
-                      <tr className="border-b border-border/60 bg-muted/10">
-                        <td colSpan={comLocais ? 5 : 4} className="p-0"><UserAccessMatrix user={u} roles={roles} /></td>
-                      </tr>
-                    )}
-                    </Fragment>
                   );
                 })}
               </tbody>
@@ -299,6 +291,15 @@ export function UsersPanel({
 
       <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} roleNames={roleNames} onCreated={onChanged} />
       <ResetPasswordDialog target={pwTarget} onClose={() => setPwTarget(null)} />
+      <Dialog open={!!aberta} onOpenChange={o => { if (!o) setAberta(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto p-3 sm:p-5">
+          <DialogHeader>
+            <DialogTitle>Acessos de {aberta?.nome || aberta?.email}</DialogTitle>
+            <DialogDescription>O que esta conta pode fazer, tab a tab, e porquê.</DialogDescription>
+          </DialogHeader>
+          {aberta && <UserAccessMatrix user={aberta} roles={roles} />}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!delTarget} onOpenChange={o => !o && setDelTarget(null)}>
         <AlertDialogContent>

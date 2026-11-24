@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { locaisDoPerfil } from '@/lib/locations';
 import { client } from '@/clients';
 
@@ -196,11 +197,24 @@ export interface AppRole {
   /** Camada por equipa: { 'BMW VN': { funil: 'view', … } }. Por cima da matriz base e das de local; uma
    *  chave presente substitui a da matriz (incluindo 'none'). Sem equipa na conta, não se aplica. */
   permissions_equipa?: Record<string, Record<string, AccessLevel>>;
+  /** Matriz explícita Perfil → Local → Equipa → Tab (migração permissoes_matriz). Só vale com
+   *  `modelo_matriz` verdadeiro; nesse caso as outras matrizes e a camada por equipa já não existem. */
+  permissions_matriz?: Matriz;
+  modelo_matriz?: boolean;
 }
+
+/** { "<local>": { "<equipa>": { "<tab>": nível } } } com os locais do grupo mais SEM_LOCAL (conta sem local
+ *  reconhecido) e as equipas mais SEM_EQUIPA (conta sem equipa). Célula ausente = sem acesso. */
+export type Matriz = Record<string, Record<string, Record<string, AccessLevel>>>;
+export const SEM_LOCAL = '_';
+export const SEM_EQUIPA = '_';
 
 /** A função com a camada da equipa aplicada (espelha access_rank, SQL). Sem equipa ou sem camada
  *  para ela devolve a própria função. */
 export function funcaoDaEquipa(role: AppRole | null | undefined, equipa: string | null | undefined): AppRole | null | undefined {
+  // Matriz: `permissions` passa a ser o acesso da equipa em qualquer local (o mais alto), para quem só quer
+  // saber se a pessoa tem o tab.
+  if (role?.modelo_matriz) return { ...role, permissions: permissoesDaEquipa(role, equipa) };
   const camada = role && equipa ? role.permissions_equipa?.[equipa] : undefined;
   if (!role || !camada || typeof camada !== 'object' || Array.isArray(camada) || Object.keys(camada).length === 0) return role;
   const locais: Record<string, Record<string, AccessLevel>> = {};
@@ -273,6 +287,37 @@ export function permissoesDoLocal(role: AppRole | null | undefined, local: strin
   return guardada && typeof guardada === 'object' ? guardada : permissoesDoLocalLegado(role.permissions, local, tabsPorLocal);
 }
 
+/** Equipa conhecida? Senão vale a coluna "sem equipa" (espelha role_tab_level_matriz, SQL). */
+/** Manter sincronizada com EQUIPAS (cartao-go.ts) e app_equipas() (SQL). */
+export const EQUIPAS_DA_MATRIZ = ['BMW VN', 'BMW VU', 'Motorrad', 'APV'] as const;
+const colunaEquipa = (equipa: string | null | undefined) =>
+  equipa && (EQUIPAS_DA_MATRIZ as readonly string[]).includes(equipa) ? equipa : SEM_EQUIPA;
+
+/** Nível de uma célula da matriz (local, equipa, tab). */
+export const celulaMatriz = (m: Matriz | undefined, local: string, equipa: string, tab: string): AccessLevel =>
+  nivel(m?.[local]?.[equipa]?.[tab]);
+
+/** Matriz: o nível mais alto entre os locais da conta (ou "sem local"), na coluna da equipa da conta. */
+export function nivelMatriz(role: AppRole, locais: readonly string[], equipa: string | null | undefined, tab: string): AccessLevel {
+  const col = colunaEquipa(equipa);
+  let best: AccessLevel = 'none';
+  for (const l of locais.length ? locais : [SEM_LOCAL]) {
+    const v = celulaMatriz(role.permissions_matriz, l, col, tab);
+    if (RANK[v] > RANK[best]) best = v;
+  }
+  return best;
+}
+
+/** Os tabs a que a equipa dá acesso em algum local (o nível mais alto). */
+export function permissoesDaEquipa(role: AppRole, equipa: string | null | undefined): Record<string, AccessLevel> {
+  const col = colunaEquipa(equipa);
+  const out: Record<string, AccessLevel> = {};
+  Object.values(role.permissions_matriz ?? {}).forEach(porEquipa => {
+    Object.entries(porEquipa?.[col] ?? {}).forEach(([tab, v]) => { if (RANK[nivel(v)] > RANK[out[tab] ?? 'none']) out[tab] = nivel(v); });
+  });
+  return out;
+}
+
 /** Nível que a função dá a quem opera nestes locais (canónicos) neste tab/permissão. */
 export function nivelDaFuncao(
   role: AppRole | null | undefined, locais: readonly string[], tab: string,
@@ -280,6 +325,7 @@ export function nivelDaFuncao(
 ): AccessLevel {
   role = funcaoDaEquipa(role, opts.equipa);
   if (!role) return 'none';
+  if (role.modelo_matriz) return nivelMatriz(role, locais, opts.equipa, tab);
   if (locais.length === 0) return nivel(role.permissions?.[tab]);
   let best: AccessLevel = 'none';
   for (const l of locais) {
@@ -310,20 +356,19 @@ export interface AppUser {
 /* ── Leitura (autenticado) ────────────────────────────────────────────────── */
 
 export async function listRoles(): Promise<AppRole[]> {
-  const { data, error } = await supabase
-    .from('app_roles')
-    .select('name, is_admin, permissions, permissions_local, permissions_equipa')
-    .order('name', { ascending: true });
-  if (error) {
-    // Coluna em falta (migração permissoes_por_local por aplicar): lê-se a matriz base, como antes.
-    if ((error as { code?: string }).code === '42703') {
-      const legado = await supabase.from('app_roles').select('name, is_admin, permissions').order('name', { ascending: true });
-      if (legado.error) throw legado.error;
-      return (legado.data ?? []) as AppRole[];
-    }
-    throw error;
+  // Das colunas mais recentes para as mais antigas: uma coluna em falta (42703) = migração por aplicar,
+  // lê-se o que existe, como antes.
+  const colunas = [
+    'name, is_admin, permissions, permissions_local, permissions_equipa, permissions_matriz, modelo_matriz',
+    'name, is_admin, permissions, permissions_local, permissions_equipa',
+    'name, is_admin, permissions',
+  ];
+  for (const cols of colunas) {
+    const { data, error } = await supabase.from('app_roles').select(cols).order('name', { ascending: true });
+    if (!error) return (data ?? []) as unknown as AppRole[];
+    if ((error as { code?: string }).code !== '42703') throw error;
   }
-  return (data ?? []) as AppRole[];
+  return [];
 }
 
 /* Administrador da plataforma (email em platform_admins, via RPC). */
@@ -475,18 +520,50 @@ export async function saveRole(
   return res.role;
 }
 
-/* Renomeia uma função: os utilizadores que a têm passam para o novo nome. */
-export async function renameRole(name: string, newName: string): Promise<AppRole> {
-  try {
-    const res = await invokeAdmin<{ role: AppRole }>({ action: 'rename_role', name, new_name: newName });
-    return res.role;
-  } catch (e) {
-    // A edge function ainda não foi atualizada no Supabase (não conhece a ação).
-    if (e instanceof Error && e.message === 'Ação desconhecida.') {
-      throw new Error('Falta publicar a versão nova da função admin-users no Supabase (supabase functions deploy admin-users).');
-    }
-    throw e;
+const ERROS_PERFIL: Record<string, string> = {
+  sem_acesso: 'Só os administradores podem alterar perfis.',
+  nome_em_falta: 'Nome do perfil em falta.',
+  nome_igual: 'O novo nome é igual ao atual.',
+  nome_repetido: 'Já existe uma função com esse nome.',
+  perfil_inexistente: 'Perfil não encontrado.',
+  perfil_admin: 'Não é possível alterar um perfil de administrador.',
+  perfil_por_migrar: 'Este perfil ainda está no modelo antigo: aplica primeiro a migração 20261124100000 no Supabase.',
+  matriz_invalida: 'Matriz de permissões inválida.',
+  nivel_invalido: 'Nível de acesso inválido.',
+};
+const erroPerfil = (e: { message?: string }) => new Error(ERROS_PERFIL[e.message ?? ''] ?? e.message ?? 'Não foi possível guardar o perfil.');
+
+/* Grava a matriz de um perfil (função guardar_perfil; só administradores). Níveis 'none' não se guardam. */
+export async function saveRoleMatriz(name: string, matriz: Matriz): Promise<void> {
+  const limpa: Matriz = {};
+  Object.entries(matriz).forEach(([l, porEquipa]) => Object.entries(porEquipa).forEach(([e, tabs]) => {
+    const t = Object.fromEntries(Object.entries(tabs).filter(([, v]) => v === 'view' || v === 'edit'));
+    if (Object.keys(t).length) ((limpa[l] ??= {})[e] = t);
+  }));
+  const { error } = await supabase.rpc('guardar_perfil', { p_nome: name, p_matriz: limpa as unknown as Json });
+  if (error) {
+    if ((error as { code?: string }).code === 'PGRST202') throw new Error('Falta aplicar a migração 20261124100000 no Supabase.');
+    throw erroPerfil(error);
   }
+}
+
+/* Renomeia uma função: os utilizadores que a têm passam para o novo nome. */
+export async function renameRole(name: string, newName: string): Promise<void> {
+  const { error } = await supabase.rpc('renomear_perfil', { p_nome: name, p_novo: newName });
+  if (!error) return;
+  if ((error as { code?: string }).code === 'PGRST202') {
+    // Migração por aplicar: usa-se a edge function (só conhece o modelo antigo).
+    try {
+      await invokeAdmin<{ role: AppRole }>({ action: 'rename_role', name, new_name: newName });
+      return;
+    } catch (e) {
+      if (e instanceof Error && e.message === 'Ação desconhecida.') {
+        throw new Error('Falta publicar a versão nova da função admin-users no Supabase (supabase functions deploy admin-users).');
+      }
+      throw e;
+    }
+  }
+  throw erroPerfil(error);
 }
 
 export async function deleteRole(name: string): Promise<void> {

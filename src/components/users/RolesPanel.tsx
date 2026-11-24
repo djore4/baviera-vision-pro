@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Pencil, Plus, Save, ShieldCheck, Undo2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Save, Trash2, TriangleAlert, Undo2, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { PERMISSION_TABS, SUB_PERMISSIONS, permissoesDoLocal, type AccessLevel, type AppRole, type AppUser } from '@/lib/permissions';
-import { EQUIPAS } from '@/lib/cartao-go';
-import { PermissionsMatrix, BASE, EQ, type PerfilColuna } from '@/components/users/PermissionsMatrix';
 import { locaisDoGrupo } from '@/lib/locations';
-import { cn } from '@/lib/utils';
+import { SEM_LOCAL, type AccessLevel, type AppRole, type AppUser, type Matriz } from '@/lib/permissions';
+import { MatrizPerfil } from '@/components/users/MatrizPerfil';
+import { definir, copiarLocal, iguais, limpa } from '@/lib/matriz';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,151 +18,76 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { saveRole, deleteRole, renameRole } from '@/lib/permissions';
+import { saveRoleMatriz, deleteRole, renameRole } from '@/lib/permissions';
 import { usePermissions } from '@/contexts/PermissionsContext';
 
-type Perms = Record<string, AccessLevel>;
-
-/* Rascunho de uma função: a matriz base (contas sem local), uma matriz por local e a camada de cada
- * equipa (só as chaves que a equipa sobrepõe: chave ausente = herda do local). */
-interface Draft { base: Perms; locais: Record<string, Perms>; equipas: Record<string, Perms> }
-
-const LOCAIS = locaisDoGrupo();
-
-/* Matrizes guardadas de uma função; um local sem entrada mostra o que a regra anterior lhe dava. */
-const draftOf = (r: AppRole, tabsPorLocal: readonly string[]): Draft => ({
-  base: { ...(r.permissions ?? {}) },
-  locais: Object.fromEntries(LOCAIS.map(l => [l, { ...permissoesDoLocal(r, l, tabsPorLocal) }])),
-  equipas: Object.fromEntries(EQUIPAS.map(e => [e, { ...(r.permissions_equipa?.[e] ?? {}) }])),
-});
-
-const level = (p: Perms | undefined, key: string): AccessLevel => p?.[key] ?? 'none';
-
-/* Chaves com valor 'none' equivalem a chave ausente: normaliza para comparar. */
-/* Chaves editáveis na matriz: os tabs e as suas permissões finas ('lavagem:iniciar'…). */
-const MATRIX_KEYS = [...PERMISSION_TABS.map(t => t.key), ...SUB_PERMISSIONS.map(sp => sp.key)];
-const normalize = (p: Perms | undefined): Perms => {
-  const out: Perms = {};
-  MATRIX_KEYS.forEach(k => { const v = level(p, k); if (v !== 'none') out[k] = v; });
-  return out;
-};
-/* Chaves fora da matriz (tabs desativados, arrumados no Arquivo ou só de admin)
- * não se editam aqui: preservam-se tal como estão ao guardar. */
-const hiddenKeys = (p: Perms | undefined): Perms => {
-  const known = new Set(MATRIX_KEYS);
-  const extra: Perms = {};
-  Object.entries(p ?? {}).forEach(([k, v]) => { if (!known.has(k)) extra[k] = v; });
-  return extra;
-};
-const forSave = (p: Perms | undefined): Perms => ({ ...hiddenKeys(p), ...normalize(p) });
-const samePerms = (a: Perms | undefined, b: Perms | undefined) => {
-  const na = normalize(a), nb = normalize(b);
-  const keys = new Set([...Object.keys(na), ...Object.keys(nb)]);
-  return [...keys].every(k => na[k] === nb[k]);
-};
-const sameLocais = (a: Draft | undefined, b: Draft | undefined) =>
-  LOCAIS.every(l => samePerms(a?.locais[l], b?.locais[l]));
-/* Camada de equipa: ausente ≠ 'none' (ausente herda, 'none' retira o acesso), por isso compara-se o valor cru. */
-const sameLayer = (a: Perms | undefined, b: Perms | undefined) => MATRIX_KEYS.every(k => a?.[k] === b?.[k]);
-const sameEquipas = (a: Draft | undefined, b: Draft | undefined) => EQUIPAS.every(e => sameLayer(a?.equipas[e], b?.equipas[e]));
-const sameDraft = (a: Draft | undefined, b: Draft | undefined) => samePerms(a?.base, b?.base) && sameLocais(a, b) && sameEquipas(a, b);
-/* Camadas a gravar: as editadas aqui (só chaves da matriz) mais as chaves fora da matriz e as equipas que a
- * matriz não conhece, tal como estavam. Camadas vazias não se gravam. */
-const equipasForSave = (d: Draft | undefined, r: AppRole): Record<string, Perms> => {
-  const out: Record<string, Perms> = { ...(r.permissions_equipa ?? {}) };
-  EQUIPAS.forEach(e => {
-    const layer = d?.equipas[e] ?? {};
-    out[e] = { ...hiddenKeys(r.permissions_equipa?.[e]), ...Object.fromEntries(MATRIX_KEYS.filter(k => layer[k] !== undefined).map(k => [k, layer[k]])) };
-  });
-  Object.keys(out).forEach(e => { if (Object.keys(out[e] ?? {}).length === 0) delete out[e]; });
-  return out;
-};
-const locaisForSave = (d: Draft | undefined): Record<string, Perms> =>
-  Object.fromEntries(LOCAIS.map(l => [l, forSave(d?.locais[l])]));
+const LOCAIS = [...locaisDoGrupo(), SEM_LOCAL];
+const nomeLocal = (l: string) => (l === SEM_LOCAL ? 'Sem local' : l);
 
 export function RolesPanel({
   roles, users, loading, onSaved,
 }: {
   roles: AppRole[]; users: AppUser[]; loading: boolean; onSaved: () => Promise<void>;
 }) {
-  // Funções de administrador têm acesso total e nada editável: ficam de fora.
-  // As permissões por ação (ex.: 'lavagem:iniciar') só se mostram quando a base de dados já as suporta.
-  const { capabilities, tabsPorLocal } = usePermissions();
+  // Perfis de administrador têm acesso total e nada editável: ficam de fora.
+  const { capabilities } = usePermissions();
   const editableRoles = useMemo(() => roles.filter(r => !r.is_admin), [roles]);
-  const adminRoles = useMemo(() => roles.filter(r => r.is_admin), [roles]);
+  // Perfis que ainda seguem o modelo antigo (migração 20261124100000 por aplicar): não se editam aqui.
+  const porMigrar = useMemo(() => editableRoles.filter(r => !r.modelo_matriz), [editableRoles]);
 
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [drafts, setDrafts] = useState<Record<string, Matriz>>({});
+  const [selected, setSelected] = useState<string | null>(null);
+  const [finas, setFinas] = useState(false);
+  const [soComContas, setSoComContas] = useState(false);
+  const [copiarDe, setCopiarDe] = useState('');
+  const [copiarPara, setCopiarPara] = useState('');
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [renameTarget, setRenameTarget] = useState<string | null>(null);
-  const [delTarget, setDelTarget] = useState<string | null>(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Filtros de visualização (não alteram nada, só o que se vê).
-  const [perfisOcultos, setPerfisOcultos] = useState<string[]>([]);
-  const [locaisOcultos, setLocaisOcultos] = useState<string[]>([]);
-  const [verBase, setVerBase] = useState(true);
-  const [equipasVisiveis, setEquipasVisiveis] = useState<string[]>([...EQUIPAS]);
-  const [soDiferencas, setSoDiferencas] = useState(false);
-
-  // Repõe os rascunhos quando os dados guardados mudam. Um recarregamento não pode apagar alterações por
-  // guardar: só se repõe o rascunho das funções cujo rascunho coincide com o guardado antes.
+  // Repõe os rascunhos quando os dados guardados mudam, sem apagar alterações por guardar.
   const prevRoles = useRef<AppRole[]>([]);
   useEffect(() => {
     const antes = prevRoles.current;
     prevRoles.current = roles;
     setDrafts(prev => {
-      const d: Record<string, Draft> = {};
+      const d: Record<string, Matriz> = {};
       roles.forEach(r => {
         const old = antes.find(x => x.name === r.name);
-        const sujo = !!prev[r.name] && !!old && !sameDraft(prev[r.name], draftOf(old, tabsPorLocal));
-        d[r.name] = sujo ? prev[r.name] : draftOf(r, tabsPorLocal);
+        const sujo = !!prev[r.name] && !!old && !iguais(prev[r.name], old.permissions_matriz);
+        d[r.name] = sujo ? prev[r.name] : limpa(r.permissions_matriz);
       });
       return d;
     });
-  }, [roles, tabsPorLocal]);
+  }, [roles]);
 
-  const savedOf = (name: string): Draft => {
-    const r = roles.find(x => x.name === name);
-    return r ? draftOf(r, tabsPorLocal) : { base: {}, locais: {}, equipas: {} };
-  };
-  const isDirty = (name: string) => !sameDraft(drafts[name], savedOf(name));
+  useEffect(() => {
+    if (!selected || !editableRoles.some(r => r.name === selected)) setSelected(editableRoles[0]?.name ?? null);
+  }, [editableRoles, selected]);
+
+  const savedOf = (name: string): Matriz => limpa(roles.find(x => x.name === name)?.permissions_matriz);
+  const isDirty = (name: string) => !iguais(drafts[name], savedOf(name));
   const dirtyRoles = editableRoles.filter(r => isDirty(r.name));
 
-  const getCell = (perfil: string, col: string, key: string): AccessLevel | undefined => {
-    const d = drafts[perfil];
-    return col === BASE ? level(d?.base, key)
-      : col.startsWith(EQ) ? d?.equipas[col.slice(EQ.length)]?.[key]
-      : level(d?.locais[col], key);
+  const role = editableRoles.find(r => r.name === selected) ?? null;
+  const matriz = role ? drafts[role.name] ?? {} : {};
+  const members = role ? users.filter(u => u.perfil === role.name) : [];
+
+  const mudar = (f: (m: Matriz) => Matriz) => { if (role) setDrafts(prev => ({ ...prev, [role.name]: f(prev[role.name] ?? {}) })); };
+  const onCells = (locais: string[], equipas: string[], tabs: string[], valor: AccessLevel) => mudar(m => definir(m, locais, equipas, tabs, valor));
+
+  const copiarColuna = () => {
+    if (!copiarDe || !copiarPara || copiarDe === copiarPara) return;
+    mudar(m => copiarLocal(m, copiarDe, copiarPara));
+    toast.success(`${nomeLocal(copiarDe)} copiado para ${nomeLocal(copiarPara)} (por guardar).`);
   };
 
-  /* Define o nível de várias células de um perfil. Nas equipas, `undefined` volta a herdar do local. */
-  const setCells = (perfil: string, cols: string[], keys: string[], value: AccessLevel | undefined) => {
-    setDrafts(prev => {
-      const cur = prev[perfil] ?? { base: {}, locais: {}, equipas: {} };
-      const next: Draft = { base: { ...cur.base }, locais: { ...cur.locais }, equipas: { ...cur.equipas } };
-      cols.forEach(col => {
-        const alvo: Perms = col === BASE ? next.base
-          : col.startsWith(EQ) ? (next.equipas[col.slice(EQ.length)] = { ...(next.equipas[col.slice(EQ.length)] ?? {}) })
-          : (next.locais[col] = { ...(next.locais[col] ?? {}) });
-        keys.forEach(k => { if (value === undefined) delete alvo[k]; else alvo[k] = value; });
-      });
-      return { ...prev, [perfil]: next };
-    });
-  };
-
-  const copyFrom = (target: string, source: string) => {
-    setDrafts(prev => {
-      const src = prev[source]; const cur = prev[target];
-      if (!src || !cur) return prev;
-      const merge = (mine: Perms | undefined, from: Perms | undefined): Perms => ({ ...hiddenKeys(mine), ...normalize(from) });
-      return { ...prev, [target]: {
-        base: merge(cur.base, src.base),
-        locais: Object.fromEntries(LOCAIS.map(l => [l, merge(cur.locais[l], src.locais[l])])),
-        equipas: Object.fromEntries(EQUIPAS.map(e => [e, { ...(src.equipas[e] ?? {}) }])),
-      } };
-    });
-    toast.success(`Permissões de "${source}" copiadas para "${target}" (por guardar).`);
+  const copyFrom = (source: string) => {
+    if (!role) return;
+    setDrafts(prev => ({ ...prev, [role.name]: JSON.parse(JSON.stringify(limpa(prev[source]))) }));
+    toast.success(`Permissões de "${source}" copiadas (por guardar).`);
   };
 
   const discardAll = () => setDrafts(prev => ({ ...prev, ...Object.fromEntries(dirtyRoles.map(r => [r.name, savedOf(r.name)])) }));
@@ -171,18 +95,8 @@ export function RolesPanel({
   const saveAll = async () => {
     setSaving(true);
     try {
-      for (const r of dirtyRoles) {
-        const d = drafts[r.name];
-        // Só se envia a matriz por local quando algo mudou nos locais ou nas equipas: editar só a matriz base
-        // não "congela" em entradas os locais que ainda seguem a regra anterior. Com equipas a mudar,
-        // congelam-se: um local sem matriz própria segue a regra anterior e a camada da equipa não o alcançaria.
-        const guardada = savedOf(r.name);
-        const equipasMudaram = !sameEquipas(d, guardada);
-        const locaisMudaram = LOCAIS.length > 0 && (!sameLocais(d, guardada) || equipasMudaram);
-        await saveRole(r.name, forSave(d?.base), false, locaisMudaram ? locaisForSave(d) : undefined,
-          equipasMudaram ? equipasForSave(d, r) : undefined);
-      }
-      toast.success(dirtyRoles.length === 1 ? `Permissões de "${dirtyRoles[0].name}" guardadas.` : `${dirtyRoles.length} funções guardadas.`);
+      for (const r of dirtyRoles) await saveRoleMatriz(r.name, drafts[r.name] ?? {});
+      toast.success(dirtyRoles.length === 1 ? `Permissões de "${dirtyRoles[0].name}" guardadas.` : `${dirtyRoles.length} perfis guardados.`);
       await onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível guardar as permissões.');
@@ -190,15 +104,16 @@ export function RolesPanel({
   };
 
   const confirmDelete = async () => {
-    if (!delTarget) return;
+    if (!role) return;
     setDeleting(true);
     try {
-      await deleteRole(delTarget);
-      toast.success('Função eliminada.');
-      setDelTarget(null);
+      await deleteRole(role.name);
+      toast.success('Perfil eliminado.');
+      setDelOpen(false);
+      setSelected(null);
       await onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível eliminar a função.');
+      toast.error(err instanceof Error ? err.message : 'Não foi possível eliminar o perfil.');
     } finally { setDeleting(false); }
   };
 
@@ -206,67 +121,79 @@ export function RolesPanel({
     return <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center"><Loader2 className="h-4 w-4 animate-spin" /> A carregar…</div>;
   }
 
-  const toggle = (lista: string[], set: (v: string[]) => void, v: string) => set(lista.includes(v) ? lista.filter(x => x !== v) : [...lista, v]);
-  const chip = (ativo: boolean) => cn('rounded-full border px-2.5 py-0.5 text-xs transition-colors',
-    ativo ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-muted-foreground hover:bg-accent');
-  const perfisVisiveis = editableRoles.filter(r => !perfisOcultos.includes(r.name));
-  const renameRole_ = roles.find(r => r.name === renameTarget) ?? null;
-  const renameMembers = renameTarget ? users.filter(u => u.perfil === renameTarget).length : 0;
+  if (porMigrar.length > 0) {
+    return (
+      <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-1.5">
+        <h3 className="text-sm font-semibold flex items-center gap-1.5"><TriangleAlert className="h-4 w-4" /> Falta aplicar a migração das permissões</h3>
+        <p className="text-sm">
+          {porMigrar.length === 1 ? 'O perfil' : 'Os perfis'} <strong>{porMigrar.map(r => r.name).join(', ')}</strong> ainda seguem o modelo antigo.
+          Aplica a migração <code>20261124100000_permissoes_matriz.sql</code> no Supabase (converte-os mantendo exatamente o acesso de cada conta) e recarrega esta página.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
-      <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0 max-w-3xl">
-            <h3 className="text-sm font-semibold leading-tight">Matriz de permissões</h3>
-            <p className="text-xs text-muted-foreground">
-              Cada coluna é um <strong>perfil</strong> num <strong>local</strong>; as linhas são os tabs. Clica numa célula para percorrer
-              sem acesso → consulta → edição. Os números 👤 mostram quantos utilizadores são afetados (passa o rato para ver quem).
-              A <strong>equipa</strong> sobrepõe-se ao local: <em>herda</em> = segue o local; preenchida = vale em todos os locais.
-              O contorno <span className="rounded px-1 outline outline-2 outline-amber-500">âmbar</span> marca os locais que diferem da maioria do perfil.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5" /> Novo perfil</Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
-          <div className="flex flex-wrap items-center gap-1"><span className="text-muted-foreground mr-1">Perfis</span>
-            {editableRoles.map(r => <button key={r.name} type="button" aria-pressed={!perfisOcultos.includes(r.name)} onClick={() => toggle(perfisOcultos, setPerfisOcultos, r.name)} className={chip(!perfisOcultos.includes(r.name))}>{r.name}</button>)}
-          </div>
-          <div className="flex flex-wrap items-center gap-1"><span className="text-muted-foreground mr-1">Locais</span>
-            {LOCAIS.map(l => <button key={l} type="button" aria-pressed={!locaisOcultos.includes(l)} onClick={() => toggle(locaisOcultos, setLocaisOcultos, l)} className={chip(!locaisOcultos.includes(l))}>{l}</button>)}
-            <button type="button" aria-pressed={verBase} onClick={() => setVerBase(v => !v)} className={chip(verBase)}>Sem local</button>
-          </div>
-          <div className="flex flex-wrap items-center gap-1"><span className="text-muted-foreground mr-1">Equipas</span>
-            {EQUIPAS.map(e => <button key={e} type="button" aria-pressed={equipasVisiveis.includes(e)} onClick={() => toggle(equipasVisiveis, setEquipasVisiveis, e)} className={chip(equipasVisiveis.includes(e))}>{e}</button>)}
-          </div>
-          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-            <input type="checkbox" checked={soDiferencas} onChange={e => setSoDiferencas(e.target.checked)} /> Só linhas com diferenças
-          </label>
-        </div>
-        {adminRoles.length > 0 && (
-          <p className="text-[11px] text-muted-foreground"><ShieldCheck className="h-3 w-3 inline mr-1" />{adminRoles.map(r => r.name).join(', ')}: acesso total, não editável.</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={selected ?? ''} onValueChange={setSelected}>
+          <SelectTrigger className="h-9 w-[16rem] font-semibold" aria-label="Perfil"><SelectValue placeholder="Escolhe um perfil" /></SelectTrigger>
+          <SelectContent>
+            {editableRoles.map(r => <SelectItem key={r.name} value={r.name}>{r.name}{isDirty(r.name) ? ' •' : ''} ({users.filter(u => u.perfil === r.name).length})</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5" /> Novo perfil</Button>
+        {role && (
+          <>
+            <Select value="" onValueChange={copyFrom}>
+              <SelectTrigger className="h-9 w-[10.5rem] text-xs" aria-label="Copiar de"><SelectValue placeholder="Copiar perfil de…" /></SelectTrigger>
+              <SelectContent>{editableRoles.filter(r => r.name !== role.name).map(r => <SelectItem key={r.name} value={r.name}>{r.name}</SelectItem>)}</SelectContent>
+            </Select>
+            <Button variant="ghost" size="sm" className="h-9 gap-1.5" onClick={() => setRenameOpen(true)} disabled={isDirty(role.name)}
+              title={isDirty(role.name) ? 'Guarda ou descarta as alterações antes de renomear' : undefined}><Pencil className="h-3.5 w-3.5" /> Renomear</Button>
+            <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-destructive" onClick={() => setDelOpen(true)} disabled={members.length > 0}
+              title={members.length > 0 ? 'Muda primeiro o perfil destas contas' : undefined}><Trash2 className="h-3.5 w-3.5" /> Eliminar</Button>
+          </>
         )}
       </div>
 
-      <PermissionsMatrix
-        perfis={perfisVisiveis.map(r => ({ name: r.name, dirty: isDirty(r.name) }))}
-        locais={LOCAIS.filter(l => !locaisOcultos.includes(l))}
-        mostrarBase={verBase || LOCAIS.length === 0}
-        equipas={EQUIPAS.filter(e => equipasVisiveis.includes(e))}
-        users={users} allPerfis={editableRoles.map(r => r.name)} capabilities={capabilities} soDiferencas={soDiferencas}
-        getCell={getCell} setCells={setCells}
-        onRename={setRenameTarget} onDelete={setDelTarget} onCopyFrom={copyFrom}
-      />
+      {role && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            <span>
+              <strong className="text-foreground">{role.name}</strong>: cada local tem as suas equipas. <strong>V</strong> = consulta, <strong>E</strong> = edição, <strong>—</strong> = sem acesso.
+              Clica numa célula para mudar; clica no nome do tab para aplicar a toda a linha. O número por baixo é quantas contas deste perfil estão nessa célula.
+            </span>
+            <span className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none"><input type="checkbox" checked={soComContas} onChange={e => setSoComContas(e.target.checked)} /> Só colunas com contas</label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none"><input type="checkbox" checked={finas} onChange={e => setFinas(e.target.checked)} /> Permissões finas</label>
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-muted-foreground">Copiar local</span>
+            <Select value={copiarDe} onValueChange={setCopiarDe}>
+              <SelectTrigger className="h-8 w-[7.5rem] text-xs" aria-label="Copiar do local"><SelectValue placeholder="de…" /></SelectTrigger>
+              <SelectContent>{LOCAIS.map(l => <SelectItem key={l} value={l}>{nomeLocal(l)}</SelectItem>)}</SelectContent>
+            </Select>
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+            <Select value={copiarPara} onValueChange={setCopiarPara}>
+              <SelectTrigger className="h-8 w-[7.5rem] text-xs" aria-label="Copiar para o local"><SelectValue placeholder="para…" /></SelectTrigger>
+              <SelectContent>{LOCAIS.filter(l => l !== copiarDe).map(l => <SelectItem key={l} value={l}>{nomeLocal(l)}</SelectItem>)}</SelectContent>
+            </Select>
+            <Button type="button" size="sm" variant="outline" className="h-8 px-2 text-xs" disabled={!copiarDe || !copiarPara || copiarDe === copiarPara} onClick={copiarColuna}>Copiar</Button>
+          </div>
+          <MatrizPerfil perfil={role.name} matriz={matriz} users={users} finas={finas} capabilities={capabilities} onCells={onCells} soComContas={soComContas} />
+        </>
+      )}
 
-      {/* Barra de guardar (fixa em baixo quando há alterações) */}
       {dirtyRoles.length > 0 && (
         <div className="sticky bottom-3 z-40 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/50 bg-card/95 backdrop-blur px-3 py-2 shadow-lg">
           <span className="text-sm">
-            <strong>{dirtyRoles.length}</strong> {dirtyRoles.length === 1 ? 'função com alterações' : 'funções com alterações'} por guardar
+            <strong>{dirtyRoles.length}</strong> {dirtyRoles.length === 1 ? 'perfil com alterações' : 'perfis com alterações'} por guardar
             <span className="text-muted-foreground"> ({dirtyRoles.map(r => r.name).join(', ')})</span>
           </span>
           <div className="flex items-center gap-1.5">
-            <Button variant="ghost" size="sm" className="gap-1.5" onClick={discardAll}><Undo2 className="h-3.5 w-3.5" /> Descartar tudo</Button>
+            <Button variant="ghost" size="sm" className="gap-1.5" onClick={discardAll}><Undo2 className="h-3.5 w-3.5" /> Descartar</Button>
             <Button size="sm" className="gap-1.5" onClick={saveAll} disabled={saving}>
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Guardar
             </Button>
@@ -275,21 +202,21 @@ export function RolesPanel({
       )}
 
       <CreateRoleDialog
-        open={createOpen} onOpenChange={setCreateOpen} roles={editableRoles} allNames={roles.map(r => r.name)} tabsPorLocal={tabsPorLocal}
-        onCreated={async () => { await onSaved(); }}
+        open={createOpen} onOpenChange={setCreateOpen} roles={editableRoles} allNames={roles.map(r => r.name)}
+        onCreated={async name => { await onSaved(); setSelected(name); }}
       />
 
       <RenameRoleDialog
-        role={renameRole_} allNames={roles.map(r => r.name)} memberCount={renameMembers}
-        onClose={() => setRenameTarget(null)}
-        onRenamed={async () => { await onSaved(); }}
+        role={renameOpen ? role : null} allNames={roles.map(r => r.name)} memberCount={members.length}
+        onClose={() => setRenameOpen(false)}
+        onRenamed={async name => { await onSaved(); setSelected(name); }}
       />
 
-      <AlertDialog open={!!delTarget} onOpenChange={o => { if (!o) setDelTarget(null); }}>
+      <AlertDialog open={delOpen} onOpenChange={setDelOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar a função "{delTarget}"?</AlertDialogTitle>
-            <AlertDialogDescription>Nenhum utilizador tem esta função. As permissões definidas perdem-se.</AlertDialogDescription>
+            <AlertDialogTitle>Eliminar o perfil "{role?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>Nenhum utilizador tem este perfil. As permissões definidas perdem-se.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -303,8 +230,8 @@ export function RolesPanel({
   );
 }
 
-function CreateRoleDialog({ open, onOpenChange, roles, allNames, tabsPorLocal, onCreated }: {
-  open: boolean; onOpenChange: (v: boolean) => void; roles: AppRole[]; allNames: string[]; tabsPorLocal: readonly string[];
+function CreateRoleDialog({ open, onOpenChange, roles, allNames, onCreated }: {
+  open: boolean; onOpenChange: (v: boolean) => void; roles: AppRole[]; allNames: string[];
   onCreated: (name: string) => Promise<void>;
 }) {
   const NONE = '__none__';
@@ -322,11 +249,7 @@ function CreateRoleDialog({ open, onOpenChange, roles, allNames, tabsPorLocal, o
     setSaving(true);
     try {
       const src = from === NONE ? undefined : roles.find(r => r.name === from);
-      const base = src ? normalize(src.permissions) : {};
-      // Uma função nova guarda sempre a matriz de todos os locais (sem entrada, o local seguiria a regra anterior).
-      const locais = Object.fromEntries(LOCAIS.map(l => [l, src ? normalize(permissoesDoLocal(src, l, tabsPorLocal)) : {}]));
-      const equipas = src?.permissions_equipa && Object.keys(src.permissions_equipa).length > 0 ? src.permissions_equipa : undefined;
-      await saveRole(n, base, false, LOCAIS.length > 0 ? locais : undefined, equipas);
+      await saveRoleMatriz(n, src ? limpa(src.permissions_matriz) : {});
       toast.success(`Função "${n}" criada.`);
       close(false);
       await onCreated(n);

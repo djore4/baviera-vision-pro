@@ -1,15 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { nivelDaFuncao, type AppRole, type AccessLevel } from '@/lib/permissions';
-import { acessoEfetivo, diferentesDoMaioritario, nivelMaioritario } from '@/lib/role-matrix';
-
-describe('diferenças', () => {
-  it('maioritário (empate: o mais alto) e destaque dos que divergem', () => {
-    expect(nivelMaioritario(['view', 'view', 'edit'])).toBe('view');
-    expect(nivelMaioritario(['view', 'edit'])).toBe('edit');
-    expect(diferentesDoMaioritario(['view', 'view', 'none', 'view'])).toEqual([false, false, true, false]);
-    expect(diferentesDoMaioritario(['edit', 'edit'])).toEqual([false, false]);
-  });
-});
+import { acessoEfetivo } from '@/lib/role-matrix';
 
 describe('acessoEfetivo: igual a nivelDaFuncao, com a origem', () => {
   const role: AppRole = {
@@ -37,5 +28,18 @@ describe('acessoEfetivo: igual a nivelDaFuncao, com a origem', () => {
     expect(acessoEfetivo(role, ['Feira'], 'funil', {}).origem).toMatch(/não tem matriz própria/);
     expect(acessoEfetivo(role, ['Aveiro'], 'retails', {}).origem).toMatch(/Aveiro sem matriz própria/);
     expect(acessoEfetivo(null, [], 'funil').origem).toBe('Sem função');
+  });
+});
+
+describe('matriz', () => {
+  const role: AppRole = { name: 'M', is_admin: false, modelo_matriz: true, permissions: {},
+    permissions_matriz: { Aveiro: { 'BMW VN': { retails: 'edit' }, _: { retails: 'view' } }, Porto: { 'BMW VN': { retails: 'view' } }, _: { _: { wip: 'view' } } } };
+  it('acessoEfetivo coincide com nivelDaFuncao e explica a célula', () => {
+    for (const locais of [[], ['Aveiro'], ['Porto'], ['Porto', 'Aveiro'], ['Maia']]) for (const equipa of ['BMW VN', 'BMW VU', null]) for (const tab of ['retails', 'wip']) {
+      expect(acessoEfetivo(role, locais, tab, { equipa }).nivel).toBe(nivelDaFuncao(role, locais, tab, { equipa }));
+    }
+    expect(acessoEfetivo(role, ['Aveiro'], 'retails', { equipa: 'BMW VN' })).toEqual({ nivel: 'edit', origem: 'Perfil · Aveiro · BMW VN' });
+    expect(acessoEfetivo(role, ['Porto'], 'retails', { equipa: null })).toEqual({ nivel: 'none', origem: 'Perfil · Porto · sem equipa' });
+    expect(acessoEfetivo(role, [], 'wip', {}).origem).toBe('Perfil · sem local · sem equipa');
   });
 });
