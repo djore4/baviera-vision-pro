@@ -16,7 +16,7 @@ const COR: Record<AccessLevel, string> = {
 };
 
 export function UserAccessMatrix({ user, roles }: { user: AppUser; roles: AppRole[] }) {
-  const { capabilities, tabsPorLocal } = usePermissions();
+  const { capabilities } = usePermissions();
   const [todos, setTodos] = useState(false);
   const role = roles.find(r => r.name === user.perfil) ?? null;
   const locais = locaisDoPerfil(user.local);
@@ -24,7 +24,7 @@ export function UserAccessMatrix({ user, roles }: { user: AppUser; roles: AppRol
 
   const areas = useMemo(() => {
     if (!role || role.is_admin) return [];
-    const opts = { tabsPorLocal, equipa };
+    const opts = { equipa };
     return AREAS.map(area => ({
       area,
       linhas: PERMISSION_TABS.filter(t => t.area === area.key).flatMap(t => [
@@ -34,7 +34,7 @@ export function UserAccessMatrix({ user, roles }: { user: AppUser; roles: AppRol
       ]).filter(l => todos || l.nivel !== 'none'),
     })).filter(a => a.linhas.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, equipa, user.local, tabsPorLocal, capabilities, todos]);
+  }, [role, equipa, user.local, capabilities, todos]);
 
   if (!role) return <p className="px-4 py-3 text-sm text-muted-foreground">Esta conta não tem um perfil válido: não tem acesso a nada.</p>;
   if (role.is_admin) return <p className="px-4 py-3 text-sm text-muted-foreground">Perfil de administrador: acesso total a tudo.</p>;

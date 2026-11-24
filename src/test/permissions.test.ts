@@ -4,8 +4,7 @@ const rpc = vi.fn();
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
 
 import {
-  getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS, ARCHIVED_TAB_KEYS, restritoPeloLocal, tabLivreForaDoLocal,
-  nivelDaFuncao, permissoesDoLocal, funcaoDaEquipa, type AppRole,
+  getMyAccessExceptions, getAppCapabilities, SUB_PERMISSIONS, TABS, PERMISSION_TABS, ARCHIVED_TAB_KEYS,
 } from '@/lib/permissions';
 
 beforeEach(() => { rpc.mockReset(); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
@@ -98,13 +97,10 @@ describe('permissões finas (SUB_PERMISSIONS)', () => {
     expect(eot.map(sp => sp.capability)).toEqual(['eotGranular', 'eotResponsaveis']);
   });
 
-  it('Demos tem a permissão de inserir viaturas do seu local, livre fora de Aveiro', () => {
+  it('Demos tem a permissão de inserir viaturas do seu local', () => {
     const v = SUB_PERMISSIONS.filter(sp => sp.parent === 'demos');
     expect(v.map(sp => sp.key)).toEqual(['demos:inserir-viaturas', 'demos:precos', 'demos:reservar']);
     expect(v.map(sp => sp.capability)).toEqual(['viaturasLocal', 'demosPrecos', 'demosReservas']);
-    expect(tabLivreForaDoLocal('demos:inserir-viaturas')).toBe(true);
-    expect(tabLivreForaDoLocal('demos:precos', ['demos'])).toBe(true);
-    expect(tabLivreForaDoLocal('demos')).toBe(false);
   });
 
   it('a Lavagem tem as quatro ações que a RLS conhece', () => {
@@ -139,115 +135,5 @@ describe('getAppCapabilities', () => {
     expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false, demosGestao: false, demosReservas: false });
     rpc.mockResolvedValue({ data: null, error: null });
     expect(await getAppCapabilities()).toEqual({ lavagemGranular: false, eotGranular: false, eotResponsaveis: false, viaturasLocal: false, demosPrecos: false, demosGestao: false, demosReservas: false });
-  });
-});
-
-
-describe('restrição por local', () => {
-  it('só Aveiro (canónico, em lista, texto ou alias) escapa à restrição', () => {
-    expect(restritoPeloLocal({ local: ['Aveiro'] })).toBe(false);
-    expect(restritoPeloLocal({ local: ['Porto', 'Aveiro'] })).toBe(false);
-    expect(restritoPeloLocal({ local: 'Caetano Aveiro 2' })).toBe(false);
-    expect(restritoPeloLocal({ local: ['Porto'] })).toBe(true);
-    expect(restritoPeloLocal({ local: ['Gaia', 'Feira'] })).toBe(true);
-    // sem local (ou sem nenhum reconhecido) não há restrição: segue-se a função
-    expect(restritoPeloLocal({ local: ['Todas'] })).toBe(false);
-    expect(restritoPeloLocal({ local: [] })).toBe(false);
-    expect(restritoPeloLocal({ local: null })).toBe(false);
-    expect(restritoPeloLocal(null)).toBe(false);
-  });
-
-  it('o End-of-Term e as suas permissões escapam; o resto não', () => {
-    expect(tabLivreForaDoLocal('end-of-term')).toBe(true);
-    expect(tabLivreForaDoLocal('end-of-term:todos')).toBe(true);
-    expect(tabLivreForaDoLocal('end-of-term-x')).toBe(false);
-    expect(tabLivreForaDoLocal('retails')).toBe(false);
-    expect(tabLivreForaDoLocal('lavagem:reagendar')).toBe(false);
-    // Tabs por local (app_tabs_por_local): o tab e as suas ações, só quando configurados.
-    expect(tabLivreForaDoLocal('demos')).toBe(false);
-    expect(tabLivreForaDoLocal('demos', ['demos'])).toBe(true);
-    expect(tabLivreForaDoLocal('demos:inserir-viaturas', [])).toBe(true);
-    expect(tabLivreForaDoLocal('retails', ['demos'])).toBe(false);
-    expect(tabLivreForaDoLocal('demosx', ['demos'])).toBe(false);
-  });
-});
-
-describe('matriz função × local', () => {
-  const role: AppRole = {
-    name: 'R', is_admin: false,
-    permissions: { retails: 'view', lavagem: 'edit', 'end-of-term': 'view', demos: 'view' },
-    permissions_local: { Porto: { retails: 'edit', lavagem: 'view' }, Gaia: {} },
-  };
-  const n = (locais: string[], tab: string, o = {}) => nivelDaFuncao(role, locais, tab, o);
-
-  it('um local com entrada manda: o que falta é sem acesso', () => {
-    expect(n(['Porto'], 'retails')).toBe('edit');
-    expect(n(['Porto'], 'lavagem')).toBe('view');
-    expect(n(['Porto'], 'end-of-term')).toBe('none');
-    expect(n(['Gaia'], 'retails')).toBe('none');
-  });
-
-  it('um local sem entrada segue a regra anterior (Aveiro: matriz base; outros: só EoT e tabs por local)', () => {
-    expect(n(['Aveiro'], 'lavagem')).toBe('edit');
-    expect(n(['Feira'], 'end-of-term')).toBe('view');
-    expect(n(['Feira'], 'retails')).toBe('none');
-    expect(n(['Feira'], 'demos')).toBe('none');
-    expect(n(['Feira'], 'demos', { tabsPorLocal: ['demos'] })).toBe('view');
-    expect(n(['Feira'], 'retails', { comExcecao: true })).toBe('view');
-  });
-
-  it('vários locais: o nível mais alto; sem local: a matriz base', () => {
-    expect(n(['Porto', 'Feira'], 'end-of-term')).toBe('view');
-    expect(n(['Porto', 'Feira'], 'retails')).toBe('edit');
-    expect(n([], 'lavagem')).toBe('edit');
-  });
-
-  it('permissoesDoLocal devolve a entrada guardada ou a derivada da regra anterior', () => {
-    expect(permissoesDoLocal(role, 'Porto')).toEqual({ retails: 'edit', lavagem: 'view' });
-    expect(permissoesDoLocal(role, 'Gaia')).toEqual({});
-    expect(permissoesDoLocal(role, 'Aveiro')).toEqual(role.permissions);
-    expect(permissoesDoLocal(role, 'Feira')).toEqual({ 'end-of-term': 'view' });
-    expect(permissoesDoLocal(null, 'Feira')).toEqual({});
-  });
-});
-
-describe('função única "Vendedor" (camada por equipa) = funções antigas', () => {
-  const VN = { demos: 'view', funil: 'view', escala: 'edit', multas: 'edit', lavagem: 'view', produto: 'view', retails: 'view', carteira: 'view',
-    producao: 'view', marketing: 'view', prospecao: 'edit', vendedores: 'view', 'campanha-i3': 'edit', 'end-of-term': 'edit', instalacoes: 'view',
-    'ficha-margem': 'edit' } as const;
-  const VU = { wip: 'view', demos: 'view', stock: 'view', lavagem: 'view', produto: 'view', 'funil-vu': 'view', 'escala-vu': 'view', prospecao: 'none',
-    angariacao: 'view', 'end-of-term': 'edit', instalacoes: 'view', 'ficha-margem': 'edit' } as const;
-  const velho = (n: string, p: Record<string, string>): AppRole => ({ name: n, is_admin: false, permissions: p as AppRole['permissions'], permissions_local: {} });
-  const unico: AppRole = {
-    name: 'Vendedor', is_admin: false,
-    permissions: { demos: 'view', lavagem: 'view', produto: 'view', instalacoes: 'view', 'end-of-term': 'edit', 'ficha-margem': 'edit' },
-    permissions_local: {},
-    permissions_equipa: {
-      'BMW VN': { funil: 'view', retails: 'view', carteira: 'view', producao: 'view', marketing: 'view', vendedores: 'view', escala: 'edit', multas: 'edit', prospecao: 'edit', 'campanha-i3': 'edit' },
-      'BMW VU': { wip: 'view', stock: 'view', 'funil-vu': 'view', 'escala-vu': 'view', angariacao: 'view', prospecao: 'none' },
-    },
-  };
-  const tabs = [...new Set([...Object.keys(VN), ...Object.keys(VU)])];
-  const locais = [[], ['Aveiro'], ['Porto'], ['Porto', 'Gaia'], ['Feira']];
-
-  it.each([['BMW VN', VN], ['BMW VU', VU]] as const)('equipa %s: mesmo nível que a função antiga em todos os tabs e locais', (eq, antigo) => {
-    for (const l of locais) for (const t of tabs) {
-      expect(nivelDaFuncao(unico, l, t, { equipa: eq }), `${eq} ${l.join('+') || 'sem local'} ${t}`)
-        .toBe(nivelDaFuncao(velho('x', antigo), l, t));
-    }
-  });
-
-  it('sem equipa (ou equipa sem camada): só a matriz base', () => {
-    expect(nivelDaFuncao(unico, [], 'funil', { equipa: null })).toBe('none');
-    expect(nivelDaFuncao(unico, [], 'wip')).toBe('none');
-    expect(nivelDaFuncao(unico, [], 'demos', { equipa: 'Motorrad' })).toBe('view');
-    expect(nivelDaFuncao(unico, [], 'funil', { equipa: 'Motorrad' })).toBe('none');
-    expect(funcaoDaEquipa(unico, null)).toBe(unico);
-  });
-
-  it('a camada também se aplica às matrizes por local', () => {
-    const r: AppRole = { ...unico, permissions_local: { Porto: { demos: 'view' } } };
-    expect(nivelDaFuncao(r, ['Porto'], 'funil', { equipa: 'BMW VN' })).toBe('view');
-    expect(nivelDaFuncao(r, ['Porto'], 'funil', { equipa: 'BMW VU' })).toBe('none');
   });
 });

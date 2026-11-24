@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { funcaoDaEquipa, type AppRole } from '@/lib/permissions';
+import { permissoesDaEquipa, type AppRole } from '@/lib/permissions';
 
 /* ── Prospeção Comercial (CRM) — camada de acesso a dados ─────────────────────
  * CRUD para prospec_accounts / prospec_contacts / prospec_interactions /
@@ -389,16 +389,16 @@ export interface ProspecOwner { email: string; nome: string; perfil: string | nu
 
 export async function listProspecOwners(): Promise<ProspecOwner[]> {
   const [rolesRes, usersRes] = await Promise.all([
-    supabase.from('app_roles').select('name, permissions, permissions_equipa'),
+    supabase.from('app_roles').select('name, is_admin, permissions_matriz'),
     supabase.from('app_users').select('nome, email, perfil, equipa'),
   ]);
   if (rolesRes.error) throw rolesRes.error;
   if (usersRes.error) throw usersRes.error;
   const roles = new Map((rolesRes.data ?? []).map(r => [r.name as string, r as unknown as AppRole]));
-  // Tem a chave 'prospecao' na função (mesmo 'none'), já com a camada da equipa do utilizador.
+  // Tem acesso ao Diário no perfil, na equipa do utilizador (em qualquer local).
   const tem = (perfil: string, equipa: string | null) => {
-    const p = funcaoDaEquipa(roles.get(perfil), equipa)?.permissions;
-    return !!p && typeof p === 'object' && !Array.isArray(p) && Object.prototype.hasOwnProperty.call(p, 'prospecao');
+    const r = roles.get(perfil);
+    return !!r && !!permissoesDaEquipa(r, equipa).prospecao;
   };
   return (usersRes.data ?? [])
     .filter((u: { email: string | null; perfil: string | null; equipa: string | null }) => u.email && u.perfil && tem(u.perfil, u.equipa))

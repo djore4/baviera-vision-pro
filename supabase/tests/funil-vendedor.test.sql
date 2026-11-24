@@ -88,8 +88,6 @@ select t.check('funil só em consulta: não escreve nada',
 select t.back();
 commit;
 
-select t.check('migração: a função Vendedor (equipa BMW VN) fica com funil em edição',
-  coalesce((select permissions_equipa -> 'BMW VN' ->> 'funil' from public.app_roles where name = 'Vendedor'), 'edit') = 'edit');
 
 delete from public.control_records where obs like 'fv:%';
 

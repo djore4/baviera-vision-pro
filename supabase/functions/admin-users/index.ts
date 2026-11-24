@@ -168,48 +168,7 @@ Deno.serve(async (req) => {
       return json({ ok: true, login_kept: loginKept });
     }
 
-    if (action === "save_role") {
-      const { name, permissions, is_admin, permissions_local, permissions_equipa } = body;
-      if (!name || !String(name).trim()) return json({ error: "Nome da função em falta." }, 400);
-      const { data: row, error: rErr } = await admin.from("app_roles")
-        // permissions_local só se grava quando vem no pedido (clientes antigos não o enviam).
-        .upsert({
-          name: String(name).trim(), permissions: permissions ?? {}, is_admin: !!is_admin,
-          ...(permissions_local && typeof permissions_local === "object" && !Array.isArray(permissions_local) ? { permissions_local } : {}),
-          ...(permissions_equipa && typeof permissions_equipa === "object" && !Array.isArray(permissions_equipa) ? { permissions_equipa } : {}),
-        }, { onConflict: "name" })
-        .select("name, is_admin, permissions, permissions_local, permissions_equipa").single();
-      if (rErr) return json({ error: rErr.message }, 400);
-      return json({ role: row });
-    }
-
-    if (action === "rename_role") {
-      const { name, new_name } = body;
-      const to = String(new_name ?? "").trim();
-      if (!name || !to) return json({ error: "Nome da função em falta." }, 400);
-      if (to === name) return json({ error: "O novo nome é igual ao atual." }, 400);
-      const { data: old } = await admin.from("app_roles")
-        .select("name, is_admin, permissions, permissions_local, permissions_equipa").eq("name", name).maybeSingle();
-      if (!old) return json({ error: "Função não encontrada." }, 404);
-      const { data: all } = await admin.from("app_roles").select("name");
-      if ((all ?? []).some((r) => r.name !== name && String(r.name).toLowerCase() === to.toLowerCase())) {
-        return json({ error: "Já existe uma função com esse nome." }, 400);
-      }
-      // O nome é a chave da função e é o que os utilizadores guardam em `perfil`, por
-      // isso: 1) cria a função com o novo nome, 2) passa os utilizadores, 3) apaga a
-      // antiga. Se o passo 2 falhar, desfaz o 1 e nada muda.
-      const { error: cErr } = await admin.from("app_roles")
-        .insert({ name: to, permissions: old.permissions, permissions_local: old.permissions_local ?? {}, permissions_equipa: old.permissions_equipa ?? {}, is_admin: old.is_admin });
-      if (cErr) return json({ error: cErr.message }, 400);
-      const { error: uErr } = await admin.from("app_users").update({ perfil: to }).eq("perfil", name);
-      if (uErr) {
-        await admin.from("app_roles").delete().eq("name", to);
-        return json({ error: uErr.message }, 400);
-      }
-      const { error: dErr } = await admin.from("app_roles").delete().eq("name", name);
-      if (dErr) return json({ error: `Renomeada, mas não foi possível remover o nome antigo: ${dErr.message}` }, 500);
-      return json({ role: { name: to, permissions: old.permissions, permissions_local: old.permissions_local ?? {}, permissions_equipa: old.permissions_equipa ?? {}, is_admin: old.is_admin } });
-    }
+    // save_role e rename_role passaram para as funções guardar_perfil e renomear_perfil (base de dados).
 
     if (action === "delete_role") {
       const { name } = body;

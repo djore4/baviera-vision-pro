@@ -81,9 +81,7 @@ export type Database = {
           created_at: string
           is_admin: boolean
           name: string
-          permissions: NonNullable<Json>
-          permissions_local: NonNullable<Json>
-          permissions_equipa: NonNullable<Json>
+          permissions_matriz: NonNullable<Json>
           updated_at: string
         }
         ComputedFields: never
@@ -91,18 +89,14 @@ export type Database = {
           created_at?: string
           is_admin?: boolean
           name: string
-          permissions?: NonNullable<Json>
-          permissions_local?: NonNullable<Json>
-          permissions_equipa?: NonNullable<Json>
+          permissions_matriz?: NonNullable<Json>
           updated_at?: string
         }
         Update: {
           created_at?: string
           is_admin?: boolean
           name?: string
-          permissions?: NonNullable<Json>
-          permissions_local?: NonNullable<Json>
-          permissions_equipa?: NonNullable<Json>
+          permissions_matriz?: NonNullable<Json>
           updated_at?: string
         }
         Relationships: []

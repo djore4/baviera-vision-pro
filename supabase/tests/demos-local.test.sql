@@ -62,13 +62,6 @@ select t.check('sem local: vê todas (comportamento anterior)',
 select t.back();
 commit;
 
--- Parametrização: abrir outro tab a outros locais é um insert na tabela.
-insert into public.app_tabs_por_local (tab) values ('retails') on conflict do nothing;
-begin;
-select t.as_user('dem_feira@x.pt');
-select t.check('tab acrescentado a app_tabs_por_local passa a seguir a função', public.access_rank('retails') = 1);
-select t.back();
-commit;
-delete from public.app_tabs_por_local where tab = 'retails';
+-- (O acesso por local é agora explícito na matriz de cada perfil; app_tabs_por_local só continua a servir o âmbito por linha da RLS.)
 
 do $$ declare f int := (select count(*) from t.results where not ok); begin raise notice $m$demos-local: % falhas$m$, f; if f > 0 then raise exception $m$demos-local falhou$m$; end if; end $$;

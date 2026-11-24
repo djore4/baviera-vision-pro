@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Pencil, Plus, Save, Trash2, TriangleAlert, Undo2, ArrowRight } from 'lucide-react';
+import { Loader2, Pencil, Plus, Save, Trash2, Undo2, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { locaisDoGrupo } from '@/lib/locations';
 import { SEM_LOCAL, type AccessLevel, type AppRole, type AppUser, type Matriz } from '@/lib/permissions';
@@ -32,8 +32,6 @@ export function RolesPanel({
   // Perfis de administrador têm acesso total e nada editável: ficam de fora.
   const { capabilities } = usePermissions();
   const editableRoles = useMemo(() => roles.filter(r => !r.is_admin), [roles]);
-  // Perfis que ainda seguem o modelo antigo (migração 20261124100000 por aplicar): não se editam aqui.
-  const porMigrar = useMemo(() => editableRoles.filter(r => !r.modelo_matriz), [editableRoles]);
 
   const [drafts, setDrafts] = useState<Record<string, Matriz>>({});
   const [selected, setSelected] = useState<string | null>(null);
@@ -119,18 +117,6 @@ export function RolesPanel({
 
   if (loading) {
     return <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center"><Loader2 className="h-4 w-4 animate-spin" /> A carregar…</div>;
-  }
-
-  if (porMigrar.length > 0) {
-    return (
-      <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-1.5">
-        <h3 className="text-sm font-semibold flex items-center gap-1.5"><TriangleAlert className="h-4 w-4" /> Falta aplicar a migração das permissões</h3>
-        <p className="text-sm">
-          {porMigrar.length === 1 ? 'O perfil' : 'Os perfis'} <strong>{porMigrar.map(r => r.name).join(', ')}</strong> ainda seguem o modelo antigo.
-          Aplica a migração <code>20261124100000_permissoes_matriz.sql</code> no Supabase (converte-os mantendo exatamente o acesso de cada conta) e recarrega esta página.
-        </p>
-      </div>
-    );
   }
 
   return (

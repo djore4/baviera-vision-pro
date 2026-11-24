@@ -20,9 +20,9 @@ describe('painel na navegação', () => {
     render(<MemoryRouter><AppLayout>x</AppLayout></MemoryRouter>);
     expect(screen.getAllByText('DIÁRIO').length).toBeGreaterThan(0);
   });
-  it('a matriz de Aveiro decide: sem a chave no local, sem acesso (mesmo que a base ou outro local a tenham)', () => {
-    const role: AppRole = { name: 'Comercial', is_admin: false, permissions: { painel: 'view' },
-      permissions_local: { Maia: { painel: 'view' }, Aveiro: { retails: 'edit' } } };
+  it('a célula do local decide: sem a chave no local, sem acesso (mesmo que outro local a tenha)', () => {
+    const role: AppRole = { name: 'Comercial', is_admin: false,
+      permissions_matriz: { Maia: { _: { painel: 'view' } }, Aveiro: { _: { retails: 'edit' } } } };
     expect(nivelDaFuncao(role, ['Aveiro'], 'painel')).toBe('none');
     expect(nivelDaFuncao(role, ['Maia'], 'painel')).toBe('view');
   });

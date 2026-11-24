@@ -5,10 +5,14 @@ import type { AppRole, AppUser } from '@/lib/permissions';
 
 /* Modo "ver como": o administrador simula as permissões de outro utilizador. */
 
+// Aveiro e sem local: tudo; nos outros locais, só o End-of-Term.
+const COMPLETO = { retails: 'view', funil: 'edit', produto: 'view', 'end-of-term': 'edit', 'end-of-term:todos': 'edit' } as const;
+const SO_EOT = { 'end-of-term': 'edit', 'end-of-term:todos': 'edit' } as const;
+const VENDEDOR = { Aveiro: { _: COMPLETO }, _: { _: COMPLETO }, Maia: { _: SO_EOT }, Porto: { _: SO_EOT }, Gaia: { _: SO_EOT }, Feira: { _: SO_EOT } };
 const ROLES: AppRole[] = [
-  { name: 'Admin', is_admin: true, permissions: {} },
-  { name: 'Vendedor', is_admin: false, permissions: { retails: 'view', funil: 'edit', produto: 'view', 'end-of-term': 'edit', 'end-of-term:todos': 'edit' } },
-  { name: 'Outro admin', is_admin: true, permissions: {} },
+  { name: 'Admin', is_admin: true },
+  { name: 'Vendedor', is_admin: false, permissions_matriz: VENDEDOR },
+  { name: 'Outro admin', is_admin: true },
 ];
 const user = (email: string, perfil: string | null, local: unknown = null): AppUser => ({
   id: email, nome: email.split('@')[0], email, perfil, local, negocio: null, marca: null,

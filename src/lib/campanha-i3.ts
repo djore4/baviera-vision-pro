@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { supabase as typedClient } from '@/integrations/supabase/client';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { funcaoDaEquipa, listRoles, listUsers } from '@/lib/permissions';
+import { permissoesDaEquipa, listRoles, listUsers } from '@/lib/permissions';
 
 /* ── Campanha i3 (Vendas VN) ──────────────────────────────────────────────────
  * Oportunidades de contacto geradas por uma campanha. O administrador carrega-as
@@ -381,10 +381,10 @@ export async function listHistorico(leadId: string): Promise<HistoricoItem[]> {
 export async function listVendedores(): Promise<Vendedor[]> {
   const [roles, users] = await Promise.all([listRoles(), listUsers()]);
   const porNome = new Map(roles.map(r => [r.name, r]));
-  // A função com a camada da equipa do utilizador (a função única 'Vendedor' dá o tab só a algumas equipas).
+  // O perfil com a equipa do utilizador (o perfil 'Vendedor' dá o tab só a algumas equipas), em qualquer local.
   const tem = (u: { perfil: string | null; equipa?: string | null }) => {
-    const r = funcaoDaEquipa(porNome.get(u.perfil as string), u.equipa);
-    return !!r && (r.is_admin || (r.permissions?.[TAB_KEY] ?? 'none') !== 'none');
+    const r = porNome.get(u.perfil as string);
+    return !!r && (r.is_admin || (permissoesDaEquipa(r, u.equipa)[TAB_KEY] ?? 'none') !== 'none');
   };
   return users
     .filter(u => u.email && u.perfil && tem(u))
