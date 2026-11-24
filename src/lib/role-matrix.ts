@@ -10,19 +10,6 @@ import {
 const RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
 const nivel = (v: unknown): AccessLevel => (v === 'view' || v === 'edit' ? v : 'none');
 
-/** O nível mais frequente (em empate, o mais alto). */
-export function nivelMaioritario(valores: readonly AccessLevel[]): AccessLevel {
-  const n: Record<AccessLevel, number> = { none: 0, view: 0, edit: 0 };
-  valores.forEach(v => { n[v] += 1; });
-  return (['edit', 'view', 'none'] as AccessLevel[]).reduce((best, l) => (n[l] > n[best] ? l : best), 'edit' as AccessLevel);
-}
-
-/** Quais dos valores (por ordem) diferem do maioritário. Tudo igual → nenhum. */
-export function diferentesDoMaioritario(valores: readonly AccessLevel[]): boolean[] {
-  const m = nivelMaioritario(valores);
-  return valores.map(v => v !== m);
-}
-
 /* ── Acesso efetivo de uma pessoa, com a origem de cada nível ─────────────────── */
 
 export interface AcessoEfetivo { nivel: AccessLevel; origem: string }
@@ -70,16 +57,3 @@ export function acessoEfetivo(
   }
   return best as AcessoEfetivo;
 }
-
-/** Próximo nível ao clicar numa célula de local/base: sem acesso → consulta → edição → sem acesso.
- *  Uma permissão fina (só 'sim'/'não') alterna entre sem acesso e edição. */
-export const proximoNivel = (v: AccessLevel, fina = false): AccessLevel =>
-  fina ? (v === 'none' ? 'edit' : 'none') : v === 'none' ? 'view' : v === 'view' ? 'edit' : 'none';
-
-/** Próximo valor numa célula de equipa (camada por cima do local):
- *  herda (undefined) → sem acesso → consulta → edição → herda. */
-export const proximoNivelEquipa = (v: AccessLevel | undefined, fina = false): AccessLevel | undefined => {
-  if (v === undefined) return 'none';
-  if (fina) return v === 'none' ? 'edit' : undefined;
-  return v === 'none' ? 'view' : v === 'view' ? 'edit' : undefined;
-};

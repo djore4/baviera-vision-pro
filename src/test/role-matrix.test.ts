@@ -1,15 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { nivelDaFuncao, nivelSimples, type AppRole, type AccessLevel } from '@/lib/permissions';
-import { acessoEfetivo, diferentesDoMaioritario, nivelMaioritario } from '@/lib/role-matrix';
-
-describe('diferenças', () => {
-  it('maioritário (empate: o mais alto) e destaque dos que divergem', () => {
-    expect(nivelMaioritario(['view', 'view', 'edit'])).toBe('view');
-    expect(nivelMaioritario(['view', 'edit'])).toBe('edit');
-    expect(diferentesDoMaioritario(['view', 'view', 'none', 'view'])).toEqual([false, false, true, false]);
-    expect(diferentesDoMaioritario(['edit', 'edit'])).toEqual([false, false]);
-  });
-});
+import { acessoEfetivo } from '@/lib/role-matrix';
 
 describe('acessoEfetivo: igual a nivelDaFuncao, com a origem', () => {
   const role: AppRole = {
