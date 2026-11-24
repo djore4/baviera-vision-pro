@@ -14,9 +14,9 @@ import { RolesPanel } from '@/components/users/RolesPanel';
 import { toast } from 'sonner';
 
 const roles: AppRole[] = [
-  { name: 'Admin', is_admin: true, permissions: {} },
-  { name: 'Comercial', is_admin: false, modelo_matriz: true, permissions: {}, permissions_matriz: {} },
-  { name: 'Lavador', is_admin: false, modelo_matriz: true, permissions: {}, permissions_matriz: {} },
+  { name: 'Admin', is_admin: true },
+  { name: 'Comercial', is_admin: false, permissions_matriz: {} },
+  { name: 'Lavador', is_admin: false, permissions_matriz: {} },
 ];
 const users: AppUser[] = [
   { id: '1', nome: 'Ana', email: 'ana@x.pt', perfil: 'Comercial', local: null, negocio: null, marca: null },
@@ -30,7 +30,7 @@ beforeEach(() => { renameRole.mockReset(); vi.clearAllMocks(); });
 
 describe('Renomear função', () => {
   it('renomeia a função escolhida e recarrega', async () => {
-    renameRole.mockResolvedValue({ name: 'Vendas', permissions: {}, is_admin: false });
+    renameRole.mockResolvedValue({ name: 'Vendas', is_admin: false });
     const onSaved = vi.fn(async () => {});
     mount(onSaved);
         fireEvent.click(screen.getByRole('button', { name: /Renomear/ }));

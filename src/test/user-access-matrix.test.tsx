@@ -12,7 +12,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { UsersPanel } from '@/components/users/UsersPanel';
 
 const roles: AppRole[] = [{
-  name: 'Vendedor', is_admin: false, modelo_matriz: true, permissions: {},
+  name: 'Vendedor', is_admin: false,
   permissions_matriz: {
     Aveiro: { _: { retails: 'edit', funil: 'view', 'end-of-term': 'edit' } },
     Porto: { _: { retails: 'view', 'end-of-term': 'edit' } },

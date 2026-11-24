@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/App';
 import {
-  listRoles, listUsers, isPlatformAdmin, getMyAccessExceptions, getAppCapabilities, getTabsPorLocal, NO_CAPABILITIES, TABS, ADMIN_ONLY_TAB_KEYS,
+  listRoles, listUsers, isPlatformAdmin, getMyAccessExceptions, getAppCapabilities, NO_CAPABILITIES, TABS, ADMIN_ONLY_TAB_KEYS,
   nivelDaFuncao,
   type AccessLevel, type AppCapabilities, type AppRole, type AppUser,
 } from '@/lib/permissions';
@@ -26,8 +26,6 @@ interface PermissionsValue {
   realMe: AppUser | null;
   /** Capacidades da base de dados (migrações já aplicadas). */
   capabilities: AppCapabilities;
-  /** Tabs abertos fora de Aveiro, limitados ao local da pessoa (app_tabs_por_local). */
-  tabsPorLocal: string[];
   access: (tab: string) => AccessLevel;
   canView: (tab: string) => boolean;
   canEdit: (tab: string) => boolean;
@@ -46,7 +44,7 @@ interface PermissionsValue {
 
 const PermissionsContext = createContext<PermissionsValue>({
   loading: true, isAdmin: false, managed: false, roleName: null, me: null, realMe: null,
-  capabilities: NO_CAPABILITIES, tabsPorLocal: [],
+  capabilities: NO_CAPABILITIES,
   access: () => 'none', canView: () => false, canEdit: () => false, reload: () => {},
   realIsAdmin: false, viewingAs: null, setViewAs: () => {}, allUsers: [], effectiveEmail: null,
 });
@@ -82,7 +80,6 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   // app_access_exceptions). Usar com parcimónia — a via normal é a matriz.
   const [exceptions, setExceptions] = useState<Record<string, AccessLevel>>({});
   const [capabilities, setCapabilities] = useState<AppCapabilities>(NO_CAPABILITIES);
-  const [tabsPorLocal, setTabsPorLocal] = useState<string[]>([]);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [viewAsEmail, setViewAsEmail] = useState<string | null>(() => readViewAs(email));
   const [tick, setTick] = useState(0);
@@ -97,17 +94,15 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     let alive = true;
     (async () => {
       try {
-        const [rs, us, pa, ex, caps, tpl] = await Promise.all([
+        const [rs, us, pa, ex, caps] = await Promise.all([
           listRoles(), listUsers(), isPlatformAdmin().catch(() => false),
           getMyAccessExceptions(email).catch(() => ({} as Record<string, AccessLevel>)),
           getAppCapabilities().catch((): AppCapabilities => ({ ...NO_CAPABILITIES })),
-          getTabsPorLocal().catch((): string[] => []),
         ]);
         if (!alive) return;
         setPlatformAdmin(pa);
         setExceptions(ex);
         setCapabilities(caps);
-        setTabsPorLocal(tpl);
         setRoles(rs);
         setAllUsers(us);
         setMe(us.find(u => (u.email ?? '').toLowerCase() === email) ?? null);
@@ -152,8 +147,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       // Exceção pontual por email (tem precedência sobre a função, mas não sobre
       // o acesso total de admin). Só eleva o acesso, nunca o reduz.
       const exception = accessExceptions[tab];
-      // A função dá o nível do(s) local(is) da pessoa (matriz função × local); sem local, o da matriz base.
-      const roleAccess = nivelDaFuncao(role, locaisDoPerfil(effMe?.local), tab, { tabsPorLocal, comExcecao: !!exception, equipa: effMe?.equipa });
+      // O perfil dá o nível da célula (local, equipa) da pessoa; vários locais = o mais alto.
+      const roleAccess = nivelDaFuncao(role, locaisDoPerfil(effMe?.local), tab, { equipa: effMe?.equipa });
       if (exception) {
         const rank: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
         return rank[exception] >= rank[roleAccess] ? exception : roleAccess;
@@ -170,7 +165,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       roleName: role?.name ?? effMe?.perfil ?? null,
       me: effMe,
       realMe: me ?? null,
-      capabilities, tabsPorLocal,
+      capabilities,
       access,
       canView: (t) => access(t) !== 'none',
       canEdit: (t) => access(t) === 'edit',
@@ -181,7 +176,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       allUsers: realIsAdmin ? allUsers : [],
       effectiveEmail: viewing ? (target.email ?? '').toLowerCase() || null : email,
     };
-  }, [roles, me, platformAdmin, exceptions, capabilities, tabsPorLocal, reload, allUsers, viewAsEmail, setViewAs, email]);
+  }, [roles, me, platformAdmin, exceptions, capabilities, reload, allUsers, viewAsEmail, setViewAs, email]);
 
   if (value.loading) return null;
 

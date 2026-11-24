@@ -43,7 +43,7 @@ export function UsersPanel({
 }: {
   users: AppUser[]; loading: boolean; roleNames: string[]; roles?: AppRole[]; onChanged: () => Promise<void>;
 }) {
-  const { me, setViewAs, tabsPorLocal } = usePermissions();
+  const { me, setViewAs } = usePermissions();
   const navigate = useNavigate();
   const comLocais = locaisDoGrupo().length > 0;
   const [q, setQ] = useState('');
@@ -62,7 +62,7 @@ export function UsersPanel({
     const r = roles.find(x => x.name === u.perfil);
     const locais = locaisDoPerfil(u.local);
     if (!r || r.is_admin || locais.length === 0) return false;
-    const nivel = (tab: string) => nivelDaFuncao(r, locais, tab, { tabsPorLocal });
+    const nivel = (tab: string) => nivelDaFuncao(r, locais, tab, { equipa: u.equipa });
     return nivel('end-of-term') !== 'none' && !PERMISSION_TABS.some(t => t.key !== 'end-of-term' && nivel(t.key) !== 'none');
   };
   const semLocal = (u: AppUser) => locaisDoPerfil(u.local).length === 0;

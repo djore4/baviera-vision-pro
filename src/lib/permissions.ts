@@ -14,7 +14,7 @@ export type AccessLevel = 'none' | 'view' | 'edit';
 /* ── Áreas macro ──────────────────────────────────────────────────────────────
  * Camada de organização (navegação e admin), NÃO de permissão. As áreas apenas
  * agrupam os tabs em secções; o acesso continua a ser resolvido tab a tab pela
- * matriz de funções (app_roles.permissions). Um tab do APV (ex.: Lavagem) que
+ * matriz de perfis (app_roles.permissions_matriz). Um tab do APV (ex.: Lavagem) que
  * deva ser visível a VN e VU é-o simplesmente porque as funções de VN e VU têm
  * `lavagem` a view/edit — não por pertencer a várias áreas.
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -137,7 +137,7 @@ export const PERMISSION_TABS: TabDef[] = TABS.filter(t => !ARCHIVED_TAB_KEYS.inc
 /* ── Permissões finas dentro de um tab ───────────────────────────────────────
  * Ações de um tab que se atribuem por função na matriz, em vez de dependerem do
  * NOME da função no código (antes: `roleName === 'Lavador'`). Guardam-se em
- * app_roles.permissions com a chave '<tab>:<ação>' e valor 'edit' (concedida) ou
+ * a matriz do perfil com a chave '<tab>:<ação>' e valor 'edit' (concedida) ou
  * ausente. Dar acesso ao tab em si continua a ser a chave '<tab>'.
  * A RLS (migração lavagem_permissoes_granulares) usa as mesmas chaves. */
 export interface SubPermissionDef {
@@ -189,18 +189,8 @@ export const TAB_BY_PATH: Record<string, TabDef> =
 export interface AppRole {
   name: string;
   is_admin: boolean;
-  /** Matriz base: vale para quem não tem nenhum local reconhecido. */
-  permissions: Record<string, AccessLevel>;
-  /** Matriz por local: { Aveiro: { retails: 'edit', … }, Porto: { … } }. Um local sem entrada
-   *  segue a regra anterior (ver permissoesDoLocal). */
-  permissions_local?: Record<string, Record<string, AccessLevel>>;
-  /** Camada por equipa: { 'BMW VN': { funil: 'view', … } }. Por cima da matriz base e das de local; uma
-   *  chave presente substitui a da matriz (incluindo 'none'). Sem equipa na conta, não se aplica. */
-  permissions_equipa?: Record<string, Record<string, AccessLevel>>;
-  /** Matriz explícita Perfil → Local → Equipa → Tab (migração permissoes_matriz). Só vale com
-   *  `modelo_matriz` verdadeiro; nesse caso as outras matrizes e a camada por equipa já não existem. */
+  /** Matriz explícita Perfil → Local → Equipa → Tab (ver Matriz). Os perfis de administrador não a usam. */
   permissions_matriz?: Matriz;
-  modelo_matriz?: boolean;
 }
 
 /** { "<local>": { "<equipa>": { "<tab>": nível } } } com os locais do grupo mais SEM_LOCAL (conta sem local
@@ -209,83 +199,9 @@ export type Matriz = Record<string, Record<string, Record<string, AccessLevel>>>
 export const SEM_LOCAL = '_';
 export const SEM_EQUIPA = '_';
 
-/** A função com a camada da equipa aplicada (espelha access_rank, SQL). Sem equipa ou sem camada
- *  para ela devolve a própria função. */
-export function funcaoDaEquipa(role: AppRole | null | undefined, equipa: string | null | undefined): AppRole | null | undefined {
-  // Matriz: `permissions` passa a ser o acesso da equipa em qualquer local (o mais alto), para quem só quer
-  // saber se a pessoa tem o tab.
-  if (role?.modelo_matriz) return { ...role, permissions: permissoesDaEquipa(role, equipa) };
-  const camada = role && equipa ? role.permissions_equipa?.[equipa] : undefined;
-  if (!role || !camada || typeof camada !== 'object' || Array.isArray(camada) || Object.keys(camada).length === 0) return role;
-  const locais: Record<string, Record<string, AccessLevel>> = {};
-  Object.entries(role.permissions_local ?? {}).forEach(([l, m]) => {
-    locais[l] = m && typeof m === 'object' ? { ...m, ...camada } : m;
-  });
-  return { ...role, permissions: { ...(role.permissions ?? {}), ...camada }, permissions_local: locais };
-}
-
-/* ── Restrição por local ─────────────────────────────────────────────────────
- * Quem opera só em locais que não incluem LOCAL_ACESSO_COMPLETO (app_users.local) só vê o
- * tab End-of-Term (e as suas permissões `end-of-term:*`), com o nível que a função já lhe
- * dá — esta regra só retira acesso, nunca o dá. Sem local definido (ou sem nenhum local
- * reconhecido) não há restrição: segue-se a função. Todas as contas devem ter local (o tab
- * Utilizadores assinala as que faltam). Administradores e exceções por email ficam de fora.
- * É uma regra da INTERFACE: a RLS da base de dados continua a seguir só a matriz de funções
- * (exceto o Marketing, ver marketing_local_ok).
- * ──────────────────────────────────────────────────────────────────────────── */
-export const LOCAL_ACESSO_COMPLETO = 'Aveiro';
-export const TAB_FORA_DO_LOCAL = 'end-of-term';
-
-export const restritoPeloLocal = (user: { local?: unknown } | null | undefined): boolean => {
-  const locais = locaisDoPerfil(user?.local);
-  return locais.length > 0 && !locais.includes(LOCAL_ACESSO_COMPLETO);
-};
-
-/** Este tab (ou permissão `tab:ação`) continua disponível a quem está fora do local?
- *  `tabsPorLocal`: tabs abertos a todos os locais com âmbito por linha na RLS
- *  (tabela app_tabs_por_local; ver getTabsPorLocal). */
-export const tabLivreForaDoLocal = (tab: string, tabsPorLocal: readonly string[] = []): boolean =>
-  tab === TAB_FORA_DO_LOCAL || tab.startsWith(`${TAB_FORA_DO_LOCAL}:`)
-  // Inserir viaturas: o âmbito já é o local da pessoa (RLS viaturas_local_ok).
-  || tab === 'demos:inserir-viaturas'
-  || tabsPorLocal.includes(tab.split(':')[0]);
-
-/* Tabs abertos fora de Aveiro, cada um limitado ao local da pessoa (função tabs_por_local,
- * migração 20261109211511). Sem a função (migração por aplicar): nenhum — a interface
- * mantém a regra antiga e nunca abre mais do que a base de dados abre. */
-export async function getTabsPorLocal(): Promise<string[]> {
-  const { data, error } = await supabase.rpc('tabs_por_local');
-  if (error || !Array.isArray(data)) return [];
-  return (data as unknown[]).filter((t): t is string => typeof t === 'string');
-}
-
-/* ── Matriz função × local ───────────────────────────────────────────────────
- * Cada função tem uma matriz de permissões por local (app_roles.permissions_local). O acesso
- * de uma pessoa é o MÁXIMO dos níveis dos seus locais; sem nenhum local reconhecido, vale a
- * matriz base (app_roles.permissions). Um local sem entrada na função segue a regra anterior
- * à matriz por local (Aveiro: a matriz base; os outros: só o End-of-Term e os tabs por local),
- * de modo que nada muda até um administrador editar o local. Espelha role_tab_level (SQL).
- * ──────────────────────────────────────────────────────────────────────────── */
 const RANK: Record<AccessLevel, number> = { none: 0, view: 1, edit: 2 };
 
 const nivel = (v: unknown): AccessLevel => (v === 'view' || v === 'edit' ? v : 'none');
-
-/** Permissões que a regra anterior dava a um local sem entrada na função. */
-export function permissoesDoLocalLegado(
-  perms: Record<string, AccessLevel> | undefined, local: string, tabsPorLocal: readonly string[] = [],
-): Record<string, AccessLevel> {
-  if (local === LOCAL_ACESSO_COMPLETO) return { ...(perms ?? {}) };
-  const out: Record<string, AccessLevel> = {};
-  Object.entries(perms ?? {}).forEach(([k, v]) => { if (tabLivreForaDoLocal(k, tabsPorLocal)) out[k] = v; });
-  return out;
-}
-
-/** Matriz efetiva de uma função num local (a guardada, ou a derivada da regra anterior). */
-export function permissoesDoLocal(role: AppRole | null | undefined, local: string, tabsPorLocal: readonly string[] = []): Record<string, AccessLevel> {
-  if (!role) return {};
-  const guardada = role.permissions_local?.[local];
-  return guardada && typeof guardada === 'object' ? guardada : permissoesDoLocalLegado(role.permissions, local, tabsPorLocal);
-}
 
 /** Equipa conhecida? Senão vale a coluna "sem equipa" (espelha role_tab_level_matriz, SQL). */
 /** Manter sincronizada com EQUIPAS (cartao-go.ts) e app_equipas() (SQL). */
@@ -318,25 +234,12 @@ export function permissoesDaEquipa(role: AppRole, equipa: string | null | undefi
   return out;
 }
 
-/** Nível que a função dá a quem opera nestes locais (canónicos) neste tab/permissão. */
+/** Nível que o perfil dá a quem opera nestes locais (canónicos), na equipa da conta, neste tab/permissão. */
 export function nivelDaFuncao(
   role: AppRole | null | undefined, locais: readonly string[], tab: string,
-  opts: { tabsPorLocal?: readonly string[]; comExcecao?: boolean; equipa?: string | null } = {},
+  opts: { equipa?: string | null } = {},
 ): AccessLevel {
-  role = funcaoDaEquipa(role, opts.equipa);
-  if (!role) return 'none';
-  if (role.modelo_matriz) return nivelMatriz(role, locais, opts.equipa, tab);
-  if (locais.length === 0) return nivel(role.permissions?.[tab]);
-  let best: AccessLevel = 'none';
-  for (const l of locais) {
-    const guardada = role.permissions_local?.[l];
-    let v: AccessLevel;
-    if (guardada && typeof guardada === 'object') v = nivel(guardada[tab]);
-    // Sem entrada: regra anterior (uma exceção por email também abre o tab à função).
-    else v = l === LOCAL_ACESSO_COMPLETO || opts.comExcecao || tabLivreForaDoLocal(tab, opts.tabsPorLocal) ? nivel(role.permissions?.[tab]) : 'none';
-    if (RANK[v] > RANK[best]) best = v;
-  }
-  return best;
+  return role ? nivelMatriz(role, locais, opts.equipa, tab) : 'none';
 }
 
 export interface AppUser {
@@ -356,19 +259,9 @@ export interface AppUser {
 /* ── Leitura (autenticado) ────────────────────────────────────────────────── */
 
 export async function listRoles(): Promise<AppRole[]> {
-  // Das colunas mais recentes para as mais antigas: uma coluna em falta (42703) = migração por aplicar,
-  // lê-se o que existe, como antes.
-  const colunas = [
-    'name, is_admin, permissions, permissions_local, permissions_equipa, permissions_matriz, modelo_matriz',
-    'name, is_admin, permissions, permissions_local, permissions_equipa',
-    'name, is_admin, permissions',
-  ];
-  for (const cols of colunas) {
-    const { data, error } = await supabase.from('app_roles').select(cols).order('name', { ascending: true });
-    if (!error) return (data ?? []) as unknown as AppRole[];
-    if ((error as { code?: string }).code !== '42703') throw error;
-  }
-  return [];
+  const { data, error } = await supabase.from('app_roles').select('name, is_admin, permissions_matriz').order('name', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as unknown as AppRole[];
 }
 
 /* Administrador da plataforma (email em platform_admins, via RPC). */
@@ -505,21 +398,6 @@ export async function deleteUser(id: number | string): Promise<void> {
   await invokeAdmin({ action: 'delete', id });
 }
 
-export async function saveRole(
-  name: string,
-  permissions: Record<string, AccessLevel>,
-  is_admin: boolean,
-  permissions_local?: Record<string, Record<string, AccessLevel>>,
-  permissions_equipa?: Record<string, Record<string, AccessLevel>>,
-): Promise<AppRole> {
-  const res = await invokeAdmin<{ role: AppRole }>({
-    action: 'save_role', name, permissions, is_admin,
-    ...(permissions_local ? { permissions_local } : {}),
-    ...(permissions_equipa ? { permissions_equipa } : {}),
-  });
-  return res.role;
-}
-
 const ERROS_PERFIL: Record<string, string> = {
   sem_acesso: 'Só os administradores podem alterar perfis.',
   nome_em_falta: 'Nome do perfil em falta.',
@@ -527,7 +405,6 @@ const ERROS_PERFIL: Record<string, string> = {
   nome_repetido: 'Já existe uma função com esse nome.',
   perfil_inexistente: 'Perfil não encontrado.',
   perfil_admin: 'Não é possível alterar um perfil de administrador.',
-  perfil_por_migrar: 'Este perfil ainda está no modelo antigo: aplica primeiro a migração 20261124100000 no Supabase.',
   matriz_invalida: 'Matriz de permissões inválida.',
   nivel_invalido: 'Nível de acesso inválido.',
 };
@@ -542,27 +419,16 @@ export async function saveRoleMatriz(name: string, matriz: Matriz): Promise<void
   }));
   const { error } = await supabase.rpc('guardar_perfil', { p_nome: name, p_matriz: limpa as unknown as Json });
   if (error) {
-    if ((error as { code?: string }).code === 'PGRST202') throw new Error('Falta aplicar a migração 20261124100000 no Supabase.');
+    if ((error as { code?: string }).code === 'PGRST202') throw new Error('Falta aplicar a migração de permissões no Supabase.');
     throw erroPerfil(error);
   }
 }
 
-/* Renomeia uma função: os utilizadores que a têm passam para o novo nome. */
+/* Renomeia um perfil: as contas que o têm passam para o novo nome (função renomear_perfil). */
 export async function renameRole(name: string, newName: string): Promise<void> {
   const { error } = await supabase.rpc('renomear_perfil', { p_nome: name, p_novo: newName });
   if (!error) return;
-  if ((error as { code?: string }).code === 'PGRST202') {
-    // Migração por aplicar: usa-se a edge function (só conhece o modelo antigo).
-    try {
-      await invokeAdmin<{ role: AppRole }>({ action: 'rename_role', name, new_name: newName });
-      return;
-    } catch (e) {
-      if (e instanceof Error && e.message === 'Ação desconhecida.') {
-        throw new Error('Falta publicar a versão nova da função admin-users no Supabase (supabase functions deploy admin-users).');
-      }
-      throw e;
-    }
-  }
+  if ((error as { code?: string }).code === 'PGRST202') throw new Error('Falta aplicar a migração de permissões no Supabase.');
   throw erroPerfil(error);
 }
 

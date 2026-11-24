@@ -24,7 +24,7 @@ const FORA_DA_MATRIZ_DE_PROPOSITO = ['database', 'emprestimos', 'escala-repsol',
 /* Tabs que TÊM de ser atribuíveis (pedido explícito do negócio): não podem sair da matriz. */
 const OBRIGATORIOS_NA_MATRIZ = ['painel', 'multas', 'marketing', 'objetivos', 'end-of-term', 'demos', 'lavagem'];
 
-const roles: AppRole[] = [{ name: 'Comercial', is_admin: false, modelo_matriz: true, permissions: {}, permissions_matriz: {} }];
+const roles: AppRole[] = [{ name: 'Comercial', is_admin: false, permissions_matriz: {} }];
 
 describe('matriz de permissões', () => {
   it('só ficam fora da matriz os tabs listados de propósito', () => {

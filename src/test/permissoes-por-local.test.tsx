@@ -12,10 +12,10 @@ vi.mock('@/lib/permissions', async orig => ({ ...(await orig<typeof import('@/li
 import { RolesPanel } from '@/components/users/RolesPanel';
 
 const roles: AppRole[] = [
-  { name: 'Comercial', is_admin: false, modelo_matriz: true, permissions: {},
+  { name: 'Comercial', is_admin: false,
     permissions_matriz: { Aveiro: { 'BMW VN': { retails: 'view', funil: 'edit' }, _: { retails: 'view' } }, Porto: { 'BMW VN': { funil: 'view' } } } },
-  { name: 'Lavador', is_admin: false, modelo_matriz: true, permissions: {}, permissions_matriz: { Aveiro: { _: { lavagem: 'view', 'lavagem:iniciar': 'edit' } } } },
-  { name: 'Chefe', is_admin: true, permissions: {} },
+  { name: 'Lavador', is_admin: false, permissions_matriz: { Aveiro: { _: { lavagem: 'view', 'lavagem:iniciar': 'edit' } } } },
+  { name: 'Chefe', is_admin: true },
 ];
 const gente: AppUser[] = [
   { id: '1', nome: 'Ana', email: 'ana@x.pt', perfil: 'Comercial', local: ['Porto'], negocio: null, marca: null, equipa: 'BMW VN' },
@@ -85,11 +85,5 @@ describe('Matriz de um perfil: Local → Equipa → Tabs', () => {
     expect(screen.queryByRole('button', { name: /Criar e iniciar · Aveiro/ })).toBeNull();
     fireEvent.click(screen.getByRole('checkbox', { name: /Permissões finas/ }));
     expect(screen.getAllByRole('button', { name: /Criar e iniciar · Aveiro · Sem equipa: Edição/ }).length).toBe(1);
-  });
-
-  it('com perfis ainda no modelo antigo pede a migração e não deixa editar', () => {
-    montar([roles[0], { name: 'Velho', is_admin: false, permissions: { retails: 'view' } }]);
-    expect(screen.getByText(/Falta aplicar a migração das permissões/)).toBeTruthy();
-    expect(screen.queryByRole('combobox', { name: 'Perfil' })).toBeNull();
   });
 });

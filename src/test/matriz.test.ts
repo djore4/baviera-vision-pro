@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { definir, copiarLocal, iguais, limpa, proximoNivel, nivelMaximo } from '@/lib/matriz';
-import { nivelDaFuncao, nivelMatriz, permissoesDaEquipa, funcaoDaEquipa, EQUIPAS_DA_MATRIZ, type AppRole, type Matriz } from '@/lib/permissions';
+import { nivelDaFuncao, nivelMatriz, permissoesDaEquipa, EQUIPAS_DA_MATRIZ, type AppRole, type Matriz } from '@/lib/permissions';
 import { EQUIPAS } from '@/lib/cartao-go';
 
 describe('operações sobre a matriz', () => {
@@ -34,14 +34,12 @@ describe('operações sobre a matriz', () => {
 });
 
 describe('motor da matriz (espelha role_tab_level_matriz)', () => {
-  const role: AppRole = { name: 'V', is_admin: false, modelo_matriz: true, permissions: {},
+  const role: AppRole = { name: 'V', is_admin: false,
     permissions_matriz: {
       Aveiro: { 'BMW VN': { retails: 'edit', funil: 'edit' }, _: { retails: 'view' } },
       Porto: { 'BMW VN': { retails: 'view' }, 'BMW VU': { stock: 'edit' } },
       _: { _: { wip: 'view' } },
-    },
-    // lixo do modelo antigo que já não conta
-    permissions_local: { Porto: { funil: 'edit' } }, permissions_equipa: { 'BMW VN': { stock: 'edit' } } };
+    } };
   it('cada célula manda; sem equipa ou equipa desconhecida = coluna "_"; sem local = local "_"', () => {
     expect(nivelMatriz(role, ['Aveiro'], 'BMW VN', 'retails')).toBe('edit');
     expect(nivelMatriz(role, ['Aveiro'], null, 'retails')).toBe('view');
@@ -56,9 +54,9 @@ describe('motor da matriz (espelha role_tab_level_matriz)', () => {
     expect(nivelDaFuncao(role, ['Porto', 'Aveiro'], 'retails', { equipa: 'BMW VN' })).toBe('edit');
     expect(nivelDaFuncao(role, ['Porto'], 'stock', { equipa: 'BMW VN' })).toBe('none');
   });
-  it('funcaoDaEquipa devolve os tabs da equipa em qualquer local', () => {
+  it('permissoesDaEquipa devolve os tabs da equipa em qualquer local', () => {
     expect(permissoesDaEquipa(role, 'BMW VN')).toEqual({ retails: 'edit', funil: 'edit' });
-    expect(funcaoDaEquipa(role, 'BMW VU')?.permissions).toEqual({ stock: 'edit' });
+    expect(permissoesDaEquipa(role, 'BMW VU')).toEqual({ stock: 'edit' });
   });
   it('as equipas da matriz são as da plataforma', () => {
     expect([...EQUIPAS_DA_MATRIZ]).toEqual([...EQUIPAS]);
