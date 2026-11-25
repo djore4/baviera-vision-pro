@@ -58,8 +58,6 @@ const ALL_TABS: TabDef[] = [
   { key: 'carteira', label: 'Carteira', path: '/carteira', area: 'vn' },
   { key: 'end-of-term', label: 'End-of-Term', path: '/end-of-term', area: 'vn' },
   { key: 'ficha-margem', label: 'Ficha Margem', path: '/ficha-margem', area: 'vn' },
-  // Oportunidades de contacto de uma campanha: o admin importa e delega; o vendedor acompanha as suas.
-  { key: 'campanha-i3', label: 'Campanha i3', path: '/campanha-i3', area: 'vn' },
   { key: 'escala', label: 'Escala', path: '/escala', area: 'vn' },
   { key: 'vendedores', label: 'Performance', path: '/vendedores', area: 'vn' },
   // Visão do vendedor face aos colegas, em todos os KPIs. Só administradores "para já":
