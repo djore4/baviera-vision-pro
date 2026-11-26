@@ -9,6 +9,7 @@ import {
 import { client } from '@/clients';
 import { eotAccountBlocked } from '@/lib/eot-access';
 import { locaisDoPerfil } from '@/lib/locations';
+import { ViewAsBanner } from '@/components/ViewAsBanner';
 
 /* Tabs restritos a administradores (fora da matriz de funções). */
 const ADMIN_ONLY_TABS = new Set(ADMIN_ONLY_TAB_KEYS);
@@ -186,18 +187,25 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 /* Guarda de rota: exige, pelo menos, acesso de consulta ao tab.
  * Se não houver acesso, encaminha para o primeiro tab acessível. */
 export function RequireTab({ tab, children }: { tab: string; children: React.ReactNode }) {
-  const { canView } = usePermissions();
+  const { canView, viewingAs } = usePermissions();
   if (canView(tab)) return <>{children}</>;
 
   const target = TABS.find(t => canView(t.key));
   if (!target) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 text-center">
-        <div className="max-w-sm space-y-2">
-          <h1 className="text-lg font-semibold">Sem acesso</h1>
-          <p className="text-sm text-muted-foreground">
-            O seu perfil não tem acesso a nenhuma área. Contacte um administrador.
-          </p>
+      <div className="min-h-screen flex flex-col">
+        {/* Em "ver como", é a faixa que permite sair/mudar de utilizador; sem ela o
+            administrador ficava preso neste ecrã ao simular uma conta sem acesso. */}
+        <ViewAsBanner />
+        <div className="flex flex-1 items-center justify-center p-6 text-center">
+          <div className="max-w-sm space-y-2">
+            <h1 className="text-lg font-semibold">Sem acesso</h1>
+            <p className="text-sm text-muted-foreground">
+              {viewingAs
+                ? 'O utilizador simulado não tem acesso a nenhuma área.'
+                : 'O seu perfil não tem acesso a nenhuma área. Contacte um administrador.'}
+            </p>
+          </div>
         </div>
       </div>
     );
