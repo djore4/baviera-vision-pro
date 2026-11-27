@@ -69,6 +69,9 @@ const ALL_TABS: TabDef[] = [
   // Multas de equipa. 'view': consulta; 'edit': lança multas. Gerir o catálogo, reiniciar o
   // ciclo e apagar multas lançadas é só do administrador (UI e RLS: migração multas_gestao_admin).
   { key: 'multas', label: 'Multas', path: '/multas', area: 'vn' },
+  // Brincadeira: o Bimby, boneco de cartão que repete em voz alta (e à maluca) o que se escreve.
+  // Sem dados nem base de dados; acesso pela matriz de funções.
+  { key: 'bimby', label: 'Bimby', path: '/bimby', area: 'vn' },
   // ── Vendas VU (em desenvolvimento) ──────────────────────────────────────────
   { key: 'wip', label: 'WIP', path: '/wip', area: 'vu' },
   { key: 'funil-vu', label: 'Funil', path: '/funil-vu', area: 'vu' },

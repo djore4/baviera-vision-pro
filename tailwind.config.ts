@@ -113,6 +113,30 @@ extend: {
           "60%": { transform: "translateX(-2px) rotate(-6deg)" },
           "80%": { transform: "translateX(2px) rotate(6deg)" },
         },
+        // Bimby (boneco de cartão do tab VN).
+        "bimby-parado": {
+          "0%,100%": { transform: "rotate(-1deg)" },
+          "50%": { transform: "rotate(1deg)" },
+        },
+        "bimby-fala": {
+          "0%,100%": { transform: "rotate(-3deg) translateY(0)" },
+          "25%": { transform: "rotate(2deg) translateY(-6px)" },
+          "50%": { transform: "rotate(3deg) translateY(0)" },
+          "75%": { transform: "rotate(-2deg) translateY(-4px)" },
+        },
+        "bimby-braco-e": {
+          "0%,100%": { transform: "rotate(0)" },
+          "50%": { transform: "rotate(-28deg)" },
+        },
+        "bimby-braco-d": {
+          "0%,100%": { transform: "rotate(0)" },
+          "50%": { transform: "rotate(28deg)" },
+        },
+        "bimby-olhos": {
+          "0%,100%": { transform: "translate(0,0)" },
+          "25%": { transform: "translate(-3px,2px)" },
+          "75%": { transform: "translate(3px,-2px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -120,6 +144,11 @@ extend: {
         "fade-in": "fade-in 0.3s ease-out",
         "turbo-swipe": "turbo-swipe 1.5s ease-out",
         vroom: "vroom 0.5s ease-in-out",
+        "bimby-parado": "bimby-parado 3s ease-in-out infinite",
+        "bimby-fala": "bimby-fala 0.45s ease-in-out infinite",
+        "bimby-braco-e": "bimby-braco-e 0.5s ease-in-out infinite",
+        "bimby-braco-d": "bimby-braco-d 0.6s ease-in-out infinite",
+        "bimby-olhos": "bimby-olhos 0.7s ease-in-out infinite",
       },
     },
   },

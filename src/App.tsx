@@ -31,6 +31,7 @@ import LavagemPage from "./pages/LavagemPage";
 import InstalacoesPage from "./pages/InstalacoesPage";
 import ProdutoPage from "./pages/ProdutoPage";
 import MarketingPage from "./pages/MarketingPage";
+import BimbyPage from "./pages/BimbyPage";
 import SegurosPage from "./pages/SegurosPage";
 import CcgoPage from "./pages/CcgoPage";
 import SugestoesPage from "./pages/SugestoesPage";
@@ -115,6 +116,7 @@ const App = () => (
               <Route path="/ficha-margem" element={tab('ficha-margem', <FichaMargemPage />)} />
               <Route path="/emprestimos" element={tab('emprestimos', <EmprestimosPage />)} />
               <Route path="/multas" element={tab('multas', <MultasPage />)} />
+              <Route path="/bimby" element={tab('bimby', <BimbyPage />)} />
               <Route path="/dados" element={tab('dados', <DadosPage />)} />
               <Route path="/database" element={tab('database', <DatabasePage />)} />
               <Route path="/demos" element={tab('demos', <DemosPage />)} />
