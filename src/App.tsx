@@ -30,6 +30,7 @@ import VendedoresPage from "./pages/VendedoresPage";
 import LavagemPage from "./pages/LavagemPage";
 import InstalacoesPage from "./pages/InstalacoesPage";
 import ProdutoPage from "./pages/ProdutoPage";
+import ContratosPage from "./pages/ContratosPage";
 import MarketingPage from "./pages/MarketingPage";
 import BimbyPage from "./pages/BimbyPage";
 import SegurosPage from "./pages/SegurosPage";
@@ -125,6 +126,7 @@ const App = () => (
               <Route path="/lavagem" element={tab('lavagem', <LavagemPage />)} />
               <Route path="/instalacoes" element={tab('instalacoes', <InstalacoesPage />)} />
               <Route path="/produto" element={tab('produto', <ProdutoPage />)} />
+              <Route path="/contratos" element={tab('contratos', <ContratosPage />)} />
               <Route path="/marketing" element={tab('marketing', <MarketingPage />)} />
               <Route path="/seguros" element={tab('seguros', <SegurosPage />)} />
               <Route path="/ccgo" element={tab('ccgo', <CcgoPage />)} />

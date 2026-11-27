@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, CalendarClock, Filter, Calculator, Users, Droplets, Building2, Package, UserCog, Archive, Target, Car, CarFront, ClipboardList, Handshake, Lightbulb, ScrollText, Sparkles, ChevronDown, Coins, ShieldCheck, CreditCard, LayoutDashboard, Smile, type LucideIcon } from 'lucide-react';
+import { BarChart3, TrendingUp, Briefcase, Menu, X, Database, CalendarDays, CalendarClock, Filter, Calculator, Users, Droplets, Building2, Package, UserCog, Archive, Target, Car, CarFront, ClipboardList, Handshake, Lightbulb, ScrollText, Sparkles, ChevronDown, Coins, ShieldCheck, CreditCard, LayoutDashboard, Smile, Wrench, type LucideIcon } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { useProspec } from '@/contexts/ProspecContext';
@@ -39,6 +39,7 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   lavagem: Droplets,
   instalacoes: Building2,
   produto: Package,
+  contratos: Wrench,
   marketing: Sparkles,
   seguros: ShieldCheck,
   ccgo: CreditCard,

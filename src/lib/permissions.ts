@@ -85,6 +85,9 @@ const ALL_TABS: TabDef[] = [
   { key: 'objetivos', label: 'Objetivos', path: '/objetivos', area: 'apv' },
   // Catálogo BMW (dados técnicos e opcionais), migrado da plataforma Caetano.
   { key: 'produto', label: 'Produto', path: '/produto', area: 'apv' },
+  // Tabelas de preços dos contratos de manutenção (BSI/MSI) e da extensão de garantia, para as
+  // equipas comerciais consultarem. Só leitura, sem base de dados: 'view' chega.
+  { key: 'contratos', label: 'Contratos', path: '/contratos', area: 'apv' },
   // Linha do tempo dos eventos de marketing. 'view': consulta e gere só os seus convidados;
   // 'edit': gere eventos, todos os convidados e o orçamento (RLS: migração marketing_acessos).
   { key: 'marketing', label: 'Marketing', path: '/marketing', area: 'apv' },
